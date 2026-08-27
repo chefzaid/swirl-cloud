@@ -48,9 +48,11 @@ Homepage is the single entry point for every installed application, platform
 tool, internal data service, observability component, security tool, and
 Kubernetes system service. Public entries are clickable; internal-only entries
 show their purpose and live Kubernetes status without exposing them publicly.
-The `devapp` hostname and catalog entry are published here, but its Deployment,
-Ingress, Jenkins pipeline, and Argo CD application remain owned by the separate
-`devapp` repository.
+The DevApp hostname, shared `apps` namespace, registry credentials, and catalog
+entry are prepared here, but its Deployment, Ingress, Jenkins pipeline, and
+Argo CD application remain owned by the separate `devapp` repository. Odoo is
+deployed into the same `apps` namespace by this repository. DevApp manifests in
+that repository must also target `apps`.
 
 ## Service dashboard
 
@@ -69,7 +71,7 @@ Cluster workloads use the private `swirlit.internal` DNS zone. CoreDNS maps ever
 preserving additional labels for headless services such as
 `kafka-controller-0.kafka-controller.swirlit.internal`. Curated aliases map
 `user-app.swirlit.internal`, `order-app.swirlit.internal`, and
-`devapp.swirlit.internal` into the `devapp` namespace, and
+`devapp.swirlit.internal` into the `apps` namespace, and
 `longhorn.swirlit.internal` into `longhorn-system`.
 
 The zone is cluster-only: it is not published by Cloudflare and is not expected
@@ -99,12 +101,15 @@ For a new cluster, run the guided installer on the future control-plane host:
 ./install-control-plane.sh
 ```
 
-It asks which features to install and, when workers are selected, starts the
-vRack or Tailscale prerequisite wizard before any UFW change. Each wizard shows
-the exact account page, pauses while you complete the manual account step,
-collects secrets with hidden input, checks the account read-only, and resumes.
-Nothing is persisted. `./install-control-plane.sh --yes` is the non-interactive
-path and therefore requires all selected transport secrets and settings as
+It first asks whether to install `infra` only or `infra + apps`. The apps choice
+lists DevApp (namespace and platform integration) and Odoo (the ERP/CRM workload).
+It then asks which infrastructure features to install and, when workers are
+selected, starts the vRack or Tailscale prerequisite wizard before any UFW
+change. Each wizard shows the exact account page, pauses while you complete the
+manual account step, collects secrets with hidden input, checks the account
+read-only, and resumes. Nothing is persisted. `./install-control-plane.sh --yes`
+defaults to `infra + apps`; set `INSTALL_SCOPE=infra` for an infrastructure-only
+non-interactive run. Selected transport secrets and settings are supplied as
 environment variables.
 
 ## Adding worker nodes
@@ -236,7 +241,7 @@ repository:
 | Kafka UI | Secret value | `kubectl get secret -n infra kafka-ui-auth-secret -o go-template='{{printf "%s:%s" (index .data "SPRING_SECURITY_USER_NAME" \| base64decode) (index .data "SPRING_SECURITY_USER_PASSWORD" \| base64decode)}}'` |
 | Keycloak | Secret value | `kubectl get secret -n infra keycloak-admin-secret -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' \| base64 -d` |
 | Nexus | `admin` | `kubectl exec -n infra deployment/nexus -- cat /nexus-data/admin.password` |
-| Odoo | `admin` | `kubectl get secret -n infra odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' \| base64 -d` |
+| Odoo | `admin` | `kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' \| base64 -d` |
 | Portainer | `admin` | `kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
 | SonarQube | `admin` | Initial password: `admin` |
 | Vault | Token login | `sudo cat /var/lib/bm-cluster/vault-bootstrap-token` |
@@ -286,17 +291,18 @@ Run Ansible from the control-plane repository checkout with its local inventory:
 ```bash
 ansible-playbook -i ansible/inventory ansible/deploy.yml
 ansible-playbook -i ansible/inventory ansible/deploy.yml -e server_exposure=local
-ansible-playbook -i ansible/inventory ansible/deploy.yml -e install_odoo=false
+ansible-playbook -i ansible/inventory ansible/deploy.yml -e install_apps=false
 ```
 
 Ansible uses the same release versions, ordered manifest inventories,
 dependencies, and readiness checks as the interactive installer. It reconciles
 all feature groups by default except Cloudflare. Feature switches are
 `install_longhorn`, `install_ingress`, `install_vault_stack`,
-`deploy_data_stores`, `deploy_platform_services`, `install_odoo`,
+`deploy_data_stores`, `deploy_platform_services`, `install_apps`, `install_odoo`,
 `install_descheduler`, and `install_argocd`. Dependencies are enabled
-automatically: platform services and Odoo require data stores; data stores
-require Vault and External Secrets; Cloudflare requires ingress.
+automatically: `install_apps=false` disables Odoo, platform services and Odoo
+require data stores, data stores require Vault and External Secrets, and
+Cloudflare requires ingress.
 
 Transport reconciliation is opt-in because it can change host networking. It
 always runs before K3s network binding and host UFW. Ansible does not pause for

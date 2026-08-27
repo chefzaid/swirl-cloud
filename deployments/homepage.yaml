@@ -117,23 +117,23 @@ data:
             icon: mdi-application-braces-outline
             href: https://devapp.swirlit.dev
             description: Public development application
-            namespace: devapp
+            namespace: apps
             podSelector: app=devapp-web
         - DevApp User API:
             icon: mdi-account-cog-outline
             description: Internal user microservice
-            namespace: devapp
+            namespace: apps
             podSelector: app=user-app
         - DevApp Order API:
             icon: mdi-cart-outline
             description: Internal order microservice
-            namespace: devapp
+            namespace: apps
             podSelector: app=order-app
         - Odoo:
             icon: odoo.png
             href: https://odoo.swirlit.dev
             description: ERP and CRM application
-            namespace: infra
+            namespace: apps
             podSelector: app=odoo
         - Keycloak:
             icon: keycloak.png

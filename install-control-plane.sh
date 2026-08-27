@@ -44,6 +44,7 @@ K3S_NETWORK_SCRIPT="$SCRIPT_DIR/scripts/configure-k3s-control-plane-network.sh"
 TAILSCALE_SCRIPT="$SCRIPT_DIR/scripts/configure-tailscale.sh"
 OVH_VRACK_SCRIPT="$SCRIPT_DIR/scripts/configure-ovh-vrack.sh"
 AUTO_APPROVE=false
+INSTALL_SCOPE="${INSTALL_SCOPE:-apps}"
 SERVER_EXPOSURE="${SERVER_EXPOSURE:-internet}"
 K3S_NODE_TRANSPORT="${K3S_NODE_TRANSPORT:-}"
 TAILSCALE_API_TOKEN="${TAILSCALE_API_TOKEN:-}"
@@ -160,6 +161,46 @@ ask_server_exposure() {
             return 0
         fi
         warn "Please answer 'internet' or 'local'."
+    done
+}
+
+normalize_install_scope() {
+    case "${1,,}" in
+        1|infra|infrastructure|infra-only)
+            printf 'infra\n'
+            ;;
+        2|apps|all|infra+apps)
+            printf 'apps\n'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+select_install_scope() {
+    local default_scope raw_answer normalized
+    default_scope="$(normalize_install_scope "$1")" || error "INSTALL_SCOPE must be infra or apps."
+
+    if [[ "$AUTO_APPROVE" == "true" ]]; then
+        printf '%s\n' "$default_scope"
+        return 0
+    fi
+
+    printf '%s\n' \
+        "Select the deployment scope:" \
+        "  1) infra only" \
+        "  2) infra + apps" \
+        "     - DevApp (namespace and platform integration; workloads are deployed from its own repository)" \
+        "     - Odoo (ERP/CRM)" >&2
+    while true; do
+        read -rp "Select 1 or 2 [$([[ "$default_scope" == "infra" ]] && printf 1 || printf 2)]: " raw_answer
+        raw_answer="${raw_answer:-$default_scope}"
+        if normalized="$(normalize_install_scope "$raw_answer")"; then
+            printf '%s\n' "$normalized"
+            return 0
+        fi
+        warn "Enter 1 for infra only or 2 for infra + apps." >&2
     done
 }
 
@@ -303,6 +344,16 @@ if [[ "$SERVER_EXPOSURE" == "internet" ]]; then
 else
     info "Local-only mode selected: enabling UFW and control-plane Lynis; skipping Fail2ban and CrowdSec."
 fi
+INSTALL_SCOPE="$(select_install_scope "$INSTALL_SCOPE")"
+if [[ "$INSTALL_SCOPE" == "apps" ]]; then
+    INSTALL_APPS=true
+    DEPLOY_ODOO=true
+    info "Infrastructure and apps selected: preparing DevApp integration and deploying Odoo."
+else
+    INSTALL_APPS=false
+    DEPLOY_ODOO=false
+    info "Infrastructure-only installation selected."
+fi
 
 if command -v k3s &>/dev/null; then
     warn "K3s detected: $(k3s --version | head -1)"
@@ -412,7 +463,6 @@ fi
 ask_with_default "Install/upgrade Vault + External Secrets and bootstrap secrets?" "Y" && INSTALL_VAULT_STACK=true || INSTALL_VAULT_STACK=false
 ask_with_default "Deploy/upgrade core data stores (Postgres, Kafka, Redis, MongoDB)?" "Y" && DEPLOY_DATA_STORES=true || DEPLOY_DATA_STORES=false
 ask_with_default "Deploy/upgrade platform services from the shared inventory?" "Y" && DEPLOY_PLATFORM_SERVICES=true || DEPLOY_PLATFORM_SERVICES=false
-ask_with_default "Deploy/upgrade Odoo (ERP/CRM)?" "Y" && DEPLOY_ODOO=true || DEPLOY_ODOO=false
 ask_with_default "Install/upgrade Descheduler addon resources (manual trigger only)?" "Y" && INSTALL_DESCHEDULER=true || INSTALL_DESCHEDULER=false
 ask_with_default "Install/upgrade ArgoCD?" "Y" && INSTALL_ARGOCD=true || INSTALL_ARGOCD=false
 
@@ -601,6 +651,10 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     step "Creating infra namespace..."
     kubectl create namespace infra --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    if [[ "$INSTALL_APPS" == "true" ]]; then
+        step "Creating the shared apps namespace for DevApp and Odoo..."
+        kubectl apply -f "$DEPLOY_DIR/apps-namespace.yaml" >/dev/null
+    fi
     step "Configuring the cluster-only $DEFAULT_INTERNAL_DNS_ZONE service aliases..."
     for manifest in "${FOUNDATION_MANIFEST_ARRAY[@]}"; do
         kubectl apply -f "$DEPLOY_DIR/$manifest"
@@ -617,6 +671,9 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             tls_domains+=("$label.$CLOUDFLARE_ZONE")
         done
         ensure_tls_secret infra swirlit-dev-tls "${tls_domains[@]}"
+        if [[ "$INSTALL_APPS" == "true" ]]; then
+            ensure_tls_secret apps swirlit-dev-tls "${tls_domains[@]}"
+        fi
     fi
 
     if [[ "$INSTALL_LONGHORN" == "true" ]]; then
@@ -728,7 +785,13 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         [[ -x "$NEXUS_REGISTRY_SCRIPT" ]] || error "Nexus registry configurator is not executable: $NEXUS_REGISTRY_SCRIPT"
         step "Configuring the private Nexus image registry and service accounts..."
         "$NEXUS_REGISTRY_SCRIPT"
-        for registry_secret in jenkins-builds/jenkins-registry-auth devapp/devapp-registry-auth; do
+        registry_secrets=(jenkins-builds/jenkins-registry-auth)
+        if [[ "$INSTALL_APPS" == "true" ]]; then
+            step "Preparing DevApp registry access in the apps namespace..."
+            kubectl apply -f "$DEPLOY_DIR/devapp-integration.yaml"
+            registry_secrets+=(apps/devapp-registry-auth)
+        fi
+        for registry_secret in "${registry_secrets[@]}"; do
             registry_namespace="${registry_secret%%/*}"
             registry_name="${registry_secret##*/}"
             kubectl wait --for=condition=Ready externalsecret/"$registry_name" \
@@ -751,10 +814,11 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     fi
 
     if [[ "$DEPLOY_ODOO" == "true" ]]; then
-        step "Deploying Odoo..."
+        step "Deploying Odoo in the apps namespace..."
         kubectl apply -f "$DEPLOY_DIR/odoo.yaml"
-        kubectl apply -f "$DEPLOY_DIR/ingress.yaml"
-        kubectl wait --for=condition=ready pod -l app=odoo -n infra \
+        kubectl wait --for=condition=Ready externalsecret/odoo-secret -n apps \
+            --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
+        kubectl wait --for=condition=ready pod -l app=odoo -n apps \
             --timeout="$PLATFORM_WAIT_TIMEOUT"
     fi
 
@@ -782,7 +846,7 @@ fi
 
 info ""
 info "============================================="
-info " Infrastructure installation complete!"
+info " Installation complete!"
 info "============================================="
 
 echo ""
@@ -813,7 +877,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     echo "  Kafka UI: kubectl get secret -n infra kafka-ui-auth-secret -o go-template='{{printf \"%s\" (index .data \"SPRING_SECURITY_USER_NAME\" | base64decode)}}:{{printf \"%s\" (index .data \"SPRING_SECURITY_USER_PASSWORD\" | base64decode)}}'"
     echo "  Portainer: username admin; password: kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d"
     if [[ "$DEPLOY_ODOO" == "true" ]]; then
-        echo "  Odoo:     username admin; password: kubectl get secret -n infra odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' | base64 -d"
+        echo "  Odoo:     username admin; password: kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' | base64 -d"
     fi
     echo "  Descheduler trigger: kubectl create -f deployments/descheduler-run-job.yaml"
     echo "  Add workers:          ./install-worker.sh"
@@ -825,4 +889,9 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     echo ""
     echo "Pod status:"
     kubectl get pods -n infra --no-headers 2>&1 | awk '{printf "  %-50s %s\n", $1, $2}'
+    if [[ "$INSTALL_APPS" == "true" ]]; then
+        echo ""
+        echo "App pod status:"
+        kubectl get pods -n apps --no-headers 2>&1 | awk '{printf "  %-50s %s\n", $1, $2}'
+    fi
 fi
