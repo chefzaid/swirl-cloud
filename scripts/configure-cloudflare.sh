@@ -407,7 +407,7 @@ access_app_name() {
 configure_access() {
     local organization_response organization_file idp_response idp_count otp_idp_id
     local idp_file policy_response policy_count policy_id policy_file update_response
-    local access_emails_json app_response app_count app_id app_file app_name fqdn label
+    local access_emails_json app_response app_count app_id app_file app_name fqdn label retired_label
     local current_fingerprint desired_fingerprint
     local configured_labels=" ${HOST_LABELS[*]} "
 
@@ -542,6 +542,22 @@ configure_access() {
                 info "Reconciled Access protection for $fqdn."
             fi
         fi
+    done
+
+    for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
+        fqdn="$retired_label.$ZONE_NAME"
+        app_response="$(cf_request GET "/accounts/$ACCOUNT_ID/access/apps?per_page=100")"
+        require_success "$app_response" "Reading retired Access applications"
+        mapfile -t retired_app_ids < <(
+            jq -r --arg domain "$fqdn" \
+                '.result[] | select(.domain == $domain and .type == "self_hosted") | .id' \
+                <<< "$app_response"
+        )
+        for app_id in "${retired_app_ids[@]}"; do
+            update_response="$(cf_request DELETE "/accounts/$ACCOUNT_ID/access/apps/$app_id")"
+            require_success "$update_response" "Deleting the retired Access application for $fqdn"
+            info "Deleted the retired Access application for $fqdn."
+        done
     done
 }
 
@@ -731,6 +747,16 @@ else
     HOST_LABELS=("${DEFAULT_HOST_LABELS[@]}")
 fi
 (( ${#HOST_LABELS[@]} > 0 )) || error "At least one public hostname is required."
+IFS=',' read -r -a RETIRED_HOST_LABELS <<< "${CLOUDFLARE_RETIRED_HOST_LABELS:-${DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS:-}}"
+
+configured_host_labels=" $(printf '%s ' "${HOST_LABELS[@]}")"
+for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
+    [[ -n "$retired_label" ]] || continue
+    [[ "$retired_label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || \
+        error "Invalid retired hostname label: $retired_label"
+    [[ "$configured_host_labels" != *" $retired_label "* ]] || \
+        error "Retired hostname $retired_label is also present in CLOUDFLARE_HOST_LABELS."
+done
 
 DNS_HOSTS=()
 if [[ "$PUBLISH_APEX" == "true" ]]; then
@@ -742,6 +768,22 @@ for label in "${HOST_LABELS[@]}"; do
 done
 
 step "Reconciling proxied DNS records"
+for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
+    [[ -n "$retired_label" ]] || continue
+    fqdn="$retired_label.$ZONE_NAME"
+    record_response="$(cf_request GET "/zones/$ZONE_ID/dns_records?name=$fqdn&per_page=100")"
+    require_success "$record_response" "DNS lookup for retired hostname $fqdn"
+    mapfile -t retired_record_ids < <(
+        jq -r '.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME") | .id' \
+            <<< "$record_response"
+    )
+    for record_id in "${retired_record_ids[@]}"; do
+        update_response="$(cf_request DELETE "/zones/$ZONE_ID/dns_records/$record_id")"
+        require_success "$update_response" "Deleting retired DNS record $fqdn"
+        info "Deleted retired DNS record $fqdn."
+    done
+done
+
 for fqdn in "${DNS_HOSTS[@]}"; do
     record_response="$(cf_request GET "/zones/$ZONE_ID/dns_records?name=$fqdn&per_page=100")"
     require_success "$record_response" "DNS lookup for $fqdn"
