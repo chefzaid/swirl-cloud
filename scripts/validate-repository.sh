@@ -278,6 +278,14 @@ else
     pass "Cloudflare Access hosts are a subset of published hosts"
 fi
 
+if grep -Fq 'configure_registry_bot_compatibility' "$REPOSITORY_ROOT/scripts/configure-cloudflare.sh" &&
+   grep -Fq 'Zone    -> Bot Management           -> Read' "$REPOSITORY_ROOT/scripts/configure-cloudflare.sh" &&
+   grep -Fq 'action_parameters:{phases:["http_request_sbfm"]}' "$REPOSITORY_ROOT/scripts/configure-cloudflare.sh"; then
+    pass "Cloudflare reconciliation preserves non-browser Registry API access"
+else
+    fail "Cloudflare reconciliation preserves non-browser Registry API access"
+fi
+
 sed -nE 's#.*href:[[:space:]]+https://([^/[:space:]]+).*#\1#p' "$K8S_ROOT/platform/homepage.yaml" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" 'index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |
     LC_ALL=C sort -u > "$TEMP_DIR/homepage-hosts"

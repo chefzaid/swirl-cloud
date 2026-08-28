@@ -80,6 +80,15 @@ uploads. Kubernetes API endpoints retain their canonical
 `kubernetes.default.svc` identity because that name is covered by the API server
 certificate.
 
+Public Docker clients also use `registry.swirlit.dev`. Cloudflare reconciliation
+keeps the hostname proxied but prevents browser-only bot challenges from
+intercepting the Registry API: basic Bot Fight Mode is disabled because it has
+no hostname exceptions, while Super Bot Fight Mode is skipped only for the
+Registry hostname. Custom WAF rules, rate limiting, strict TLS, and Cloudflare
+DDoS protection remain enabled. The setup token therefore needs `Bot Management
+Read` and `Bot Management Edit` zone permissions in addition to the permissions
+printed by the configurator.
+
 ### GitLab delivery
 
 The infrastructure repository lives at `infrastructure/bm-cluster` in GitLab.
