@@ -126,7 +126,18 @@ mapfile -t legacy_runner_ids < <(
 api_json GET "projects/$project_id/runners?type=project_type&per_page=100" > "$work_dir/runners.json"
 runner_id="$(jq -r --arg description "$RUNNER_DESCRIPTION" '.[] | select(.description==$description) | .id' "$work_dir/runners.json" | head -n 1)"
 
-if [[ -n "$runner_id" && -z "$runner_token" ]]; then
+if [[ -n "$runner_token" ]]; then
+  runner_token_status="$(curl --silent --show-error --request POST \
+    --output /dev/null --write-out '%{http_code}' \
+    --form-string "token=$runner_token" "$GITLAB_URL/api/v4/runners/verify")"
+  if [[ "$runner_token_status" != "200" ]]; then
+    info "The stored runner token is stale and will be replaced"
+    runner_token=""
+  fi
+fi
+
+if [[ -n "$runner_id" ]] &&
+   { [[ -z "$runner_token" ]] || (( ${#legacy_runner_ids[@]} > 0 )); }; then
   info "Resetting the stored token for GitLab runner $RUNNER_DESCRIPTION"
   runner_token="$(api_json POST "runners/$runner_id/reset_authentication_token" | jq -er '.token')"
 elif [[ -z "$runner_id" ]]; then
