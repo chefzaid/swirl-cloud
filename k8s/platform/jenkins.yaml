@@ -119,6 +119,7 @@ subjects:
     name: jenkins-controller
     namespace: infra
 
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
