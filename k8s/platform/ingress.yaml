@@ -11,9 +11,7 @@ spec:
   tls:
   - hosts:
     - keycloak.swirlit.dev
-    - jenkins.swirlit.dev
     - sonarqube.swirlit.dev
-    - nexus.swirlit.dev
     - argocd.swirlit.dev
     - grafana.swirlit.dev
     - kibana.swirlit.dev
@@ -34,16 +32,6 @@ spec:
             name: keycloak
             port:
               number: 8080
-  - host: jenkins.swirlit.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: jenkins
-            port:
-              number: 8080
   - host: sonarqube.swirlit.dev
     http:
       paths:
@@ -54,16 +42,6 @@ spec:
             name: sonarqube
             port:
               number: 9000
-  - host: nexus.swirlit.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: nexus
-            port:
-              number: 8081
   - host: argocd.swirlit.dev
     http:
       paths:
@@ -144,6 +122,36 @@ spec:
             name: portainer
             port:
               number: 9000
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-registry-ingress
+  namespace: infra
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "900"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "900"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - registry.swirlit.dev
+      secretName: swirlit-dev-tls
+  rules:
+    - host: registry.swirlit.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitlab-registry
+                port:
+                  number: 5050
 
 ---
 apiVersion: networking.k8s.io/v1

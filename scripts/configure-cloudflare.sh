@@ -394,11 +394,9 @@ access_app_name() {
         argocd) echo "Argo CD" ;;
         dbgate) echo "DBGate" ;;
         grafana) echo "Grafana" ;;
-        jenkins) echo "Jenkins" ;;
         kafka) echo "Kafka UI" ;;
         kibana) echo "Kibana" ;;
         longhorn) echo "Longhorn" ;;
-        nexus) echo "Nexus" ;;
         portainer) echo "Portainer" ;;
         sonarqube) echo "SonarQube" ;;
         vault) echo "Vault" ;;

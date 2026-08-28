@@ -1,0 +1,92 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+stages:
+  - validate
+  - verify
+
+default:
+  tags:
+    - bm-cluster
+  interruptible: true
+
+variables:
+  APK_CACHE_DIR: .cache/apk
+
+validate:repository:
+  stage: validate
+  image: "${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  cache:
+    key: bm-cluster-alpine-tools-v1
+    paths:
+      - .cache/apk/
+    policy: pull-push
+  before_script:
+    - mkdir -p "$APK_CACHE_DIR"
+    - apk add --cache-dir "$APK_CACHE_DIR" bash coreutils findutils git grep iproute2 jq openssl py3-yaml python3 shellcheck
+  script:
+    - bash scripts/validate-repository.sh
+
+verify:gitops:
+  stage: verify
+  image: "${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  cache:
+    key: bm-cluster-alpine-tools-v1
+    paths:
+      - .cache/apk/
+    policy: pull
+  before_script:
+    - mkdir -p "$APK_CACHE_DIR"
+    - apk add --cache-dir "$APK_CACHE_DIR" jq kubectl
+  script:
+    - |
+      deadline=$(( $(date +%s) + 900 ))
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        application="$(kubectl get application bm-cluster -n infra -o json 2>/dev/null || true)"
+        revision="$(printf '%s' "$application" | jq -r '.status.sync.revision // empty')"
+        sync="$(printf '%s' "$application" | jq -r '.status.sync.status // empty')"
+        health="$(printf '%s' "$application" | jq -r '.status.health.status // empty')"
+        if [[ "$revision" == "$CI_COMMIT_SHA" && "$sync" == "Synced" && "$health" == "Healthy" ]]; then
+          printf 'Argo CD reconciled bm-cluster at %s\n' "$revision"
+          exit 0
+        fi
+        sleep 10
+      done
+      printf 'Argo CD did not reconcile %s before the timeout\n' "$CI_COMMIT_SHA" >&2
+      kubectl get application bm-cluster -n infra -o yaml >&2 || true
+      exit 1
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+verify:delivery-platform:
+  stage: verify
+  image: "${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  cache:
+    key: bm-cluster-alpine-tools-v1
+    paths:
+      - .cache/apk/
+    policy: pull
+  before_script:
+    - mkdir -p "$APK_CACHE_DIR"
+    - apk add --cache-dir "$APK_CACHE_DIR" curl jq kubectl
+  script:
+    - curl --fail --silent --show-error http://gitlab.swirlit.internal/-/readiness >/dev/null
+    - curl --fail --silent --show-error http://prometheus.swirlit.internal:9090/-/ready >/dev/null
+    - curl --fail --silent --show-error http://grafana.swirlit.internal:3000/api/health | jq -e '.database == "ok"' >/dev/null
+    - curl --fail --silent --show-error http://elasticsearch.swirlit.internal:9200/_cluster/health | jq -e '.status == "green" or .status == "yellow"' >/dev/null
+    - test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://gitlab-registry.swirlit.internal:5050/v2/)" = "401"
+    - kubectl get configmap grafana-gitlab-delivery-dashboard -n infra >/dev/null
+    - |
+      curl --get --fail --silent --show-error \
+        --data-urlencode 'query=max(up{namespace="infra",app="gitlab"})' \
+        http://prometheus.swirlit.internal:9090/api/v1/query |
+        jq -e '.status == "success" and (.data.result[0].value[1] | tonumber) == 1' >/dev/null
+    - |
+      curl --get --fail --silent --show-error \
+        --data-urlencode 'q=kubernetes.pod_name:gitlab*' \
+        http://elasticsearch.swirlit.internal:9200/kubernetes-logs-*/_count |
+        jq -e '.count > 0' >/dev/null
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
