@@ -48,11 +48,9 @@ Homepage is the single entry point for every installed application, platform
 tool, internal data service, observability component, security tool, and
 Kubernetes system service. Public entries are clickable; internal-only entries
 show their purpose and live Kubernetes status without exposing them publicly.
-The DevApp hostname, shared `apps` namespace, registry credentials, and catalog
-entry are prepared here, but its Deployment, Ingress, Jenkins pipeline, and
-Argo CD application remain owned by the separate `devapp` repository. Odoo is
-deployed into the same `apps` namespace by this repository. DevApp manifests in
-that repository must also target `apps`.
+This repository owns Odoo in the shared `apps` namespace. Independently owned
+applications can publish dashboard entries through Kubernetes Ingress
+annotations without adding application-specific resources to this repository.
 
 ## Service dashboard
 
@@ -70,9 +68,8 @@ Cluster workloads use the private `swirlit.internal` DNS zone. CoreDNS maps ever
 `<name>.swirlit.internal` query to the same Service name in the `infra` namespace,
 preserving additional labels for headless services such as
 `kafka-controller-0.kafka-controller.swirlit.internal`. Curated aliases map
-`user-app.swirlit.internal`, `order-app.swirlit.internal`, and
-`devapp.swirlit.internal` into the `apps` namespace, and
-`longhorn.swirlit.internal` into `longhorn-system`.
+`longhorn.swirlit.internal` into `longhorn-system`; application-owned services
+use their canonical Kubernetes DNS names.
 
 The zone is cluster-only: it is not published by Cloudflare and is not expected
 to resolve on the public Internet or from ordinary host tools. K3s/containerd
@@ -102,7 +99,7 @@ For a new cluster, run the guided installer on the future control-plane host:
 ```
 
 It first asks whether to install `infra` only or `infra + apps`. The apps choice
-lists DevApp (namespace and platform integration) and Odoo (the ERP/CRM workload).
+deploys Odoo, the repository-owned ERP/CRM workload.
 It then asks which infrastructure features to install and, when workers are
 selected, starts the vRack or Tailscale prerequisite wizard before any UFW
 change. Each wizard shows the exact account page, pauses while you complete the
@@ -407,7 +404,7 @@ to the workflow's immutable action pins.
 | `k8s/base/` | Cluster namespaces, security baseline, host-policy record, and internal CoreDNS aliases |
 | `k8s/datastores/` | PostgreSQL, Kafka, Redis, and MongoDB resources |
 | `k8s/platform/` | Infrastructure services, observability, ingress, Vault integration, and bootstrap jobs |
-| `k8s/apps/` | Repository-owned application resources and shared app integrations |
+| `k8s/apps/` | Repository-owned application resources |
 | `k8s/addons/` | Optional cluster add-ons and their manually triggered jobs |
 | `ansible/` | Ansible deployment entry point |
 

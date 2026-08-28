@@ -5,9 +5,6 @@ metadata:
   namespace: kube-system
 data:
   swirlit.override: |
-    # Curated non-Infra aliases must precede the general Infra suffix rule.
-    rewrite stop name exact user-app.swirlit.internal. user-app.apps.svc.cluster.local. answer auto
-    rewrite stop name exact order-app.swirlit.internal. order-app.apps.svc.cluster.local. answer auto
-    rewrite stop name exact devapp.swirlit.internal. devapp-web.apps.svc.cluster.local. answer auto
+    # Cluster services outside Infra require exact aliases before the suffix rule.
     rewrite stop name exact longhorn.swirlit.internal. longhorn-frontend.longhorn-system.svc.cluster.local. answer auto
     rewrite stop name suffix .swirlit.internal. .infra.svc.cluster.local. answer auto

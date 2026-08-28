@@ -125,7 +125,7 @@
     - name: Validate the shared platform contract
       ansible.builtin.assert:
         that:
-          - platform_contract_version == '2'
+          - platform_contract_version == '3'
           - server_exposure_mode in ['internet', 'local']
         fail_msg: "The platform contract or server_exposure value is invalid."
 
@@ -475,12 +475,6 @@
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-nexus-registry.sh"
       when: platform_services_enabled
 
-    - name: Prepare DevApp registry access in the application namespace
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/apps/devapp-integration.yaml
-      register: devapp_integration_apply
-      changed_when: "'created' in devapp_integration_apply.stdout or 'configured' in devapp_integration_apply.stdout"
-      when: platform_services_enabled and apps_enabled
-
     - name: Wait for registry credentials
       ansible.builtin.command: >-
         kubectl wait --for=condition=Ready externalsecret/{{ item.name }}
@@ -489,13 +483,6 @@
         - {namespace: jenkins-builds, name: jenkins-registry-auth}
       changed_when: false
       when: platform_services_enabled
-
-    - name: Wait for DevApp registry credentials
-      ansible.builtin.command: >-
-        kubectl wait --for=condition=Ready externalsecret/devapp-registry-auth
-        -n {{ apps_namespace }} --timeout={{ external_secret_wait_timeout }}
-      changed_when: false
-      when: platform_services_enabled and apps_enabled
 
     - name: Wait for platform pods
       ansible.builtin.command: >-

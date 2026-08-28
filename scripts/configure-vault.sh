@@ -139,11 +139,11 @@ path "secret/metadata/infra/*" {
   capabilities = ["read", "list"]
 }
 
-path "secret/data/devapp/ci" {
+path "secret/data/apps/*" {
   capabilities = ["read"]
 }
 
-path "secret/metadata/devapp/ci" {
+path "secret/metadata/apps/*" {
   capabilities = ["read"]
 }
 EOF

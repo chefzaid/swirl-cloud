@@ -93,11 +93,6 @@ IFS=',' read -r -a EXTERNAL_SECRET_NAME_ARRAY <<< "$EXTERNAL_SECRET_NAMES"
 IFS=',' read -r -a DATASTORE_WAIT_APP_ARRAY <<< "$DATASTORE_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_APP_ARRAY <<< "$PLATFORM_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_DAEMONSET_ARRAY <<< "$PLATFORM_WAIT_DAEMONSETS"
-if [[ -n "${CLOUDFLARE_HOST_LABELS:-}" ]]; then
-    read -r -a CLOUDFLARE_HOST_LABEL_ARRAY <<< "$CLOUDFLARE_HOST_LABELS"
-else
-    IFS=',' read -r -a CLOUDFLARE_HOST_LABEL_ARRAY <<< "$DEFAULT_CLOUDFLARE_HOST_LABELS"
-fi
 
 for arg in "$@"; do
     case "$arg" in
@@ -191,7 +186,6 @@ select_install_scope() {
         "Select the deployment scope:" \
         "  1) infra only" \
         "  2) infra + apps" \
-        "     - DevApp (namespace and platform integration; workloads are deployed from its own repository)" \
         "     - Odoo (ERP/CRM)" >&2
     while true; do
         read -rp "Select 1 or 2 [$([[ "$default_scope" == "infra" ]] && printf 1 || printf 2)]: " raw_answer
@@ -348,7 +342,7 @@ INSTALL_SCOPE="$(select_install_scope "$INSTALL_SCOPE")"
 if [[ "$INSTALL_SCOPE" == "apps" ]]; then
     INSTALL_APPS=true
     DEPLOY_ODOO=true
-    info "Infrastructure and apps selected: preparing DevApp integration and deploying Odoo."
+    info "Infrastructure and apps selected: deploying Odoo."
 else
     INSTALL_APPS=false
     DEPLOY_ODOO=false
@@ -652,7 +646,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     step "Creating infra namespace..."
     kubectl create namespace infra --dry-run=client -o yaml | kubectl apply -f - >/dev/null
     if [[ "$INSTALL_APPS" == "true" ]]; then
-        step "Creating the shared apps namespace for DevApp and Odoo..."
+        step "Creating the shared application namespace..."
         kubectl apply -f "$K8S_DIR/base/apps-namespace.yaml" >/dev/null
     fi
     step "Configuring the cluster-only $DEFAULT_INTERNAL_DNS_ZONE service aliases..."
@@ -666,10 +660,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     if [[ "$CONFIGURE_CLOUDFLARE" != "true" && ( "$INSTALL_INGRESS" == "true" || "$INSTALL_VAULT_STACK" == "true" || "$DEPLOY_PLATFORM_SERVICES" == "true" || "$DEPLOY_ODOO" == "true" ) ]]; then
         step "Ensuring HTTPS TLS secret..."
-        tls_domains=("$CLOUDFLARE_ZONE")
-        for label in "${CLOUDFLARE_HOST_LABEL_ARRAY[@]}"; do
-            tls_domains+=("$label.$CLOUDFLARE_ZONE")
-        done
+        tls_domains=("$CLOUDFLARE_ZONE" "*.$CLOUDFLARE_ZONE")
         ensure_tls_secret infra swirlit-dev-tls "${tls_domains[@]}"
         if [[ "$INSTALL_APPS" == "true" ]]; then
             ensure_tls_secret apps swirlit-dev-tls "${tls_domains[@]}"
@@ -786,11 +777,6 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         step "Configuring the private Nexus image registry and service accounts..."
         "$NEXUS_REGISTRY_SCRIPT"
         registry_secrets=(jenkins-builds/jenkins-registry-auth)
-        if [[ "$INSTALL_APPS" == "true" ]]; then
-            step "Preparing DevApp registry access in the apps namespace..."
-            kubectl apply -f "$K8S_DIR/apps/devapp-integration.yaml"
-            registry_secrets+=(apps/devapp-registry-auth)
-        fi
         for registry_secret in "${registry_secrets[@]}"; do
             registry_namespace="${registry_secret%%/*}"
             registry_name="${registry_secret##*/}"

@@ -266,7 +266,6 @@ fi
 info "Checking public service inventories"
 csv_to_file "$DEFAULT_CLOUDFLARE_HOST_LABELS" "$TEMP_DIR/public-hosts"
 csv_to_file "$DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS" "$TEMP_DIR/access-hosts"
-csv_to_file "$EXTERNALLY_MANAGED_HOST_LABELS" "$TEMP_DIR/external-hosts"
 
 if [[ -s "$TEMP_DIR/access-hosts" ]] && [[ -n "$(comm -23 "$TEMP_DIR/access-hosts" "$TEMP_DIR/public-hosts")" ]]; then
     fail "Cloudflare Access hosts are a subset of published hosts"
@@ -279,11 +278,10 @@ sed -nE 's#.*href:[[:space:]]+https://([^/[:space:]]+).*#\1#p' "$K8S_ROOT/platfo
     LC_ALL=C sort -u > "$TEMP_DIR/homepage-hosts"
 compare_sets "$TEMP_DIR/public-hosts" "$TEMP_DIR/homepage-hosts" "Homepage contains every published cluster hostname"
 
-comm -23 "$TEMP_DIR/public-hosts" "$TEMP_DIR/external-hosts" > "$TEMP_DIR/local-public-hosts"
 sed -nE 's/^[[:space:]]*-[[:space:]]*host:[[:space:]]*([^[:space:]]+).*/\1/p' "${kubernetes_manifests[@]}" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" '$0 != zone && index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |
     LC_ALL=C sort -u > "$TEMP_DIR/ingress-hosts"
-compare_sets "$TEMP_DIR/local-public-hosts" "$TEMP_DIR/ingress-hosts" "repository-owned public hosts have matching Ingress resources"
+compare_sets "$TEMP_DIR/public-hosts" "$TEMP_DIR/ingress-hosts" "repository-owned public hosts have matching Ingress resources"
 
 info "Checking Kubernetes workload policy"
 image_failed=false
