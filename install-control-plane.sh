@@ -30,7 +30,7 @@ fi
 # shellcheck source=scripts/lib/transport-guide.sh
 source "$TRANSPORT_GUIDE_LIBRARY"
 
-DEPLOY_DIR="$SCRIPT_DIR/deployments"
+K8S_DIR="$SCRIPT_DIR/k8s"
 VAULT_BOOTSTRAP_SCRIPT="$SCRIPT_DIR/scripts/configure-vault.sh"
 SECURITY_HARDEN_SCRIPT="$SCRIPT_DIR/scripts/configure-node-security.sh"
 CLOUDFLARE_SCRIPT="$SCRIPT_DIR/scripts/configure-cloudflare.sh"
@@ -653,16 +653,16 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     kubectl create namespace infra --dry-run=client -o yaml | kubectl apply -f - >/dev/null
     if [[ "$INSTALL_APPS" == "true" ]]; then
         step "Creating the shared apps namespace for DevApp and Odoo..."
-        kubectl apply -f "$DEPLOY_DIR/apps-namespace.yaml" >/dev/null
+        kubectl apply -f "$K8S_DIR/base/apps-namespace.yaml" >/dev/null
     fi
     step "Configuring the cluster-only $DEFAULT_INTERNAL_DNS_ZONE service aliases..."
     for manifest in "${FOUNDATION_MANIFEST_ARRAY[@]}"; do
-        kubectl apply -f "$DEPLOY_DIR/$manifest"
+        kubectl apply -f "$K8S_DIR/$manifest"
     done
-    kubectl apply -f "$DEPLOY_DIR/security-baseline.yaml"
+    kubectl apply -f "$K8S_DIR/base/security-baseline.yaml"
 
     step "Publishing host security policy record..."
-    kubectl apply -f "$DEPLOY_DIR/host-security-config.yaml"
+    kubectl apply -f "$K8S_DIR/base/host-security-config.yaml"
 
     if [[ "$CONFIGURE_CLOUDFLARE" != "true" && ( "$INSTALL_INGRESS" == "true" || "$INSTALL_VAULT_STACK" == "true" || "$DEPLOY_PLATFORM_SERVICES" == "true" || "$DEPLOY_ODOO" == "true" ) ]]; then
         step "Ensuring HTTPS TLS secret..."
@@ -748,7 +748,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             --wait --timeout "$EXTERNAL_SECRETS_HELM_TIMEOUT"
 
         step "Applying unified Vault manifests (ingress, RBAC, and secret sync)..."
-        kubectl apply -f "$DEPLOY_DIR/vault.yaml"
+        kubectl apply -f "$K8S_DIR/platform/vault.yaml"
 
         kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 -n infra --timeout="$VAULT_WAIT_TIMEOUT"
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=external-secrets -n infra --timeout="$VAULT_WAIT_TIMEOUT"
@@ -766,7 +766,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     if [[ "$DEPLOY_DATA_STORES" == "true" ]]; then
         step "Deploying core data stores..."
         for manifest in "${DATASTORE_MANIFEST_ARRAY[@]}"; do
-            kubectl apply -f "$DEPLOY_DIR/$manifest"
+            kubectl apply -f "$K8S_DIR/$manifest"
         done
 
         for app in "${DATASTORE_WAIT_APP_ARRAY[@]}"; do
@@ -778,7 +778,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     if [[ "$DEPLOY_PLATFORM_SERVICES" == "true" ]]; then
         step "Deploying platform services..."
         for manifest in "${PLATFORM_MANIFEST_ARRAY[@]}"; do
-            kubectl apply -f "$DEPLOY_DIR/$manifest"
+            kubectl apply -f "$K8S_DIR/$manifest"
         done
 
         kubectl rollout status deployment/nexus -n infra --timeout="$NEXUS_WAIT_TIMEOUT"
@@ -788,7 +788,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         registry_secrets=(jenkins-builds/jenkins-registry-auth)
         if [[ "$INSTALL_APPS" == "true" ]]; then
             step "Preparing DevApp registry access in the apps namespace..."
-            kubectl apply -f "$DEPLOY_DIR/devapp-integration.yaml"
+            kubectl apply -f "$K8S_DIR/apps/devapp-integration.yaml"
             registry_secrets+=(apps/devapp-registry-auth)
         fi
         for registry_secret in "${registry_secrets[@]}"; do
@@ -807,7 +807,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
                 --timeout="$PLATFORM_WAIT_TIMEOUT"
         done
         for manifest in "${POST_DEPLOY_CREATE_MANIFEST_ARRAY[@]}"; do
-            created_resource="$(kubectl create -f "$DEPLOY_DIR/$manifest" -o name)"
+            created_resource="$(kubectl create -f "$K8S_DIR/$manifest" -o name)"
             kubectl wait --for=condition=complete "$created_resource" -n infra \
                 --timeout="$POST_DEPLOY_JOB_WAIT_TIMEOUT"
         done
@@ -815,7 +815,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     if [[ "$DEPLOY_ODOO" == "true" ]]; then
         step "Deploying Odoo in the apps namespace..."
-        kubectl apply -f "$DEPLOY_DIR/odoo.yaml"
+        kubectl apply -f "$K8S_DIR/apps/odoo.yaml"
         kubectl wait --for=condition=Ready externalsecret/odoo-secret -n apps \
             --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
         kubectl wait --for=condition=ready pod -l app=odoo -n apps \
@@ -824,7 +824,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     if [[ "$INSTALL_DESCHEDULER" == "true" ]]; then
         step "Installing Descheduler addon resources (manual-run mode)..."
-        kubectl apply -f "$DEPLOY_DIR/descheduler.yaml"
+        kubectl apply -f "$K8S_DIR/addons/descheduler.yaml"
     fi
 
     if [[ "$INSTALL_ARGOCD" == "true" ]]; then
@@ -879,7 +879,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     if [[ "$DEPLOY_ODOO" == "true" ]]; then
         echo "  Odoo:     username admin; password: kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' | base64 -d"
     fi
-    echo "  Descheduler trigger: kubectl create -f deployments/descheduler-run-job.yaml"
+    echo "  Descheduler trigger: kubectl create -f k8s/addons/descheduler-run-job.yaml"
     echo "  Add workers:          ./install-worker.sh"
     echo "  Worker join token:    sudo cat /var/lib/rancher/k3s/server/node-token"
     echo ""

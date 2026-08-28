@@ -82,7 +82,7 @@ canonical `kubernetes.default.svc` identity because that name is covered by the
 API server certificate.
 
 The catalog, icons, Kubernetes read-only status integration, Deployment,
-Service, and Ingress are defined together in `deployments/homepage.yaml`. Both
+Service, and Ingress are defined together in `k8s/platform/homepage.yaml`. Both
 the interactive installer and `ansible/deploy.yml` apply it automatically.
 
 ## Quick start
@@ -269,7 +269,7 @@ bootstrap applies a seven-day Elasticsearch lifecycle policy to bound disk use.
 Trigger the Descheduler manually:
 
 ```bash
-kubectl create -f deployments/descheduler-run-job.yaml
+kubectl create -f k8s/addons/descheduler-run-job.yaml
 kubectl get jobs -n infra -l app=descheduler -w
 ```
 
@@ -382,7 +382,10 @@ to the workflow's immutable action pins.
 
 | Path | Purpose |
 |---|---|
-| `config/platform.env` | Shared release, internal-DNS, manifest, readiness, public-host, and private-transport contract |
+| `config/platform.env` | Shared release, internal-DNS, manifest-path, readiness, public-host, and private-transport contract |
+| `config/apparmor/` | Host AppArmor policy installed on K3s nodes |
+| `config/multipath/` | Host multipath configuration required by Longhorn |
+| `config/systemd/` | Host services and timers installed by platform scripts |
 | `install-control-plane.sh` | Install or reconcile the K3s control plane and platform services |
 | `install-worker.sh` | Unified worker assistant for control-plane SSH enrollment or local self-join |
 | `scripts/add-k3s-workers.sh` | Internal multi-worker SSH enrollment implementation |
@@ -401,8 +404,11 @@ to the workflow's immutable action pins.
 | `scripts/lib/network.sh` | Shared RFC1918, Tailscale, CIDR, and interface validation |
 | `scripts/lib/transport-guide.sh` | Shared guided vRack/Tailscale account prerequisites and verification |
 | `scripts/validate-repository.sh` | Consistency checks and optional live server dry-run |
-| `deployments/coredns-custom.yaml` | Cluster-only `swirlit.internal` service aliases imported by K3s CoreDNS |
-| `deployments/` | Remaining Kubernetes resources |
+| `k8s/base/` | Cluster namespaces, security baseline, host-policy record, and internal CoreDNS aliases |
+| `k8s/datastores/` | PostgreSQL, Kafka, Redis, and MongoDB resources |
+| `k8s/platform/` | Infrastructure services, observability, ingress, Vault integration, and bootstrap jobs |
+| `k8s/apps/` | Repository-owned application resources and shared app integrations |
+| `k8s/addons/` | Optional cluster add-ons and their manually triggered jobs |
 | `ansible/` | Ansible deployment entry point |
 
 ## Security notes

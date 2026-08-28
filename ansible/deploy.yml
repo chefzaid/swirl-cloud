@@ -8,7 +8,7 @@
     infra_namespace: infra
     apps_namespace: apps
     repository_root: "{{ playbook_dir }}/.."
-    k8s_dir: "{{ repository_root }}/deployments"
+    k8s_dir: "{{ repository_root }}/k8s"
     platform_config_file: "{{ repository_root }}/config/platform.env"
 
     platform_contract_version: >-
@@ -125,7 +125,7 @@
     - name: Validate the shared platform contract
       ansible.builtin.assert:
         that:
-          - platform_contract_version == '1'
+          - platform_contract_version == '2'
           - server_exposure_mode in ['internet', 'local']
         fail_msg: "The platform contract or server_exposure value is invalid."
 
@@ -254,7 +254,7 @@
       changed_when: "'created' in namespace_apply.stdout or 'configured' in namespace_apply.stdout"
 
     - name: Ensure the shared application namespace exists
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/apps-namespace.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/base/apps-namespace.yaml
       register: apps_namespace_apply
       changed_when: "'created' in apps_namespace_apply.stdout or 'configured' in apps_namespace_apply.stdout"
       when: apps_enabled
@@ -280,7 +280,7 @@
       changed_when: "'not labeled' not in node_labels.stdout"
 
     - name: Apply Kubernetes admission and namespace security baseline
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/security-baseline.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/base/security-baseline.yaml
       register: security_baseline_apply
       changed_when: "'created' in security_baseline_apply.stdout or 'configured' in security_baseline_apply.stdout"
 
@@ -301,7 +301,7 @@
       when: host_security_enabled
 
     - name: Publish host security policy record to Kubernetes
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/host-security-config.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/base/host-security-config.yaml
       register: host_security_config_apply
       changed_when: "'created' in host_security_config_apply.stdout or 'configured' in host_security_config_apply.stdout"
 
@@ -410,7 +410,7 @@
       when: vault_stack_effective
 
     - name: Apply unified Vault resources
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/vault.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/platform/vault.yaml
       register: vault_resources_apply
       changed_when: "'created' in vault_resources_apply.stdout or 'configured' in vault_resources_apply.stdout"
       when: vault_stack_effective
@@ -476,7 +476,7 @@
       when: platform_services_enabled
 
     - name: Prepare DevApp registry access in the application namespace
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/devapp-integration.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/apps/devapp-integration.yaml
       register: devapp_integration_apply
       changed_when: "'created' in devapp_integration_apply.stdout or 'configured' in devapp_integration_apply.stdout"
       when: platform_services_enabled and apps_enabled
@@ -528,7 +528,7 @@
       when: platform_services_enabled
 
     - name: Deploy Odoo and its ingress
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/odoo.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/apps/odoo.yaml
       register: odoo_apply
       changed_when: "'created' in odoo_apply.stdout or 'configured' in odoo_apply.stdout"
       when: odoo_enabled
@@ -548,7 +548,7 @@
       when: odoo_enabled
 
     - name: Install Descheduler resources
-      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/descheduler.yaml
+      ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/addons/descheduler.yaml
       register: descheduler_apply
       changed_when: "'created' in descheduler_apply.stdout or 'configured' in descheduler_apply.stdout"
       when: descheduler_enabled
