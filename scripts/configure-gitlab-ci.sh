@@ -117,19 +117,27 @@ runner_token="$({ printf '%s\n' "$vault_token"; } | \
     vault kv get -field=runner_token secret/infra/gitlab 2>/dev/null || true
   ')"
 
-api_json GET "runners/all?type=instance_type&per_page=100" > "$work_dir/runners.json"
+api_json GET "runners/all?type=instance_type&per_page=100" > "$work_dir/legacy-runners.json"
+mapfile -t legacy_runner_ids < <(
+  jq -r --arg description "$RUNNER_DESCRIPTION" \
+    '.[] | select(.description==$description) | .id' "$work_dir/legacy-runners.json"
+)
+
+api_json GET "projects/$project_id/runners?type=project_type&per_page=100" > "$work_dir/runners.json"
 runner_id="$(jq -r --arg description "$RUNNER_DESCRIPTION" '.[] | select(.description==$description) | .id' "$work_dir/runners.json" | head -n 1)"
 
 if [[ -n "$runner_id" && -z "$runner_token" ]]; then
   info "Resetting the stored token for GitLab runner $RUNNER_DESCRIPTION"
   runner_token="$(api_json POST "runners/$runner_id/reset_authentication_token" | jq -er '.token')"
 elif [[ -z "$runner_id" ]]; then
-  info "Creating instance-scoped GitLab runner $RUNNER_DESCRIPTION"
+  info "Creating project-scoped GitLab runner $RUNNER_DESCRIPTION"
   api_json POST user/runners \
-    --form-string runner_type=instance_type \
+    --form-string runner_type=project_type \
+    --form-string "project_id=$project_id" \
     --form-string "description=$RUNNER_DESCRIPTION" \
     --form-string "tag_list=$RUNNER_TAGS" \
     --form-string run_untagged=false \
+    --form-string locked=true \
     > "$work_dir/runner.json"
   runner_id="$(jq -er '.id' "$work_dir/runner.json")"
   runner_token="$(jq -er '.token' "$work_dir/runner.json")"
@@ -139,7 +147,13 @@ fi
 
 api_json PUT "runners/$runner_id" \
   --form-string "tag_list=$RUNNER_TAGS" \
-  --form-string run_untagged=false > /dev/null
+  --form-string run_untagged=false \
+  --form-string locked=true > /dev/null
+
+for legacy_runner_id in "${legacy_runner_ids[@]}"; do
+  info "Removing legacy instance-scoped runner $legacy_runner_id"
+  api_json DELETE "runners/$legacy_runner_id" > /dev/null
+done
 
 if { printf '%s\n' "$vault_token"; } | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
   IFS= read -r VAULT_TOKEN
@@ -172,4 +186,4 @@ if kubectl get externalsecret gitlab-runner-token -n "$RUNNER_NAMESPACE" >/dev/n
   kubectl rollout status deployment/gitlab-runner -n "$RUNNER_NAMESPACE" --timeout=5m >/dev/null
 fi
 
-info "GitLab project, package/container registries, and instance-scoped Kubernetes runner are configured"
+info "GitLab project, package/container registries, and project-scoped Kubernetes runner are configured"
