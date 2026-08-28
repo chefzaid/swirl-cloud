@@ -15,7 +15,6 @@ spec:
     - argocd.swirlit.dev
     - grafana.swirlit.dev
     - kibana.swirlit.dev
-    - gitlab.swirlit.dev
     - longhorn.swirlit.dev
     - dbgate.swirlit.dev
     - kafka.swirlit.dev
@@ -72,16 +71,6 @@ spec:
             name: kibana
             port:
               number: 5601
-  - host: gitlab.swirlit.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: gitlab
-            port:
-              number: 80
   - host: longhorn.swirlit.dev
     http:
       paths:
@@ -122,6 +111,36 @@ spec:
             name: portainer
             port:
               number: 9000
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-ingress
+  namespace: infra
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "256m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "900"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "900"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - gitlab.swirlit.dev
+      secretName: swirlit-dev-tls
+  rules:
+    - host: gitlab.swirlit.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitlab
+                port:
+                  number: 80
 
 ---
 apiVersion: networking.k8s.io/v1
