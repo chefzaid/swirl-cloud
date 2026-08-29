@@ -5,7 +5,15 @@ on:
   repository_dispatch:
     types:
       - gitlab_push
+  schedule:
+    - cron: '17 4 1 * *'
   workflow_dispatch:
+    inputs:
+      rotate_sync_token:
+        description: Rotate the managed GitLab credential now
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,6 +29,9 @@ jobs:
     timeout-minutes: 10
     env:
       GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_ADMIN_TOKEN: ${{ secrets.REPOSITORY_SYNC_ADMIN_TOKEN }}
+      GITLAB_API_URL: https://gitlab.swirlit.dev/api/v4
+      GITLAB_PROJECT_ID: '2'
       GITLAB_REPOSITORY: https://gitlab.swirlit.dev/swirlit/bm-cluster.git
       GITLAB_USERNAME: ${{ secrets.GITLAB_SYNC_USERNAME }}
       GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
@@ -36,6 +47,10 @@ jobs:
           }
           [[ -n "${GITLAB_TOKEN:-}" ]] || {
             echo "GITLAB_SYNC_TOKEN is not configured" >&2
+            exit 1
+          }
+          [[ -n "${GITHUB_ADMIN_TOKEN:-}" ]] || {
+            echo "REPOSITORY_SYNC_ADMIN_TOKEN is not configured" >&2
             exit 1
           }
 
@@ -151,3 +166,30 @@ jobs:
             exit 1
           }
           echo "GitHub and GitLab branches and tags match"
+
+          rotation_requested="$(jq -r '.inputs.rotate_sync_token // false' "$GITHUB_EVENT_PATH")"
+          rotation_threshold="$(date -u -d '+90 days' +%F)"
+          token_metadata="$(
+            curl --fail-with-body --silent --show-error \
+              --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+              "$GITLAB_API_URL/personal_access_tokens/self"
+          )"
+          token_expires_at="$(printf '%s\n' "$token_metadata" | jq -r '.expires_at')"
+          if [[ "$rotation_requested" == "true" || "$token_expires_at" < "$rotation_threshold" ]]; then
+            new_expiration="$(date -u -d '+364 days' +%F)"
+            rotated_token="$(
+              curl --fail-with-body --silent --show-error \
+                --request POST \
+                --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+                --form-string "expires_at=$new_expiration" \
+                "$GITLAB_API_URL/projects/$GITLAB_PROJECT_ID/access_tokens/self/rotate"
+            )"
+            new_token="$(printf '%s\n' "$rotated_token" | jq -er '.token')"
+            printf '%s' "$new_token" |
+              GH_TOKEN="$GITHUB_ADMIN_TOKEN" gh secret set GITLAB_SYNC_TOKEN \
+                --repo "$GITHUB_REPOSITORY"
+            unset new_token rotated_token
+            echo "Rotated the GitLab sync token through $new_expiration"
+          else
+            echo "GitLab sync token is current through $token_expires_at"
+          fi

@@ -102,7 +102,8 @@ pushes start `.github/workflows/sync-gitlab.yml` directly; GitLab push and tag
 webhooks call GitHub's repository-dispatch endpoint and start the same
 reconciler, even when a commit skips CI. It fast-forwards the lagging side,
 merges divergent branches without force pushing, and refuses conflicting tag
-rewrites.
+rewrites. A monthly schedule self-rotates the managed GitLab credential into
+the encrypted GitHub secret before expiry.
 
 GitLab stores private OCI images at `registry.swirlit.dev`. Application
 pipelines retain downloadable job artifacts for seven days and publish

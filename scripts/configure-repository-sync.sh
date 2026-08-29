@@ -94,14 +94,18 @@ rotation_date="$(date -u -d "+$SYNC_TOKEN_ROTATION_DAYS days" +%F)"
 managed_token_id="$(jq -r --arg name "$SYNC_TOKEN_NAME" --arg rotation_date "$rotation_date" '
   .[]
   | select(.name == $name and .active == true and .revoked == false)
+  | select((.scopes | index("write_repository")) != null)
+  | select((.scopes | index("self_rotate")) != null)
   | select(.expires_at == null or .expires_at > $rotation_date)
   | .id
 ' "$work_dir/gitlab-access-tokens.json" | head -n 1)"
 github_username_secret="$(jq -r '[.secrets[].name] | index("GITLAB_SYNC_USERNAME") != null' "$work_dir/github-secrets.json")"
 github_token_secret="$(jq -r '[.secrets[].name] | index("GITLAB_SYNC_TOKEN") != null' "$work_dir/github-secrets.json")"
+github_admin_token_secret="$(jq -r '[.secrets[].name] | index("REPOSITORY_SYNC_ADMIN_TOKEN") != null' "$work_dir/github-secrets.json")"
 
 if [[ "$ROTATE_SYNC_TOKEN" == "true" || -z "$managed_token_id" ||
-      "$github_username_secret" != "true" || "$github_token_secret" != "true" ]]; then
+      "$github_username_secret" != "true" || "$github_token_secret" != "true" ||
+      "$github_admin_token_secret" != "true" ]]; then
   mapfile -t old_token_ids < <(
     jq -r --arg name "$SYNC_TOKEN_NAME"       '.[] | select(.name == $name and .active == true and .revoked == false) | .id'       "$work_dir/gitlab-access-tokens.json"
   )
@@ -112,7 +116,7 @@ if [[ "$ROTATE_SYNC_TOKEN" == "true" || -z "$managed_token_id" ||
 
   token_expires_at="$(date -u -d "+$SYNC_TOKEN_LIFETIME_DAYS days" +%F)"
   info "Creating a least-privilege GitLab repository-sync token"
-  gitlab_api POST "projects/$project_id/access_tokens"     --form-string "name=$SYNC_TOKEN_NAME"     --form-string "expires_at=$token_expires_at"     --form-string 'access_level=40'     --form-string 'scopes[]=write_repository'     > "$work_dir/gitlab-sync-token.json"
+  gitlab_api POST "projects/$project_id/access_tokens"     --form-string "name=$SYNC_TOKEN_NAME"     --form-string "expires_at=$token_expires_at"     --form-string 'access_level=40'     --form-string 'scopes[]=write_repository'     --form-string 'scopes[]=self_rotate'     > "$work_dir/gitlab-sync-token.json"
   sync_token="$(jq -er '.token' "$work_dir/gitlab-sync-token.json")"
   sync_user_id="$(jq -er '.user_id' "$work_dir/gitlab-sync-token.json")"
   sync_username="$(gitlab_api GET "users/$sync_user_id" | jq -er '.username')"
@@ -133,6 +137,7 @@ if [[ "$ROTATE_SYNC_TOKEN" == "true" || -z "$managed_token_id" ||
 
   put_github_secret GITLAB_SYNC_USERNAME "$sync_username"
   put_github_secret GITLAB_SYNC_TOKEN "$sync_token"
+  put_github_secret REPOSITORY_SYNC_ADMIN_TOKEN "$GITHUB_ADMIN_TOKEN"
   unset sync_token
   info "Installed encrypted GitLab sync credentials in GitHub Actions"
 else
