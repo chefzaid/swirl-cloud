@@ -91,7 +91,7 @@ printed by the configurator.
 
 ### GitLab delivery
 
-The infrastructure repository lives at `infrastructure/bm-cluster` in GitLab.
+The infrastructure repository lives at `swirlit/bm-cluster` in GitLab.
 Its instance-scoped Kubernetes runner executes `.gitlab-ci.yml` in the isolated
 `gitlab-runners` namespace. The default branch is continuously reconciled by
 the `bm-cluster` Argo CD Application; application manifests under `k8s/apps`
@@ -99,7 +99,7 @@ remain outside this infrastructure GitOps boundary.
 
 GitLab stores private OCI images at `registry.swirlit.dev` and private Maven,
 npm, and NuGet artifacts in each project's Package Registry. CI base images
-are pulled through the Infrastructure group's GitLab Dependency Proxy by using
+are pulled through the SwirlIT group's GitLab Dependency Proxy by using
 `CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX`. Public language dependencies resolve
 directly from Maven Central, npm, and NuGet.org and are retained in the runner's
 persistent 5 GiB build cache. This provides practical reuse without operating a
