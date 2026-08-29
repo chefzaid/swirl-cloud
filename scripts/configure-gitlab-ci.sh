@@ -20,6 +20,8 @@ RETENTION_TOKEN_LIFETIME_DAYS="${RETENTION_TOKEN_LIFETIME_DAYS:-364}"
 MAX_ARTIFACTS_SIZE_MB=2147483647
 VAULT_POD="${VAULT_POD:-vault-0}"
 VAULT_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/bm-cluster/vault-bootstrap-token}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 info() { printf '[INFO] %s\n' "$*"; }
 fail() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
@@ -263,4 +265,6 @@ if kubectl get externalsecret gitlab-registry-retention-token -n "$NAMESPACE" >/
     -n "$NAMESPACE" --timeout=3m >/dev/null
 fi
 
-info "GitLab project, package/container registries, three-year retention, and instance-scoped Kubernetes runner are configured"
+GITLAB_URL="$GITLAB_URL" "$REPOSITORY_ROOT/scripts/configure-repository-sync.sh"
+
+info "GitLab project, bidirectional GitHub sync, package/container registries, three-year retention, and instance-scoped Kubernetes runner are configured"

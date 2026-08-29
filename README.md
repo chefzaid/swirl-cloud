@@ -97,6 +97,13 @@ Its instance-scoped Kubernetes runner executes `.gitlab-ci.yml` in the isolated
 the `bm-cluster` Argo CD Application; application manifests under `k8s/apps`
 remain outside this infrastructure GitOps boundary.
 
+GitHub and GitLab branches and tags are synchronized after every push. GitHub
+pushes start `.github/workflows/sync-gitlab.yml` directly; GitLab push and tag
+webhooks call GitHub's repository-dispatch endpoint and start the same
+reconciler, even when a commit skips CI. It fast-forwards the lagging side,
+merges divergent branches without force pushing, and refuses conflicting tag
+rewrites.
+
 GitLab stores private OCI images at `registry.swirlit.dev`. Application
 pipelines retain downloadable job artifacts for seven days and publish
 immutable release outputs through each project's Generic Package Registry:
@@ -140,16 +147,19 @@ GitLab and the runner expose Prometheus metrics through pod annotations. The
 provisioned GitLab Delivery dashboard is loaded by Grafana, and Fluent Bit ships
 their JSON container logs into the existing Elasticsearch/Kibana pipeline.
 
-Create an administrator API token for the one-time project/runner bootstrap,
-then run:
+Create administrator tokens for the one-time GitLab and GitHub bootstrap, then
+run:
 
 ```bash
-GITLAB_ADMIN_TOKEN='...' ./scripts/configure-gitlab-ci.sh
+GITLAB_ADMIN_TOKEN='...' \
+GITHUB_ADMIN_TOKEN='...' \
+  ./scripts/configure-gitlab-ci.sh
 ```
 
 The script creates or reconciles the group, project, Dependency Proxy, image
-retention policy, and instance runner. It stores the runner authentication token
-and a group-scoped registry-retention API token in Vault; neither credential is
+retention policy, instance runner, encrypted repository-sync credentials, and
+GitLab repository-dispatch webhook. It stores the runner authentication token
+and a group-scoped registry-retention API token in Vault; no credential is
 committed.
 
 The catalog, icons, Kubernetes read-only status integration, Deployment,
