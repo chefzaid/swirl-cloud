@@ -11,7 +11,7 @@ GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-$GITLAB_GROUP_PATH/bm-cluster}"
 GITLAB_PROJECT_NAME="${GITLAB_PROJECT_NAME:-bm-cluster}"
 RUNNER_DESCRIPTION="${RUNNER_DESCRIPTION:-bm-cluster-kubernetes}"
 RUNNER_TAGS="${RUNNER_TAGS:-bm-cluster,kubernetes}"
-MAX_ARTIFACTS_SIZE_MB="${GITLAB_MAX_ARTIFACTS_SIZE_MB:-256}"
+MAX_ARTIFACTS_SIZE_MB="${GITLAB_MAX_ARTIFACTS_SIZE_MB:-0}"
 VAULT_POD="${VAULT_POD:-vault-0}"
 VAULT_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/bm-cluster/vault-bootstrap-token}"
 
@@ -29,7 +29,7 @@ if [[ -z "$GITLAB_URL" ]]; then
 fi
 
 [[ -n "${GITLAB_ADMIN_TOKEN:-}" ]] || fail "Set GITLAB_ADMIN_TOKEN to an API token that can create projects and instance runners"
-[[ "$MAX_ARTIFACTS_SIZE_MB" =~ ^[1-9][0-9]*$ ]] || fail "GITLAB_MAX_ARTIFACTS_SIZE_MB must be a positive integer"
+[[ "$MAX_ARTIFACTS_SIZE_MB" =~ ^[0-9]+$ ]] || fail "GITLAB_MAX_ARTIFACTS_SIZE_MB must be a non-negative integer"
 sudo test -s "$VAULT_TOKEN_FILE" || fail "Vault bootstrap token is missing from $VAULT_TOKEN_FILE"
 
 work_dir="$(mktemp -d /tmp/bm-gitlab-ci.XXXXXX)"
