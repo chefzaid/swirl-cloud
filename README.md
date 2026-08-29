@@ -97,13 +97,37 @@ Its instance-scoped Kubernetes runner executes `.gitlab-ci.yml` in the isolated
 the `bm-cluster` Argo CD Application; application manifests under `k8s/apps`
 remain outside this infrastructure GitOps boundary.
 
-GitLab stores private OCI images at `registry.swirlit.dev` and private Maven,
-npm, and NuGet artifacts in each project's Package Registry. CI base images
-are pulled through the SwirlIT group's GitLab Dependency Proxy by using
-`CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX`. Public language dependencies resolve
-directly from Maven Central, npm, and NuGet.org and are retained in the runner's
-persistent 5 GiB build cache. This provides practical reuse without operating a
-separate repository manager.
+GitLab stores private OCI images at `registry.swirlit.dev`. Application
+pipelines retain downloadable job artifacts for seven days and publish
+immutable release outputs through each project's Generic Package Registry:
+DevApp publishes two JARs and its SPA archive, Thoughty publishes server and web
+archives, and Indezy publishes its JAR and SPA archive. Every package version
+also contains `SHA256SUMS`. These are visible under **Deploy > Package Registry**;
+the Container Registry UI intentionally shows only images and Kaniko cache
+repositories.
+
+The infrastructure pipeline pulls its base image through the SwirlIT group's
+GitLab Dependency Proxy by using `CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX`.
+Application Maven/npm dependencies resolve from their public upstreams and use
+the runner's persistent 5 GiB build cache. Application image jobs additionally
+reuse registry-backed Kaniko run/copy layers for seven days. A cold pipeline
+must still compile, test, upload immutable outputs, and roll out workloads, while
+later pipelines avoid most unchanged dependency and image-layer work. This
+provides practical reuse without operating a separate repository manager.
+
+The three application repositories use one bootstrap contract:
+
+| Project | Argo CD bootstrap | Desired state |
+|---|---|---|
+| `swirlit/devapp` | `infra/argocd/application.yaml` | `infra/k8s` |
+| `swirlit/thoughty` | `infra/argocd/application.yaml` | `infra/k8s/overlays/bm-cluster` |
+| `swirlit/indezy` | `infra/argocd/application.yaml` | `infra/k8s` |
+
+Their pipelines use the internal `gitlab.swirlit.internal` API/clone route and
+the internal Registry service for cluster traffic, while user-facing GitLab and
+Registry URLs remain `gitlab.swirlit.dev` and `registry.swirlit.dev`. Each app
+repository owns its GitLab bootstrap, Vault contracts, Argo CD Application, and
+runtime manifests; `bm-cluster` owns only the generic runner and shared platform.
 
 Registry retention is declared in `k8s/platform/gitlab-registry-retention.yaml`.
 Every day it reconciles GitLab's native container-image cleanup policy for all
