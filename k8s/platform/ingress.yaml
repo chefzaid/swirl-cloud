@@ -4,6 +4,7 @@ metadata:
   name: infra-ingress
   namespace: infra
   annotations:
+    argocd.argoproj.io/sync-wave: "-1"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
@@ -119,6 +120,7 @@ metadata:
   name: gitlab-ingress
   namespace: infra
   annotations:
+    argocd.argoproj.io/sync-wave: "0"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "256m"
