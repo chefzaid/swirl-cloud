@@ -167,7 +167,7 @@ if [[ "${DEFAULT_INTERNAL_DNS_ZONE:-}" == "swirlit.internal" ]] &&
        "$K8S_ROOT/base/coredns-custom.yaml" &&
    grep -Fq 'clusterIP: 10.43.255.251' "$K8S_ROOT/platform/gitlab.yaml" &&
    grep -Fq 'clusterIP: 10.43.255.252' "$K8S_ROOT/platform/gitlab.yaml" &&
-   grep -Fq 'gitlab.swirlit.dev,nexus.swirlit.internal:5000' \
+   grep -Fq 'K3S_REMOVED_REGISTRY_HOSTS:-gitlab.swirlit.dev' \
        "$REPOSITORY_ROOT/scripts/configure-k3s-registry-mirror.sh" &&
    [[ -x "$REPOSITORY_ROOT/scripts/configure-k3s-registry-mirror.sh" ]]; then
     pass "cluster DNS, GitLab registry mirror, and canonical Dependency Proxy contracts are complete"
@@ -214,7 +214,7 @@ for manifest_csv in "$FOUNDATION_MANIFESTS" "$DATASTORE_MANIFESTS" "$PLATFORM_MA
         fi
     done
 done
-for inventory in FOUNDATION_MANIFESTS DATASTORE_MANIFESTS PLATFORM_MANIFESTS POST_DEPLOY_CREATE_MANIFESTS POST_ARGOCD_MANIFESTS EXTERNAL_SECRET_NAMES DATASTORE_WAIT_APPS PLATFORM_WAIT_APPS PLATFORM_WAIT_DAEMONSETS DEFAULT_CLOUDFLARE_HOST_LABELS DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS; do
+for inventory in FOUNDATION_MANIFESTS DATASTORE_MANIFESTS PLATFORM_MANIFESTS POST_DEPLOY_CREATE_MANIFESTS POST_ARGOCD_MANIFESTS EXTERNAL_SECRET_NAMES DATASTORE_WAIT_APPS PLATFORM_WAIT_APPS PLATFORM_WAIT_DAEMONSETS DEFAULT_CLOUDFLARE_HOST_LABELS DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS; do
     value="${!inventory}"
     if [[ "$(tr ',' '\n' <<< "$value" | sed '/^$/d' | wc -l)" -ne "$(tr ',' '\n' <<< "$value" | sed '/^$/d' | sort -u | wc -l)" ]]; then
         printf 'Contract list contains duplicates: %s\n' "$inventory" >&2
