@@ -114,14 +114,16 @@ also contains `SHA256SUMS`. These are visible under **Deploy > Package Registry*
 the Container Registry UI intentionally shows only images and Kaniko cache
 repositories.
 
-The infrastructure pipeline pulls its base image through the SwirlIT group's
-GitLab Dependency Proxy by using `CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX`.
-Application Maven/npm dependencies resolve from their public upstreams and use
-the runner's persistent 5 GiB build cache. Application image jobs additionally
-reuse registry-backed Kaniko run/copy layers for seven days. A cold pipeline
-must still compile, test, upload immutable outputs, and roll out workloads, while
-later pipelines avoid most unchanged dependency and image-layer work. This
-provides practical reuse without operating a separate repository manager.
+The infrastructure pipeline pins its Alpine base by Docker Hub digest; the
+K3s/containerd `IfNotPresent` policy reuses the node-local copy without relying
+on mutable Dependency Proxy cache metadata. The group Dependency Proxy remains
+available for non-critical upstream image acceleration. Application Maven/npm
+dependencies resolve from their public upstreams and use the runner's persistent
+5 GiB build cache. Application image jobs can rebuild their disposable Kaniko
+layers as needed. A cold pipeline must still compile, test, upload immutable
+outputs, and roll out workloads, while later pipelines avoid most unchanged
+dependency work. This provides practical reuse without operating a separate
+repository manager.
 
 The three application repositories use one bootstrap contract:
 
