@@ -342,13 +342,18 @@ kubectl get ingress -A
 kubectl get pvc -A
 ```
 
-Applications opt into metrics from their own repository by adding
-`prometheus.io/scrape`, `prometheus.io/path`, and `prometheus.io/port` pod
-annotations. Application Grafana dashboards remain application-owned: publish a
-ConfigMap labeled `grafana_dashboard: "1"` containing dashboard JSON. Kubernetes
-logs are collected automatically into `kubernetes-logs-*` and can be filtered in
-Kibana by `kubernetes.namespace_name` and `kubernetes.labels.app`. The logging
-bootstrap applies a seven-day Elasticsearch lifecycle policy to bound disk use.
+Prometheus discovers metrics from any pod carrying `prometheus.io/scrape`,
+`prometheus.io/path`, and `prometheus.io/port` annotations. Grafana discovers
+application-owned dashboard ConfigMaps labeled `grafana_dashboard: "1"` in any
+namespace, while its generic **Applications Namespace Overview** requires no
+application inventory. Fluent Bit collects every container log, enriches records
+from the `apps` namespace with a stable `observability_scope=application` field,
+and copies the Kubernetes `app` label to a keyword field. Kibana provisions an
+**Applications Namespace Logs** dashboard filtered only by namespace. This keeps
+platform discovery independent of application names; app repositories own their
+metrics endpoints, structured stdout format, and optional detailed dashboards.
+The logging bootstrap applies a seven-day Elasticsearch lifecycle policy to
+bound disk use.
 
 Trigger the Descheduler manually:
 
