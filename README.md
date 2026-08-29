@@ -128,7 +128,7 @@ the interactive installer and `ansible/deploy.yml` apply it automatically.
 Requirements:
 
 - Ubuntu 22.04 or newer
-- 8 or more CPUs, 16 GB or more RAM, and 100 GB or more disk
+- 8 or more CPUs, 32 GB or more RAM, and 250 GB or more disk
 - A sudo-capable non-root user
 - A domain registered for public deployments
 - SSH keys and passwordless `sudo` from the control plane to every worker
