@@ -293,6 +293,15 @@ else
     fail "Cloudflare reconciliation preserves non-browser Registry API access"
 fi
 
+if grep -Fq 'older_than:"1095d"' "$REPOSITORY_ROOT/scripts/configure-gitlab-ci.sh" &&
+   grep -Fq 'value: "1095"' "$K8S_ROOT/platform/gitlab-registry-retention.yaml" &&
+   grep -Fq 'property: retention_api_token' "$K8S_ROOT/platform/gitlab-registry-retention.yaml" &&
+   grep -Fq 'platform/gitlab-registry-retention.yaml' "$REPOSITORY_ROOT/config/platform.env"; then
+    pass "GitLab package and container registries declare three-year retention"
+else
+    fail "GitLab package and container registries declare three-year retention"
+fi
+
 sed -nE 's#.*href:[[:space:]]+https://([^/[:space:]]+).*#\1#p' "$K8S_ROOT/platform/homepage.yaml" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" 'index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |
     LC_ALL=C sort -u > "$TEMP_DIR/homepage-hosts"

@@ -105,6 +105,13 @@ directly from Maven Central, npm, and NuGet.org and are retained in the runner's
 persistent 5 GiB build cache. This provides practical reuse without operating a
 separate repository manager.
 
+Registry retention is declared in `k8s/platform/gitlab-registry-retention.yaml`.
+Every day it reconciles GitLab's native container-image cleanup policy for all
+projects in the SwirlIT group and removes Package Registry versions created more
+than 1,095 days ago. GitLab continues to protect protected container tags and
+the literal `latest` tag. The group-scoped API token is stored in Vault at
+`secret/infra/gitlab`, projected by External Secrets, and never committed.
+
 GitLab and the runner expose Prometheus metrics through pod annotations. The
 provisioned GitLab Delivery dashboard is loaded by Grafana, and Fluent Bit ships
 their JSON container logs into the existing Elasticsearch/Kibana pipeline.
@@ -116,8 +123,10 @@ then run:
 GITLAB_ADMIN_TOKEN='...' ./scripts/configure-gitlab-ci.sh
 ```
 
-The script creates or reconciles the group, project, Dependency Proxy, and
-instance runner, then stores only the runner authentication token in Vault.
+The script creates or reconciles the group, project, Dependency Proxy, image
+retention policy, and instance runner. It stores the runner authentication token
+and a group-scoped registry-retention API token in Vault; neither credential is
+committed.
 
 The catalog, icons, Kubernetes read-only status integration, Deployment,
 Service, and Ingress are defined together in `k8s/platform/homepage.yaml`. Both

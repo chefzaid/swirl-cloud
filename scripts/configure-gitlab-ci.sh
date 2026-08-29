@@ -11,6 +11,8 @@ GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-$GITLAB_GROUP_PATH/bm-cluster}"
 GITLAB_PROJECT_NAME="${GITLAB_PROJECT_NAME:-bm-cluster}"
 RUNNER_DESCRIPTION="${RUNNER_DESCRIPTION:-bm-cluster-kubernetes}"
 RUNNER_TAGS="${RUNNER_TAGS:-bm-cluster,kubernetes}"
+RETENTION_TOKEN_NAME="${RETENTION_TOKEN_NAME:-bm-cluster-registry-retention}"
+RETENTION_TOKEN_LIFETIME_DAYS="${RETENTION_TOKEN_LIFETIME_DAYS:-364}"
 # GitLab requires max_artifacts_size to be a positive signed 32-bit integer;
 # unlike its ingress setting, zero means zero bytes rather than unlimited. Use
 # the largest value GitLab can store so artifact uploads are constrained only
@@ -36,7 +38,7 @@ fi
 sudo test -s "$VAULT_TOKEN_FILE" || fail "Vault bootstrap token is missing from $VAULT_TOKEN_FILE"
 
 work_dir="$(mktemp -d /tmp/bm-gitlab-ci.XXXXXX)"
-trap 'rm -r -- "$work_dir"; unset GITLAB_ADMIN_TOKEN vault_token runner_token' EXIT
+trap 'rm -r -- "$work_dir"; unset GITLAB_ADMIN_TOKEN GITLAB_RETENTION_TOKEN vault_token runner_token retention_api_token' EXIT
 api_config="$work_dir/curl-api.conf"
 printf 'silent\nshow-error\nheader = "PRIVATE-TOKEN: %s"\n' "$GITLAB_ADMIN_TOKEN" > "$api_config"
 
@@ -117,6 +119,18 @@ jq -n \
 api_json PUT "projects/$project_id" --header 'Content-Type: application/json' \
   --data-binary "@$work_dir/update-project.json" > /dev/null
 
+jq -n \
+  '{container_expiration_policy_attributes:{enabled:true,cadence:"1d",older_than:"1095d",keep_n:null,name_regex:".*",name_regex_keep:null}}' \
+  > "$work_dir/registry-retention-policy.json"
+api_json GET "groups/$group_id/projects?include_subgroups=true&with_shared=false&per_page=100" \
+  > "$work_dir/group-projects.json"
+mapfile -t group_project_ids < <(jq -r '.[].id' "$work_dir/group-projects.json")
+for group_project_id in "${group_project_ids[@]}"; do
+  api_json PUT "projects/$group_project_id" --header 'Content-Type: application/json' \
+    --data-binary "@$work_dir/registry-retention-policy.json" > /dev/null
+done
+info "Configured three-year container image retention for ${#group_project_ids[@]} projects"
+
 vault_token="$(sudo cat "$VAULT_TOKEN_FILE")"
 runner_token="$({ printf '%s\n' "$vault_token"; } | \
   kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
@@ -124,6 +138,38 @@ runner_token="$({ printf '%s\n' "$vault_token"; } | \
     export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
     vault kv get -field=runner_token secret/infra/gitlab 2>/dev/null || true
   ')"
+retention_api_token="${GITLAB_RETENTION_TOKEN:-}"
+if [[ -z "$retention_api_token" ]]; then
+  retention_api_token="$({ printf '%s\n' "$vault_token"; } | \
+    kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
+      IFS= read -r VAULT_TOKEN
+      export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+      vault kv get -field=retention_api_token secret/infra/gitlab 2>/dev/null || true
+    ')"
+fi
+
+if [[ -n "$retention_api_token" ]]; then
+  retention_token_status="$(curl --silent --show-error --request GET \
+    --output /dev/null --write-out '%{http_code}' \
+    --header "PRIVATE-TOKEN: $retention_api_token" \
+    "$GITLAB_URL/api/v4/groups/$encoded_group_path/projects?per_page=1")"
+  if [[ "$retention_token_status" != "200" ]]; then
+    info "The stored registry-retention API token is stale and will be replaced"
+    retention_api_token=""
+  fi
+fi
+
+if [[ -z "$retention_api_token" ]]; then
+  retention_token_expires_at="$(date -u -d "+$RETENTION_TOKEN_LIFETIME_DAYS days" +%F)"
+  info "Creating a group-scoped GitLab registry-retention API token"
+  api_json POST "groups/$group_id/access_tokens" \
+    --form-string "name=$RETENTION_TOKEN_NAME" \
+    --form-string "expires_at=$retention_token_expires_at" \
+    --form-string "access_level=40" \
+    --form-string "scopes[]=api" \
+    > "$work_dir/retention-token.json"
+  retention_api_token="$(jq -er '.token' "$work_dir/retention-token.json")"
+fi
 
 api_json GET "projects/$project_id/runners?type=project_type&per_page=100" > "$work_dir/legacy-runners.json"
 mapfile -t legacy_runner_ids < <(
@@ -178,20 +224,26 @@ if { printf '%s\n' "$vault_token"; } | kubectl exec -i -n "$NAMESPACE" "$VAULT_P
   export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
   vault kv get secret/infra/gitlab >/dev/null 2>&1
 '; then
-  { printf '%s\n%s\n' "$vault_token" "$runner_token"; } | \
+  { printf '%s\n%s\n%s\n' "$vault_token" "$runner_token" "$retention_api_token"; } | \
     kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
       IFS= read -r VAULT_TOKEN
       IFS= read -r runner_token
+      IFS= read -r retention_api_token
       export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
-      vault kv patch secret/infra/gitlab runner_token="$runner_token" >/dev/null
+      vault kv patch secret/infra/gitlab \
+        runner_token="$runner_token" \
+        retention_api_token="$retention_api_token" >/dev/null
     '
 else
-  { printf '%s\n%s\n' "$vault_token" "$runner_token"; } | \
+  { printf '%s\n%s\n%s\n' "$vault_token" "$runner_token" "$retention_api_token"; } | \
     kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
       IFS= read -r VAULT_TOKEN
       IFS= read -r runner_token
+      IFS= read -r retention_api_token
       export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
-      vault kv put secret/infra/gitlab runner_token="$runner_token" >/dev/null
+      vault kv put secret/infra/gitlab \
+        runner_token="$runner_token" \
+        retention_api_token="$retention_api_token" >/dev/null
     '
 fi
 
@@ -204,4 +256,11 @@ if kubectl get externalsecret gitlab-runner-token -n "$RUNNER_NAMESPACE" >/dev/n
   kubectl rollout status deployment/gitlab-runner -n "$RUNNER_NAMESPACE" --timeout=5m >/dev/null
 fi
 
-info "GitLab project, package/container registries, and instance-scoped Kubernetes runner are configured"
+if kubectl get externalsecret gitlab-registry-retention-token -n "$NAMESPACE" >/dev/null 2>&1; then
+  kubectl annotate externalsecret gitlab-registry-retention-token -n "$NAMESPACE" \
+    force-sync="$(date +%s)" --overwrite >/dev/null
+  kubectl wait --for=condition=Ready externalsecret/gitlab-registry-retention-token \
+    -n "$NAMESPACE" --timeout=3m >/dev/null
+fi
+
+info "GitLab project, package/container registries, three-year retention, and instance-scoped Kubernetes runner are configured"
