@@ -124,18 +124,18 @@ data:
             podSelector: app=odoo
 
     - DevOps & Delivery:
-        - Argo CD:
-            icon: argo-cd.png
-            href: https://argocd.swirlit.dev
-            description: GitOps continuous delivery
-            namespace: infra
-            podSelector: app.kubernetes.io/part-of=argocd
         - GitLab:
             icon: gitlab.png
             href: https://gitlab.swirlit.dev
             description: Source control, CI, artifacts, and collaboration
             namespace: infra
             podSelector: app=gitlab
+        - Argo CD:
+            icon: argo-cd.png
+            href: https://argocd.swirlit.dev
+            description: GitOps continuous delivery
+            namespace: infra
+            podSelector: app.kubernetes.io/part-of=argocd
         - SonarQube:
             icon: sonarqube.png
             href: https://sonarqube.swirlit.dev

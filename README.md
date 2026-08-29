@@ -48,9 +48,11 @@ Homepage is the single entry point for every installed application, platform
 tool, internal data service, observability component, security tool, and
 Kubernetes system service. Public entries are clickable; internal-only entries
 show their purpose and live Kubernetes status without exposing them publicly.
-This repository owns Odoo in the shared `apps` namespace. Independently owned
-applications can publish dashboard entries through Kubernetes Ingress
-annotations without adding application-specific resources to this repository.
+This repository owns Odoo in the shared `apps` namespace. DevApp, Thoughty, and
+Indezy publish their dashboard entries from their own Kubernetes Ingress
+annotations, without adding application-specific runtime resources here. Their
+public hostnames remain part of the central Cloudflare inventory so DNS and edge
+configuration are reproducible from this repository.
 
 ## Service dashboard
 
