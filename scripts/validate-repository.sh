@@ -214,7 +214,7 @@ for manifest_csv in "$FOUNDATION_MANIFESTS" "$DATASTORE_MANIFESTS" "$PLATFORM_MA
         fi
     done
 done
-for inventory in FOUNDATION_MANIFESTS DATASTORE_MANIFESTS PLATFORM_MANIFESTS POST_DEPLOY_CREATE_MANIFESTS POST_ARGOCD_MANIFESTS EXTERNAL_SECRET_NAMES DATASTORE_WAIT_APPS PLATFORM_WAIT_APPS PLATFORM_WAIT_DAEMONSETS DEFAULT_CLOUDFLARE_HOST_LABELS DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS; do
+for inventory in FOUNDATION_MANIFESTS DATASTORE_MANIFESTS PLATFORM_MANIFESTS POST_DEPLOY_CREATE_MANIFESTS POST_ARGOCD_MANIFESTS EXTERNAL_SECRET_NAMES DATASTORE_WAIT_APPS PLATFORM_WAIT_APPS PLATFORM_WAIT_DAEMONSETS DEFAULT_CLOUDFLARE_HOST_LABELS DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS DEFAULT_CLOUDFLARE_NON_BROWSER_HOST_LABELS; do
     value="${!inventory}"
     if [[ "$(tr ',' '\n' <<< "$value" | sed '/^$/d' | wc -l)" -ne "$(tr ',' '\n' <<< "$value" | sed '/^$/d' | sort -u | wc -l)" ]]; then
         printf 'Contract list contains duplicates: %s\n' "$inventory" >&2
@@ -271,11 +271,18 @@ fi
 info "Checking public service inventories"
 csv_to_file "$DEFAULT_CLOUDFLARE_HOST_LABELS" "$TEMP_DIR/public-hosts"
 csv_to_file "$DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS" "$TEMP_DIR/access-hosts"
+csv_to_file "$DEFAULT_CLOUDFLARE_NON_BROWSER_HOST_LABELS" "$TEMP_DIR/non-browser-hosts"
 
 if [[ -s "$TEMP_DIR/access-hosts" ]] && [[ -n "$(comm -23 "$TEMP_DIR/access-hosts" "$TEMP_DIR/public-hosts")" ]]; then
     fail "Cloudflare Access hosts are a subset of published hosts"
 else
     pass "Cloudflare Access hosts are a subset of published hosts"
+fi
+
+if [[ -s "$TEMP_DIR/non-browser-hosts" ]] && [[ -n "$(comm -23 "$TEMP_DIR/non-browser-hosts" "$TEMP_DIR/public-hosts")" ]]; then
+    fail "non-browser hosts are a subset of published hosts"
+else
+    pass "non-browser hosts are a subset of published hosts"
 fi
 
 if grep -Fq 'configure_registry_bot_compatibility' "$REPOSITORY_ROOT/scripts/configure-cloudflare.sh" &&
@@ -289,7 +296,8 @@ fi
 sed -nE 's#.*href:[[:space:]]+https://([^/[:space:]]+).*#\1#p' "$K8S_ROOT/platform/homepage.yaml" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" 'index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |
     LC_ALL=C sort -u > "$TEMP_DIR/homepage-hosts"
-compare_sets "$TEMP_DIR/public-hosts" "$TEMP_DIR/homepage-hosts" "Homepage contains every published cluster hostname"
+comm -23 "$TEMP_DIR/public-hosts" "$TEMP_DIR/non-browser-hosts" > "$TEMP_DIR/dashboard-hosts"
+compare_sets "$TEMP_DIR/dashboard-hosts" "$TEMP_DIR/homepage-hosts" "Homepage contains every browser-facing cluster hostname"
 
 sed -nE 's/^[[:space:]]*-[[:space:]]*host:[[:space:]]*([^[:space:]]+).*/\1/p' "${kubernetes_manifests[@]}" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" '$0 != zone && index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |

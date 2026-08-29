@@ -133,13 +133,7 @@ data:
         - GitLab:
             icon: gitlab.png
             href: https://gitlab.swirlit.dev
-            description: Source control, CI pipelines, and build artifacts
-            namespace: infra
-            podSelector: app=gitlab
-        - GitLab Container Registry:
-            icon: gitlab.png
-            href: https://registry.swirlit.dev/v2/
-            description: Private OCI image storage
+            description: Source control, CI, artifacts, and collaboration
             namespace: infra
             podSelector: app=gitlab
         - SonarQube:
@@ -432,7 +426,7 @@ spec:
         app.kubernetes.io/name: homepage
         app.kubernetes.io/part-of: bm-cluster
       annotations:
-        bm-cluster/config-revision: "5"
+        bm-cluster/config-revision: "6"
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
