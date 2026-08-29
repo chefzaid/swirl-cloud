@@ -160,6 +160,14 @@ else
     pass "platform contract uses source-safe properties"
 fi
 
+if grep -Fq 'DELETE FROM kine' "$REPOSITORY_ROOT/scripts/backup-k3s.sh" &&
+   grep -Fq "SET prev_revision = 0, old_value = X''" "$REPOSITORY_ROOT/scripts/backup-k3s.sh" &&
+   grep -Fq 'Never run these statements against the live K3s database' "$REPOSITORY_ROOT/scripts/backup-k3s.sh"; then
+    pass "K3s recovery archives exclude deleted SQLite free-page data"
+else
+    fail "K3s recovery archives exclude deleted SQLite free-page data"
+fi
+
 if [[ "${DEFAULT_INTERNAL_DNS_ZONE:-}" == "swirlit.internal" ]] &&
    [[ "${DEFAULT_K3S_REGISTRY_HOST:-}" == "registry.swirlit.dev" ]] &&
    [[ "${DEFAULT_K3S_REGISTRY_ENDPOINT:-}" == "http://10.43.255.251:5050" ]] &&

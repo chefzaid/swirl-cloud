@@ -319,7 +319,10 @@ kubectl get jobs -n infra -l app=descheduler -w
 ```
 
 K3s creates a consistent root-only recovery archive every day and retains the
-latest seven under `/var/backups/bm-cluster/k3s`. Run one immediately with
+latest seven under `/var/backups/bm-cluster/k3s`. The transactionally consistent
+staging database is reduced to current Kubernetes state before archiving, so
+superseded Kine revisions, tombstones, previous values, and SQLite free pages
+are not retained. Run one immediately with
 `sudo systemctl start bm-k3s-backup.service`, then copy the resulting archive to
 encrypted off-node storage; a backup that remains on this server does not cover
 disk or host loss.
