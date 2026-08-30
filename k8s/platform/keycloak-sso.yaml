@@ -567,6 +567,12 @@ spec:
             - --cookie-samesite=lax
             - --cookie-refresh=1h
             - --cookie-expire=8h
+            # Realm administrators carry enough authorization claims to exceed
+            # browser cookie/header limits. Store the encrypted session in the
+            # shared internal Redis service and keep only a ticket in the
+            # cross-subdomain cookie; this also makes both replicas consistent.
+            - --session-store-type=redis
+            - --redis-connection-url=redis://redis.swirlit.internal:6379/1
             - --reverse-proxy=true
             - --set-xauthrequest=true
             - --pass-access-token=true
