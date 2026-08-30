@@ -271,8 +271,14 @@ data:
       echo "Reconciling Keycloak client '$client_id' ($internal_id)"
 
       secret_property=''
+      pkce_property=''
       if [ "$public_client" = false ]; then
         secret_property=",\"secret\":\"$client_secret\""
+      else
+        # Public browser/CLI clients cannot protect a secret, so require PKCE.
+        # Confidential clients authenticate at the token endpoint and must be
+        # allowed to use integrations that do not emit a PKCE challenge.
+        pkce_property=',"pkce.code.challenge.method":"S256"'
       fi
       client_body="{
         \"id\":\"$internal_id\",
@@ -290,8 +296,8 @@ data:
         \"redirectUris\":$redirect_uris,
         \"webOrigins\":$web_origins,
         \"attributes\":{
-          \"pkce.code.challenge.method\":\"S256\",
           \"post.logout.redirect.uris\":\"+\"
+          $pkce_property
         }
         $secret_property
       }"
