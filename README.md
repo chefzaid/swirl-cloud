@@ -337,7 +337,11 @@ Change bootstrap credentials immediately after onboarding.
 Kibana and Longhorn retain Cloudflare Access at the public edge. Kibana uses
 Elastic's native login, users, and roles at the origin. Longhorn has no native
 authentication provider, so only Longhorn retains the Vault-managed NGINX Basic
-Auth boundary for direct-IP and internal ingress access.
+Auth boundary for direct-IP and internal ingress access. Kibana's public route
+removes only legacy HTTP Basic authorization headers before they reach Kibana,
+preventing browser-cached credentials from bypassing its session login; Bearer
+and API-key headers remain available, and internal automation keeps using the
+unfiltered cluster service port.
 
 ## Operations
 
