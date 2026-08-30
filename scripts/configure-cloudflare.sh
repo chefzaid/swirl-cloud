@@ -535,6 +535,19 @@ configure_access() {
         info "Using the existing Cloudflare Zero Trust organization without changing its account-wide settings."
     fi
 
+    if ! jq -e '.result.auto_redirect_to_identity == true' <<< "$organization_response" >/dev/null; then
+        organization_file="$WORK_DIR/access-organization-redirect.json"
+        jq '{
+                auth_domain:.result.auth_domain,
+                name:.result.name,
+                auto_redirect_to_identity:true,
+                deny_unmatched_requests:(.result.deny_unmatched_requests // false)
+            }' <<< "$organization_response" > "$organization_file"
+        organization_response="$(cf_request PUT "/accounts/$ACCOUNT_ID/access/organizations" "$organization_file")"
+        require_success "$organization_response" "Enabling automatic redirect to the Keycloak identity provider"
+        info "Enabled automatic redirect from Cloudflare Access to Keycloak."
+    fi
+
     organization_auth_domain="$(jq -r '.result.auth_domain // empty' <<< "$organization_response")"
     [[ -n "$organization_auth_domain" ]] || error "Cloudflare returned no Zero Trust organization auth domain."
     [[ "$organization_auth_domain" == "$ACCESS_TEAM_NAME.cloudflareaccess.com" ]] || \
@@ -1115,7 +1128,7 @@ echo "  WAF baseline:  $([[ "$ENABLE_WAF" == "true" ]] && echo enabled || echo d
 echo "  Login limit:   $([[ "$ENABLE_RATE_LIMIT" == "true" ]] && echo enabled || echo disabled)"
 echo "  Cache safety:  $([[ "$ENABLE_CACHE_RULES" == "true" ]] && echo enabled || echo disabled)"
 echo "  Registry bots: $REGISTRY_BOT_STATUS"
-echo "  Admin Access:  $([[ "$ENABLE_ACCESS" == "true" ]] && echo "email OTP ($ACCESS_SESSION_DURATION sessions)" || echo disabled)"
+echo "  Admin Access:  $([[ "$ENABLE_ACCESS" == "true" ]] && echo "Keycloak OIDC ($ACCESS_SESSION_DURATION sessions)" || echo disabled)"
 echo "  DNSSEC:        $dnssec_status"
 echo "  Origin access: $ORIGIN_LOCK_STATUS"
 echo "  Origin cert:   $([[ "$certificate_created" == "true" ]] && echo created || echo reused)"
