@@ -393,6 +393,12 @@ printf '%s\n' "$LOCAL_ADMIN_PASSWORD" | \
 unset LOCAL_ADMIN_PASSWORD
 ```
 
+When platform services are selected, the interactive installer offers this as
+an optional `[y/N]` step and reads the password and confirmation with terminal
+echo disabled. Non-interactive `--yes` runs never enable it implicitly; opt in
+with `ROTATE_LOCAL_ADMIN_PASSWORDS=true` and provide `LOCAL_ADMIN_PASSWORD`
+through the automation secret environment.
+
 The rotation updates each service's internal credential first, persists the
 matching value in Vault, refreshes External Secrets, restarts affected password
 consumers, and verifies service availability. It deliberately does not modify

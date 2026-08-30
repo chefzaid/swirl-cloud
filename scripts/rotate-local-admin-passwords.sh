@@ -65,6 +65,11 @@ esac
 [[ -n "$local_admin_password" ]] || fail "Supply the password through stdin or LOCAL_ADMIN_PASSWORD."
 (( ${#local_admin_password} >= 12 )) || fail "The local administrator password must contain at least 12 characters."
 [[ ! "$local_admin_password" =~ [[:cntrl:]] ]] || fail "The local administrator password cannot contain control characters."
+[[ "$local_admin_password" =~ [[:lower:]] &&
+   "$local_admin_password" =~ [[:upper:]] &&
+   "$local_admin_password" =~ [[:digit:]] &&
+   "$local_admin_password" =~ [^[:alnum:]] ]] || \
+  fail "The local administrator password must include lowercase, uppercase, numeric, and special characters."
 
 forward_pid=""
 forward_log=""

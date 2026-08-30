@@ -37,6 +37,7 @@ CLOUDFLARE_SCRIPT="$SCRIPT_DIR/scripts/configure-cloudflare.sh"
 WORKER_INSTALLER_SCRIPT="$SCRIPT_DIR/install-worker.sh"
 K3S_BACKUP_SCRIPT="$SCRIPT_DIR/scripts/configure-k3s-backups.sh"
 GITLAB_CI_SCRIPT="$SCRIPT_DIR/scripts/configure-gitlab-ci.sh"
+LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT="$SCRIPT_DIR/scripts/rotate-local-admin-passwords.sh"
 K3S_REGISTRY_MIRROR_SCRIPT="$SCRIPT_DIR/scripts/configure-k3s-registry-mirror.sh"
 K3S_APPARMOR_SCRIPT="$SCRIPT_DIR/scripts/configure-k3s-apparmor.sh"
 LONGHORN_HOST_SCRIPT="$SCRIPT_DIR/scripts/configure-longhorn-host.sh"
@@ -59,6 +60,8 @@ OVH_APPLICATION_SECRET="${OVH_APPLICATION_SECRET:-}"
 OVH_CONSUMER_KEY="${OVH_CONSUMER_KEY:-}"
 OVH_VRACK_SERVICE_NAME="${OVH_VRACK_SERVICE_NAME:-}"
 OVH_CONTROL_PLANE_SERVICE_NAME="${OVH_CONTROL_PLANE_SERVICE_NAME:-}"
+ROTATE_LOCAL_ADMIN_PASSWORDS="${ROTATE_LOCAL_ADMIN_PASSWORDS:-}"
+LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-}"
 INSTALLER_TEMP_DIR=""
 nodesource_installer=""
 k3s_installer=""
@@ -137,6 +140,71 @@ ask_with_default() {
     read -rp "$(echo -e "${YELLOW}$prompt $suffix${NC} ")" answer
     answer="${answer:-$default_choice}"
     [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+validate_local_admin_password() {
+    LOCAL_ADMIN_PASSWORD_ERROR=""
+    if (( ${#LOCAL_ADMIN_PASSWORD} < 12 )); then
+        LOCAL_ADMIN_PASSWORD_ERROR="The local administrator password must contain at least 12 characters."
+        return 1
+    fi
+    if [[ "$LOCAL_ADMIN_PASSWORD" =~ [[:cntrl:]] ]]; then
+        LOCAL_ADMIN_PASSWORD_ERROR="The local administrator password cannot contain control characters."
+        return 1
+    fi
+    if [[ ! "$LOCAL_ADMIN_PASSWORD" =~ [[:lower:]] ||
+          ! "$LOCAL_ADMIN_PASSWORD" =~ [[:upper:]] ||
+          ! "$LOCAL_ADMIN_PASSWORD" =~ [[:digit:]] ||
+          ! "$LOCAL_ADMIN_PASSWORD" =~ [^[:alnum:]] ]]; then
+        LOCAL_ADMIN_PASSWORD_ERROR="The local administrator password must include lowercase, uppercase, numeric, and special characters."
+        return 1
+    fi
+}
+
+configure_local_admin_password_rotation() {
+    local password_confirmation=""
+
+    if [[ -z "$ROTATE_LOCAL_ADMIN_PASSWORDS" ]]; then
+        if ask_with_default "Use one password for all local infrastructure superusers?" "N"; then
+            ROTATE_LOCAL_ADMIN_PASSWORDS=true
+        else
+            ROTATE_LOCAL_ADMIN_PASSWORDS=false
+        fi
+    else
+        case "${ROTATE_LOCAL_ADMIN_PASSWORDS,,}" in
+            1|true|yes|y) ROTATE_LOCAL_ADMIN_PASSWORDS=true ;;
+            0|false|no|n) ROTATE_LOCAL_ADMIN_PASSWORDS=false ;;
+            *) error "ROTATE_LOCAL_ADMIN_PASSWORDS must be true or false." ;;
+        esac
+    fi
+
+    if [[ "$ROTATE_LOCAL_ADMIN_PASSWORDS" != "true" ]]; then
+        LOCAL_ADMIN_PASSWORD=""
+        unset LOCAL_ADMIN_PASSWORD
+        return
+    fi
+
+    while ! validate_local_admin_password; do
+        if [[ "$AUTO_APPROVE" == "true" ]]; then
+            error "Set LOCAL_ADMIN_PASSWORD when ROTATE_LOCAL_ADMIN_PASSWORDS=true. $LOCAL_ADMIN_PASSWORD_ERROR"
+        fi
+        [[ -z "$LOCAL_ADMIN_PASSWORD" ]] || warn "$LOCAL_ADMIN_PASSWORD_ERROR"
+        LOCAL_ADMIN_PASSWORD=""
+        IFS= read -rsp "Local infrastructure administrator password (input hidden): " \
+            LOCAL_ADMIN_PASSWORD
+        echo >&2
+        IFS= read -rsp "Confirm local infrastructure administrator password: " \
+            password_confirmation
+        echo >&2
+        if [[ "$LOCAL_ADMIN_PASSWORD" != "$password_confirmation" ]]; then
+            warn "The passwords do not match."
+            LOCAL_ADMIN_PASSWORD=""
+        fi
+        password_confirmation=""
+    done
+
+    unset password_confirmation LOCAL_ADMIN_PASSWORD_ERROR
+    info "The installer will align supported local infrastructure superusers after platform deployment."
 }
 
 ask_server_exposure() {
@@ -241,7 +309,9 @@ cleanup_private_credentials() {
     OVH_APPLICATION_KEY=""
     OVH_APPLICATION_SECRET=""
     OVH_CONSUMER_KEY=""
+    LOCAL_ADMIN_PASSWORD=""
     unset TAILSCALE_API_TOKEN OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY 2>/dev/null || true
+    unset LOCAL_ADMIN_PASSWORD LOCAL_ADMIN_PASSWORD_ERROR 2>/dev/null || true
     if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/bm-cluster-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
         rm -r -- "$INSTALLER_TEMP_DIR"
     fi
@@ -468,6 +538,15 @@ fi
 if [[ "$DEPLOY_ODOO" == "true" && "$DEPLOY_DATA_STORES" != "true" ]]; then
     warn "Odoo depends on PostgreSQL; enabling data store deployment."
     DEPLOY_DATA_STORES=true
+fi
+
+if [[ "$DEPLOY_PLATFORM_SERVICES" == "true" ]]; then
+    step "Configure optional local administrator password alignment"
+    configure_local_admin_password_rotation
+else
+    ROTATE_LOCAL_ADMIN_PASSWORDS=false
+    LOCAL_ADMIN_PASSWORD=""
+    unset LOCAL_ADMIN_PASSWORD
 fi
 
 if [[ "$DEPLOY_DATA_STORES" == "true" && "$INSTALL_VAULT_STACK" != "true" ]]; then
@@ -790,6 +869,16 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             kubectl wait --for=condition=complete "$created_resource" -n infra \
                 --timeout="$POST_DEPLOY_JOB_WAIT_TIMEOUT"
         done
+
+        if [[ "$ROTATE_LOCAL_ADMIN_PASSWORDS" == "true" ]]; then
+            [[ -x "$LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT" ]] || \
+                error "Local administrator password rotation script is not executable: $LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT"
+            step "Aligning local infrastructure superuser passwords..."
+            printf '%s\n' "$LOCAL_ADMIN_PASSWORD" | \
+                "$LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT" --password-stdin
+            LOCAL_ADMIN_PASSWORD=""
+            unset LOCAL_ADMIN_PASSWORD
+        fi
 
         if [[ "$CONFIGURE_CLOUDFLARE" == "true" ]]; then
             step "Connecting Cloudflare Access to Keycloak..."
