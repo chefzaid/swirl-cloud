@@ -316,6 +316,7 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch
   fluent_bit_writer_password="$(generate_secret)"
   grafana_reader_password="$(generate_secret)"
   kibana_bootstrap_password="$(generate_secret)"
+  ci_observer_password="$(generate_secret)"
   vault_cmd_auth "$root_token" kv put secret/infra/elasticsearch \
     elastic_username="elastic" \
     elastic_password="$elastic_superuser_password" \
@@ -331,12 +332,22 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch
     grafana_reader_password="$grafana_reader_password" \
     kibana_bootstrap_username="kibana_dashboard_bootstrap" \
     kibana_bootstrap_password="$kibana_bootstrap_password" \
+    ci_observer_username="ci_observer" \
+    ci_observer_password="$ci_observer_password" \
     kibana_security_encryption_key="$(generate_secret)" \
     kibana_saved_objects_encryption_key="$(generate_secret)" \
     kibana_reporting_encryption_key="$(generate_secret)" >/dev/null
   unset elastic_superuser_password elastic_admin_password kibana_system_password
   unset logstash_writer_password fluent_bit_writer_password grafana_reader_password
-  unset kibana_bootstrap_password
+  unset kibana_bootstrap_password ci_observer_password
+fi
+
+if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch | \
+  jq -e '.data.data.ci_observer_username and .data.data.ci_observer_password' >/dev/null 2>&1; then
+  info "Adding the Elastic CI observer credential to Vault"
+  vault_cmd_auth "$root_token" kv patch secret/infra/elasticsearch \
+    ci_observer_username="ci_observer" \
+    ci_observer_password="$(generate_secret)" >/dev/null
 fi
 
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/platform-ui >/dev/null 2>&1; then

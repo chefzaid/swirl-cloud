@@ -334,6 +334,10 @@ spec:
       remoteRef:
         key: infra/elasticsearch
         property: kibana_bootstrap_password
+    - secretKey: CI_OBSERVER_PASSWORD
+      remoteRef:
+        key: infra/elasticsearch
+        property: ci_observer_password
 
 ---
 apiVersion: external-secrets.io/v1

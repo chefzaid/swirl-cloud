@@ -40,7 +40,7 @@ fi
 sudo test -s "$VAULT_TOKEN_FILE" || fail "Vault bootstrap token is missing from $VAULT_TOKEN_FILE"
 
 work_dir="$(mktemp -d /tmp/bm-gitlab-ci.XXXXXX)"
-trap 'rm -r -- "$work_dir"; unset GITLAB_ADMIN_TOKEN GITLAB_RETENTION_TOKEN vault_token runner_token retention_api_token' EXIT
+trap 'rm -r -- "$work_dir"; unset GITLAB_ADMIN_TOKEN GITLAB_RETENTION_TOKEN vault_token runner_token retention_api_token elastic_ci_username elastic_ci_password' EXIT
 api_config="$work_dir/curl-api.conf"
 printf 'silent\nshow-error\nheader = "PRIVATE-TOKEN: %s"\n' "$GITLAB_ADMIN_TOKEN" > "$api_config"
 
@@ -49,6 +49,36 @@ api_json() {
   shift 2
   curl --config "$api_config" --fail-with-body --request "$method" \
     "$GITLAB_URL/api/v4/$path" "$@"
+}
+
+upsert_project_variable() {
+  local key="$1" value="$2" encoded_key status
+  encoded_key="$(jq -rn --arg value "$key" '$value|@uri')"
+  status="$(curl --config "$api_config" --request GET \
+    --output /dev/null --write-out '%{http_code}' \
+    "$GITLAB_URL/api/v4/projects/$project_id/variables/$encoded_key")"
+  case "$status" in
+    200)
+      api_json PUT "projects/$project_id/variables/$encoded_key" \
+        --form-string "value=$value" \
+        --form-string variable_type=env_var \
+        --form-string protected=true \
+        --form-string masked=true \
+        --form-string raw=true >/dev/null
+      ;;
+    404)
+      api_json POST "projects/$project_id/variables" \
+        --form-string "key=$key" \
+        --form-string "value=$value" \
+        --form-string variable_type=env_var \
+        --form-string protected=true \
+        --form-string masked=true \
+        --form-string raw=true >/dev/null
+      ;;
+    *)
+      fail "GitLab returned HTTP $status while reconciling CI variable $key"
+      ;;
+  esac
 }
 
 api_json PUT application/settings \
@@ -134,6 +164,24 @@ done
 info "Configured three-year container image retention for ${#group_project_ids[@]} projects"
 
 vault_token="$(sudo cat "$VAULT_TOKEN_FILE")"
+elastic_ci_username="$({ printf '%s\n' "$vault_token"; } | \
+  kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
+    IFS= read -r VAULT_TOKEN
+    export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+    vault kv get -field=ci_observer_username secret/infra/elasticsearch
+  ')"
+elastic_ci_password="$({ printf '%s\n' "$vault_token"; } | \
+  kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
+    IFS= read -r VAULT_TOKEN
+    export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+    vault kv get -field=ci_observer_password secret/infra/elasticsearch
+  ')"
+[[ -n "$elastic_ci_username" && -n "$elastic_ci_password" ]] || \
+  fail "Elastic CI observer credentials are missing from Vault"
+upsert_project_variable ELASTICSEARCH_CI_USERNAME "$elastic_ci_username"
+upsert_project_variable ELASTICSEARCH_CI_PASSWORD "$elastic_ci_password"
+info "Configured protected, masked Elastic observer variables for delivery verification"
+
 runner_token="$({ printf '%s\n' "$vault_token"; } | \
   kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
     IFS= read -r VAULT_TOKEN

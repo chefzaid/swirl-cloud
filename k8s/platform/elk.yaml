@@ -286,6 +286,7 @@ spec:
               put_user fluent_bit_writer "$FLUENT_BIT_WRITER_PASSWORD" '["logs_writer"]' 'Fluent Bit Writer'
               put_user grafana_reader "$GRAFANA_READER_PASSWORD" '["logs_reader"]' 'Grafana Logs Reader'
               put_user kibana_dashboard_bootstrap "$KIBANA_BOOTSTRAP_PASSWORD" '["kibana_admin"]' 'Kibana Dashboard Bootstrap'
+              put_user ci_observer "$CI_OBSERVER_PASSWORD" '["logs_reader"]' 'CI Delivery Observer'
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

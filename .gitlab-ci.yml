@@ -72,10 +72,11 @@ verify:delivery-platform:
     - mkdir -p "$APK_CACHE_DIR"
     - apk add --cache-dir "$APK_CACHE_DIR" curl jq kubectl
   script:
+    - test -n "$ELASTICSEARCH_CI_USERNAME" && test -n "$ELASTICSEARCH_CI_PASSWORD"
     - curl --fail --silent --show-error http://gitlab.swirlit.internal/-/readiness >/dev/null
     - curl --fail --silent --show-error http://prometheus.swirlit.internal:9090/-/ready >/dev/null
     - curl --fail --silent --show-error http://grafana.swirlit.internal:3000/api/health | jq -e '.database == "ok"' >/dev/null
-    - curl --fail --silent --show-error http://elasticsearch.swirlit.internal:9200/_cluster/health | jq -e '.status == "green" or .status == "yellow"' >/dev/null
+    - curl --fail --silent --show-error --user "$ELASTICSEARCH_CI_USERNAME:$ELASTICSEARCH_CI_PASSWORD" http://elasticsearch.swirlit.internal:9200/_cluster/health | jq -e '.status == "green" or .status == "yellow"' >/dev/null
     - test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://gitlab-registry.swirlit.internal:5050/v2/)" = "401"
     - kubectl get configmap grafana-gitlab-delivery-dashboard -n infra >/dev/null
     - |
@@ -85,6 +86,7 @@ verify:delivery-platform:
         jq -e '.status == "success" and (.data.result[0].value[1] | tonumber) == 1' >/dev/null
     - |
       curl --get --fail --silent --show-error \
+        --user "$ELASTICSEARCH_CI_USERNAME:$ELASTICSEARCH_CI_PASSWORD" \
         --data-urlencode 'q=kubernetes.pod_name:gitlab*' \
         http://elasticsearch.swirlit.internal:9200/kubernetes-logs-*/_count |
         jq -e '.count > 0' >/dev/null
