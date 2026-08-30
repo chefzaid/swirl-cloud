@@ -330,11 +330,31 @@ the projects, ownership, activity, and permissions already visible to the
 break-glass root login. Its bootstrap removes any empty `zaid` account created
 before that identity link existed, so Keycloak and local root authentication do
 not create separate GitLab users. Grafana maps the identity to Grafana Admin,
-Argo CD to its admin role, Vault to `platform-admin`, Portainer to role `1`,
-Odoo to its existing administrator, and SonarQube synchronizes the Keycloak
+Argo CD to its admin role, Vault to `platform-admin`, and Portainer to role `1`
+with Kubernetes `cluster-admin`. Odoo maps it to its existing administrator,
+and SonarQube synchronizes the Keycloak
 group to its global `admin` permission. The application dashboards and services
 without native OIDC use the same Keycloak session at their proxy boundary, so
 they do not introduce another user or password.
+
+The effective authorization contract for that identity is deliberately
+unrestricted:
+
+| Target | Effective maximum access |
+|---|---|
+| Keycloak | `realm-admin` for the managed `swirlit` realm |
+| GitLab | Canonical `root` instance administrator and project owner |
+| Grafana | Server-wide `GrafanaAdmin` and organization `Admin` |
+| Argo CD | Built-in `role:admin` |
+| Vault | Wildcard create/read/update/patch/delete/list/`sudo` policy |
+| Portainer | Application role `1` and Kubernetes `cluster-admin` |
+| Odoo | Existing Settings administrator (`base.user_admin`) |
+| SonarQube | Global administration, provisioning, and scan permissions |
+| Kibana / Elasticsearch | Managed origin user with `superuser` |
+| Kafka UI | Full cluster write mode; read-only mode is disabled |
+| DBGate | Keycloak-gated access to PostgreSQL superuser, MongoDB `root`, and unrestricted Redis connections |
+| Longhorn / Homepage | Full product UI behind the `platform-admins` gate; neither product has an internal user-role hierarchy |
+| DevApp / Thoughty / Indezy | All authenticated application functionality; these applications do not define a higher administrator role |
 
 The following local credentials are break-glass or automation credentials, not
 the normal browser sign-in path:
