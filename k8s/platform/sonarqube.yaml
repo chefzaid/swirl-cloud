@@ -1,4 +1,100 @@
 ---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: sonarqube-sso-admin-token
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 15m
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: sonarqube-sso-admin-token
+    creationPolicy: Owner
+  data:
+    - secretKey: admin-token
+      remoteRef:
+        key: infra/sonarqube
+        property: admin_token
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sonarqube-sso-admin-bootstrap
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: sonarqube-sso-admin-bootstrap
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: docker.io/curlimages/curl@sha256:9a1ed35addb45476afa911696297f8e115993df459278ed036182dd2cd22b67b
+          env:
+            - name: SONAR_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-sso-admin-token
+                  key: admin-token
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              sonar_url=http://sonarqube.swirlit.internal:9000
+              auth_header="Authorization: Bearer $SONAR_ADMIN_TOKEN"
+
+              until curl --fail --silent --show-error \
+                --header "$auth_header" "$sonar_url/api/system/status" >/dev/null; do
+                sleep 10
+              done
+
+              groups="$(curl --fail --silent --show-error --header "$auth_header" \
+                "$sonar_url/api/user_groups/search?q=platform-admins")"
+              if ! printf '%s' "$groups" | grep --quiet '"name":"platform-admins"'; then
+                curl --fail --silent --show-error --request POST --header "$auth_header" \
+                  --data-urlencode name=platform-admins \
+                  --data-urlencode 'description=Keycloak platform administrators' \
+                  "$sonar_url/api/user_groups/create" >/dev/null
+              fi
+
+              curl --fail --silent --show-error --request POST --header "$auth_header" \
+                --data-urlencode groupName=platform-admins \
+                --data-urlencode permission=admin \
+                "$sonar_url/api/permissions/add_group" >/dev/null
+              echo 'Ensured the Keycloak platform-admins group has SonarQube administration.'
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -169,9 +265,9 @@ spec:
         - name: SONAR_WEB_SSO_ENABLE
           value: "true"
         - name: SONAR_WEB_SSO_LOGINHEADER
-          value: X-Auth-Request-User
+          value: X-Auth-Request-Email
         - name: SONAR_WEB_SSO_NAMEHEADER
-          value: X-Auth-Request-User
+          value: X-Auth-Request-Email
         - name: SONAR_WEB_SSO_EMAILHEADER
           value: X-Auth-Request-Email
         - name: SONAR_WEB_SSO_GROUPSHEADER
