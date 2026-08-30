@@ -1,5 +1,35 @@
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-sso-admin-bootstrap
+  namespace: infra
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+    set -u
+
+    while true; do
+      if curl --fail --silent --show-error http://127.0.0.1/users/sign_in >/dev/null; then
+        if gitlab-rails runner '
+          username = ENV.fetch("SSO_BOOTSTRAP_USERNAME")
+          user = User.find_by_username(username)
+          exit 2 unless user
+          unless user.admin?
+            user.admin = true
+            user.save!
+          end
+          puts "Ensured GitLab administrator #{username}."
+        '; then
+          exit 0
+        fi
+      fi
+
+      sleep 30
+    done
+
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: gitlab-config
@@ -78,6 +108,11 @@ spec:
             secretKeyRef:
               name: keycloak-sso-credentials
               key: GITLAB_CLIENT_SECRET
+        - name: SSO_BOOTSTRAP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-sso-credentials
+              key: SSO_BOOTSTRAP_USERNAME
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
             external_url 'https://gitlab.swirlit.dev'
@@ -155,6 +190,13 @@ spec:
           periodSeconds: 60
           timeoutSeconds: 10
           failureThreshold: 10
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - nohup /opt/swirlit/bootstrap-sso-admin >>/var/log/gitlab/sso-admin-bootstrap.log 2>&1 </dev/null &
         volumeMounts:
         - name: gitlab-config
           mountPath: /etc/gitlab
@@ -162,6 +204,10 @@ spec:
           mountPath: /var/log/gitlab
         - name: gitlab-data
           mountPath: /var/opt/gitlab
+        - name: sso-admin-bootstrap
+          mountPath: /opt/swirlit/bootstrap-sso-admin
+          subPath: bootstrap.sh
+          readOnly: true
       volumes:
       - name: gitlab-config
         persistentVolumeClaim:
@@ -172,6 +218,10 @@ spec:
       - name: gitlab-data
         persistentVolumeClaim:
           claimName: gitlab-data
+      - name: sso-admin-bootstrap
+        configMap:
+          name: gitlab-sso-admin-bootstrap
+          defaultMode: 0555
 
 ---
 apiVersion: v1
