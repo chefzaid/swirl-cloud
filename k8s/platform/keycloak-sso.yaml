@@ -218,6 +218,40 @@ data:
     ensure_role platform-user "May sign in to SwirlIT applications and services"
     ensure_role platform-admin "Administrator of SwirlIT applications and services"
 
+    # Services such as GitLab, Grafana, Argo CD, Vault, Kafka UI, and
+    # Portainer request the groups scope explicitly. A client-level groups
+    # mapper alone does not register that scope with Keycloak, so the browser
+    # authorization request is otherwise rejected before credentials are read.
+    expect_success "$(request GET "realms/$realm/client-scopes")"
+    groups_scope_id="$(
+      tr -d '\n' < "$response_file" |
+        sed 's/},{/}\n{/g' |
+        grep '"name":"groups"' |
+        sed -n 's/.*"id":"\([^"]*\)".*/\1/p' |
+        head -n 1
+    )"
+    if [ -z "$groups_scope_id" ]; then
+      groups_scope_body='{
+        "name":"groups",
+        "description":"SwirlIT group memberships used for application authorization",
+        "protocol":"openid-connect",
+        "attributes":{
+          "include.in.token.scope":"true",
+          "display.on.consent.screen":"false"
+        }
+      }'
+      expect_success "$(request POST "realms/$realm/client-scopes" "$groups_scope_body")"
+      expect_success "$(request GET "realms/$realm/client-scopes")"
+      groups_scope_id="$(
+        tr -d '\n' < "$response_file" |
+          sed 's/},{/}\n{/g' |
+          grep '"name":"groups"' |
+          sed -n 's/.*"id":"\([^"]*\)".*/\1/p' |
+          head -n 1
+      )"
+    fi
+    test -n "$groups_scope_id"
+
     ensure_client() {
       client_id="$1"
       public_client="$2"
@@ -263,6 +297,10 @@ data:
       }"
       echo "Updating Keycloak client '$client_id'"
       expect_success "$(request PUT "realms/$realm/clients/$internal_id" "$client_body")"
+
+      # Keep the scope optional: clients that request it receive it, while
+      # simple clients are not forced to advertise it.
+      expect_success "$(request PUT "realms/$realm/clients/$internal_id/optional-client-scopes/$groups_scope_id")"
 
       mapper_body='{
         "name":"groups",
@@ -348,6 +386,16 @@ data:
     platform_user_role="$(tr -d '\n' < "$response_file")"
     role_mappings="[$platform_admin_role,$platform_user_role]"
     expect_success "$(request POST "realms/$realm/groups/$group_id/role-mappings/realm" "$role_mappings")"
+
+    # Delegate full administration of this realm to the same platform-admins
+    # group. The realm-specific console can then use the shared zaid identity
+    # instead of requiring a second master-realm administrator.
+    expect_success "$(request GET "realms/$realm/clients?clientId=realm-management")"
+    realm_management_id="$(extract_id)"
+    test -n "$realm_management_id"
+    expect_success "$(request GET "realms/$realm/clients/$realm_management_id/roles/realm-admin")"
+    realm_admin_role="$(tr -d '\n' < "$response_file")"
+    expect_success "$(request POST "realms/$realm/groups/$group_id/role-mappings/clients/$realm_management_id" "[$realm_admin_role]")"
 
     expect_success "$(request GET "realms/$realm/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
     user_id="$(extract_id)"
@@ -559,6 +607,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/app-root: /auth/admin/swirlit/console/
 spec:
   ingressClassName: nginx
   tls:
