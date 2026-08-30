@@ -101,9 +101,6 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/auth-type: basic
-    nginx.ingress.kubernetes.io/auth-secret: platform-ui-basic-auth
-    nginx.ingress.kubernetes.io/auth-realm: "Kibana login"
 spec:
   ingressClassName: nginx
   tls:

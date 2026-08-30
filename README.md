@@ -325,7 +325,8 @@ repository:
 | Grafana | `admin` | `kubectl get secret -n infra grafana-admin-secret -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' \| base64 -d` |
 | Kafka UI | Secret value | `kubectl get secret -n infra kafka-ui-auth-secret -o go-template='{{printf "%s:%s" (index .data "SPRING_SECURITY_USER_NAME" \| base64decode) (index .data "SPRING_SECURITY_USER_PASSWORD" \| base64decode)}}'` |
 | Keycloak | Secret value | `kubectl get secret -n infra keycloak-admin-secret -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' \| base64 -d` |
-| Kibana and Longhorn origin login | `admin` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=password secret/infra/platform-ui` |
+| Kibana | `admin` | `kubectl get secret -n infra elasticsearch-security-bootstrap -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
+| Longhorn origin login | `admin` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=password secret/infra/platform-ui` |
 | Odoo | `admin` | `kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' \| base64 -d` |
 | Portainer | `admin` | `kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
 | SonarQube | `admin` | Initial password: `admin` |
@@ -333,9 +334,10 @@ repository:
 
 Change bootstrap credentials immediately after onboarding.
 
-Kibana and Longhorn retain Cloudflare Access at the public edge and require the
-Vault-managed NGINX Basic Auth credential at the origin. This second boundary
-also protects direct-IP and internal ingress access.
+Kibana and Longhorn retain Cloudflare Access at the public edge. Kibana uses
+Elastic's native login, users, and roles at the origin. Longhorn has no native
+authentication provider, so only Longhorn retains the Vault-managed NGINX Basic
+Auth boundary for direct-IP and internal ingress access.
 
 ## Operations
 
@@ -358,7 +360,10 @@ and copies the Kubernetes `app` label to a keyword field. Kibana provisions an
 platform discovery independent of application names; app repositories own their
 metrics endpoints, structured stdout format, and optional detailed dashboards.
 The logging bootstrap applies a seven-day Elasticsearch lifecycle policy to
-bound disk use.
+bound disk use. Elasticsearch security is enabled: Kibana uses its reserved
+system account, ingestion and Grafana use dedicated least-privilege users, and
+dashboard import hooks use a dedicated account with the `kibana_admin` role. All credentials
+and Kibana encryption keys are synchronized from Vault.
 
 Trigger the Descheduler manually:
 

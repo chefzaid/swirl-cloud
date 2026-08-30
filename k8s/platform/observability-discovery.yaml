@@ -155,12 +155,16 @@ spec:
       containers:
         - name: import-saved-objects
           image: docker.io/curlimages/curl@sha256:9a1ed35addb45476afa911696297f8e115993df459278ed036182dd2cd22b67b
+          envFrom:
+            - secretRef:
+                name: kibana-bootstrap-credentials
           command:
             - sh
             - -c
             - |
-              until curl -fsS http://kibana.swirlit.internal:5601/api/status >/dev/null; do sleep 5; done
-              response="$(curl -fsS -X POST \
+              until curl -fsS --user "${KIBANA_BOOTSTRAP_USERNAME}:${KIBANA_BOOTSTRAP_PASSWORD}" \
+                http://kibana.swirlit.internal:5601/api/status >/dev/null; do sleep 5; done
+              response="$(curl -fsS --user "${KIBANA_BOOTSTRAP_USERNAME}:${KIBANA_BOOTSTRAP_PASSWORD}" -X POST \
                 -H 'kbn-xsrf: namespace-observability-bootstrap' \
                 -F file=@/saved-objects/applications-namespace.ndjson \
                 'http://kibana.swirlit.internal:5601/api/saved_objects/_import?overwrite=true')"

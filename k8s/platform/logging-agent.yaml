@@ -89,6 +89,8 @@ data:
         Match                     kube.*
         Host                      elasticsearch.swirlit.internal
         Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
         Logstash_Format           On
         Logstash_Prefix           kubernetes-logs-v2
         Logstash_DateFormat       %Y.%m.%d
@@ -198,6 +200,8 @@ metadata:
   namespace: infra
   labels:
     app: fluent-bit
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   selector:
     matchLabels:
@@ -222,20 +226,24 @@ spec:
       initContainers:
         - name: configure-index-template
           image: docker.io/curlimages/curl@sha256:9a1ed35addb45476afa911696297f8e115993df459278ed036182dd2cd22b67b
+          envFrom:
+            - secretRef:
+                name: fluent-bit-elasticsearch-credentials
           command:
             - sh
             - -c
             - |
-              until curl -fsS http://elasticsearch.swirlit.internal:9200 >/dev/null; do sleep 5; done
-              curl -fsS -X PUT \
+              until curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
+                http://elasticsearch.swirlit.internal:9200 >/dev/null; do sleep 5; done
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/ilm-policy.json \
                 http://elasticsearch.swirlit.internal:9200/_ilm/policy/bm-cluster-logs-7d >/dev/null
-              curl -fsS -X PUT \
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/index-template.json \
                 http://elasticsearch.swirlit.internal:9200/_template/kubernetes-logs-v2 >/dev/null
-              curl -fsS -X PUT \
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary '{"index.lifecycle.name":"bm-cluster-logs-7d"}' \
                 'http://elasticsearch.swirlit.internal:9200/kubernetes-logs-*,app-logs-*/_settings?allow_no_indices=true&ignore_unavailable=true' >/dev/null
@@ -260,6 +268,9 @@ spec:
       containers:
         - name: fluent-bit
           image: cr.fluentbit.io/fluent/fluent-bit@sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169
+          envFrom:
+            - secretRef:
+                name: fluent-bit-elasticsearch-credentials
           ports:
             - name: metrics
               containerPort: 2020
