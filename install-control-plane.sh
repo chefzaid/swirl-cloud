@@ -38,6 +38,7 @@ fi
 source "$SSO_ADMIN_LIBRARY"
 
 K8S_DIR="$SCRIPT_DIR/k8s"
+VAULT_VALUES_FILE="$SCRIPT_DIR/config/vault-values.yaml"
 VAULT_BOOTSTRAP_SCRIPT="$SCRIPT_DIR/scripts/configure-vault.sh"
 SECURITY_HARDEN_SCRIPT="$SCRIPT_DIR/scripts/configure-node-security.sh"
 CLOUDFLARE_SCRIPT="$SCRIPT_DIR/scripts/configure-cloudflare.sh"
@@ -865,6 +866,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         helm upgrade --install vault hashicorp/vault \
             --namespace infra \
             --version "$VAULT_CHART_VERSION" \
+            --values "$VAULT_VALUES_FILE" \
             --set injector.enabled=false \
             --set server.ha.enabled=true \
             --set server.ha.raft.enabled=true \

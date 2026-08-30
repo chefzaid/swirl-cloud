@@ -10,6 +10,7 @@
     repository_root: "{{ playbook_dir }}/.."
     k8s_dir: "{{ repository_root }}/k8s"
     platform_config_file: "{{ repository_root }}/config/platform.env"
+    vault_values_file: "{{ repository_root }}/config/vault-values.yaml"
 
     platform_contract_version: >-
       {{ lookup('ansible.builtin.ini', 'PLATFORM_CONTRACT_VERSION type=properties file=' ~ platform_config_file) }}
@@ -408,6 +409,7 @@
         helm upgrade --install vault hashicorp/vault
         --namespace {{ infra_namespace }}
         --version {{ vault_chart_version }}
+        --values {{ vault_values_file }}
         --set injector.enabled=false
         --set server.ha.enabled=true
         --set server.ha.raft.enabled=true

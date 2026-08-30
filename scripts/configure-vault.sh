@@ -131,6 +131,29 @@ status_json="$(vault_cmd status -format=json 2>/dev/null || true)"
 sealed="$(echo "$status_json" | jq -r '.sealed')"
 [[ "$sealed" == "false" ]] || error "Vault remains sealed after unseal attempt."
 
+if ! vault_cmd_auth "$root_token" audit list -format=json | jq -e '."stdout/"' >/dev/null 2>&1; then
+  info "Enabling the Vault stdout audit device..."
+  vault_cmd_auth "$root_token" audit enable -path=stdout file \
+    file_path=stdout \
+    format=json \
+    elide_list_responses=true \
+    hmac_accessor=false >/dev/null
+fi
+
+if ! vault_cmd_auth "$root_token" audit list -format=json | jq -e '."file/"' >/dev/null 2>&1; then
+  if kubectl exec -n "$NAMESPACE" "$VAULT_POD" -- test -w /vault/audit; then
+    info "Enabling the persistent Vault file audit device..."
+    vault_cmd_auth "$root_token" audit enable -path=file file \
+      file_path=/vault/audit/vault-audit.log \
+      mode=0600 \
+      format=json \
+      elide_list_responses=true \
+      hmac_accessor=false >/dev/null
+  else
+    warn "Persistent audit storage is not writable at /vault/audit; stdout auditing remains active."
+  fi
+fi
+
 if ! vault_cmd_auth "$root_token" secrets list -format=json | jq -e '."secret/"' >/dev/null 2>&1; then
   info "Enabling Vault KV v2 engine at path 'secret/'..."
   vault_cmd_auth "$root_token" secrets enable -path=secret kv-v2 >/dev/null

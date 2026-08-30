@@ -389,6 +389,13 @@ user hierarchy; Vault uses tokens rather than a password.
 | SonarQube automation | `admin` token | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=admin_token secret/infra/sonarqube` |
 | Vault | Token login | `sudo cat /var/lib/bm-cluster/vault-bootstrap-token` |
 
+Vault records every API request and response to two audit devices. The stdout
+device is collected by Fluent Bit, while the file device writes to the
+dedicated `vault-audit` PVC. An unprivileged sidecar rotates the file at 256
+MiB by atomically renaming it and sending Vault `SIGHUP`; it compresses closed
+files and retains the eight newest archives. The rotation sidecar never
+receives a Vault token and does not change Vault authentication or policies.
+
 To align every genuine infrastructure-local superuser password, supply the
 password without placing it on the command line:
 
@@ -601,6 +608,7 @@ EditorConfig and Git attributes keep text formatting portable.
 - Keep PostgreSQL, MongoDB, Redis, Kafka, Elasticsearch, and Prometheus internal.
 - Keep `swirlit.internal` in CoreDNS only; never publish it through Cloudflare or public DNS.
 - Keep administrative UI hostnames behind Cloudflare Access.
+- Keep both Vault audit devices enabled and alert on audit-write failures or audit-volume pressure.
 - Revoke short-lived setup tokens after use and rotate bootstrap credentials.
 - Keep only required public ports open and update Kubernetes workloads regularly.
 - Workers accept no public traffic: never publish, forward, or load-balance traffic to them.
