@@ -286,6 +286,74 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak >/de
     realm_export_json="$realm_export_json" >/dev/null
 fi
 
+# The shared SSO realm is reconciled after Keycloak starts, rather than relying
+# on startup import (which Keycloak intentionally ignores for an existing
+# realm/database). Keep credentials in Vault and only add fields that are
+# missing so routine bootstrap runs never rotate active OIDC clients.
+keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
+declare -A keycloak_sso_defaults=(
+  [sso_bootstrap_username]="zaid"
+  [sso_bootstrap_password]="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-$(generate_secret)}"
+  [oauth2_proxy_client_secret]="$(generate_secret)"
+  [oauth2_proxy_cookie_secret]="$(generate_secret)"
+  [gitlab_client_secret]="$(generate_secret)"
+  [grafana_client_secret]="$(generate_secret)"
+  [vault_client_secret]="$(generate_secret)"
+  [kafka_ui_client_secret]="$(generate_secret)"
+  [portainer_client_secret]="$(generate_secret)"
+  [odoo_client_secret]="$(generate_secret)"
+)
+for keycloak_sso_field in "${!keycloak_sso_defaults[@]}"; do
+  if ! jq -e --arg field "$keycloak_sso_field" '.data.data[$field] | strings | length > 0' \
+    <<<"$keycloak_sso_secret_json" >/dev/null; then
+    info "Adding Keycloak SSO secret field: $keycloak_sso_field"
+    vault_cmd_auth "$root_token" kv patch secret/infra/keycloak \
+      "$keycloak_sso_field=${keycloak_sso_defaults[$keycloak_sso_field]}" >/dev/null
+  fi
+done
+
+keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
+vault_oidc_client_secret="$(jq -r '.data.data.vault_client_secret' <<<"$keycloak_sso_secret_json")"
+
+if ! vault_cmd_auth "$root_token" auth list -format=json | jq -e '."oidc/"' >/dev/null 2>&1; then
+  info "Enabling Vault OIDC authentication..."
+  vault_cmd_auth "$root_token" auth enable oidc >/dev/null
+fi
+
+info "Configuring Vault OIDC authentication against the SwirlIT Keycloak realm..."
+vault_cmd_auth "$root_token" write auth/oidc/config \
+  oidc_discovery_url="https://keycloak.swirlit.dev/auth/realms/swirlit" \
+  oidc_client_id="vault" \
+  oidc_client_secret="$vault_oidc_client_secret" \
+  default_role="platform-admin" >/dev/null
+
+cat <<'EOF' | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$root_token" vault policy write platform-admin - >/dev/null
+path "*" {
+  capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+}
+EOF
+
+cat <<'EOF' | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$root_token" vault write auth/oidc/role/platform-admin - >/dev/null
+{
+  "role_type": "oidc",
+  "bound_audiences": ["vault"],
+  "allowed_redirect_uris": [
+    "https://vault.swirlit.dev/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback"
+  ],
+  "user_claim": "preferred_username",
+  "groups_claim": "groups",
+  "oidc_scopes": ["openid", "profile", "email", "groups"],
+  "bound_claims": {"groups": "platform-admins"},
+  "policies": ["platform-admin"],
+  "ttl": "1h",
+  "max_ttl": "8h"
+}
+EOF
+
+unset vault_oidc_client_secret
+unset keycloak_sso_secret_json keycloak_sso_defaults keycloak_sso_field
+
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/dbgate >/dev/null 2>&1; then
   info "Seeding Vault secret: infra/dbgate"
   vault_cmd_auth "$root_token" kv put secret/infra/dbgate \

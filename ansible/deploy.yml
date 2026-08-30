@@ -540,10 +540,8 @@
         helm upgrade --install argocd argo/argo-cd
         --namespace {{ infra_namespace }}
         --version {{ argocd_chart_version }}
+        --values {{ repository_root }}/config/argocd-values.yaml
         --set-string global.image.tag={{ argocd_image_tag }}
-        --set server.service.type=ClusterIP
-        --set 'configs.params.server\.insecure=true'
-        --set redis.enabled=true
         --wait --timeout {{ argocd_helm_timeout }}
       when: argocd_enabled
 

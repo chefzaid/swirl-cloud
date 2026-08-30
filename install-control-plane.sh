@@ -816,10 +816,8 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         helm upgrade --install argocd argo/argo-cd \
             --namespace infra \
             --version "$ARGOCD_CHART_VERSION" \
+            --values "$SCRIPT_DIR/config/argocd-values.yaml" \
             --set-string "global.image.tag=$ARGOCD_IMAGE_TAG" \
-            --set server.service.type=ClusterIP \
-            --set configs.params."server\\.insecure"=true \
-            --set redis.enabled=true \
             --wait --timeout "$ARGOCD_HELM_TIMEOUT"
 
         step "Applying GitLab-backed Argo CD applications..."

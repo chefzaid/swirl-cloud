@@ -166,6 +166,18 @@ spec:
             secretKeyRef:
               name: sonarqube-db-credentials
               key: jdbc-password
+        - name: SONAR_WEB_SSO_ENABLE
+          value: "true"
+        - name: SONAR_WEB_SSO_LOGINHEADER
+          value: X-Auth-Request-User
+        - name: SONAR_WEB_SSO_NAMEHEADER
+          value: X-Auth-Request-User
+        - name: SONAR_WEB_SSO_EMAILHEADER
+          value: X-Auth-Request-Email
+        - name: SONAR_WEB_SSO_GROUPSHEADER
+          value: X-Auth-Request-Groups
+        - name: SONAR_WEB_SSO_REFRESHINTERVALINMINUTES
+          value: "5"
         volumeMounts:
         - name: sonarqube-data
           mountPath: /opt/sonarqube/data

@@ -1,0 +1,516 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-sso-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: keycloak-sso-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: SSO_BOOTSTRAP_USERNAME
+      remoteRef: {key: infra/keycloak, property: sso_bootstrap_username}
+    - secretKey: SSO_BOOTSTRAP_PASSWORD
+      remoteRef: {key: infra/keycloak, property: sso_bootstrap_password}
+    - secretKey: OAUTH2_PROXY_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: oauth2_proxy_client_secret}
+    - secretKey: OAUTH2_PROXY_COOKIE_SECRET
+      remoteRef: {key: infra/keycloak, property: oauth2_proxy_cookie_secret}
+    - secretKey: GITLAB_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: gitlab_client_secret}
+    - secretKey: GRAFANA_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: grafana_client_secret}
+    - secretKey: VAULT_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: vault_client_secret}
+    - secretKey: KAFKA_UI_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: kafka_ui_client_secret}
+    - secretKey: PORTAINER_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: portainer_client_secret}
+    - secretKey: ODOO_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: odoo_client_secret}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-sso-reconciler
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  reconcile.sh: |
+    #!/bin/sh
+    set -eu
+
+    realm="swirlit"
+    server="http://keycloak:8080/auth"
+    response_file="/tmp/keycloak-response.json"
+
+    login() {
+      token_response="$(curl --fail --silent --show-error \
+        --data-urlencode client_id=admin-cli \
+        --data-urlencode grant_type=password \
+        --data-urlencode "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
+        --data-urlencode "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+        "$server/realms/master/protocol/openid-connect/token")"
+      access_token="$(printf '%s' "$token_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+      test -n "$access_token"
+    }
+
+    until login >/dev/null 2>&1; do
+      echo "Waiting for the Keycloak Admin API..."
+      sleep 5
+    done
+
+    request() {
+      method="$1"
+      path="$2"
+      body="${3:-}"
+      last_request="$method $path"
+      if [ -n "$body" ]; then
+        curl --silent --show-error \
+          --output "$response_file" \
+          --write-out '%{http_code}' \
+          --request "$method" \
+          --header "Authorization: Bearer $access_token" \
+          --header 'Content-Type: application/json' \
+          --data "$body" \
+          "$server/admin/$path"
+      else
+        curl --silent --show-error \
+          --output "$response_file" \
+          --write-out '%{http_code}' \
+          --request "$method" \
+          --header "Authorization: Bearer $access_token" \
+          "$server/admin/$path"
+      fi
+    }
+
+    expect_success() {
+      status="$1"
+      case "$status" in
+        2??) ;;
+        *)
+          echo "Keycloak Admin API returned HTTP $status" >&2
+          sed -n '1,20p' "$response_file" >&2
+          return 1
+          ;;
+      esac
+    }
+
+    extract_id() {
+      sed -n 's/^[^"]*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$response_file" | head -n 1
+    }
+
+    status="$(request GET "realms/$realm")"
+    if [ "$status" = 404 ]; then
+      expect_success "$(request POST realms '{"realm":"swirlit","enabled":true}')"
+    fi
+
+    realm_body='{
+      "realm":"swirlit",
+      "enabled":true,
+      "displayName":"SwirlIT",
+      "registrationAllowed":false,
+      "resetPasswordAllowed":true,
+      "rememberMe":true,
+      "loginWithEmailAllowed":true,
+      "duplicateEmailsAllowed":false,
+      "verifyEmail":false,
+      "bruteForceProtected":true,
+      "permanentLockout":false,
+      "failureFactor":5,
+      "waitIncrementSeconds":60,
+      "maxFailureWaitSeconds":900,
+      "sslRequired":"external",
+      "defaultSignatureAlgorithm":"RS256",
+      "passwordPolicy":"length(12) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1) and notUsername(undefined)",
+      "accessTokenLifespan":300,
+      "ssoSessionIdleTimeout":28800,
+      "ssoSessionMaxLifespan":36000
+    }'
+    expect_success "$(request PUT "realms/$realm" "$realm_body")"
+
+    ensure_role() {
+      role="$1"
+      description="$2"
+      status="$(request GET "realms/$realm/roles/$role")"
+      role_body="{\"name\":\"$role\",\"description\":\"$description\"}"
+      if [ "$status" = 404 ]; then
+        expect_success "$(request POST "realms/$realm/roles" "$role_body")"
+      else
+        expect_success "$status"
+        expect_success "$(request PUT "realms/$realm/roles/$role" "$role_body")"
+      fi
+    }
+
+    ensure_role platform-user "May sign in to SwirlIT applications and services"
+    ensure_role platform-admin "Administrator of SwirlIT applications and services"
+
+    ensure_client() {
+      client_id="$1"
+      public_client="$2"
+      client_secret="$3"
+      redirect_uris="$4"
+      web_origins="$5"
+      root_url="$6"
+      implicit_flow="${7:-false}"
+
+      expect_success "$(request GET "realms/$realm/clients?clientId=$client_id")"
+      internal_id="$(extract_id)"
+      if [ -z "$internal_id" ]; then
+        expect_success "$(request POST "realms/$realm/clients" "{\"clientId\":\"$client_id\",\"enabled\":true,\"protocol\":\"openid-connect\"}")"
+        expect_success "$(request GET "realms/$realm/clients?clientId=$client_id")"
+        internal_id="$(extract_id)"
+      fi
+      echo "Reconciling Keycloak client '$client_id' ($internal_id)"
+
+      secret_property=''
+      if [ "$public_client" = false ]; then
+        secret_property=",\"secret\":\"$client_secret\""
+      fi
+      client_body="{
+        \"id\":\"$internal_id\",
+        \"clientId\":\"$client_id\",
+        \"enabled\":true,
+        \"protocol\":\"openid-connect\",
+        \"publicClient\":$public_client,
+        \"clientAuthenticatorType\":\"client-secret\",
+        \"standardFlowEnabled\":true,
+        \"implicitFlowEnabled\":$implicit_flow,
+        \"directAccessGrantsEnabled\":false,
+        \"serviceAccountsEnabled\":false,
+        \"rootUrl\":\"$root_url\",
+        \"baseUrl\":\"$root_url\",
+        \"redirectUris\":$redirect_uris,
+        \"webOrigins\":$web_origins,
+        \"attributes\":{
+          \"pkce.code.challenge.method\":\"S256\",
+          \"post.logout.redirect.uris\":\"+\"
+        }
+        $secret_property
+      }"
+      echo "Updating Keycloak client '$client_id'"
+      expect_success "$(request PUT "realms/$realm/clients/$internal_id" "$client_body")"
+
+      mapper_body='{
+        "name":"groups",
+        "protocol":"openid-connect",
+        "protocolMapper":"oidc-group-membership-mapper",
+        "config":{
+          "full.path":"false",
+          "claim.name":"groups",
+          "id.token.claim":"true",
+          "access.token.claim":"true",
+          "userinfo.token.claim":"true"
+        }
+      }'
+      echo "Ensuring group mapper for '$client_id'"
+      status="$(request POST "realms/$realm/clients/$internal_id/protocol-mappers/models" "$mapper_body")"
+      case "$status" in 201|409) ;; *) expect_success "$status" ;; esac
+
+      audience_body="{
+        \"name\":\"audience-$client_id\",
+        \"protocol\":\"openid-connect\",
+        \"protocolMapper\":\"oidc-audience-mapper\",
+        \"config\":{
+          \"included.client.audience\":\"$client_id\",
+          \"id.token.claim\":\"true\",
+          \"access.token.claim\":\"true\"
+        }
+      }"
+      echo "Ensuring audience mapper for '$client_id'"
+      status="$(request POST "realms/$realm/clients/$internal_id/protocol-mappers/models" "$audience_body")"
+      case "$status" in 201|409) ;; *) expect_success "$status" ;; esac
+    }
+
+    ensure_client oauth2-proxy false "$OAUTH2_PROXY_CLIENT_SECRET" \
+      '["https://keycloak.swirlit.dev/oauth2/callback"]' \
+      '["https://*.swirlit.dev"]' 'https://keycloak.swirlit.dev'
+    ensure_client gitlab false "$GITLAB_CLIENT_SECRET" \
+      '["https://gitlab.swirlit.dev/users/auth/openid_connect/callback"]' \
+      '["https://gitlab.swirlit.dev"]' 'https://gitlab.swirlit.dev'
+    ensure_client grafana false "$GRAFANA_CLIENT_SECRET" \
+      '["https://grafana.swirlit.dev/login/generic_oauth"]' \
+      '["https://grafana.swirlit.dev"]' 'https://grafana.swirlit.dev'
+    ensure_client vault false "$VAULT_CLIENT_SECRET" \
+      '["https://vault.swirlit.dev/ui/vault/auth/oidc/oidc/callback","http://localhost:8250/oidc/callback"]' \
+      '["https://vault.swirlit.dev"]' 'https://vault.swirlit.dev'
+    ensure_client kafka-ui false "$KAFKA_UI_CLIENT_SECRET" \
+      '["https://kafka.swirlit.dev/login/oauth2/code/keycloak"]' \
+      '["https://kafka.swirlit.dev"]' 'https://kafka.swirlit.dev'
+    ensure_client portainer false "$PORTAINER_CLIENT_SECRET" \
+      '["https://portainer.swirlit.dev"]' \
+      '["https://portainer.swirlit.dev"]' 'https://portainer.swirlit.dev'
+    # Odoo 19's bundled auth_oauth module uses the OAuth2 implicit response.
+    # It therefore has no safe way to hold a client secret and is public.
+    ensure_client odoo true '' \
+      '["https://odoo.swirlit.dev/auth_oauth/signin"]' \
+      '["https://odoo.swirlit.dev"]' 'https://odoo.swirlit.dev' true
+    ensure_client argocd true '' \
+      '["https://argocd.swirlit.dev/auth/callback","https://argocd.swirlit.dev/pkce/verify","http://localhost:8085/auth/callback"]' \
+      '["https://argocd.swirlit.dev"]' 'https://argocd.swirlit.dev'
+    ensure_client devapp-web true '' \
+      '["https://devapp.swirlit.dev/*"]' \
+      '["https://devapp.swirlit.dev"]' 'https://devapp.swirlit.dev'
+    ensure_client thoughty-web true '' \
+      '["https://thoughty.swirlit.dev/*"]' \
+      '["https://thoughty.swirlit.dev"]' 'https://thoughty.swirlit.dev'
+    ensure_client indezy-web true '' \
+      '["https://indezy.swirlit.dev/*"]' \
+      '["https://indezy.swirlit.dev"]' 'https://indezy.swirlit.dev'
+
+    expect_success "$(request GET "realms/$realm/groups?search=platform-admins&exact=true")"
+    group_id="$(extract_id)"
+    if [ -z "$group_id" ]; then
+      expect_success "$(request POST "realms/$realm/groups" '{"name":"platform-admins"}')"
+      expect_success "$(request GET "realms/$realm/groups?search=platform-admins&exact=true")"
+      group_id="$(extract_id)"
+    fi
+
+    expect_success "$(request GET "realms/$realm/roles/platform-admin")"
+    platform_admin_role="$(tr -d '\n' < "$response_file")"
+    expect_success "$(request GET "realms/$realm/roles/platform-user")"
+    platform_user_role="$(tr -d '\n' < "$response_file")"
+    role_mappings="[$platform_admin_role,$platform_user_role]"
+    expect_success "$(request POST "realms/$realm/groups/$group_id/role-mappings/realm" "$role_mappings")"
+
+    expect_success "$(request GET "realms/$realm/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
+    user_id="$(extract_id)"
+    if [ -z "$user_id" ]; then
+      user_body="{
+        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"enabled\":true,
+        \"emailVerified\":true,
+        \"email\":\"zaid@swirlit.dev\",
+        \"firstName\":\"Zaid\",
+        \"lastName\":\"SwirlIT\",
+        \"attributes\":{
+          \"alternate_email\":[\"chefzaid@gmail.com\"],
+          \"bootstrap_local\":[\"true\"]
+        },
+        \"credentials\":[{
+          \"type\":\"password\",
+          \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+          \"temporary\":false
+        }]
+      }"
+      expect_success "$(request POST "realms/$realm/users" "$user_body")"
+      expect_success "$(request GET "realms/$realm/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
+      user_id="$(extract_id)"
+    elif ! grep -q '"federationLink"[[:space:]]*:[[:space:]]*"' "$response_file"; then
+      user_body="{
+        \"id\":\"$user_id\",
+        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"enabled\":true,
+        \"emailVerified\":true,
+        \"email\":\"zaid@swirlit.dev\",
+        \"firstName\":\"Zaid\",
+        \"lastName\":\"SwirlIT\",
+        \"attributes\":{
+          \"alternate_email\":[\"chefzaid@gmail.com\"],
+          \"bootstrap_local\":[\"true\"]
+        }
+      }"
+      expect_success "$(request PUT "realms/$realm/users/$user_id" "$user_body")"
+    fi
+
+    expect_success "$(request PUT "realms/$realm/users/$user_id/groups/$group_id")"
+    expect_success "$(request POST "realms/$realm/users/$user_id/role-mappings/realm" "$role_mappings")"
+
+    echo "Keycloak realm '$realm' reconciled."
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-sso-reconcile
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        app: keycloak-sso-reconcile
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 102
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: reconcile
+          image: docker.io/curlimages/curl@sha256:5a91ea0c9c3ee27b4abe657b68cf6bf0676afa13b236b3bda34283cb3924d4f6
+          command: ["/bin/sh", "/opt/swirlit/reconcile.sh"]
+          envFrom:
+            - secretRef:
+                name: keycloak-admin-secret
+            - secretRef:
+                name: keycloak-sso-credentials
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          volumeMounts:
+            - name: script
+              mountPath: /opt/swirlit/reconcile.sh
+              subPath: reconcile.sh
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: keycloak-sso-reconciler
+            defaultMode: 0555
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: infra
+  labels:
+    app: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: infra
+  labels:
+    app: oauth2-proxy
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy@sha256:87182a111468b419c262d690728df9fd0959de6e56c05f11f58b863f63d90081
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://keycloak.swirlit.dev/auth/realms/swirlit
+            - --client-id=oauth2-proxy
+            - --redirect-url=https://keycloak.swirlit.dev/oauth2/callback
+            - --http-address=0.0.0.0:4180
+            - --upstream=static://202
+            - --email-domain=*
+            - --allowed-role=platform-user
+            - --scope=openid profile email
+            - --code-challenge-method=S256
+            - --cookie-domain=.swirlit.dev
+            - --whitelist-domain=.swirlit.dev
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-refresh=1h
+            - --cookie-expire=8h
+            - --reverse-proxy=true
+            - --set-xauthrequest=true
+            - --pass-access-token=true
+            - --pass-authorization-header=true
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-sso-credentials
+                  key: OAUTH2_PROXY_CLIENT_SECRET
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-sso-credentials
+                  key: OAUTH2_PROXY_COOKIE_SECRET
+          ports:
+            - name: http
+              containerPort: 4180
+          readinessProbe:
+            httpGet: {path: /ping, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /ping, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-ingress
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [keycloak.swirlit.dev]
+      secretName: swirlit-dev-tls
+  rules:
+    - host: keycloak.swirlit.dev
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 4180
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
