@@ -69,7 +69,7 @@ spec:
 
               groups="$(curl --fail --silent --show-error --header "$auth_header" \
                 "$sonar_url/api/user_groups/search?q=platform-admins")"
-              if ! printf '%s' "$groups" | grep --quiet '"name":"platform-admins"'; then
+              if ! printf '%s' "$groups" | grep -q '"name":"platform-admins"'; then
                 curl --fail --silent --show-error --request POST --header "$auth_header" \
                   --data-urlencode name=platform-admins \
                   --data-urlencode 'description=Keycloak platform administrators' \
