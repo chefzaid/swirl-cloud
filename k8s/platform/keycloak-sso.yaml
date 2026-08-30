@@ -271,7 +271,9 @@ data:
       echo "Reconciling Keycloak client '$client_id' ($internal_id)"
 
       secret_property=''
-      pkce_property=''
+      # Keycloak preserves omitted client attributes during updates, so an
+      # explicit empty value is required to remove an earlier PKCE policy.
+      pkce_property=',"pkce.code.challenge.method":""'
       if [ "$public_client" = false ]; then
         secret_property=",\"secret\":\"$client_secret\""
       else
