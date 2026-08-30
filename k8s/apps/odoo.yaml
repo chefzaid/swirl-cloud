@@ -51,6 +51,7 @@ data:
     {
         "name": "SwirlIT Keycloak SSO",
         "version": "19.0.1.0.0",
+        "author": "SwirlIT",
         "license": "LGPL-3",
         "depends": ["auth_oauth"],
         "installable": True,
@@ -403,19 +404,19 @@ spec:
               drop: ["ALL"]
           startupProbe:
             httpGet:
-              path: /web/login
+              path: /web/login?local=1
               port: http
             periodSeconds: 10
             failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /web/login
+              path: /web/login?local=1
               port: http
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
             httpGet:
-              path: /web/login
+              path: /web/login?local=1
               port: http
             periodSeconds: 20
             failureThreshold: 6

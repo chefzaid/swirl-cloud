@@ -297,6 +297,7 @@ declare -A keycloak_sso_defaults=(
   [oauth2_proxy_client_secret]="$(generate_secret)"
   [oauth2_proxy_cookie_secret]="$(generate_secret)"
   [gitlab_client_secret]="$(generate_secret)"
+  [cloudflare_access_client_secret]="$(generate_secret)"
   [grafana_client_secret]="$(generate_secret)"
   [vault_client_secret]="$(generate_secret)"
   [kafka_ui_client_secret]="$(generate_secret)"

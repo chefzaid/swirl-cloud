@@ -24,6 +24,8 @@ spec:
       remoteRef: {key: infra/keycloak, property: oauth2_proxy_cookie_secret}
     - secretKey: GITLAB_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: gitlab_client_secret}
+    - secretKey: CLOUDFLARE_ACCESS_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: cloudflare_access_client_secret}
     - secretKey: GRAFANA_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: grafana_client_secret}
     - secretKey: VAULT_CLIENT_SECRET
@@ -236,6 +238,9 @@ data:
     ensure_client gitlab false "$GITLAB_CLIENT_SECRET" \
       '["https://gitlab.swirlit.dev/users/auth/openid_connect/callback"]' \
       '["https://gitlab.swirlit.dev"]' 'https://gitlab.swirlit.dev'
+    ensure_client cloudflare-access false "$CLOUDFLARE_ACCESS_CLIENT_SECRET" \
+      '["https://swirlit.cloudflareaccess.com/cdn-cgi/access/callback"]' \
+      '["https://swirlit.cloudflareaccess.com"]' 'https://swirlit.cloudflareaccess.com'
     ensure_client grafana false "$GRAFANA_CLIENT_SECRET" \
       '["https://grafana.swirlit.dev/login/generic_oauth"]' \
       '["https://grafana.swirlit.dev"]' 'https://grafana.swirlit.dev'

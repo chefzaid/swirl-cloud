@@ -712,8 +712,13 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     if [[ "$CONFIGURE_CLOUDFLARE" == "true" ]]; then
         [[ -x "$CLOUDFLARE_SCRIPT" ]] || error "Cloudflare configurator is not executable: $CLOUDFLARE_SCRIPT"
+        if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            read -rsp "Cloudflare User API Token (cfut_...): " CLOUDFLARE_API_TOKEN
+            echo >&2
+            export CLOUDFLARE_API_TOKEN
+        fi
         step "Configuring Cloudflare DNS and Origin TLS..."
-        "$CLOUDFLARE_SCRIPT"
+        CLOUDFLARE_ENABLE_ACCESS=false "$CLOUDFLARE_SCRIPT"
     fi
 
     if [[ "$INSTALL_VAULT_STACK" == "true" ]]; then
@@ -785,6 +790,11 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             kubectl wait --for=condition=complete "$created_resource" -n infra \
                 --timeout="$POST_DEPLOY_JOB_WAIT_TIMEOUT"
         done
+
+        if [[ "$CONFIGURE_CLOUDFLARE" == "true" ]]; then
+            step "Connecting Cloudflare Access to Keycloak..."
+            "$CLOUDFLARE_SCRIPT"
+        fi
 
         if [[ -n "${GITLAB_ADMIN_TOKEN:-}" ]]; then
             [[ -x "$GITLAB_CI_SCRIPT" ]] || error "GitLab CI configurator is not executable: $GITLAB_CI_SCRIPT"

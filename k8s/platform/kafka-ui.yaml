@@ -58,23 +58,31 @@ spec:
               value: "false"
             - name: AUTH_TYPE
               value: OAUTH2
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI
-              value: https://keycloak.swirlit.dev/auth/realms/swirlit
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_PROVIDER
-              value: keycloak
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_NAME
-              value: Keycloak
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_ID
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CLIENTID
               value: kafka-ui
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_SECRET
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CLIENTSECRET
               valueFrom:
                 secretKeyRef:
                   name: keycloak-sso-credentials
                   key: KAFKA_UI_CLIENT_SECRET
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_SCOPE
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_SCOPE
               value: openid,profile,email,groups
-            - name: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_AUTHORIZATION_GRANT_TYPE
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_ISSUERURI
+              value: https://keycloak.swirlit.dev/auth/realms/swirlit
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_USERNAMEATTRIBUTE
+              value: preferred_username
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CLIENTNAME
+              value: Keycloak
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_PROVIDER
+              value: keycloak
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_REDIRECTURI
+              value: https://kafka.swirlit.dev/login/oauth2/code/keycloak
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_AUTHORIZATIONGRANTTYPE
               value: authorization_code
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CUSTOMPARAMS_TYPE
+              value: keycloak
+            - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CUSTOMPARAMS_ROLESFIELD
+              value: groups
             - name: SERVER_FORWARD_HEADERS_STRATEGY
               value: framework
           readinessProbe:

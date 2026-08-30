@@ -381,11 +381,11 @@
         --wait --timeout {{ ingress_helm_timeout }}
       when: ingress_effective
 
-    - name: Configure Cloudflare DNS, TLS, Access, and edge policies
+    - name: Configure Cloudflare DNS, TLS, and edge policies
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-cloudflare.sh"
       environment:
         CLOUDFLARE_API_TOKEN: "{{ cloudflare_api_token }}"
-        CLOUDFLARE_ACCESS_ALLOWED_EMAILS: "{{ cloudflare_access_emails }}"
+        CLOUDFLARE_ENABLE_ACCESS: "false"
       no_log: true
       when: cloudflare_enabled
 
@@ -494,6 +494,16 @@
       loop: "{{ post_deploy_jobs.results }}"
       changed_when: false
       when: platform_services_enabled
+
+    - name: Connect Cloudflare Access to Keycloak
+      ansible.builtin.command: "{{ repository_root }}/scripts/configure-cloudflare.sh"
+      environment:
+        CLOUDFLARE_API_TOKEN: "{{ cloudflare_api_token }}"
+        CLOUDFLARE_ACCESS_ALLOWED_EMAILS: "{{ cloudflare_access_emails }}"
+      no_log: true
+      when:
+        - cloudflare_enabled
+        - platform_services_enabled
 
     - name: Configure the bm-cluster GitLab project and Kubernetes runner
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-gitlab-ci.sh"
