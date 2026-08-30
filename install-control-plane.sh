@@ -869,7 +869,14 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             --set server.ha.enabled=true \
             --set server.ha.raft.enabled=true \
             --set server.ha.replicas=1 \
-            --set server.dataStorage.storageClass=longhorn
+            --set server.dataStorage.storageClass=longhorn \
+            --set server.statefulSet.securityContext.pod.runAsNonRoot=true \
+            --set server.statefulSet.securityContext.pod.runAsUser=100 \
+            --set server.statefulSet.securityContext.pod.runAsGroup=1000 \
+            --set server.statefulSet.securityContext.pod.fsGroup=1000 \
+            --set-string server.statefulSet.securityContext.pod.seccompProfile.type=RuntimeDefault \
+            --set server.statefulSet.securityContext.container.allowPrivilegeEscalation=false \
+            --set 'server.statefulSet.securityContext.container.capabilities.drop[0]=ALL'
 
         step "Installing External Secrets Operator..."
         helm repo add external-secrets https://charts.external-secrets.io 2>/dev/null || true

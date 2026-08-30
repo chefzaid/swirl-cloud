@@ -26,7 +26,23 @@ vault_cmd() {
 vault_cmd_auth() {
   local token="$1"
   shift
-  kubectl exec -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$token" vault "$@"
+  { printf '%s\n' "$token"; } | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
+    IFS= read -r VAULT_TOKEN
+    export VAULT_TOKEN VAULT_ADDR="$1"
+    shift
+    exec vault "$@"
+  ' sh "$VAULT_ADDR" "$@"
+}
+
+vault_stdin_auth() {
+  local token="$1"
+  shift
+  { printf '%s\n' "$token"; cat; } | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
+    IFS= read -r VAULT_TOKEN
+    export VAULT_TOKEN VAULT_ADDR="$1"
+    shift
+    exec vault "$@" -
+  ' sh "$VAULT_ADDR" "$@"
 }
 
 generate_secret() {
@@ -134,7 +150,7 @@ vault_cmd_auth "$root_token" write auth/kubernetes/config \
   token_reviewer_jwt="" \
   kubernetes_ca_cert="" >/dev/null
 
-cat <<'EOF' | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$root_token" vault policy write external-secrets-policy - >/dev/null
+cat <<'EOF' | vault_stdin_auth "$root_token" policy write external-secrets-policy >/dev/null
 path "secret/data/infra/*" {
   capabilities = ["read"]
 }
@@ -346,7 +362,6 @@ declare -A keycloak_sso_defaults=(
   [kafka_ui_client_secret]="$(generate_secret)"
   [portainer_client_secret]="$(generate_secret)"
   [odoo_client_secret]="$(generate_secret)"
-  [keycloak_reconciler_client_secret]="$(generate_secret)"
 )
 for keycloak_sso_field in "${!keycloak_sso_defaults[@]}"; do
   if ! jq -e --arg field "$keycloak_sso_field" '.data.data[$field] | strings | length > 0' \
@@ -372,13 +387,13 @@ vault_cmd_auth "$root_token" write auth/oidc/config \
   oidc_client_secret="$vault_oidc_client_secret" \
   default_role="platform-admin" >/dev/null
 
-cat <<'EOF' | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$root_token" vault policy write platform-admin - >/dev/null
+cat <<'EOF' | vault_stdin_auth "$root_token" policy write platform-admin >/dev/null
 path "*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
 }
 EOF
 
-cat <<'EOF' | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- env VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$root_token" vault write auth/oidc/role/platform-admin - >/dev/null
+cat <<'EOF' | vault_stdin_auth "$root_token" write auth/oidc/role/platform-admin >/dev/null
 {
   "role_type": "oidc",
   "bound_audiences": ["vault"],

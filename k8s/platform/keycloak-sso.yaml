@@ -40,8 +40,6 @@ spec:
       remoteRef: {key: infra/keycloak, property: portainer_client_secret}
     - secretKey: ODOO_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: odoo_client_secret}
-    - secretKey: KEYCLOAK_RECONCILER_CLIENT_SECRET
-      remoteRef: {key: infra/keycloak, property: keycloak_reconciler_client_secret}
 
 ---
 apiVersion: v1
@@ -62,23 +60,12 @@ data:
 
     login() {
       token_response="$(curl --fail --silent --show-error \
-        --data-urlencode client_id=bm-cluster-reconciler \
-        --data-urlencode grant_type=client_credentials \
-        --data-urlencode "client_secret=$KEYCLOAK_RECONCILER_CLIENT_SECRET" \
-        "$server/realms/master/protocol/openid-connect/token" 2>/dev/null || true)"
+        --data-urlencode client_id=admin-cli \
+        --data-urlencode grant_type=password \
+        --data-urlencode "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
+        --data-urlencode "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+        "$server/realms/master/protocol/openid-connect/token")"
       access_token="$(printf '%s' "$token_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
-      if [ -z "$access_token" ]; then
-        # The password grant is bootstrap-only. Once the reconciler service
-        # account exists, the human bootstrap administrator is protected by
-        # TOTP and this fallback can no longer authenticate.
-        token_response="$(curl --fail --silent --show-error \
-          --data-urlencode client_id=admin-cli \
-          --data-urlencode grant_type=password \
-          --data-urlencode "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
-          --data-urlencode "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
-          "$server/realms/master/protocol/openid-connect/token")"
-        access_token="$(printf '%s' "$token_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
-      fi
       test -n "$access_token"
     }
 
@@ -134,7 +121,6 @@ data:
     sso_username_json="$(printf '%s' "$SSO_BOOTSTRAP_USERNAME" | json_escape)"
     sso_password_json="$(printf '%s' "$SSO_BOOTSTRAP_PASSWORD" | json_escape)"
     sso_email_json="$(printf '%s' "$SSO_PRIMARY_EMAIL" | json_escape)"
-    reconciler_secret_json="$(printf '%s' "$KEYCLOAK_RECONCILER_CLIENT_SECRET" | json_escape)"
 
     status="$(request GET "realms/$realm")"
     if [ "$status" = 404 ]; then
@@ -151,11 +137,6 @@ data:
       "loginWithEmailAllowed":true,
       "duplicateEmailsAllowed":false,
       "verifyEmail":false,
-      "eventsEnabled":true,
-      "eventsExpiration":2592000,
-      "eventsListeners":["jboss-logging"],
-      "adminEventsEnabled":true,
-      "adminEventsDetailsEnabled":true,
       "bruteForceProtected":true,
       "permanentLockout":false,
       "failureFactor":5,
@@ -164,53 +145,11 @@ data:
       "sslRequired":"external",
       "defaultSignatureAlgorithm":"RS256",
       "passwordPolicy":"length(12) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1) and notUsername(undefined)",
-      "otpPolicyType":"totp",
-      "otpPolicyAlgorithm":"HmacSHA256",
-      "otpPolicyDigits":6,
-      "otpPolicyLookAheadWindow":1,
-      "otpPolicyPeriod":30,
       "accessTokenLifespan":300,
-      "ssoSessionIdleTimeout":1800,
-      "ssoSessionMaxLifespan":28800,
-      "offlineSessionIdleTimeout":2592000,
-      "offlineSessionMaxLifespanEnabled":true,
-      "offlineSessionMaxLifespan":5184000
+      "ssoSessionIdleTimeout":28800,
+      "ssoSessionMaxLifespan":36000
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
-
-    # The administrative realm never needs to be reachable through the public
-    # Keycloak hostname. Give it its own Access-protected frontend and apply the
-    # same brute-force, event-audit, session, and TOTP controls.
-    master_realm_body='{
-      "bruteForceProtected":true,
-      "permanentLockout":false,
-      "failureFactor":5,
-      "waitIncrementSeconds":60,
-      "maxFailureWaitSeconds":900,
-      "eventsEnabled":true,
-      "eventsExpiration":2592000,
-      "eventsListeners":["jboss-logging"],
-      "adminEventsEnabled":true,
-      "adminEventsDetailsEnabled":true,
-      "otpPolicyType":"totp",
-      "otpPolicyAlgorithm":"HmacSHA256",
-      "otpPolicyDigits":6,
-      "otpPolicyLookAheadWindow":1,
-      "otpPolicyPeriod":30,
-      "accessTokenLifespan":300,
-      "ssoSessionIdleTimeout":1800,
-      "ssoSessionMaxLifespan":28800,
-      "attributes":{
-        "cibaBackchannelTokenDeliveryMode":"poll",
-        "cibaExpiresIn":"120",
-        "cibaAuthRequestedUserHint":"login_hint",
-        "parRequestUriLifespan":"60",
-        "cibaInterval":"5",
-        "realmReusableOtpCode":"false",
-        "frontendUrl":"https://keycloak-admin.swirlit.dev/auth"
-      }
-    }'
-    expect_success "$(request PUT realms/master "$master_realm_body")"
 
     # Keycloak 26 ignores attributes that are not declared in the realm user
     # profile. Keep the bootstrap identity's future LDAP migration marker as an

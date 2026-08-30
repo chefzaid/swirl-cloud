@@ -413,6 +413,13 @@
         --set server.ha.raft.enabled=true
         --set server.ha.replicas=1
         --set server.dataStorage.storageClass=longhorn
+        --set server.statefulSet.securityContext.pod.runAsNonRoot=true
+        --set server.statefulSet.securityContext.pod.runAsUser=100
+        --set server.statefulSet.securityContext.pod.runAsGroup=1000
+        --set server.statefulSet.securityContext.pod.fsGroup=1000
+        --set-string server.statefulSet.securityContext.pod.seccompProfile.type=RuntimeDefault
+        --set server.statefulSet.securityContext.container.allowPrivilegeEscalation=false
+        --set server.statefulSet.securityContext.container.capabilities.drop[0]=ALL
       when: vault_stack_effective
 
     - name: Install or upgrade External Secrets Operator
