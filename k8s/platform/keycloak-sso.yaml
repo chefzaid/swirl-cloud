@@ -226,8 +226,8 @@ data:
     groups_scope_id="$(
       tr -d '\n' < "$response_file" |
         sed 's/},{/}\n{/g' |
-        grep '"name":"groups"' |
-        sed -n 's/.*"id":"\([^"]*\)".*/\1/p' |
+        grep -E '^\[?\{"id":"[^"]+","name":"groups"([,}])' |
+        sed -E 's/^\[?\{"id":"([^"]+)".*/\1/' |
         head -n 1
     )"
     if [ -z "$groups_scope_id" ]; then
@@ -245,8 +245,8 @@ data:
       groups_scope_id="$(
         tr -d '\n' < "$response_file" |
           sed 's/},{/}\n{/g' |
-          grep '"name":"groups"' |
-          sed -n 's/.*"id":"\([^"]*\)".*/\1/p' |
+          grep -E '^\[?\{"id":"[^"]+","name":"groups"([,}])' |
+          sed -E 's/^\[?\{"id":"([^"]+)".*/\1/' |
           head -n 1
       )"
     fi
