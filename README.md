@@ -363,22 +363,41 @@ unrestricted:
 | DevApp / Thoughty / Indezy | All authenticated application functionality; these applications do not define a higher administrator role |
 
 The following local credentials are break-glass or automation credentials, not
-the normal browser sign-in path:
+the normal browser sign-in path. Argo CD's local `admin` is disabled; DBGate and
+Kafka UI use the Keycloak/proxy boundary; Longhorn and Homepage have no internal
+user hierarchy; Vault uses tokens rather than a password.
 
 | Service | Username | Password or token command |
 |---|---|---|
-| ArgoCD | `admin` | `kubectl -n infra get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` |
-| DBGate | Secret value | `kubectl get secret -n infra dbgate-auth-secret -o go-template='{{printf "%s:%s" (index .data "LOGIN" \| base64decode) (index .data "PASSWORD" \| base64decode)}}'` |
-| GitLab | `root` | `kubectl exec -n infra deployment/gitlab -- awk '/Password:/ {print $2}' /etc/gitlab/initial_root_password` |
+| GitLab | `root` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=root_password secret/infra/gitlab` |
 | Grafana | `admin` | `kubectl get secret -n infra grafana-admin-secret -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' \| base64 -d` |
-| Kafka UI | Secret value | `kubectl get secret -n infra kafka-ui-auth-secret -o go-template='{{printf "%s:%s" (index .data "SPRING_SECURITY_USER_NAME" \| base64decode) (index .data "SPRING_SECURITY_USER_PASSWORD" \| base64decode)}}'` |
 | Keycloak | Secret value | `kubectl get secret -n infra keycloak-admin-secret -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' \| base64 -d` |
-| Kibana | `admin` | `kubectl get secret -n infra elasticsearch-security-bootstrap -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
+| Elasticsearch / Kibana | `admin` | `kubectl get secret -n infra elasticsearch-security-bootstrap -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
+| Elasticsearch | `elastic` | `kubectl get secret -n infra elasticsearch-security-bootstrap -o jsonpath='{.data.ELASTIC_PASSWORD}' \| base64 -d` |
+| MongoDB | `admin` | `kubectl get secret -n infra mongodb-secret -o jsonpath='{.data.MONGO_INITDB_ROOT_PASSWORD}' \| base64 -d` |
+| PostgreSQL | `admin` | `kubectl get secret -n infra postgres-secret -o jsonpath='{.data.POSTGRES_PASSWORD}' \| base64 -d` |
 | Longhorn origin login | `admin` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=password secret/infra/platform-ui` |
 | Odoo | `admin` | `kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' \| base64 -d` |
 | Portainer | `admin` | `kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
+| SonarQube | `admin` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=admin_password secret/infra/sonarqube` |
 | SonarQube automation | `admin` token | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=admin_token secret/infra/sonarqube` |
 | Vault | Token login | `sudo cat /var/lib/bm-cluster/vault-bootstrap-token` |
+
+To align every genuine infrastructure-local superuser password, supply the
+password without placing it on the command line:
+
+```bash
+read -rsp 'Local administrator password: ' LOCAL_ADMIN_PASSWORD; echo
+printf '%s\n' "$LOCAL_ADMIN_PASSWORD" | \
+  scripts/rotate-local-admin-passwords.sh --password-stdin
+unset LOCAL_ADMIN_PASSWORD
+```
+
+The rotation updates each service's internal credential first, persists the
+matching value in Vault, refreshes External Secrets, restarts affected password
+consumers, and verifies service availability. It deliberately does not modify
+application users, Keycloak SSO identities, API tokens, the Longhorn ingress
+password, or services without an internal administrator.
 
 Cloudflare Access delegates its protected hosts to the same Keycloak realm.
 Native OIDC integrations then establish the service session where supported.
