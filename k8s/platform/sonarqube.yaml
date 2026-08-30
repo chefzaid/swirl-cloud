@@ -46,6 +46,59 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: migrate-sso-identity
+          image: postgres@sha256:b939b3851e2cccb017dc4497af63b15e34efa57fba036548773c53b2f16a8871
+          env:
+            - name: SONAR_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-db-credentials
+                  key: jdbc-password
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready --host=postgres.swirlit.internal --port=5432 --username=sonar; do
+                sleep 5
+              done
+
+              PGPASSWORD="$SONAR_DB_PASSWORD" psql \
+                --host=postgres.swirlit.internal \
+                --port=5432 \
+                --username=sonar \
+                --dbname=sonarqube \
+                --set=ON_ERROR_STOP=1 <<'SQL'
+              UPDATE users
+              SET login = 'zaid@swirlit.dev',
+                  name = 'Zaid SwirlIT',
+                  email = 'zaid@swirlit.dev',
+                  external_login = 'zaid@swirlit.dev',
+                  external_id = 'zaid@swirlit.dev',
+                  external_identity_provider = 'sonarqube',
+                  updated_at = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
+              WHERE email = 'zaid@swirlit.dev'
+                AND login <> 'zaid@swirlit.dev'
+                AND external_identity_provider = 'sonarqube'
+                AND NOT EXISTS (
+                  SELECT 1 FROM users WHERE login = 'zaid@swirlit.dev'
+                );
+              SQL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: bootstrap
           image: docker.io/curlimages/curl@sha256:9a1ed35addb45476afa911696297f8e115993df459278ed036182dd2cd22b67b
