@@ -322,7 +322,10 @@ retained as the alternate email in the application-facing `swirlit` realm,
 and membership in `platform-admins` supplies the application administrative
 role. The `master` identity receives Keycloak's composite `admin` role and can
 therefore administer the complete Keycloak instance from
-`https://keycloak.swirlit.dev/auth/admin/master/console/`.
+`https://keycloak.swirlit.dev/auth/admin/master/console/`. The Keycloak root at
+`https://keycloak.swirlit.dev/` presents an explicit realm chooser for the
+`master` and `swirlit` administration consoles; the Homepage link opens this
+chooser rather than assuming a realm.
 Retrieve its managed password from the cluster rather than storing it in the
 repository:
 
