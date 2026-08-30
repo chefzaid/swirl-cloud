@@ -266,3 +266,25 @@ spec:
       remoteRef:
         key: infra/portainer
         property: password
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: platform-ui-basic-auth
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: platform-ui-basic-auth
+    creationPolicy: Owner
+  data:
+    - secretKey: auth
+      remoteRef:
+        key: infra/platform-ui
+        property: htpasswd

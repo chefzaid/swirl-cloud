@@ -307,6 +307,18 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/portainer >/d
     password="$(generate_secret)" >/dev/null
 fi
 
+if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/platform-ui >/dev/null 2>&1; then
+  info "Seeding Vault secret: infra/platform-ui"
+  platform_ui_username="${PLATFORM_UI_USERNAME:-admin}"
+  platform_ui_password="${PLATFORM_UI_PASSWORD:-$(generate_secret)}"
+  platform_ui_htpasswd="$platform_ui_username:$(openssl passwd -apr1 "$platform_ui_password")"
+  vault_cmd_auth "$root_token" kv put secret/infra/platform-ui \
+    username="$platform_ui_username" \
+    password="$platform_ui_password" \
+    htpasswd="$platform_ui_htpasswd" >/dev/null
+  unset platform_ui_username platform_ui_password platform_ui_htpasswd
+fi
+
 install_host_unseal_service
 sudo systemctl start bm-vault-unseal.service
 
