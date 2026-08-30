@@ -6,6 +6,7 @@ VAULT_POD="${VAULT_POD:-vault-0}"
 VAULT_ADDR="http://127.0.0.1:8200"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SSO_ADMIN_LIBRARY="$SCRIPT_DIR/lib/sso-admin.sh"
 VAULT_STATE_DIR="${VAULT_STATE_DIR:-/var/lib/bm-cluster}"
 VAULT_UNSEAL_KEY_FILE="$VAULT_STATE_DIR/vault-unseal-key"
 VAULT_BOOTSTRAP_TOKEN_FILE="$VAULT_STATE_DIR/vault-bootstrap-token"
@@ -61,6 +62,9 @@ require_cmd jq
 require_cmd openssl
 require_cmd sudo
 require_cmd systemctl
+[[ -r "$SSO_ADMIN_LIBRARY" ]] || error "Shared SSO administrator library not found: $SSO_ADMIN_LIBRARY"
+# shellcheck source=scripts/lib/sso-admin.sh
+source "$SSO_ADMIN_LIBRARY"
 
 sudo install -d -o root -g root -m 0700 "$VAULT_STATE_DIR"
 
@@ -288,12 +292,51 @@ fi
 
 # The shared SSO realm is reconciled after Keycloak starts, rather than relying
 # on startup import (which Keycloak intentionally ignores for an existing
-# realm/database). Keep credentials in Vault and only add fields that are
-# missing so routine bootstrap runs never rotate active OIDC clients.
+# realm/database). Installer-provided administrator credentials are
+# authoritative and may be updated on a reconciliation run. Generated OIDC
+# client secrets remain stable once they have been seeded.
 keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
+requested_sso_username="${KEYCLOAK_SSO_BOOTSTRAP_USERNAME:-}"
+requested_sso_password="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-}"
+
+if [[ -n "$requested_sso_username" || -n "$requested_sso_password" ]]; then
+  [[ -n "$requested_sso_username" && -n "$requested_sso_password" ]] || \
+    error "KEYCLOAK_SSO_BOOTSTRAP_USERNAME and KEYCLOAK_SSO_BOOTSTRAP_PASSWORD must be supplied together."
+  sso_admin_validate_username "$requested_sso_username" || error "$SSO_ADMIN_VALIDATION_ERROR"
+  sso_admin_validate_password "$requested_sso_password" "$requested_sso_username" || \
+    error "$SSO_ADMIN_VALIDATION_ERROR"
+  requested_sso_email="$(sso_admin_primary_email "$requested_sso_username")"
+  requested_sso_display_name="Platform Administrator"
+
+  if ! jq -e \
+      --arg username "$requested_sso_username" \
+      --arg password "$requested_sso_password" \
+      --arg email "$requested_sso_email" \
+      --arg display_name "$requested_sso_display_name" \
+      '.data.data.sso_bootstrap_username == $username and
+       .data.data.sso_bootstrap_password == $password and
+       .data.data.sso_primary_email == $email and
+       .data.data.sso_display_name == $display_name' \
+      <<<"$keycloak_sso_secret_json" >/dev/null; then
+    info "Updating the managed Keycloak platform administrator in Vault"
+    vault_cmd_auth "$root_token" kv patch secret/infra/keycloak \
+      sso_bootstrap_username="$requested_sso_username" \
+      sso_bootstrap_password="$requested_sso_password" \
+      sso_primary_email="$requested_sso_email" \
+      sso_display_name="$requested_sso_display_name" >/dev/null
+    keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
+  fi
+fi
+
+existing_sso_username="$(jq -r '.data.data.sso_bootstrap_username // empty' <<<"$keycloak_sso_secret_json")"
+default_sso_username="${requested_sso_username:-${existing_sso_username:-platform-admin}}"
+default_sso_password="${requested_sso_password:-$(generate_secret)}"
+default_sso_email="$(sso_admin_primary_email "$default_sso_username")"
 declare -A keycloak_sso_defaults=(
-  [sso_bootstrap_username]="zaid"
-  [sso_bootstrap_password]="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-$(generate_secret)}"
+  [sso_bootstrap_username]="$default_sso_username"
+  [sso_bootstrap_password]="$default_sso_password"
+  [sso_primary_email]="$default_sso_email"
+  [sso_display_name]="Platform Administrator"
   [oauth2_proxy_client_secret]="$(generate_secret)"
   [oauth2_proxy_cookie_secret]="$(generate_secret)"
   [gitlab_client_secret]="$(generate_secret)"
@@ -354,6 +397,8 @@ EOF
 
 unset vault_oidc_client_secret
 unset keycloak_sso_secret_json keycloak_sso_defaults keycloak_sso_field
+unset requested_sso_username requested_sso_password requested_sso_email requested_sso_display_name
+unset existing_sso_username default_sso_username default_sso_password default_sso_email
 
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/dbgate >/dev/null 2>&1; then
   info "Seeding Vault secret: infra/dbgate"

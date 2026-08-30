@@ -189,14 +189,20 @@ For a new cluster, run the guided installer on the future control-plane host:
 
 It first asks whether to install `infra` only or `infra + apps`. The apps choice
 deploys Odoo, the repository-owned ERP/CRM workload.
+When platform services are selected, it asks for a platform administrator
+login and a confirmed hidden password. That identity is provisioned through
+Keycloak as administrator for every integrated service and application. The
+password must contain at least 12 characters with lowercase, uppercase,
+numeric, and special characters.
 It then asks which infrastructure features to install and, when workers are
 selected, starts the vRack or Tailscale prerequisite wizard before any UFW
 change. Each wizard shows the exact account page, pauses while you complete the
 manual account step, collects secrets with hidden input, checks the account
 read-only, and resumes. Nothing is persisted. `./install-control-plane.sh --yes`
 defaults to `infra + apps`; set `INSTALL_SCOPE=infra` for an infrastructure-only
-non-interactive run. Selected transport secrets and settings are supplied as
-environment variables.
+non-interactive run. Non-interactive platform installation also requires
+`KEYCLOAK_SSO_BOOTSTRAP_USERNAME` and `KEYCLOAK_SSO_BOOTSTRAP_PASSWORD`.
+Selected identity and transport secrets are supplied as environment variables.
 
 ## Adding worker nodes
 
@@ -314,28 +320,28 @@ targets can be supplied with `--targets user@host,user@host`; run
 
 ## Identity and recovery credentials
 
-Normal browser access uses the Keycloak username `zaid`. Because Keycloak
-realms are hard identity boundaries, the reconciler maintains matching local
-`zaid` identities in both `master` and `swirlit` with the same managed
-password. The primary email is `zaid@swirlit.dev`, `chefzaid@gmail.com` is
-retained as the alternate email in the application-facing `swirlit` realm,
-and membership in `platform-admins` supplies the application administrative
-role. The `master` identity receives Keycloak's composite `admin` role and can
+Normal browser access uses the administrator login entered during cluster
+installation. Because Keycloak realms are hard identity boundaries, the
+reconciler maintains matching local identities in both `master` and `swirlit`
+with the same managed password. If the login is a username, its primary email
+is derived as `<username>@swirlit.dev`; an email login is used unchanged.
+Membership in `platform-admins` supplies the application administrative role.
+The `master` identity receives Keycloak's composite `admin` role and can
 therefore administer the complete Keycloak instance from
 `https://keycloak.swirlit.dev/auth/admin/master/console/`.
-Retrieve its managed password from the cluster rather than storing it in the
-repository:
+Retrieve the managed login and password from the cluster rather than storing
+them in the repository:
 
 ```bash
 kubectl get secret -n infra keycloak-sso-credentials \
-  -o jsonpath='{.data.SSO_BOOTSTRAP_PASSWORD}' | base64 -d
+  -o go-template='{{printf "%s:%s\n" (index .data "SSO_BOOTSTRAP_USERNAME" | base64decode) (index .data "SSO_BOOTSTRAP_PASSWORD" | base64decode)}}'
 ```
 
 GitLab attaches this identity to its canonical `root` administrator, including
 the projects, ownership, activity, and permissions already visible to the
-break-glass root login. Its bootstrap removes any empty `zaid` account created
-before that identity link existed, so Keycloak and local root authentication do
-not create separate GitLab users. Grafana maps the identity to Grafana Admin,
+break-glass root login. Its bootstrap removes any duplicate account matching
+the selected login, so Keycloak and local root authentication do not create
+separate GitLab users. Grafana maps the identity to Grafana Admin,
 Argo CD to its admin role, Vault to `platform-admin`, and Portainer to role `1`
 with Kubernetes `cluster-admin`. Odoo maps it to its existing administrator,
 and SonarQube synchronizes the Keycloak
@@ -465,6 +471,8 @@ disk or host loss.
 Run Ansible from the control-plane repository checkout with its local inventory:
 
 ```bash
+export KEYCLOAK_SSO_BOOTSTRAP_USERNAME='platform-admin'
+export KEYCLOAK_SSO_BOOTSTRAP_PASSWORD='Replace-With-A-Strong-Password-1!'
 ansible-playbook -i ansible/inventory ansible/deploy.yml
 ansible-playbook -i ansible/inventory ansible/deploy.yml -e server_exposure=local
 ansible-playbook -i ansible/inventory ansible/deploy.yml -e install_apps=false

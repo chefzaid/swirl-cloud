@@ -308,9 +308,16 @@ rotate_portainer() {
 }
 
 rotate_sonarqube() {
-  local sso_email
+  local sso_email sso_username
   sso_email="$(secret_value "$NAMESPACE" keycloak-sso-credentials SSO_PRIMARY_EMAIL 2>/dev/null || true)"
-  sso_email="${sso_email:-zaid@swirlit.dev}"
+  if [[ -z "$sso_email" ]]; then
+    sso_username="$(secret_value "$NAMESPACE" keycloak-sso-credentials SSO_BOOTSTRAP_USERNAME)"
+    if [[ "$sso_username" == *"@"* ]]; then
+      sso_email="$sso_username"
+    else
+      sso_email="${sso_username}@swirlit.dev"
+    fi
+  fi
   info "Rotating SonarQube local superuser 'admin'..."
   start_forward sonarqube 9000
   printf '%s' "$local_admin_password" | \
@@ -325,7 +332,7 @@ rotate_sonarqube() {
     jq -e '.valid == true' >/dev/null
   stop_forward
   vault_store secret/infra/sonarqube admin_password
-  unset sso_email
+  unset sso_email sso_username
 }
 
 set_elasticsearch_password() {

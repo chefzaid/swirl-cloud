@@ -36,6 +36,10 @@ spec:
       remoteRef:
         key: infra/postgres
         property: password
+    - secretKey: SSO_PRIMARY_EMAIL
+      remoteRef:
+        key: infra/keycloak
+        property: sso_primary_email
 
 ---
 apiVersion: v1
@@ -92,6 +96,8 @@ data:
                 local=False,
             )
   models.py: |
+    import os
+
     from odoo import api, models
 
 
@@ -103,11 +109,12 @@ data:
             # Keep one administrator identity: attach the verified bootstrap
             # email to Odoo's existing administrator instead of signing up a
             # second, unprivileged user.
-            if validation.get('email') == 'zaid@swirlit.dev':
+            sso_primary_email = os.environ['SSO_PRIMARY_EMAIL']
+            if validation.get('email') == sso_primary_email:
                 administrator = self.env.ref('base.user_admin').sudo()
                 administrator.write({
-                    'login': 'zaid@swirlit.dev',
-                    'email': 'zaid@swirlit.dev',
+                    'login': sso_primary_email,
+                    'email': sso_primary_email,
                     'oauth_provider_id': provider,
                     'oauth_uid': validation['user_id'],
                     'oauth_access_token': params['access_token'],
@@ -399,6 +406,12 @@ spec:
       containers:
         - name: odoo
           image: odoo@sha256:7fcd40c8638205f4844240397712ebbaa07918eb54f734f09e2c61274c3ae83f
+          env:
+            - name: SSO_PRIMARY_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secret
+                  key: SSO_PRIMARY_EMAIL
           ports:
             - name: http
               containerPort: 8069

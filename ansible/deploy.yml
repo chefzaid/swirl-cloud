@@ -114,6 +114,8 @@
     descheduler_enabled: "{{ install_descheduler | default(true) | bool }}"
     argocd_enabled: "{{ install_argocd | default(true) | bool }}"
     gitlab_admin_token: "{{ lookup('ansible.builtin.env', 'GITLAB_ADMIN_TOKEN') }}"
+    keycloak_sso_bootstrap_username: "{{ lookup('ansible.builtin.env', 'KEYCLOAK_SSO_BOOTSTRAP_USERNAME') }}"
+    keycloak_sso_bootstrap_password: "{{ lookup('ansible.builtin.env', 'KEYCLOAK_SSO_BOOTSTRAP_PASSWORD') }}"
 
     data_stores_effective: "{{ data_stores_enabled or platform_services_enabled or odoo_enabled }}"
     vault_stack_effective: "{{ vault_stack_enabled or data_stores_effective }}"
@@ -140,6 +142,18 @@
           Cloudflare automation requires internet exposure, CLOUDFLARE_API_TOKEN,
           and CLOUDFLARE_ACCESS_ALLOWED_EMAILS when Access is enabled.
       when: cloudflare_enabled
+
+    - name: Validate non-interactive platform administrator inputs
+      ansible.builtin.assert:
+        that:
+          - keycloak_sso_bootstrap_username | length > 0
+          - keycloak_sso_bootstrap_password | length > 0
+        fail_msg: >-
+          Platform deployment requires KEYCLOAK_SSO_BOOTSTRAP_USERNAME and
+          KEYCLOAK_SSO_BOOTSTRAP_PASSWORD. The Vault bootstrap performs the
+          detailed username and password-policy validation.
+      no_log: true
+      when: platform_services_enabled
 
     - name: Validate private transport inputs
       ansible.builtin.assert:
@@ -433,6 +447,10 @@
 
     - name: Bootstrap Vault auth, policies, and secrets
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-vault.sh {{ infra_namespace }}"
+      environment:
+        KEYCLOAK_SSO_BOOTSTRAP_USERNAME: "{{ keycloak_sso_bootstrap_username }}"
+        KEYCLOAK_SSO_BOOTSTRAP_PASSWORD: "{{ keycloak_sso_bootstrap_password }}"
+      no_log: true
       when: vault_stack_effective
 
     - name: Wait for infrastructure secrets

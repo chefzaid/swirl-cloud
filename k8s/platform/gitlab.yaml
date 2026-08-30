@@ -15,7 +15,6 @@ data:
           sso_username = ENV.fetch("SSO_BOOTSTRAP_USERNAME")
           canonical_username = ENV.fetch("GITLAB_CANONICAL_ADMIN_USERNAME")
           primary_email = ENV.fetch("SSO_PRIMARY_EMAIL")
-          alternate_email = ENV.fetch("SSO_ALTERNATE_EMAIL")
           display_name = ENV.fetch("SSO_DISPLAY_NAME")
 
           canonical_user = User.find_by_username(canonical_username)
@@ -52,12 +51,10 @@ data:
               unconfirmed_email: nil
             )
 
-            [primary_email, alternate_email].each do |address|
-              email = canonical_user.emails.find_or_initialize_by(email: address)
-              email.confirmed_at ||= Time.current
-              email.save!
-            end
-            canonical_user.emails.where.not(email: [primary_email, alternate_email]).delete_all
+            email = canonical_user.emails.find_or_initialize_by(email: primary_email)
+            email.confirmed_at ||= Time.current
+            email.save!
+            canonical_user.emails.where.not(email: primary_email).delete_all
           end
 
           if duplicate_user && !Users::GhostUserMigration.exists?(user_id: duplicate_user.id)
@@ -165,11 +162,15 @@ spec:
         - name: GITLAB_CANONICAL_ADMIN_USERNAME
           value: root
         - name: SSO_PRIMARY_EMAIL
-          value: zaid@swirlit.dev
-        - name: SSO_ALTERNATE_EMAIL
-          value: chefzaid@gmail.com
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-sso-credentials
+              key: SSO_PRIMARY_EMAIL
         - name: SSO_DISPLAY_NAME
-          value: Zaid SwirlIT
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-sso-credentials
+              key: SSO_DISPLAY_NAME
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
             external_url 'https://gitlab.swirlit.dev'

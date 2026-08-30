@@ -55,6 +55,16 @@ spec:
                 secretKeyRef:
                   name: sonarqube-db-credentials
                   key: jdbc-password
+            - name: SSO_PRIMARY_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-sso-credentials
+                  key: SSO_PRIMARY_EMAIL
+            - name: SSO_DISPLAY_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-sso-credentials
+                  key: SSO_DISPLAY_NAME
           command:
             - /bin/sh
             - -ec
@@ -68,20 +78,22 @@ spec:
                 --port=5432 \
                 --username=sonar \
                 --dbname=sonarqube \
-                --set=ON_ERROR_STOP=1 <<'SQL'
+                --set=ON_ERROR_STOP=1 \
+                --set=sso_email="$SSO_PRIMARY_EMAIL" \
+                --set=sso_display_name="$SSO_DISPLAY_NAME" <<'SQL'
               UPDATE users
-              SET login = 'zaid@swirlit.dev',
-                  name = 'Zaid SwirlIT',
-                  email = 'zaid@swirlit.dev',
-                  external_login = 'zaid@swirlit.dev',
-                  external_id = 'zaid@swirlit.dev',
+              SET login = :'sso_email',
+                  name = :'sso_display_name',
+                  email = :'sso_email',
+                  external_login = :'sso_email',
+                  external_id = :'sso_email',
                   external_identity_provider = 'sonarqube',
                   updated_at = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
-              WHERE email = 'zaid@swirlit.dev'
-                AND login <> 'zaid@swirlit.dev'
+              WHERE email = :'sso_email'
+                AND login <> :'sso_email'
                 AND external_identity_provider = 'sonarqube'
                 AND NOT EXISTS (
-                  SELECT 1 FROM users WHERE login = 'zaid@swirlit.dev'
+                  SELECT 1 FROM users WHERE login = :'sso_email'
                 );
               SQL
           resources:

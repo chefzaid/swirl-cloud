@@ -29,6 +29,13 @@ if [[ ! -r "$TRANSPORT_GUIDE_LIBRARY" ]]; then
 fi
 # shellcheck source=scripts/lib/transport-guide.sh
 source "$TRANSPORT_GUIDE_LIBRARY"
+SSO_ADMIN_LIBRARY="$SCRIPT_DIR/scripts/lib/sso-admin.sh"
+if [[ ! -r "$SSO_ADMIN_LIBRARY" ]]; then
+    echo "[ERROR] Shared SSO administrator library not found: $SSO_ADMIN_LIBRARY" >&2
+    exit 1
+fi
+# shellcheck source=scripts/lib/sso-admin.sh
+source "$SSO_ADMIN_LIBRARY"
 
 K8S_DIR="$SCRIPT_DIR/k8s"
 VAULT_BOOTSTRAP_SCRIPT="$SCRIPT_DIR/scripts/configure-vault.sh"
@@ -60,6 +67,8 @@ OVH_APPLICATION_SECRET="${OVH_APPLICATION_SECRET:-}"
 OVH_CONSUMER_KEY="${OVH_CONSUMER_KEY:-}"
 OVH_VRACK_SERVICE_NAME="${OVH_VRACK_SERVICE_NAME:-}"
 OVH_CONTROL_PLANE_SERVICE_NAME="${OVH_CONTROL_PLANE_SERVICE_NAME:-}"
+KEYCLOAK_SSO_BOOTSTRAP_USERNAME="${KEYCLOAK_SSO_BOOTSTRAP_USERNAME:-}"
+KEYCLOAK_SSO_BOOTSTRAP_PASSWORD="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-}"
 ROTATE_LOCAL_ADMIN_PASSWORDS="${ROTATE_LOCAL_ADMIN_PASSWORDS:-}"
 LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-}"
 INSTALLER_TEMP_DIR=""
@@ -304,13 +313,51 @@ select_node_transport() {
     done
 }
 
+prompt_platform_admin_credentials() {
+    local password_confirmation=""
+
+    while ! sso_admin_validate_username "$KEYCLOAK_SSO_BOOTSTRAP_USERNAME"; do
+        if [[ "$AUTO_APPROVE" == "true" ]]; then
+            error "Set a valid KEYCLOAK_SSO_BOOTSTRAP_USERNAME for a non-interactive platform installation. $SSO_ADMIN_VALIDATION_ERROR"
+        fi
+        [[ -z "$KEYCLOAK_SSO_BOOTSTRAP_USERNAME" ]] || warn "$SSO_ADMIN_VALIDATION_ERROR"
+        read -rp "$(echo -e "${YELLOW}Platform administrator login (username or email):${NC} ")" \
+            KEYCLOAK_SSO_BOOTSTRAP_USERNAME
+    done
+
+    while ! sso_admin_validate_password "$KEYCLOAK_SSO_BOOTSTRAP_PASSWORD" \
+        "$KEYCLOAK_SSO_BOOTSTRAP_USERNAME"; do
+        if [[ "$AUTO_APPROVE" == "true" ]]; then
+            error "Set a valid KEYCLOAK_SSO_BOOTSTRAP_PASSWORD for a non-interactive platform installation. $SSO_ADMIN_VALIDATION_ERROR"
+        fi
+        [[ -z "$KEYCLOAK_SSO_BOOTSTRAP_PASSWORD" ]] || warn "$SSO_ADMIN_VALIDATION_ERROR"
+        KEYCLOAK_SSO_BOOTSTRAP_PASSWORD=""
+        IFS= read -rsp "Platform administrator password (input hidden): " \
+            KEYCLOAK_SSO_BOOTSTRAP_PASSWORD
+        echo >&2
+        IFS= read -rsp "Confirm platform administrator password: " password_confirmation
+        echo >&2
+        if [[ "$KEYCLOAK_SSO_BOOTSTRAP_PASSWORD" != "$password_confirmation" ]]; then
+            warn "The passwords do not match."
+            KEYCLOAK_SSO_BOOTSTRAP_PASSWORD=""
+        fi
+    done
+
+    password_confirmation=""
+    unset password_confirmation
+    export KEYCLOAK_SSO_BOOTSTRAP_USERNAME KEYCLOAK_SSO_BOOTSTRAP_PASSWORD
+    info "Keycloak will provision '$KEYCLOAK_SSO_BOOTSTRAP_USERNAME' as the shared platform administrator."
+}
+
 cleanup_private_credentials() {
     TAILSCALE_API_TOKEN=""
     OVH_APPLICATION_KEY=""
     OVH_APPLICATION_SECRET=""
     OVH_CONSUMER_KEY=""
+    KEYCLOAK_SSO_BOOTSTRAP_PASSWORD=""
     LOCAL_ADMIN_PASSWORD=""
     unset TAILSCALE_API_TOKEN OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY 2>/dev/null || true
+    unset KEYCLOAK_SSO_BOOTSTRAP_USERNAME KEYCLOAK_SSO_BOOTSTRAP_PASSWORD 2>/dev/null || true
     unset LOCAL_ADMIN_PASSWORD LOCAL_ADMIN_PASSWORD_ERROR 2>/dev/null || true
     if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/bm-cluster-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
         rm -r -- "$INSTALLER_TEMP_DIR"
@@ -395,6 +442,7 @@ info "============================================="
 echo ""
 echo "This script will:"
 echo "  - Prompt you for each install feature group one by one"
+echo "  - Provision the login you choose as administrator through Keycloak SSO"
 echo "  - Install only selected components"
 echo "  - Apply UFW everywhere and add intrusion prevention only when internet-exposed"
 echo ""
@@ -538,6 +586,16 @@ fi
 if [[ "$DEPLOY_ODOO" == "true" && "$DEPLOY_DATA_STORES" != "true" ]]; then
     warn "Odoo depends on PostgreSQL; enabling data store deployment."
     DEPLOY_DATA_STORES=true
+fi
+
+if [[ "$DEPLOY_ODOO" == "true" && "$DEPLOY_PLATFORM_SERVICES" != "true" ]]; then
+    warn "Odoo SSO depends on Keycloak; enabling platform service deployment."
+    DEPLOY_PLATFORM_SERVICES=true
+fi
+
+if [[ "$DEPLOY_PLATFORM_SERVICES" == "true" ]]; then
+    step "Configure the shared Keycloak platform administrator"
+    prompt_platform_admin_credentials
 fi
 
 if [[ "$DEPLOY_PLATFORM_SERVICES" == "true" ]]; then
@@ -951,6 +1009,7 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
 
     echo ""
     echo "Retrieve credentials:"
+    echo "  Keycloak SSO administrator: kubectl get secret -n infra keycloak-sso-credentials -o go-template='{{printf \"%s:%s\" (index .data \"SSO_BOOTSTRAP_USERNAME\" | base64decode) (index .data \"SSO_BOOTSTRAP_PASSWORD\" | base64decode)}}'"
     echo "  ArgoCD:   kubectl -n infra get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
     echo "  GitLab:   kubectl exec -n infra deployment/gitlab -- grep 'Password:' /etc/gitlab/initial_root_password"
     echo "  MongoDB:  kubectl get secret -n infra mongodb-secret -o jsonpath='{.data.MONGO_INITDB_ROOT_PASSWORD}' | base64 -d"

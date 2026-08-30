@@ -18,6 +18,10 @@ spec:
       remoteRef: {key: infra/keycloak, property: sso_bootstrap_username}
     - secretKey: SSO_BOOTSTRAP_PASSWORD
       remoteRef: {key: infra/keycloak, property: sso_bootstrap_password}
+    - secretKey: SSO_PRIMARY_EMAIL
+      remoteRef: {key: infra/keycloak, property: sso_primary_email}
+    - secretKey: SSO_DISPLAY_NAME
+      remoteRef: {key: infra/keycloak, property: sso_display_name}
     - secretKey: OAUTH2_PROXY_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: oauth2_proxy_client_secret}
     - secretKey: OAUTH2_PROXY_COOKIE_SECRET
@@ -36,6 +40,8 @@ spec:
       remoteRef: {key: infra/keycloak, property: portainer_client_secret}
     - secretKey: ODOO_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: odoo_client_secret}
+    - secretKey: KEYCLOAK_RECONCILER_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: keycloak_reconciler_client_secret}
 
 ---
 apiVersion: v1
@@ -56,12 +62,23 @@ data:
 
     login() {
       token_response="$(curl --fail --silent --show-error \
-        --data-urlencode client_id=admin-cli \
-        --data-urlencode grant_type=password \
-        --data-urlencode "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
-        --data-urlencode "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
-        "$server/realms/master/protocol/openid-connect/token")"
+        --data-urlencode client_id=bm-cluster-reconciler \
+        --data-urlencode grant_type=client_credentials \
+        --data-urlencode "client_secret=$KEYCLOAK_RECONCILER_CLIENT_SECRET" \
+        "$server/realms/master/protocol/openid-connect/token" 2>/dev/null || true)"
       access_token="$(printf '%s' "$token_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+      if [ -z "$access_token" ]; then
+        # The password grant is bootstrap-only. Once the reconciler service
+        # account exists, the human bootstrap administrator is protected by
+        # TOTP and this fallback can no longer authenticate.
+        token_response="$(curl --fail --silent --show-error \
+          --data-urlencode client_id=admin-cli \
+          --data-urlencode grant_type=password \
+          --data-urlencode "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
+          --data-urlencode "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+          "$server/realms/master/protocol/openid-connect/token")"
+        access_token="$(printf '%s' "$token_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+      fi
       test -n "$access_token"
     }
 
@@ -110,6 +127,15 @@ data:
       sed -n 's/^[^"]*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$response_file" | head -n 1
     }
 
+    json_escape() {
+      sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\r/\\r/g'
+    }
+
+    sso_username_json="$(printf '%s' "$SSO_BOOTSTRAP_USERNAME" | json_escape)"
+    sso_password_json="$(printf '%s' "$SSO_BOOTSTRAP_PASSWORD" | json_escape)"
+    sso_email_json="$(printf '%s' "$SSO_PRIMARY_EMAIL" | json_escape)"
+    reconciler_secret_json="$(printf '%s' "$KEYCLOAK_RECONCILER_CLIENT_SECRET" | json_escape)"
+
     status="$(request GET "realms/$realm")"
     if [ "$status" = 404 ]; then
       expect_success "$(request POST realms '{"realm":"swirlit","enabled":true}')"
@@ -125,6 +151,11 @@ data:
       "loginWithEmailAllowed":true,
       "duplicateEmailsAllowed":false,
       "verifyEmail":false,
+      "eventsEnabled":true,
+      "eventsExpiration":2592000,
+      "eventsListeners":["jboss-logging"],
+      "adminEventsEnabled":true,
+      "adminEventsDetailsEnabled":true,
       "bruteForceProtected":true,
       "permanentLockout":false,
       "failureFactor":5,
@@ -133,15 +164,57 @@ data:
       "sslRequired":"external",
       "defaultSignatureAlgorithm":"RS256",
       "passwordPolicy":"length(12) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1) and notUsername(undefined)",
+      "otpPolicyType":"totp",
+      "otpPolicyAlgorithm":"HmacSHA256",
+      "otpPolicyDigits":6,
+      "otpPolicyLookAheadWindow":1,
+      "otpPolicyPeriod":30,
       "accessTokenLifespan":300,
-      "ssoSessionIdleTimeout":28800,
-      "ssoSessionMaxLifespan":36000
+      "ssoSessionIdleTimeout":1800,
+      "ssoSessionMaxLifespan":28800,
+      "offlineSessionIdleTimeout":2592000,
+      "offlineSessionMaxLifespanEnabled":true,
+      "offlineSessionMaxLifespan":5184000
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
 
+    # The administrative realm never needs to be reachable through the public
+    # Keycloak hostname. Give it its own Access-protected frontend and apply the
+    # same brute-force, event-audit, session, and TOTP controls.
+    master_realm_body='{
+      "bruteForceProtected":true,
+      "permanentLockout":false,
+      "failureFactor":5,
+      "waitIncrementSeconds":60,
+      "maxFailureWaitSeconds":900,
+      "eventsEnabled":true,
+      "eventsExpiration":2592000,
+      "eventsListeners":["jboss-logging"],
+      "adminEventsEnabled":true,
+      "adminEventsDetailsEnabled":true,
+      "otpPolicyType":"totp",
+      "otpPolicyAlgorithm":"HmacSHA256",
+      "otpPolicyDigits":6,
+      "otpPolicyLookAheadWindow":1,
+      "otpPolicyPeriod":30,
+      "accessTokenLifespan":300,
+      "ssoSessionIdleTimeout":1800,
+      "ssoSessionMaxLifespan":28800,
+      "attributes":{
+        "cibaBackchannelTokenDeliveryMode":"poll",
+        "cibaExpiresIn":"120",
+        "cibaAuthRequestedUserHint":"login_hint",
+        "parRequestUriLifespan":"60",
+        "cibaInterval":"5",
+        "realmReusableOtpCode":"false",
+        "frontendUrl":"https://keycloak-admin.swirlit.dev/auth"
+      }
+    }'
+    expect_success "$(request PUT realms/master "$master_realm_body")"
+
     # Keycloak 26 ignores attributes that are not declared in the realm user
-    # profile. Keep the bootstrap identity's secondary email and its future
-    # LDAP migration marker as explicitly managed, administrator-owned fields.
+    # profile. Keep the bootstrap identity's future LDAP migration marker as an
+    # explicitly managed, administrator-owned field.
     user_profile_body='{
       "attributes":[
         {
@@ -177,13 +250,6 @@ data:
           "validations":{"length":{"max":255},"person-name-prohibited-characters":{}},
           "required":{"roles":["user"]},
           "permissions":{"view":["admin","user"],"edit":["admin","user"]},
-          "multivalued":false
-        },
-        {
-          "name":"alternate_email",
-          "displayName":"Alternate email",
-          "validations":{"email":{},"length":{"max":255}},
-          "permissions":{"view":["admin","user"],"edit":["admin"]},
           "multivalued":false
         },
         {
@@ -423,42 +489,53 @@ data:
 
     expect_success "$(request GET "realms/$realm/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
     user_id="$(extract_id)"
+    user_is_federated=false
     if [ -z "$user_id" ]; then
       user_body="{
-        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"username\":\"$sso_username_json\",
         \"enabled\":true,
         \"emailVerified\":true,
-        \"email\":\"zaid@swirlit.dev\",
-        \"firstName\":\"Zaid\",
-        \"lastName\":\"SwirlIT\",
+        \"email\":\"$sso_email_json\",
+        \"firstName\":\"Platform\",
+        \"lastName\":\"Administrator\",
         \"attributes\":{
-          \"alternate_email\":[\"chefzaid@gmail.com\"],
           \"bootstrap_local\":[\"true\"]
         },
         \"credentials\":[{
           \"type\":\"password\",
-          \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+          \"value\":\"$sso_password_json\",
           \"temporary\":false
         }]
       }"
       expect_success "$(request POST "realms/$realm/users" "$user_body")"
       expect_success "$(request GET "realms/$realm/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
       user_id="$(extract_id)"
-    elif ! grep -q '"federationLink"[[:space:]]*:[[:space:]]*"' "$response_file"; then
+    elif grep -q '"federationLink"[[:space:]]*:[[:space:]]*"' "$response_file"; then
+      user_is_federated=true
+    else
       user_body="{
         \"id\":\"$user_id\",
-        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"username\":\"$sso_username_json\",
         \"enabled\":true,
         \"emailVerified\":true,
-        \"email\":\"zaid@swirlit.dev\",
-        \"firstName\":\"Zaid\",
-        \"lastName\":\"SwirlIT\",
+        \"email\":\"$sso_email_json\",
+        \"firstName\":\"Platform\",
+        \"lastName\":\"Administrator\",
         \"attributes\":{
-          \"alternate_email\":[\"chefzaid@gmail.com\"],
           \"bootstrap_local\":[\"true\"]
         }
       }"
       expect_success "$(request PUT "realms/$realm/users/$user_id" "$user_body")"
+    fi
+    test -n "$user_id"
+
+    if [ "$user_is_federated" = false ]; then
+      user_password_body="{
+        \"type\":\"password\",
+        \"value\":\"$sso_password_json\",
+        \"temporary\":false
+      }"
+      expect_success "$(request PUT "realms/$realm/users/$user_id/reset-password" "$user_password_body")"
     fi
 
     expect_success "$(request PUT "realms/$realm/users/$user_id/groups/$group_id")"
@@ -473,15 +550,15 @@ data:
     master_user_is_federated=false
     if [ -z "$master_user_id" ]; then
       master_user_body="{
-        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"username\":\"$sso_username_json\",
         \"enabled\":true,
         \"emailVerified\":true,
-        \"email\":\"zaid@swirlit.dev\",
-        \"firstName\":\"Zaid\",
-        \"lastName\":\"SwirlIT\",
+        \"email\":\"$sso_email_json\",
+        \"firstName\":\"Platform\",
+        \"lastName\":\"Administrator\",
         \"credentials\":[{
           \"type\":\"password\",
-          \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+          \"value\":\"$sso_password_json\",
           \"temporary\":false
         }]
       }"
@@ -493,12 +570,12 @@ data:
     else
       master_user_body="{
         \"id\":\"$master_user_id\",
-        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"username\":\"$sso_username_json\",
         \"enabled\":true,
         \"emailVerified\":true,
-        \"email\":\"zaid@swirlit.dev\",
-        \"firstName\":\"Zaid\",
-        \"lastName\":\"SwirlIT\"
+        \"email\":\"$sso_email_json\",
+        \"firstName\":\"Platform\",
+        \"lastName\":\"Administrator\"
       }"
       expect_success "$(request PUT "realms/master/users/$master_user_id" "$master_user_body")"
     fi
@@ -507,7 +584,7 @@ data:
     if [ "$master_user_is_federated" = false ]; then
       master_password_body="{
         \"type\":\"password\",
-        \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+        \"value\":\"$sso_password_json\",
         \"temporary\":false
       }"
       expect_success "$(request PUT "realms/master/users/$master_user_id/reset-password" "$master_password_body")"
