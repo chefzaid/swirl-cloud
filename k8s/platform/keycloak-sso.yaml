@@ -682,164 +682,6 @@ spec:
               memory: 128Mi
 
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: keycloak-realm-selector
-  namespace: infra
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-data:
-  index.html: |
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="robots" content="noindex, nofollow">
-        <title>Choose a Keycloak realm</title>
-        <style>
-          :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-          * { box-sizing: border-box; }
-          body {
-            align-items: center;
-            background: #090b10;
-            color: #f4f4f5;
-            display: flex;
-            justify-content: center;
-            margin: 0;
-            min-height: 100vh;
-            padding: 24px;
-          }
-          main { max-width: 760px; width: 100%; }
-          .eyebrow { color: #8b9cff; font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-          h1 { font-size: clamp(2rem, 7vw, 3.5rem); letter-spacing: -.04em; margin: 10px 0 12px; }
-          .intro { color: #a1a1aa; font-size: 1.05rem; line-height: 1.6; margin: 0 0 32px; }
-          .realms { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-          a {
-            background: #151821;
-            border: 1px solid #2a2f3d;
-            border-radius: 14px;
-            color: inherit;
-            display: block;
-            padding: 24px;
-            text-decoration: none;
-            transition: border-color .15s ease, transform .15s ease, background .15s ease;
-          }
-          a:hover, a:focus-visible { background: #1a1e29; border-color: #7486ff; outline: none; transform: translateY(-2px); }
-          h2 { font-size: 1.25rem; margin: 0 0 8px; }
-          p { color: #a1a1aa; line-height: 1.5; margin: 0; }
-          .realm { color: #7486ff; display: block; font-family: ui-monospace, monospace; font-size: .82rem; margin-top: 22px; }
-        </style>
-      </head>
-      <body>
-        <main>
-          <div class="eyebrow">SwirlIT identity</div>
-          <h1>Choose a realm</h1>
-          <p class="intro">Select the Keycloak realm you want to sign in to and administer.</p>
-          <div class="realms">
-            <a href="/auth/admin/master/console/">
-              <h2>Master administration</h2>
-              <p>Manage the Keycloak instance, realms, clients, users, and global settings.</p>
-              <span class="realm">master &rarr;</span>
-            </a>
-            <a href="/auth/admin/swirlit/console/">
-              <h2>SwirlIT</h2>
-              <p>Manage SwirlIT applications, clients, users, groups, and realm settings.</p>
-              <span class="realm">swirlit &rarr;</span>
-            </a>
-          </div>
-        </main>
-      </body>
-    </html>
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: keycloak-realm-selector
-  namespace: infra
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-  labels:
-    app: keycloak-realm-selector
-    app.kubernetes.io/name: keycloak-realm-selector
-    app.kubernetes.io/part-of: keycloak
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: keycloak-realm-selector
-  template:
-    metadata:
-      labels:
-        app: keycloak-realm-selector
-        app.kubernetes.io/name: keycloak-realm-selector
-        app.kubernetes.io/part-of: keycloak
-    spec:
-      automountServiceAccountToken: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: realm-selector
-          image: busybox@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
-          args: ["httpd", "-f", "-p", "8080", "-h", "/www"]
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet: {path: /, port: http}
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: {path: /, port: http}
-            initialDelaySeconds: 5
-            periodSeconds: 30
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-            readOnlyRootFilesystem: true
-          resources:
-            requests:
-              cpu: 5m
-              memory: 4Mi
-            limits:
-              cpu: 50m
-              memory: 16Mi
-          volumeMounts:
-            - name: content
-              mountPath: /www
-              readOnly: true
-      volumes:
-        - name: content
-          configMap:
-            name: keycloak-realm-selector
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: keycloak-realm-selector
-  namespace: infra
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-  labels:
-    app: keycloak-realm-selector
-    app.kubernetes.io/name: keycloak-realm-selector
-    app.kubernetes.io/part-of: keycloak
-spec:
-  selector:
-    app: keycloak-realm-selector
-  ports:
-    - name: http
-      port: 8080
-      targetPort: http
-
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -849,6 +691,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/app-root: /auth/admin/master/console/
     # Cloudflare Access carries a signed OIDC state value, and Odoo uses an
     # implicit response. Their redirect Location headers exceed Nginx's 4 KiB
     # default even with compact tokens.
@@ -870,13 +713,6 @@ spec:
                 port:
                   number: 4180
           - path: /
-            pathType: Exact
-            backend:
-              service:
-                name: keycloak-realm-selector
-                port:
-                  number: 8080
-          - path: /auth
             pathType: Prefix
             backend:
               service:

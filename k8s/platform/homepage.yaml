@@ -265,7 +265,7 @@ data:
     - Security & Identity:
         - Keycloak:
             icon: keycloak.png
-            href: https://keycloak.swirlit.dev/
+            href: https://keycloak.swirlit.dev/auth/admin/master/console/
             description: Identity and access management
             namespace: infra
             podSelector: app=keycloak
