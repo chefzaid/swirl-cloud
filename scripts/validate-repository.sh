@@ -317,6 +317,15 @@ else
     fail "GitLab package and container registries declare three-year retention"
 fi
 
+if grep -Fq 'GITLAB_CANONICAL_ADMIN_USERNAME' "$K8S_ROOT/platform/gitlab.yaml" &&
+   grep -Fq 'identity.user = canonical_user' "$K8S_ROOT/platform/gitlab.yaml" &&
+   grep -Fq 'Users::DestroyService.new(canonical_user)' "$K8S_ROOT/platform/gitlab.yaml" &&
+   grep -Fq 'value: root' "$K8S_ROOT/platform/gitlab.yaml"; then
+    pass "GitLab Keycloak sign-in reconciles to the canonical root administrator"
+else
+    fail "GitLab Keycloak sign-in reconciles to the canonical root administrator"
+fi
+
 sed -nE 's#.*href:[[:space:]]+https://([^/[:space:]]+).*#\1#p' "$K8S_ROOT/platform/homepage.yaml" |
     awk -v zone="$DEFAULT_CLOUDFLARE_ZONE" 'index($0, "." zone) == length($0) - length(zone) {sub("\\." zone "$", ""); print}' |
     LC_ALL=C sort -u > "$TEMP_DIR/homepage-hosts"

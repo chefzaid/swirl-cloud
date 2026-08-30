@@ -325,12 +325,16 @@ kubectl get secret -n infra keycloak-sso-credentials \
   -o jsonpath='{.data.SSO_BOOTSTRAP_PASSWORD}' | base64 -d
 ```
 
-GitLab promotes this identity to an instance administrator. Grafana maps it to
-Grafana Admin, Argo CD to its admin role, Vault to `platform-admin`, Portainer
-to role `1`, Odoo to its existing administrator, and SonarQube synchronizes the
-Keycloak group to its global `admin` permission. The application dashboards
-and services without native OIDC use the same Keycloak session at their proxy
-boundary, so they do not introduce another user or password.
+GitLab attaches this identity to its canonical `root` administrator, including
+the projects, ownership, activity, and permissions already visible to the
+break-glass root login. Its bootstrap removes any empty `zaid` account created
+before that identity link existed, so Keycloak and local root authentication do
+not create separate GitLab users. Grafana maps the identity to Grafana Admin,
+Argo CD to its admin role, Vault to `platform-admin`, Portainer to role `1`,
+Odoo to its existing administrator, and SonarQube synchronizes the Keycloak
+group to its global `admin` permission. The application dashboards and services
+without native OIDC use the same Keycloak session at their proxy boundary, so
+they do not introduce another user or password.
 
 The following local credentials are break-glass or automation credentials, not
 the normal browser sign-in path:
