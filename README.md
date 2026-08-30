@@ -312,10 +312,28 @@ root audit through passwordless `sudo`, retrieves the reports under
 targets can be supplied with `--targets user@host,user@host`; run
 `bm-cluster-audit-nodes --help` for automation options.
 
-## Initial credentials
+## Identity and recovery credentials
 
-Retrieve bootstrap credentials from the cluster rather than storing them in the
+Normal browser access uses the single Keycloak identity `zaid`. Its primary
+email is `zaid@swirlit.dev`, `chefzaid@gmail.com` is retained as the alternate
+email, and membership in `platform-admins` supplies the administrative role.
+Retrieve its managed password from the cluster rather than storing it in the
 repository:
+
+```bash
+kubectl get secret -n infra keycloak-sso-credentials \
+  -o jsonpath='{.data.SSO_BOOTSTRAP_PASSWORD}' | base64 -d
+```
+
+GitLab promotes this identity to an instance administrator. Grafana maps it to
+Grafana Admin, Argo CD to its admin role, Vault to `platform-admin`, Portainer
+to role `1`, Odoo to its existing administrator, and SonarQube synchronizes the
+Keycloak group to its global `admin` permission. The application dashboards
+and services without native OIDC use the same Keycloak session at their proxy
+boundary, so they do not introduce another user or password.
+
+The following local credentials are break-glass or automation credentials, not
+the normal browser sign-in path:
 
 | Service | Username | Password or token command |
 |---|---|---|
@@ -329,19 +347,16 @@ repository:
 | Longhorn origin login | `admin` | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=password secret/infra/platform-ui` |
 | Odoo | `admin` | `kubectl get secret -n apps odoo-secret -o jsonpath='{.data.ODOO_ADMIN_PASSWORD}' \| base64 -d` |
 | Portainer | `admin` | `kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' \| base64 -d` |
-| SonarQube | `admin` | Initial password: `admin` |
+| SonarQube automation | `admin` token | `kubectl exec -n infra vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$(sudo cat /var/lib/bm-cluster/vault-bootstrap-token)" vault kv get -field=admin_token secret/infra/sonarqube` |
 | Vault | Token login | `sudo cat /var/lib/bm-cluster/vault-bootstrap-token` |
 
-Change bootstrap credentials immediately after onboarding.
-
-Kibana and Longhorn retain Cloudflare Access at the public edge. Kibana uses
-Elastic's native login, users, and roles at the origin. Longhorn has no native
-authentication provider, so only Longhorn retains the Vault-managed NGINX Basic
-Auth boundary for direct-IP and internal ingress access. Kibana's public route
-removes only legacy HTTP Basic authorization headers before they reach Kibana,
-preventing browser-cached credentials from bypassing its session login; Bearer
-and API-key headers remain available, and internal automation keeps using the
-unfiltered cluster service port.
+Cloudflare Access delegates its protected hosts to the same Keycloak realm.
+Native OIDC integrations then establish the service session where supported.
+SonarQube consumes the authenticated identity and groups as trusted SSO
+headers. Kibana receives a managed `kibana_admin` origin identity after the
+Keycloak gate, while Longhorn relies on the gate because it has no native
+authentication provider. Scanner, registry, and internal automation endpoints
+retain their non-interactive token interfaces.
 
 ## Operations
 
