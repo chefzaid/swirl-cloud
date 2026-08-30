@@ -411,9 +411,9 @@ data:
     role_mappings="[$platform_admin_role,$platform_user_role]"
     expect_success "$(request POST "realms/$realm/groups/$group_id/role-mappings/realm" "$role_mappings")"
 
-    # Delegate full administration of this realm to the same platform-admins
-    # group. The realm-specific console can then use the shared zaid identity
-    # instead of requiring a second master-realm administrator.
+    # Delegate full administration of this realm to the platform-admins group.
+    # The matching master-realm identity below additionally administers every
+    # realm from the top-level Keycloak console.
     expect_success "$(request GET "realms/$realm/clients?clientId=realm-management")"
     realm_management_id="$(extract_id)"
     test -n "$realm_management_id"
@@ -464,7 +464,61 @@ data:
     expect_success "$(request PUT "realms/$realm/users/$user_id/groups/$group_id")"
     expect_success "$(request POST "realms/$realm/users/$user_id/role-mappings/realm" "$role_mappings")"
 
+    # Keycloak realms are hard identity boundaries. Provision a matching local
+    # identity in master so the same managed username/password can administer
+    # the entire Keycloak instance, not only the SwirlIT realm. If LDAP later
+    # owns this master identity, preserve its federated credential linkage.
+    expect_success "$(request GET "realms/master/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
+    master_user_id="$(extract_id)"
+    master_user_is_federated=false
+    if [ -z "$master_user_id" ]; then
+      master_user_body="{
+        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"enabled\":true,
+        \"emailVerified\":true,
+        \"email\":\"zaid@swirlit.dev\",
+        \"firstName\":\"Zaid\",
+        \"lastName\":\"SwirlIT\",
+        \"credentials\":[{
+          \"type\":\"password\",
+          \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+          \"temporary\":false
+        }]
+      }"
+      expect_success "$(request POST "realms/master/users" "$master_user_body")"
+      expect_success "$(request GET "realms/master/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
+      master_user_id="$(extract_id)"
+    elif grep -q '"federationLink"[[:space:]]*:[[:space:]]*"' "$response_file"; then
+      master_user_is_federated=true
+    else
+      master_user_body="{
+        \"id\":\"$master_user_id\",
+        \"username\":\"$SSO_BOOTSTRAP_USERNAME\",
+        \"enabled\":true,
+        \"emailVerified\":true,
+        \"email\":\"zaid@swirlit.dev\",
+        \"firstName\":\"Zaid\",
+        \"lastName\":\"SwirlIT\"
+      }"
+      expect_success "$(request PUT "realms/master/users/$master_user_id" "$master_user_body")"
+    fi
+    test -n "$master_user_id"
+
+    if [ "$master_user_is_federated" = false ]; then
+      master_password_body="{
+        \"type\":\"password\",
+        \"value\":\"$SSO_BOOTSTRAP_PASSWORD\",
+        \"temporary\":false
+      }"
+      expect_success "$(request PUT "realms/master/users/$master_user_id/reset-password" "$master_password_body")"
+    fi
+
+    expect_success "$(request GET "realms/master/roles/admin")"
+    master_admin_role="$(tr -d '\n' < "$response_file")"
+    expect_success "$(request POST "realms/master/users/$master_user_id/role-mappings/realm" "[$master_admin_role]")"
+
     echo "Keycloak realm '$realm' reconciled."
+    echo "Keycloak master administrator '$SSO_BOOTSTRAP_USERNAME' reconciled."
 
 ---
 apiVersion: batch/v1
@@ -631,45 +685,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: keycloak-master-console-redirect
-  namespace: infra
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    # Keycloak realms are isolated. The platform administrator belongs to the
-    # SwirlIT realm, so old master-console bookmarks would otherwise present a
-    # valid-looking login page that can never accept the unified SSO account.
-    nginx.ingress.kubernetes.io/temporal-redirect: https://keycloak.swirlit.dev/auth/admin/swirlit/console/
-    nginx.ingress.kubernetes.io/temporal-redirect-code: "302"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts: [keycloak.swirlit.dev]
-      secretName: swirlit-dev-tls
-  rules:
-    - host: keycloak.swirlit.dev
-      http:
-        paths:
-          - path: /auth/admin/master/console
-            pathType: Prefix
-            backend:
-              service:
-                name: keycloak
-                port:
-                  number: 8080
-
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: keycloak-ingress
   namespace: infra
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/app-root: /auth/admin/swirlit/console/
+    nginx.ingress.kubernetes.io/app-root: /auth/admin/master/console/
     # Cloudflare Access carries a signed OIDC state value, and Odoo uses an
     # implicit response. Their redirect Location headers exceed Nginx's 4 KiB
     # default even with compact tokens.

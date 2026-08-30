@@ -314,9 +314,15 @@ targets can be supplied with `--targets user@host,user@host`; run
 
 ## Identity and recovery credentials
 
-Normal browser access uses the single Keycloak identity `zaid`. Its primary
-email is `zaid@swirlit.dev`, `chefzaid@gmail.com` is retained as the alternate
-email, and membership in `platform-admins` supplies the administrative role.
+Normal browser access uses the Keycloak username `zaid`. Because Keycloak
+realms are hard identity boundaries, the reconciler maintains matching local
+`zaid` identities in both `master` and `swirlit` with the same managed
+password. The primary email is `zaid@swirlit.dev`, `chefzaid@gmail.com` is
+retained as the alternate email in the application-facing `swirlit` realm,
+and membership in `platform-admins` supplies the application administrative
+role. The `master` identity receives Keycloak's composite `admin` role and can
+therefore administer the complete Keycloak instance from
+`https://keycloak.swirlit.dev/auth/admin/master/console/`.
 Retrieve its managed password from the cluster rather than storing it in the
 repository:
 
@@ -342,7 +348,7 @@ unrestricted:
 
 | Target | Effective maximum access |
 |---|---|
-| Keycloak | `realm-admin` for the managed `swirlit` realm |
+| Keycloak | Master-realm composite `admin` for every realm, plus `realm-admin` in `swirlit` |
 | GitLab | Canonical `root` instance administrator and project owner |
 | Grafana | Server-wide `GrafanaAdmin` and organization `Admin` |
 | Argo CD | Built-in `role:admin` |
