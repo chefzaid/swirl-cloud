@@ -502,10 +502,13 @@ class Onboarding:
                     if secret.get("type") != "kubernetes.io/tls" or not all(secret.get("data", {}).get(key) for key in ("tls.crt", "tls.key")):
                         raise OnboardingError("The platform must provision the application TLS certificate before onboarding")
                     certificate = base64.b64decode(secret["data"]["tls.crt"]).decode()
+                    current = subprocess.run(["openssl", "x509", "-noout", "-checkend", "0"],
+                                             input=certificate, capture_output=True, text=True, timeout=10)
                     for host in tls.get("hosts", []):
-                        checked = subprocess.run(["openssl", "x509", "-noout", "-checkend", "0", "-checkhost", host],
+                        # OpenSSL 3.5 stops after -checkend, so the host check needs its own call.
+                        checked = subprocess.run(["openssl", "x509", "-noout", "-checkhost", host],
                                                  input=certificate, capture_output=True, text=True, timeout=10)
-                        if checked.returncode or "does match certificate" not in checked.stdout:
+                        if current.returncode or checked.returncode or "does match certificate" not in checked.stdout:
                             raise OnboardingError("The platform TLS certificate is expired or does not cover an application hostname")
         return ci
 
