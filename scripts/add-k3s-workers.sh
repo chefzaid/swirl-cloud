@@ -78,7 +78,7 @@ NON_INTERACTIVE=false
 TAILSCALE_API_TOKEN_STDIN=false
 TAILSCALE_API_TOKEN="${TAILSCALE_API_TOKEN:-}"
 TAILSCALE_TAILNET="${TAILSCALE_TAILNET:-${DEFAULT_TAILSCALE_TAILNET:--}}"
-TAILSCALE_MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-bm-cluster}}"
+TAILSCALE_MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-swirl-cloud}}"
 TAILSCALE_NODE_HOSTNAME="${TAILSCALE_NODE_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 TAILSCALE_AUTH_KEY_EXPIRY_SECONDS="${TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-${DEFAULT_TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-3600}}"
 TAILSCALE_CONFIG_PREPARED="${TAILSCALE_CONFIG_PREPARED:-false}"
@@ -303,7 +303,7 @@ PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 K3S_REGISTRY_HOST="${K3S_REGISTRY_HOST:-${DEFAULT_K3S_REGISTRY_HOST:-${PLATFORM_DOMAIN:+registry.$PLATFORM_DOMAIN}}}"
 K3S_REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-http://10.43.255.251:5050}}"
 [[ -n "$K3S_REGISTRY_HOST" ]] || error "Cannot resolve the cluster registry; set PLATFORM_DOMAIN or K3S_REGISTRY_HOST."
-stored_ha_mode="$(kubectl -n infra get configmap bm-cluster-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
+stored_ha_mode="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
 if [[ -z "${HIGH_AVAILABILITY_ENABLED:-}" ]]; then
     HIGH_AVAILABILITY_ENABLED="${stored_ha_mode:-false}"
 fi
@@ -594,8 +594,8 @@ provision_vrack_target() {
         fi
     fi
 
-    remote_dir="$(ssh "${ssh_options[@]}" "$bootstrap_target" 'mktemp -d /tmp/bm-cluster-vrack.XXXXXX')"
-    [[ "$remote_dir" == /tmp/bm-cluster-vrack.* ]] || error "Could not create a safe vRack configuration directory on $bootstrap_target."
+    remote_dir="$(ssh "${ssh_options[@]}" "$bootstrap_target" 'mktemp -d /tmp/swirl-cloud-vrack.XXXXXX')"
+    [[ "$remote_dir" == /tmp/swirl-cloud-vrack.* ]] || error "Could not create a safe vRack configuration directory on $bootstrap_target."
     printf -v quoted_dir '%q' "$remote_dir"
     ssh "${ssh_options[@]}" "$bootstrap_target" "mkdir -m 700 $quoted_dir/lib"
     scp "${scp_options[@]}" "$OVH_VRACK_CONFIGURATOR" "$bootstrap_target:$remote_dir/"
@@ -657,8 +657,8 @@ provision_tailscale_target() {
     [[ "$TAILSCALE_NODE_NAME" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || \
         error "Invalid Tailscale hostname '$TAILSCALE_NODE_NAME'; use lower-case letters, numbers, and hyphens."
 
-    remote_dir="$(ssh "${ssh_options[@]}" "$bootstrap_target" 'mktemp -d /tmp/bm-cluster-tailscale.XXXXXX')"
-    [[ "$remote_dir" == /tmp/bm-cluster-tailscale.* ]] || error "Could not create a safe Tailscale bootstrap directory on $bootstrap_target."
+    remote_dir="$(ssh "${ssh_options[@]}" "$bootstrap_target" 'mktemp -d /tmp/swirl-cloud-tailscale.XXXXXX')"
+    [[ "$remote_dir" == /tmp/swirl-cloud-tailscale.* ]] || error "Could not create a safe Tailscale bootstrap directory on $bootstrap_target."
     printf -v quoted_dir '%q' "$remote_dir"
     ssh "${ssh_options[@]}" "$bootstrap_target" "chmod 700 $quoted_dir"
     scp "${scp_options[@]}" "$TAILSCALE_CONFIGURATOR" "$bootstrap_target:$remote_dir/"
@@ -849,7 +849,7 @@ install_worker() {
                 error "Existing control plane $node_name uses a different K3s version; upgrade servers together."
             kubectl wait --for=condition=Ready "node/$node_name" --timeout=5m
             kubectl label "node/$node_name" svccontroller.k3s.cattle.io/enablelb=false \
-                node.bm-cluster.io/role=control-plane node.bm-cluster.io/exposure=local --overwrite >/dev/null
+                node.swirl-cloud.io/role=control-plane node.swirl-cloud.io/exposure=local --overwrite >/dev/null
             info "Control plane '$node_name' already belongs to this cluster; keeping its existing server configuration."
             return 0
         fi
@@ -866,8 +866,8 @@ install_worker() {
     [[ -z "$taints" ]] || worker_args+=(--taints "$taints")
     [[ -z "$NODE_NETWORK_CIDR" ]] || worker_args+=(--node-network-cidr "$NODE_NETWORK_CIDR")
     [[ -z "$K3S_VERSION" ]] || worker_args+=(--k3s-version "$K3S_VERSION")
-    remote_dir="$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/bm-cluster-worker.XXXXXX')"
-    [[ "$remote_dir" == /tmp/bm-cluster-worker.* ]] || error "Could not create a safe temporary directory on $target."
+    remote_dir="$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-worker.XXXXXX')"
+    [[ "$remote_dir" == /tmp/swirl-cloud-worker.* ]] || error "Could not create a safe temporary directory on $target."
     printf -v quoted_dir '%q' "$remote_dir"
     ssh "${ssh_options[@]}" "$target" "mkdir -m 700 $quoted_dir/scripts $quoted_dir/scripts/lib $quoted_dir/config $quoted_dir/config/host"
     info "Copying the $ENROLLMENT_ROLE installer and enforced AppArmor profile to $target..."
@@ -921,11 +921,11 @@ install_worker() {
     [[ "$node_registered" == "true" ]] || error "$ENROLLMENT_ROLE '$node_name' did not register within 60 seconds."
     kubectl wait --for=condition=Ready "node/$node_name" --timeout=5m
     kubectl label "node/$node_name" \
-        "node.bm-cluster.io/role=$ENROLLMENT_ROLE" \
-        node.bm-cluster.io/exposure=local \
+        "node.swirl-cloud.io/role=$ENROLLMENT_ROLE" \
+        node.swirl-cloud.io/exposure=local \
         --overwrite >/dev/null
     if [[ "$target" == *@* ]]; then
-        kubectl annotate "node/$node_name" "node.bm-cluster.io/ssh-user=${target%@*}" --overwrite >/dev/null
+        kubectl annotate "node/$node_name" "node.swirl-cloud.io/ssh-user=${target%@*}" --overwrite >/dev/null
     fi
     if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
         kubectl label "node/$node_name" svccontroller.k3s.cattle.io/enablelb=false --overwrite >/dev/null
@@ -1079,7 +1079,7 @@ if [[ "$DEFER_TOPOLOGY" != true ]]; then
                  --ssh-user "$SSH_USER" --ssh-port "$SSH_PORT")
     [[ -z "$IDENTITY_FILE" ]] || access_args+=(--identity-file "$IDENTITY_FILE")
     "$CONTROL_PLANE_ACCESS_RECONCILER" "${access_args[@]}"
-    ha_mode="$(kubectl -n infra get configmap bm-cluster-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
+    ha_mode="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
     if [[ "$ha_mode" == true && "$ENROLLMENT_ROLE" == control-plane ]]; then
         HIGH_AVAILABILITY_ENABLED=true bash "$HA_CONTROL_PLANE_CONFIGURATOR" --reconcile "${access_args[@]}"
         "$SCRIPT_DIR/sync-vault-recovery.sh" --all-control-planes "${access_args[@]}"

@@ -103,7 +103,7 @@ data:
         "settings": {
           "number_of_shards": 1,
           "number_of_replicas": 0,
-          "index.lifecycle.name": "bm-cluster-logs-7d"
+          "index.lifecycle.name": "swirl-cloud-logs-7d"
         }
       },
       "priority": 200
@@ -137,7 +137,7 @@ data:
           "number_of_replicas": 0,
           "index.refresh_interval": "5s",
           "index.mapping.total_fields.limit": 100,
-          "index.lifecycle.name": "bm-cluster-lynis-12m"
+          "index.lifecycle.name": "swirl-cloud-lynis-12m"
         },
         "mappings": {
           "dynamic": false,
@@ -392,7 +392,7 @@ spec:
                 "${endpoint}/_security/role/logs_reader" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":[],"indices":[],"applications":[],"run_as":[],"metadata":{"managed_by":"bm-cluster"}}' \
+                --data-binary '{"cluster":[],"indices":[],"applications":[],"run_as":[],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/kibana_keycloak_proxy" >/dev/null
 
               put_user admin "$ADMIN_PASSWORD" '["superuser"]' 'Platform Administrator'
@@ -428,8 +428,8 @@ data:
     const realm = process.env.KEYCLOAK_REALM ?? "__KEYCLOAK_REALM__";
     const groupName = process.env.KEYCLOAK_GROUP ?? "platform-admins";
     const elasticsearch = process.env.ELASTICSEARCH_URL ?? "http://elasticsearch.__INTERNAL_DNS_ZONE__:9200";
-    const managedBy = "bm-cluster-keycloak-sync";
-    const ownershipIndex = "bm-cluster-kibana-identity-ownership-v1";
+    const managedBy = "swirl-cloud-keycloak-sync";
+    const ownershipIndex = "swirl-cloud-kibana-identity-ownership-v1";
     const elasticAuthorization = `Basic ${Buffer.from(`elastic:${required("ELASTIC_PASSWORD")}`).toString("base64")}`;
 
     function required(name) {
@@ -800,7 +800,7 @@ spec:
       labels:
         app: logstash
       annotations:
-        bm-cluster.__PUBLIC_DOMAIN__/config-version: "2"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "2"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -834,7 +834,7 @@ spec:
           curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
             -X PUT -H 'Content-Type: application/json' \
             --data-binary @/config/lynis-ilm-policy.json \
-            "${endpoint}/_ilm/policy/bm-cluster-lynis-12m" >/dev/null
+            "${endpoint}/_ilm/policy/swirl-cloud-lynis-12m" >/dev/null
           curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
             -X PUT -H 'Content-Type: application/json' \
             --data-binary @/config/lynis-index-template.json \
@@ -1095,7 +1095,7 @@ spec:
       labels:
         app: kibana
       annotations:
-        bm-cluster.__PUBLIC_DOMAIN__/auth-version: "4"
+        swirl-cloud.__PUBLIC_DOMAIN__/auth-version: "4"
     spec:
       automountServiceAccountToken: false
       securityContext:

@@ -17,7 +17,7 @@ source "$script_dir/lib/gitlab-admin-token.sh"
 source "$script_dir/lib/vault-access.sh"
 VAULT_POD="$(vault_runtime_pod infra)"
 export VAULT_POD
-GITLAB_BOOTSTRAP_TOKEN_NAME=bm-cluster-sonar-discovery-bootstrap
+GITLAB_BOOTSTRAP_TOKEN_NAME=swirl-cloud-sonar-discovery-bootstrap
 trap gitlab_revoke_ephemeral_admin_token EXIT
 gitlab_acquire_admin_token
 python3 - <<'PY'
@@ -37,7 +37,7 @@ def api(method, path, data=None, token=None):
             return json.loads(response.read() or '{}')
     except urllib.error.HTTPError as error:
         raise RuntimeError(f'{method} {path}: HTTP {error.code}') from None
-vault_token = subprocess.check_output(['sudo','cat',os.environ.get('VAULT_TOKEN_FILE','/var/lib/bm-cluster/vault-bootstrap-token')]).decode().strip()
+vault_token = subprocess.check_output(['sudo','cat',os.environ.get('VAULT_TOKEN_FILE','/var/lib/swirl-cloud/vault-bootstrap-token')]).decode().strip()
 def vault(script, values=()):
     return kubectl('-n','infra','exec','-i',os.environ['VAULT_POD'],'--','sh','-ceu',
         'IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200; ' + script,
@@ -84,7 +84,7 @@ if valid_existing:
     raise SystemExit(0)
 group_path = os.environ['GITLAB_GROUP_PATH']
 group = api('GET','groups/'+urllib.parse.quote(group_path,safe=''))
-name = 'bm-cluster-sonar-apps-discovery'
+name = 'swirl-cloud-sonar-apps-discovery'
 # Keep prior tokens until the replacement is safely written to Vault.
 previous = api('GET',f'groups/{group["id"]}/access_tokens?per_page=100')
 created = api('POST',f'groups/{group["id"]}/access_tokens', {

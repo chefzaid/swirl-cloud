@@ -14,7 +14,7 @@ ensure_tls_secret() (
     fi
 
     local tmpdir openssl_config cert key
-    tmpdir="$(mktemp -d /tmp/bm-cluster-tls.XXXXXX)"
+    tmpdir="$(mktemp -d /tmp/swirl-cloud-tls.XXXXXX)"
     trap 'rm -r -- "$tmpdir"' EXIT
     openssl_config="$tmpdir/openssl.cnf"
     cert="$tmpdir/tls.crt"

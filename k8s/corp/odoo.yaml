@@ -342,13 +342,13 @@ spec:
               })
               params = env['ir.config_parameter'].sudo()
               # Seed the requested preference once; later user choices survive restarts.
-              if not params.get_param('bm_cluster.dark_mode_initialized'):
+              if not params.get_param('swirl_cloud.dark_mode_initialized'):
                   admin.write({'dark_mode': True, 'dark_mode_device_dependent': False})
-                  params.set_param('bm_cluster.dark_mode_initialized', 'true')
+                  params.set_param('swirl_cloud.dark_mode_initialized', 'true')
               params.set_param('web.base.url', 'https://odoo.__PUBLIC_DOMAIN__')
               params.set_param('web.base.url.freeze', 'True')
               params.set_param('auth_oauth.authorization_header', 'True')
-              params.set_param('bm_cluster.bootstrap_complete', 'true')
+              params.set_param('swirl_cloud.bootstrap_complete', 'true')
               provider_values = {
                   'name': 'Keycloak',
                   'client_id': 'odoo',
@@ -642,7 +642,7 @@ spec:
                   number: 8069
 
 ---
-# Vendored OCA web_dark_mode 19.0.1.0.0; see docs/maintenance.md#ui-themes.
+# Vendored OCA web_dark_mode 19.0.1.0.0; see docs/operations.md#ui-themes.
 apiVersion: v1
 kind: ConfigMap
 metadata:

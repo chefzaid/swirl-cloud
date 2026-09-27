@@ -121,7 +121,7 @@ class Services:
         self.app = str(context["APPLICATION_NAME"])
         self.project = str(context["GITLAB_PROJECT_ID"])
         self.project_path = str(context["GITLAB_PROJECT_PATH"])
-        self.owner = f"bm-cluster-onboarding:{self.project}"
+        self.owner = f"swirl-cloud-onboarding:{self.project}"
         self.registry_name = "onboarding-" + hashlib.sha256(self.project_path.encode()).hexdigest()[:16]
 
     def _path(self, value):
@@ -144,7 +144,7 @@ class Services:
                 raise ValueError()
         except (OSError, ValueError, subprocess.SubprocessError):
             raise ServiceError("No initialized and unsealed Vault peer is available") from None
-        token = private_token_file(os.environ.get("VAULT_BOOTSTRAP_TOKEN_FILE", "/var/lib/bm-cluster/vault-bootstrap-token"))
+        token = private_token_file(os.environ.get("VAULT_BOOTSTRAP_TOKEN_FILE", "/var/lib/swirl-cloud/vault-bootstrap-token"))
         with forward("pod/" + pod, 8200) as origin:
             api = HTTP(origin, {"X-Vault-Token": token})
             health = api.request("GET", "/v1/sys/health?standbyok=true&perfstandbyok=true")
@@ -417,7 +417,7 @@ class Services:
             raise ServiceError("The production Keycloak file must define a public PKCE client limited to this application's HTTPS hosts") from None
         desired = {**desired, "enabled": True, "standardFlowEnabled": True,
                    "implicitFlowEnabled": False, "directAccessGrantsEnabled": False,
-                   "serviceAccountsEnabled": False, "attributes": {**desired["attributes"], "bm-cluster.onboarding.project": self.project_path}}
+                   "serviceAccountsEnabled": False, "attributes": {**desired["attributes"], "swirl-cloud.onboarding.project": self.project_path}}
         return realm, desired
 
     def _identity_state(self, api, client):
@@ -434,7 +434,7 @@ class Services:
             raise ServiceError("The Keycloak client identity is ambiguous")
         if matching:
             existing = api.request("GET", base + "/clients/" + quote(matching[0]["id"], safe=""))
-            owner = existing.get("attributes", {}).get("bm-cluster.onboarding.project")
+            owner = existing.get("attributes", {}).get("swirl-cloud.onboarding.project")
             if owner and owner != self.project_path:
                 raise ServiceError("The Keycloak client belongs to another project")
             if not owner:
@@ -488,7 +488,7 @@ class Services:
         return "reconciled existing client identity"
 
     def _dns_target(self):
-        state = self.kubectl("get", "configmap", "bm-cluster-public-ingress", "-n", "infra", "--ignore-not-found", "-o", "json", "--request-timeout=15s")
+        state = self.kubectl("get", "configmap", "swirl-cloud-public-ingress", "-n", "infra", "--ignore-not-found", "-o", "json", "--request-timeout=15s")
         if state:
             values = state.get("data", {})
             if values.get("mode") == "tunnel":
@@ -554,7 +554,7 @@ class Services:
             if existing:
                 managed = existing.get("comment", "")
                 allowed_comment = managed == self.owner or (host in owned and (
-                    managed == "Managed by bm-cluster/scripts/configure-cloudflare.sh"
+                    managed == "Managed by swirl-cloud/scripts/configure-cloudflare.sh"
                     or managed.startswith("Managed by " + self.app + "/")))
                 if (existing.get("type"), existing.get("content", "").rstrip(".")) != target and not allowed_comment:
                     raise ServiceError("An existing DNS record targets another origin; explicit ownership recovery is required")

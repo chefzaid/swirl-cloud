@@ -15,7 +15,7 @@ INSTALL_DESCHEDULER="${INSTALL_DESCHEDULER:-true}"
 
 fail() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 
-[[ -z "${SECURITY_IMAGES_ENABLED:-}" ]] || fail "SECURITY_IMAGES_ENABLED has been retired; follow docs/platform-migration.md and unset it."
+[[ -z "${SECURITY_IMAGES_ENABLED:-}" ]] || fail "SECURITY_IMAGES_ENABLED has been retired; follow docs/guides/platform-migration.md and unset it."
 
 while (( $# > 0 )); do
   case "$1" in

@@ -3,21 +3,21 @@ set -euo pipefail
 set +x
 
 POSTGRES_ACCESS_LIBRARY="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/postgres-access.sh"
-[[ -r "$POSTGRES_ACCESS_LIBRARY" ]] || POSTGRES_ACCESS_LIBRARY=/usr/local/lib/bm-cluster/postgres-access.sh
+[[ -r "$POSTGRES_ACCESS_LIBRARY" ]] || POSTGRES_ACCESS_LIBRARY=/usr/local/lib/swirl-cloud/postgres-access.sh
 # shellcheck source=lib/postgres-access.sh
 source "$POSTGRES_ACCESS_LIBRARY"
 VAULT_ACCESS_LIBRARY="$(dirname "$POSTGRES_ACCESS_LIBRARY")/vault-access.sh"
 # shellcheck source=lib/vault-access.sh
 source "$VAULT_ACCESS_LIBRARY"
 
-BACKUP_ENVIRONMENT_FILE="${BACKUP_ENVIRONMENT_FILE:-/etc/bm-cluster/backup.env}"
+BACKUP_ENVIRONMENT_FILE="${BACKUP_ENVIRONMENT_FILE:-/etc/swirl-cloud/backup.env}"
 if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
   # This root-owned file is written with shell-safe escaped values.
   # shellcheck disable=SC1090
   source "$BACKUP_ENVIRONMENT_FILE"
 fi
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/bm-cluster/k3s}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 RETENTION_COUNT="${RETENTION_COUNT:-7}"
 K3S_DATA_DIR="${K3S_DATA_DIR:-/var/lib/rancher/k3s}"
 K3S_CONFIG_DIR="${K3S_CONFIG_DIR:-/etc/rancher/k3s}"
@@ -44,7 +44,7 @@ fi
 
 umask 077
 install -d -o root -g root -m 0700 "$BACKUP_DIR"
-exec 9>/run/lock/bm-k3s-backup.lock
+exec 9>/run/lock/swirl-cloud-k3s-backup.lock
 flock -n 9 || exit 0
 
 staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
@@ -58,9 +58,9 @@ if [[ "$DATASTORE" == "etcd" ]]; then
   # staging directory. The completed archive follows the existing retention
   # and encrypted off-node policy; no extra on-demand snapshots accumulate.
   k3s etcd-snapshot save \
-    --data-dir "$K3S_DATA_DIR" --name "bm-cluster-$TIMESTAMP" \
+    --data-dir "$K3S_DATA_DIR" --name "swirl-cloud-$TIMESTAMP" \
     --etcd-snapshot-dir "$staging_dir/k3s-db" --etcd-s3=false
-  mapfile -t etcd_snapshots < <(find "$staging_dir/k3s-db" -maxdepth 1 -type f -name "bm-cluster-$TIMESTAMP*" -size +0c)
+  mapfile -t etcd_snapshots < <(find "$staging_dir/k3s-db" -maxdepth 1 -type f -name "swirl-cloud-$TIMESTAMP*" -size +0c)
   [[ ${#etcd_snapshots[@]} -eq 1 ]] || {
     echo "K3s did not produce exactly one nonempty local etcd snapshot." >&2
     exit 1
@@ -114,7 +114,7 @@ if [[ -d "$K3S_CONFIG_DIR/config.yaml.d" ]]; then
   cp -a "$K3S_CONFIG_DIR/config.yaml.d" "$staging_dir/k3s-config/config.yaml.d"
 fi
 
-for source_file in /var/lib/bm-cluster/vault-unseal-key /var/lib/bm-cluster/vault-bootstrap-token; do
+for source_file in /var/lib/swirl-cloud/vault-unseal-key /var/lib/swirl-cloud/vault-bootstrap-token; do
   [[ -f "$source_file" ]] && install -m 0600 "$source_file" "$staging_dir/vault/$(basename "$source_file")"
 done
 
@@ -122,15 +122,15 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
   kubectl get persistentvolumeclaims -A -o yaml > "$staging_dir/kubernetes/persistentvolumeclaims.yaml"
   kubectl get volumes.longhorn.io -n longhorn-system -o yaml \
     > "$staging_dir/kubernetes/longhorn-volumes.yaml" 2>/dev/null || true
-  if kubectl get recurringjob.longhorn.io bm-cluster-daily-backup -n longhorn-system >/dev/null 2>&1; then
+  if kubectl get recurringjob.longhorn.io swirl-cloud-daily-backup -n longhorn-system >/dev/null 2>&1; then
     kubectl label volumes.longhorn.io -n longhorn-system --all \
-      recurring-job-group.longhorn.io/bm-cluster=enabled --overwrite >/dev/null 2>&1 || true
+      recurring-job-group.longhorn.io/swirl-cloud=enabled --overwrite >/dev/null 2>&1 || true
   fi
 
-  if kubectl get service vault -n infra >/dev/null 2>&1 && [[ -s /var/lib/bm-cluster/vault-bootstrap-token ]]; then
+  if kubectl get service vault -n infra >/dev/null 2>&1 && [[ -s /var/lib/swirl-cloud/vault-bootstrap-token ]]; then
     vault_backup_pod="$(vault_runtime_pod infra)"
-    vault_snapshot_path="/vault/data/.bm-cluster-$TIMESTAMP.snap"
-    vault_token="$(< /var/lib/bm-cluster/vault-bootstrap-token)"
+    vault_snapshot_path="/vault/data/.swirl-cloud-$TIMESTAMP.snap"
+    vault_token="$(< /var/lib/swirl-cloud/vault-bootstrap-token)"
     { printf '%s\n' "$vault_token"; } | kubectl exec -i -n infra "$vault_backup_pod" -- sh -ceu '
       IFS= read -r VAULT_TOKEN
       export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
@@ -221,8 +221,8 @@ if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
   if ! restic snapshots --no-lock >/dev/null 2>&1; then
     restic init
   fi
-  restic backup --tag bm-cluster-k3s "$ARCHIVE" "$ARCHIVE.sha256"
-  restic forget --tag bm-cluster-k3s --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
+  restic backup --tag swirl-cloud-k3s "$ARCHIVE" "$ARCHIVE.sha256"
+  restic forget --tag swirl-cloud-k3s --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
 fi
 
 echo "Created $ARCHIVE"

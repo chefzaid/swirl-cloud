@@ -1,4 +1,4 @@
-{{- define "bm-cluster.identity" -}}
+{{- define "swirl-cloud.identity" -}}
 {{- $domain := required "publicDomain is required" .Values.publicDomain -}}
 {{- if not (regexMatch "^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9_.~%+-]+)+\\.git$" .Values.gitopsRepositoryURL) -}}
 {{- fail "gitopsRepositoryURL must be an HTTP(S) .git URL without embedded credentials" -}}
@@ -6,7 +6,7 @@
 {{- $slug := .Values.organizationSlug | default (first (splitList "." $domain)) -}}
 {{- $name := .Values.organizationName | default $slug -}}
 {{- $group := .Values.gitlabGroupPath | default $slug -}}
-{{- $project := .Values.gitlabProjectName | default "bm-cluster" -}}
+{{- $project := .Values.gitlabProjectName | default "swirl-cloud" -}}
 {{- $realm := .Values.keycloakRealm | default $slug -}}
 {{- $tls := .Values.tlsSecretName | default (printf "%s-tls" (replace "." "-" $domain)) -}}
 {{- $alm := .Values.sonarAlmSetting | default (printf "%s-gitlab" $slug) -}}

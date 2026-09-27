@@ -19,7 +19,7 @@ platform_identity_load
 platform_identity_defaults
 platform_identity_validate
 SSO_ADMIN_LIBRARY="$SCRIPT_DIR/lib/sso-admin.sh"
-VAULT_STATE_DIR="${VAULT_STATE_DIR:-/var/lib/bm-cluster}"
+VAULT_STATE_DIR="${VAULT_STATE_DIR:-/var/lib/swirl-cloud}"
 VAULT_UNSEAL_KEY_FILE="$VAULT_STATE_DIR/vault-unseal-key"
 VAULT_BOOTSTRAP_TOKEN_FILE="$VAULT_STATE_DIR/vault-bootstrap-token"
 VAULT_HA_ENABLED="${VAULT_HA_ENABLED:-${HIGH_AVAILABILITY_ENABLED:-false}}"
@@ -77,13 +77,13 @@ install_host_secret() {
 install_host_unseal_service() {
   sudo install -d -o root -g root -m 0700 "$VAULT_STATE_DIR"
   sudo install -o root -g root -m 0750 \
-    "$REPO_ROOT/scripts/vault-unseal.sh" /usr/local/sbin/bm-vault-unseal
+    "$REPO_ROOT/scripts/vault-unseal.sh" /usr/local/sbin/swirl-cloud-vault-unseal
   sudo install -o root -g root -m 0644 \
-    "$REPO_ROOT/config/host/bm-vault-unseal.service" /etc/systemd/system/bm-vault-unseal.service
+    "$REPO_ROOT/config/host/swirl-cloud-vault-unseal.service" /etc/systemd/system/swirl-cloud-vault-unseal.service
   sudo install -o root -g root -m 0644 \
-    "$REPO_ROOT/config/host/bm-vault-unseal.timer" /etc/systemd/system/bm-vault-unseal.timer
+    "$REPO_ROOT/config/host/swirl-cloud-vault-unseal.timer" /etc/systemd/system/swirl-cloud-vault-unseal.timer
   sudo systemctl daemon-reload
-  sudo systemctl enable --now bm-vault-unseal.timer >/dev/null
+  sudo systemctl enable --now swirl-cloud-vault-unseal.timer >/dev/null
 }
 
 require_cmd kubectl
@@ -592,7 +592,7 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/platform-ui >
 fi
 
 install_host_unseal_service
-sudo systemctl start bm-vault-unseal.service
+sudo systemctl start swirl-cloud-vault-unseal.service
 
 # Remove the legacy in-cluster unseal path only after the host-side copy and
 # systemd timer have both been installed successfully.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Explicit, offline PostgreSQL HA preparation/migration. Never deletes a PVC.
 
-Run --help and read docs/postgres-ha.md before use. All SQL results, credentials
+Run --help and read docs/guides/postgres-ha.md before use. All SQL results, credentials
 and dumps stay in the private state directory. A failed migration leaves the old
 database fenced; it never silently reconnects writers to an uncertain copy.
 """
@@ -243,7 +243,7 @@ class Migration:
         profile = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())
         profile["postgresHa"].update(bootstrapOwner=owner, bootstrapDatabase=database)
         path = self.write("staged-values.yaml", yaml.safe_dump(profile).encode())
-        rendered = self.run(["helm", "template", "bm-cluster", str(ROOT / "k8s"), "-f", str(path),
+        rendered = self.run(["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "-f", str(path),
                              "--set", "publicDomain=example.invalid,internalDnsZone=internal.example.invalid,gitopsRepositoryURL=https://example.invalid/repo.git,cloudflareAccessTeamName=example",
                              "--show-only", "templates/postgres-ha.yaml"])
         self.kube("apply", "-f", "-", data=rendered)
@@ -368,9 +368,9 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         hba = self.tool(source, ["sh", "-ceu", 'cat "$PGDATA/pg_hba.conf"'], source=True)
         self.write("source-pg_hba.conf", hba)
         self.record(phase="fencing")
-        self.tool(source, ["sh", "-ceu", 'umask 077; test ! -e "$PGDATA/bm-ha-original-pg_hba.conf"; '
-                          'cp "$PGDATA/pg_hba.conf" "$PGDATA/bm-ha-original-pg_hba.conf"; '
-                          'cat > "$PGDATA/pg_hba.conf.bm-ha"; mv "$PGDATA/pg_hba.conf.bm-ha" "$PGDATA/pg_hba.conf"'],
+        self.tool(source, ["sh", "-ceu", 'umask 077; test ! -e "$PGDATA/swirl-cloud-ha-original-pg_hba.conf"; '
+                          'cp "$PGDATA/pg_hba.conf" "$PGDATA/swirl-cloud-ha-original-pg_hba.conf"; '
+                          'cat > "$PGDATA/pg_hba.conf.swirl-cloud-ha"; mv "$PGDATA/pg_hba.conf.swirl-cloud-ha" "$PGDATA/pg_hba.conf"'],
                   source=True, data=FENCE.encode() + hba)
         self.sql(source, "postgres", "SELECT pg_reload_conf();", True)
         require(self.sql(source, "postgres", "SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;", True) == "0",
@@ -484,8 +484,8 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         self.maintenance()
         source = self.legacy()
         hba = (self.directory / "source-pg_hba.conf").read_bytes()
-        self.tool(source, ["sh", "-ceu", 'umask 077; cat > "$PGDATA/pg_hba.conf.bm-ha"; '
-                          'mv "$PGDATA/pg_hba.conf.bm-ha" "$PGDATA/pg_hba.conf"'], source=True, data=hba)
+        self.tool(source, ["sh", "-ceu", 'umask 077; cat > "$PGDATA/pg_hba.conf.swirl-cloud-ha"; '
+                          'mv "$PGDATA/pg_hba.conf.swirl-cloud-ha" "$PGDATA/pg_hba.conf"'], source=True, data=hba)
         self.sql(source, "postgres", "SELECT pg_reload_conf();", True)
         self.record(phase="aborted")
         checkpoint = self.get("configmap", "postgres-ha-state")

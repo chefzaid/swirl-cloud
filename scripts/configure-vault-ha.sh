@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/lib/vault-access.sh"
 NAMESPACE=infra
 VALUES="$REPO_ROOT/config/vault-values.yaml"
 CHART_VERSION="${VAULT_CHART_VERSION:-$DEFAULT_VAULT_CHART_VERSION}"
-STATE_DIR="${VAULT_STATE_DIR:-/var/lib/bm-cluster}"
+STATE_DIR="${VAULT_STATE_DIR:-/var/lib/swirl-cloud}"
 MIGRATE="${VAULT_HA_MIGRATE_EXISTING:-false}"
 VERIFY=false
 VAULT_POD=""
@@ -134,8 +134,8 @@ save_migration_backup() {
   backup="$STATE_DIR/backups/vault-ha-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   sudo install -d -o root -g root -m 0700 "$backup"
   remote_file="$(kubectl exec -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu \
-    'umask 077; mktemp /vault/data/.bm-ha-snapshot.XXXXXX')"
-  [[ "$remote_file" =~ ^/vault/data/\.bm-ha-snapshot\.[A-Za-z0-9]+$ ]] || error "Unexpected snapshot path"
+    'umask 077; mktemp /vault/data/.swirl-cloud-ha-snapshot.XXXXXX')"
+  [[ "$remote_file" =~ ^/vault/data/\.swirl-cloud-ha-snapshot\.[A-Za-z0-9]+$ ]] || error "Unexpected snapshot path"
   if ! vault_auth operator raft snapshot save "$remote_file" >/dev/null; then
     kubectl exec -n "$NAMESPACE" "$VAULT_POD" -- rm -f -- "$remote_file" >/dev/null
     error "Raft snapshot failed; no controller or pod has been replaced"

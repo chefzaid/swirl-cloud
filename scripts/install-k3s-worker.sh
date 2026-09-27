@@ -34,7 +34,7 @@ PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 REGISTRY_HOST="${K3S_REGISTRY_HOST:-${DEFAULT_K3S_REGISTRY_HOST:-${PLATFORM_DOMAIN:+registry.$PLATFORM_DOMAIN}}}"
 REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-http://10.43.255.251:5050}}"
 TAILSCALE_TAILNET="${TAILSCALE_TAILNET:-${DEFAULT_TAILSCALE_TAILNET:--}}"
-TAILSCALE_MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-bm-cluster}}"
+TAILSCALE_MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-swirl-cloud}}"
 TAILSCALE_NODE_HOSTNAME="${TAILSCALE_NODE_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 TAILSCALE_AUTH_KEY_EXPIRY_SECONDS="${TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-${DEFAULT_TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-3600}}"
 NETWORK_LIBRARY="$SCRIPT_DIR/lib/network.sh"
@@ -86,7 +86,7 @@ cleanup_private_credentials() {
     JOIN_TOKEN=""
     TAILSCALE_API_TOKEN=""
     unset JOIN_TOKEN K3S_JOIN_TOKEN K3S_TOKEN TAILSCALE_API_TOKEN 2>/dev/null || true
-    if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/bm-cluster-worker-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
+    if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/swirl-cloud-worker-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
         rm -r -- "$INSTALLER_TEMP_DIR"
     fi
 }
@@ -554,7 +554,7 @@ if [[ -n "$NODE_LABELS" ]]; then
         value="$(trim "$value")"
         [[ -n "$value" ]] || error "Labels cannot contain an empty item."
         case "${value%%=*}" in
-            svccontroller.k3s.cattle.io/enablelb|node-role.kubernetes.io/control-plane|node-role.kubernetes.io/master|node-role.kubernetes.io/etcd|node.bm-cluster.io/role|node.bm-cluster.io/exposure)
+            svccontroller.k3s.cattle.io/enablelb|node-role.kubernetes.io/control-plane|node-role.kubernetes.io/master|node-role.kubernetes.io/etcd|node.swirl-cloud.io/role|node.swirl-cloud.io/exposure)
                 error "Reserved topology label cannot be set during node enrollment: ${value%%=*}"
                 ;;
         esac
@@ -562,8 +562,8 @@ if [[ -n "$NODE_LABELS" ]]; then
     done
 fi
 agent_args+=(
-    --node-label "node.bm-cluster.io/role=$ENROLLMENT_ROLE"
-    --node-label node.bm-cluster.io/exposure=local
+    --node-label "node.swirl-cloud.io/role=$ENROLLMENT_ROLE"
+    --node-label node.swirl-cloud.io/exposure=local
 )
 if [[ -n "$NODE_TAINTS" ]]; then
     IFS=',' read -r -a taint_values <<< "$NODE_TAINTS"
@@ -593,7 +593,7 @@ info "Installing K3s $ENROLLMENT_ROLE '$NODE_NAME'..."
     error "K3s registry mirror configurator is not executable: $K3S_REGISTRY_MIRROR_SCRIPT"
 K3S_REGISTRY_HOST="$REGISTRY_HOST" K3S_REGISTRY_ENDPOINT="$REGISTRY_ENDPOINT" \
     "$K3S_REGISTRY_MIRROR_SCRIPT"
-INSTALLER_TEMP_DIR="$(mktemp -d /tmp/bm-cluster-worker-installers.XXXXXX)"
+INSTALLER_TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-worker-installers.XXXXXX)"
 chmod 700 "$INSTALLER_TEMP_DIR"
 k3s_installer="$INSTALLER_TEMP_DIR/k3s-install.sh"
 curl --fail --location --silent --show-error \

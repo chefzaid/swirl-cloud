@@ -46,7 +46,7 @@ Existing public choices are prefilled from each repository. Missing contracts or
 prerequisites stop that deployment; imports and completed setup remain reusable.
 
 Run on the control plane with its kubeconfig to deploy. GitLab and its instance
-runner must already exist. See docs/repository-onboarding.md for permissions,
+runner must already exist. See docs/guides/repository-onboarding.md for permissions,
 deployment file locations, prerequisites, and recovery after partial failures.
 EOF
 }
@@ -125,6 +125,6 @@ export GITHUB_USERNAME GITHUB_ADMIN_TOKEN GITHUB_REPOSITORIES GITLAB_PUBLIC_URL 
 python3 "$SCRIPT_DIR/scripts/onboard-repositories.py" --check-inputs
 export REPOSITORY_NONINTERACTIVE="$non_interactive"
 # Concurrent runs must not revoke one another's short-lived administrator token.
-GITLAB_BOOTSTRAP_TOKEN_NAME="bm-cluster-repositories-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+GITLAB_BOOTSTRAP_TOKEN_NAME="swirl-cloud-repositories-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 GITLAB_ADMIN_TOKEN_NONINTERACTIVE="$non_interactive" gitlab_acquire_admin_token
 python3 "$SCRIPT_DIR/scripts/onboard-repositories.py"

@@ -53,7 +53,7 @@ Get all options for a selected role and execution mode:
 
 Local control-plane joins require an already prepared embedded-etcd cluster.
 Use remote mode to convert SQLite, enforce final quorum, and reconcile topology.
-See docs/node-enrollment.md for the complete workflow and security differences.
+See docs/guides/node-enrollment.md for the complete workflow and security differences.
 EOF
 }
 
@@ -107,7 +107,7 @@ if [[ "$show_help" == true && ( -z "$role" || -z "$mode" ) ]]; then
     exit 0
 fi
 if [[ "$show_help" != true ]] && sudo -n test -f /etc/rancher/k3s/application-cluster.json 2>/dev/null; then
-    error "This assistant manages shared-platform nodes. Application clusters use the separate procedure in docs/node-enrollment.md#application-cluster-nodes."
+    error "This assistant manages shared-platform nodes. Application clusters use the separate procedure in docs/guides/node-enrollment.md#application-cluster-nodes."
 fi
 if [[ -z "$role" || -z "$mode" ]]; then
     [[ "$non_interactive" == false && "$secret_stdin" == false && -t 0 ]] || \

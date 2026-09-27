@@ -1,4 +1,4 @@
-# PostgreSQL HA profile
+# PostgreSQL HA Profile
 
 This opt-in profile replaces one PostgreSQL writer with a CloudNativePG primary
 and two synchronous standbys on three different hosts. It is for a cluster with
@@ -6,8 +6,8 @@ at least three Ready control planes and three schedulable storage hosts. The
 existing PostgreSQL installation keeps its Deployment and PVC until an
 explicit migration. Merely enabling general cluster HA does not migrate data.
 
-[postgres-ha-values.yaml](../config/postgres-ha-values.yaml) defines the database profile;
-[postgres-ha-operator-values.yaml](../config/postgres-ha-operator-values.yaml) defines the
+[postgres-ha-values.yaml](../../config/postgres-ha-values.yaml) defines the database profile;
+[postgres-ha-operator-values.yaml](../../config/postgres-ha-operator-values.yaml) defines the
 separate operator release. The helper installs the pinned chart from the
 [official repository](https://github.com/cloudnative-pg/charts). The public
 PostgreSQL image retains Debian Bookworm and PostgreSQL's major version; the
@@ -40,7 +40,7 @@ keep it outside Git and include it in encrypted offsite backups.
 
 ```bash
 export HIGH_AVAILABILITY_ENABLED=true
-STATE_DIR=/var/backups/bm-cluster/postgres-ha-migration
+STATE_DIR=/var/backups/swirl-cloud/postgres-ha-migration
 sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$STATE_DIR"
 python3 scripts/configure-postgres-ha.py prepare --state-dir "$STATE_DIR"
 ```

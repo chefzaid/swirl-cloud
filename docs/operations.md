@@ -1,8 +1,9 @@
-# Operations
+# Operations Runbook
 
-Run cluster commands from a configured control-plane shell. Start with the
-[service directory](#services-and-urls) for dashboards and
-[delivery](delivery.md) for GitOps reconciliation.
+Run cluster commands from a configured control-plane shell. This runbook covers
+the service directory, observability, storage, backups, maintenance and common
+incidents. Use [deployment](deployment.md) for installation and GitOps changes
+and [security](security.md) for credentials and Vault recovery.
 
 ## Services and URLs
 
@@ -45,11 +46,242 @@ Investigate unhealthy workloads through their events and logs, then update the
 owning repository. Platform resources belong here; application resources belong
 to the application repository.
 
+## What Healthy Looks Like
+
+- Every node is `Ready`, and `kubectl get applications -n infra` shows `swirl-cloud` `Synced` and `Healthy` at the current `main` commit.
+- `kubectl get externalsecrets -A` reports every ExternalSecret `Ready`.
+- `swirl-cloud-vault-unseal.timer` is active and Vault reports `Sealed: false`.
+- `swirl-cloud-k3s-backup.service` last `Result=success`, with a fresh archive under `/var/backups/swirl-cloud/k3s`.
+- Longhorn volumes report robustness `healthy` (detached volumes may report `unknown`).
+- The default-branch platform pipeline passes `verify:gitops`, `verify:delivery-platform` and `verify:registry-write`.
+
 ## Observability
 
-Use [observability](observability.md) for platform alerts, application dashboards,
-logs, security findings and source analysis. It owns discovery requirements and
-troubleshooting; app repositories own their endpoints, log formats and custom dashboards.
+Use Grafana for metrics, Kibana for logs and audits, and SonarQube for source
+analysis. The [service directory](#services-and-urls) lists their
+URLs. Applications own instrumentation and scanner jobs; the platform owns
+collection, discovery and shared dashboards on the platform cluster.
+
+### Namespace and discovery
+
+Automatic collection and discovery cover managed application namespaces on the
+platform cluster. The existing `apps` namespace and registered local environment
+namespaces carry `swirl-cloud.io/application-workloads: "true"`. Registration also
+adds read-only discovery RoleBindings; the label alone grants no workload access.
+App manifests must use their registered namespace. Argo CD Applications remain
+in `infra` and select that cluster and namespace.
+
+Discovery includes Deployments, StatefulSets, DaemonSets, CronJobs and standalone
+Jobs/Pods, including controllers scaled to zero. It excludes `infra`, `corp`
+(including Odoo) and unlabeled namespaces. Environment dashboards and log filters
+are namespace-specific; repeated component names do not merge environments.
+Sonar analysis deduplicates environments from the same repository.
+
+Optional remote application clusters need their own metrics/log collection and
+connection to central dashboards and scheduled discovery. Their application CI
+still submits Sonar analysis. See
+[application deployment targets](deployment.md#application-deployment-clusters).
+Until remote telemetry is connected, use target logs and deployment health checks.
+
+| Signal | Automatic result | Application requirement |
+|---|---|---|
+| Runtime metrics | Grafana **Applications / <application>** | Baseline metrics need no app endpoint; add [scrape annotations](#metrics-and-logs) for endpoint metrics. |
+| Container logs | Kibana **Applications / <application> / Logs** | Write logs to stdout/stderr. |
+| Source analysis | Sonar project and scheduled analyses | Argo CD tracking must identify a repository in the configured GitLab hosts/group; implement the [scanner contract](#scanner-contract). |
+
+Dashboard identity can fall back to workload labels. Sonar requires the Argo CD
+source mapping and deduplicates components from the same repository. Namespace
+placement alone cannot instrument an app or configure its scanner.
+
+### Platform health
+
+Prometheus alerts cover capacity, workload health, jobs, storage and scrape
+failures. Alertmanager sends firing and resolved events to the infrastructure
+project's **Monitor > Alerts** page in GitLab. GitLab and runner metrics appear
+in Grafana's **GitLab Delivery** dashboard.
+
+Prometheus also scrapes the platform releases by chart label and named port:
+jobs `traefik`, `vault`, `argocd` and `longhorn`. It scrapes the datastores through
+exporter sidecars and a Kafka exporter: jobs `postgres` (including CloudNativePG
+instances), `mongodb`, `redis` (including the shared Redis HA servers) and `kafka`.
+`PrometheusTargetDown` covers each of these targets. Vault answers
+`/v1/sys/metrics` without a token and reports `vault_core_unsealed`, even while
+sealed. Vault reads its telemetry settings only at startup. After upgrading an
+existing release, delete the Vault pods one at a time; the unseal timer unseals
+each replacement. A `longhorn-manager-metrics` NetworkPolicy admits Prometheus
+through Longhorn's internal-traffic policy. Prometheus restarts automatically
+when [monitoring.yaml](../k8s/platform/monitoring.yaml) changes.
+
+Fluent Bit adds Kubernetes metadata to container logs; records from managed
+application namespaces carry
+`observability_scope=application`. Filebeat sends host Lynis records through
+Logstash to Kibana's **Lynis Security Audits** dashboard. See
+[storage and retention](#storage-and-retention) for retention settings.
+
+Trivy Operator scans across namespaces and maintains image/SBOM, configuration,
+RBAC, exposed-secret, infrastructure and compliance reports. Review current
+reports or Grafana's **Trivy Security Reports** dashboard; secret findings contain
+metadata rather than secret values.
+
+```bash
+kubectl get vulnerabilityreports,configauditreports,exposedsecretreports -A
+```
+
+For private application images, declare credentials through workload or
+ServiceAccount `imagePullSecrets` in the application namespace. Trivy uses those
+references; the application owns provisioning and rotation. Public platform
+images need no fallback credentials. Shared configuration lives in
+[monitoring.yaml](../k8s/platform/monitoring.yaml),
+[observability-discovery.yaml](../k8s/platform/observability-discovery.yaml),
+[trivy.yaml](../k8s/platform/trivy.yaml) and the scanner settings in
+[values.yaml](../k8s/values.yaml).
+
+### Application dashboards
+
+The Grafana discovery sidecar refreshes workloads on startup and every minute.
+Grafana loads changed files within its 30-second provisioning interval. Kibana
+objects are imported when an application changes and reconciled every five
+minutes. API failures are retried; a Kibana outage does not block Grafana.
+
+#### Application identity
+
+Discovery follows Pod, ReplicaSet and Job ownership to their root controller.
+It groups components by the first available identity, using controller metadata
+and pod-template labels:
+
+1. A valid Argo CD tracking annotation belonging to that resource.
+2. `app.kubernetes.io/part-of`.
+3. `app.kubernetes.io/instance`.
+4. `app.kubernetes.io/name`.
+5. `app`.
+6. Controller kind/name, or standalone Pod kind/name.
+
+Use a shared `app.kubernetes.io/part-of` label to group components deployed without
+Argo CD. Standard controllers use pod-name patterns covering rollouts and future
+Jobs; custom-controller and orphaned pods use observed names. Namespace and pod
+filters scope every panel. Different identity sources with the same display name
+get separate stable dashboard IDs. Existing `apps` IDs are preserved; other
+namespace names form part of the identity.
+
+#### Metrics and logs
+
+CPU, memory, network traffic, readiness and restarts use cAdvisor and
+kube-state-metrics; they need neither an app metrics endpoint nor an `app` label.
+For endpoint metrics, annotate the **pod template** and expose a reachable endpoint:
+
+```yaml
+metadata:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+```
+
+Generated dashboards show endpoint health and scrape duration. **No data** means
+no metric series, not a healthy endpoint. Apps own business, HTTP, JVM and other
+detailed instrumentation; additional ConfigMaps labeled
+`grafana_dashboard: "1"` remain supported.
+
+Each Grafana dashboard links to its Kibana counterpart. The Kibana data view uses
+`kubernetes-logs-v2-*`; the saved search, both visualizations and dashboard all
+carry application filters. Log volume, logs by container and searchable messages
+work without an app label or structured severity. Filters organize data and do
+not replace access controls.
+
+#### Ownership and troubleshooting
+
+Clone a generated dashboard before customizing it: Grafana provisions managed
+files, and Kibana reconciliation overwrites managed objects. Stable IDs survive
+rollouts. Removing a workload retains its dashboards and historical logs under
+the normal retention policy; returning applications update the same IDs.
+
+The sidecar has read-only workload access in managed local namespaces, shares Grafana's dashboard
+volume and uses the Vault-backed `kibana-bootstrap-credentials` Secret. It needs
+no Grafana API token and cannot read app Secrets or change workloads.
+
+```bash
+kubectl -n infra logs deployment/grafana -c application-discovery --tail=30
+kubectl -n infra exec deployment/grafana -c application-discovery -- \
+  node /application-discovery/discovery.mjs --once
+```
+
+The one-shot command exits nonzero on failure; the normal loop logs counts/errors
+and retries. Config checksums automatically roll Grafana and Fluent Bit after
+changes to their managed discovery/log configuration; ordinary workload changes
+need no restart. Discovery/RBAC live in
+[application-observability.yaml](../k8s/platform/application-observability.yaml);
+the sidecar and provisioning provider live in `monitoring.yaml`.
+
+### Source analysis
+
+Application CI owns compilation, coverage and scanner submission. Discovery
+provisions projects, binds them to `SONAR_ALM_SETTING` and creates a protected,
+masked project `SONAR_TOKEN` when absent. Non-public GitLab repositories receive
+private Sonar projects. Trivy scanning is independent.
+
+| Trigger | Behavior |
+|---|---|
+| Default-branch CI | The app's quality job runs with its normal pipeline. |
+| Discovery, every 15 minutes | Requests analysis when none exists or the latest is over 24 hours old. |
+| Manual analysis | Run a default-branch GitLab pipeline with `SONAR_SCAN_ONLY=true`, or use the app's documented manual/local scanner. |
+
+Discovery requests at most one pipeline per pass, defers while a discovered app
+has an active default-branch pipeline, and waits six hours after a recent
+API-triggered pipeline before retrying. Any successful analysis satisfies the
+freshness target; it is not an exact daily schedule.
+
+#### Scanner contract
+
+Each application repository must provide:
+
+- `sonar-project.properties` with `sonar.projectKey=<group>:<repository>` (replace
+  every GitLab path slash with a colon), all backend/frontend/shared sources,
+  required compiled inputs and coverage paths.
+- `.sonar-auto.json`, using the actual quality job name:
+
+  ```json
+  {"version":1,"job":"sonar","scanOnlyVariable":"SONAR_SCAN_ONLY"}
+  ```
+
+- Default-branch CI rules that run only needed compilation, tests/coverage and
+  analysis when `SONAR_SCAN_ONLY=true`. Exclude image builds, release packaging,
+  publication, deployment and version changes.
+- A protected default branch so the quality job receives `SONAR_TOKEN`. Scanner
+  submission failures must be visible; quality findings may be non-blocking for
+  delivery.
+
+Missing contracts, unmapped workloads and unsupported sources fail the discovery
+Job while valid repositories continue. A project can be provisioned without a
+working scanner contract. Check its source inventory to confirm backend and
+frontend coverage; each app documents its inventory and manual scan commands.
+
+#### Credentials and troubleshooting
+
+[configure-sonar-discovery.sh](../scripts/configure-sonar-discovery.sh), called by
+`configure-gitlab-ci.sh`, manages a GitLab group Maintainer API token at Vault
+`secret/infra/gitlab:sonar_discovery_api_token`. External Secrets projects it into
+`infra`; Sonar administration uses its existing Vault-backed admin token. The
+configurator also sets the named GitLab integration and import credential using
+the private service domain. Rerun it before expiry: valid credentials are reused
+and renewed within the script's renewal window. Discovery does not renew them.
+
+The [discovery CronJob](../k8s/platform/sonar-apps-discovery.yaml) can list workloads
+in managed local namespaces and Applications in `infra`, but cannot read app Secrets or corporate
+workloads. It has no PVC, checkout or build cache; completed Jobs expire according
+to their TTL/history limits.
+
+```bash
+kubectl -n infra get cronjob sonar-apps-discovery
+kubectl -n infra logs -l app=sonar-apps-discovery --prefix
+SONAR_JOB_NAME="sonar-apps-manual-$(date +%s)"
+kubectl -n infra create job "$SONAR_JOB_NAME" --from=cronjob/sonar-apps-discovery
+kubectl -n infra logs -f "job/$SONAR_JOB_NAME"
+```
+
+An immediate discovery pass still obeys freshness/retry rules; use the scan-only
+pipeline for an explicit analysis. Inspect its quality job and the Sonar analysis
+timestamp: scanner submission precedes server processing, and a failed quality
+gate differs from submission failure.
 
 ## Storage and retention
 
@@ -60,7 +292,7 @@ filesystem through Longhorn.
 
 The recurring trim in
 [longhorn-maintenance.yaml](../k8s/platform/longhorn-maintenance.yaml) processes
-one volume at a time in the `default` and `bm-cluster` groups. Detached volumes
+one volume at a time in the `default` and `swirl-cloud` groups. Detached volumes
 are skipped while `allow-recurring-job-while-volume-detached` is disabled.
 Keep `remove-snapshots-during-filesystem-trim=false` and per-volume
 `unmapMarkSnapChainRemoved` set to `ignored` or `disabled` to preserve snapshots.
@@ -101,14 +333,14 @@ preserves protected tags and `latest`. The job's token comes from Vault
 `secret/infra/gitlab` through External Secrets.
 
 Deleting tags and packages does not itself reclaim physical Registry storage.
-Use supported GitLab cleanup procedures; keep [recovery images](maintenance.md#runtime-and-recovery-constraints)
+Use supported GitLab cleanup procedures; keep [recovery images](#runtime-and-recovery-constraints)
 before removing old data. Increasing PVC capacity is separate from cleanup.
 
 ## Backups and recovery
 
 [configure-k3s-backups.sh](../scripts/configure-k3s-backups.sh) installs the
 backup timer and optional off-node storage. The root-only archives under
-`/var/backups/bm-cluster/k3s` include a SQLite backup or embedded-etcd snapshot,
+`/var/backups/swirl-cloud/k3s` include a SQLite backup or embedded-etcd snapshot,
 server credentials, K3s configuration, and available Vault/shared-database
 backups. [backup-k3s.sh](../scripts/backup-k3s.sh) defines the contents and
 retention; inspect the archive and service result when verifying coverage.
@@ -122,19 +354,19 @@ and archive contents; a successful backup exit status does not establish complet
 coverage. Verify the replacement before rotating older recovery archives.
 
 ```bash
-sudo systemctl status bm-k3s-backup.timer
-sudo systemctl start bm-k3s-backup.service
-sudo journalctl -u bm-k3s-backup.service --since today
+sudo systemctl status swirl-cloud-k3s-backup.timer
+sudo systemctl start swirl-cloud-k3s-backup.service
+sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 ```
 
 When configured, restic encrypts and uploads archives to S3-compatible storage.
 Longhorn backs up enrolled volumes to the same private bucket, and the host
 backup enrolls newly created volumes. Credentials are stored root-only in
-`/etc/bm-cluster/backup.env` and the Longhorn credential Secret. Keep the recovery
+`/etc/swirl-cloud/backup.env` and the Longhorn credential Secret. Keep the recovery
 password available off-host; local archives cannot survive loss of the host.
 
 Follow the archive's datastore-specific `RESTORE.txt` and the
-[Vault recovery guide](vault.md). Restore SQLite with K3s stopped; embedded-etcd
+[Vault recovery guide](security.md#upgrade-and-recovery). Restore SQLite with K3s stopped; embedded-etcd
 recovery restores the first server with its original token before other servers
 rejoin. Verify application data as well as Kubernetes readiness after a restore.
 
@@ -147,39 +379,180 @@ kubectl create -f k8s/addons/descheduler-run-job.yaml
 kubectl get jobs -n infra -l app=descheduler -w
 ```
 
-## Validation
+## Maintenance
 
-Run from the repository root before changing installation or deployment behavior:
+Use this section to update container images and UI themes. For an installation
+still using ingress-nginx or private platform images, complete the separate
+[platform migration](guides/platform-migration.md) first. For routine health, storage
+and backups, see [storage and retention](#storage-and-retention) and [backups and recovery](#backups-and-recovery).
+
+### Image updates
+
+Platform images are pinned by digest in their owning manifests and Helm values.
+K3s and Longhorn use their pinned release images; two CSI sidecar pins live in
+[system workload policy](../k8s/base/system-workload-hardening.yaml).
+Application repositories own their images and pull credentials. There is no
+platform image build pipeline, central image catalog or private registry dependency.
+
+1. Review the upstream release's compatibility, architecture, runtime identity,
+   writable paths and data format. Update the digest in the owning source;
+   update app-owned database helpers in their repositories when needed.
+2. Compare scanner reports across all severities, including exposed secrets.
+   Check startup, readiness, authentication and service behavior with disposable
+   data. For stateful services, restore a backup from the actual previous image
+   and verify its data in the candidate.
+3. Run [repository validation](testing.md#validation). Reconcile separately
+   installed Helm releases through their shared helpers as well as GitOps
+   resources. Keep a verified backup and the exact recovery image before rollout.
+4. Verify the running digest, readiness, application behavior and fresh scanner
+   reports. An upstream pin does not imply zero vulnerabilities; review unfixed
+   advisories and scanner limitations in [platform health](#platform-health).
+
+Keep experiments, downloaded images, reports and recovery archives outside Git.
+The [validation policy](testing.md#validation-policy) defines which permanent
+tests belong in this repository.
+
+### Runtime and recovery constraints
+
+| Component | Check before changing its image |
+| --- | --- |
+| PostgreSQL and its helpers | Keep the same upstream Bookworm release. Restore globals and databases in isolation; check ownership, libc/ICU collation versions, locales and extensions. A matching major version alone is insufficient. |
+| Vault | Preserve its UID, Raft data and audit mounts. Follow [Vault upgrade and recovery](security.md#upgrade-and-recovery) for snapshots, unseal material and rollout. |
+| GitLab | Retain the matching GitLab version, configuration and secrets with its [native backup](#backups-and-recovery). |
+| Keycloak | Preserve UID 1000 and writable augmentation paths. |
+| SonarQube | Preserve UID 1000/GID 0 and group access to bundled files. |
+| PostgreSQL / MongoDB | Preserve UID 999 and check existing volume ownership. Never recursively change ownership on active database volumes. |
+| Storage components | Preserve host access and image-specific writable paths. [System hardening](../scripts/reconcile-system-hardening.sh) is independent of image selection. |
+
+Keep a protected off-host archive of the exact recovery images and credentials.
+During a registry outage, import pinned images into each node's containerd before
+recovery. Retain legacy private artifacts and credentials until their installed
+consumers and rollback window have both been retired. The old image-profile
+files and retired inputs are handled by the [migration procedure](guides/platform-migration.md).
+
+### UI themes
+
+SonarQube and Vault default to dark mode; their bottom-right **Dark / Light**
+buttons save a browser preference. Odoo's **Dark Mode** user-menu switch saves an
+account preference;
+bootstrap enables it once for the managed administrator. Preferences survive
+application restarts.
+
+#### SonarQube and Vault
+
+Both use vendored Dark Reader assets, with license, provenance and integrity
+annotations in the owning manifests. An external style-proxy script preserves
+the application's Content Security Policy; asset requests remain on the same origin.
+
+- [SonarQube](../k8s/platform/sonarqube.yaml) copies its HTML entry point in an
+  init container and mounts the themed files read-only. Application bundles and
+  scanner APIs are unchanged.
+- [Vault](../k8s/platform/vault-ui-theme.yaml) serves only `/ui` through a separate
+  NGINX helper. API traffic goes directly to Vault. The helper accepts UI GET/HEAD,
+  strips forwarded credentials, has no Vault token, caches no responses, writes
+  no access logs and is restricted by network policy.
+
+When updating assets, bump the pod revision and HTML asset query versions.
+After a theme or application upgrade, check authenticated navigation, console/CSP
+errors, both toggle states and reload persistence. Also verify Vault's direct API
+health and that the theme helper rejects API paths.
+
+To remove Sonar's theme, remove its ConfigMap, init container, volumes and mounts
+together. Removing Vault's theme Ingress restores its original `/ui` route;
+retire the helper resources in the same change. Authentication and data do not
+need to change.
+
+#### Odoo
+
+[Odoo](../k8s/corp/odoo.yaml) vendors OCA's `web_dark_mode` module with source,
+translations, tests and AGPL license. Bootstrap and the application mount it
+read-only at `/mnt/extra-addons`; startup needs no download.
+
+Check Odoo compatibility, update provenance and the Deployment revision, then
+validate and test an authenticated `/odoo` page. Confirm that dark CSS loads and
+the switch works both ways. Users can select dark mode, light mode or their device
+preference. Uninstall the module in Odoo before removing its files.
+
+## Common Incidents
+
+### Root Application is Degraded while Synced
+
+Argo CD aggregates the health of every chart resource. A failed CronJob run is
+enough to degrade it. Find the unhealthy resource, then read its logs:
 
 ```bash
-./scripts/validate-repository.sh
-./scripts/validate-repository.sh --live
+kubectl get pods -A | grep -vE 'Running|Completed'
+kubectl get jobs -n infra
+kubectl -n infra logs -l app=sonar-apps-discovery --prefix --tail=20
 ```
 
-The first command is offline and requires Bash, Git, ShellCheck, Python 3 with
-PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, and `flock`. CI installs
-these tools. Missing dependencies fail validation rather than silently skipping
-deployment checks. It checks syntax, documentation links, manifest inventories,
-workload policy and platform-owned image digests. Nine installer/GitOps render
-combinations cover HA, Odoo scope, PostgreSQL staging/cutover,
-Kafka migration phases, fencing and authenticated shared application data. Each render checks resource references,
-Service selectors and named ports, Ingress backends, RBAC and installer/GitOps
-parity, then the command runs the [deployment and recovery safety suites](structure.md#validation-policy).
+A Sonar discovery `HTTP 403` means its group token cannot read one discovered
+project. Grant access or move the project into the configured group; see
+[source analysis credentials](#credentials-and-troubleshooting).
 
-The second command adds server-side dry-runs of the rendered profiles, including
-the opted-in database migration and fencing resources, against the active
-Kubernetes context.
-It requires kubectl, access to the API and the platform CRDs; it does not install
-resources. Synthetic `example.com` settings validate API compatibility, not the
-live installation's credentials, routing or health. Generated files are private
-and removed on exit.
+### ExternalSecret is not Ready
 
-Syntax and rendering cannot establish successful installation, image runtime
-compatibility or failover. Rehearse installer/enrollment changes on disposable
-hosts and follow each service's upgrade/recovery guide. See [delivery](delivery.md)
-for the additional default-branch reconciliation and service checks.
+Check whether Vault is sealed or the referenced path is missing:
 
-Rehearse host provisioning, Longhorn recovery, physical fencing, Tunnel failover
-and production authentication in a representative environment before relying on
-them. A synthetic upstream restore does not establish compatibility with existing
-data; use protected copies of the actual backups for [migration rehearsal](platform-migration.md#prepare-and-rehearse).
+```bash
+kubectl get externalsecrets -A
+kubectl -n infra describe externalsecret <name>
+kubectl -n infra exec vault-0 -- vault status
+sudo systemctl show swirl-cloud-vault-unseal.service -p Result -p ExecMainStatus
+```
+
+Follow [Vault host unseal](security.md#host-unseal-service) and never paste
+recovery material into a command line.
+
+### Argo CD reverts a manual change
+
+Automatic sync, prune and self-heal are enabled on the root Application.
+Commit the change to the owning manifest or Helm values; Kubernetes edits are
+temporary. Separately installed Helm releases (Longhorn, Traefik, Vault, External
+Secrets, Argo CD) are reconciled through the installer or Ansible instead.
+
+### Longhorn volume is degraded or faulted
+
+```bash
+kubectl get volumes.longhorn.io -n longhorn-system \
+  -o custom-columns=NAME:.metadata.name,PVC:.status.kubernetesStatus.pvcName,STATE:.status.state,ROBUSTNESS:.status.robustness
+```
+
+Inspect replicas and node disk pressure in the Longhorn UI. Never delete replica
+files directly; follow [storage and retention](#storage-and-retention).
+
+### Registry push or pull fails from outside the cluster
+
+Registry clients cannot answer browser challenges. Confirm the Cloudflare bot
+exceptions in [Cloudflare configuration](dns.md#cloudflare) and compare with the
+internal endpoint used by CI (`gitlab-registry.infra.svc.cluster.local:5050`).
+
+### An application dashboard or log view is missing
+
+Run a one-shot discovery pass and read its errors; see
+[ownership and troubleshooting](#ownership-and-troubleshooting).
+
+### The nightly backup failed
+
+```bash
+sudo systemctl status swirl-cloud-k3s-backup.service
+sudo journalctl -u swirl-cloud-k3s-backup.service --since yesterday
+```
+
+Correct the cause and start the service manually. See
+[backups and recovery](#backups-and-recovery).
+
+### An operator is banned by Fail2ban or CrowdSec
+
+Reconnect through the provider console or a private Tailscale path, then remove
+the ban with `sudo fail2ban-client set sshd unbanip <address>` or
+`sudo cscli decisions delete --ip <address>`. See [host policy](security.md#host-policy).
+
+## Related Guides
+
+- [Architecture](architecture.md)
+- [Deployment](deployment.md)
+- [Security](security.md)
+- [Data model](data-model.md)
+- [Testing](testing.md)
+- [High availability](guides/high-availability.md)

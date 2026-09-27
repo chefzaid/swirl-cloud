@@ -104,7 +104,7 @@ spec:
               -- Header SSO refreshes groups and email every five minutes. Keep
               -- that security behavior while preventing its email-valued name
               -- header from destroying a locally edited display name.
-              CREATE OR REPLACE FUNCTION bm_cluster_preserve_delegated_full_name()
+              CREATE OR REPLACE FUNCTION swirl_cloud_preserve_delegated_full_name()
               RETURNS trigger
               LANGUAGE plpgsql
               AS '
@@ -121,11 +121,11 @@ spec:
               END;
               ';
 
-              DROP TRIGGER IF EXISTS bm_cluster_preserve_delegated_full_name ON users;
-              CREATE TRIGGER bm_cluster_preserve_delegated_full_name
+              DROP TRIGGER IF EXISTS swirl_cloud_preserve_delegated_full_name ON users;
+              CREATE TRIGGER swirl_cloud_preserve_delegated_full_name
               BEFORE UPDATE OF name ON users
               FOR EACH ROW
-              EXECUTE FUNCTION bm_cluster_preserve_delegated_full_name();
+              EXECUTE FUNCTION swirl_cloud_preserve_delegated_full_name();
               SQL
           resources:
             requests:
@@ -481,7 +481,7 @@ spec:
     app: sonarqube
 
 ---
-# Vendored Dark Reader site API; see docs/maintenance.md#ui-themes for the CSP adjustment.
+# Vendored Dark Reader site API; see docs/operations.md#ui-themes for the CSP adjustment.
 apiVersion: v1
 kind: ConfigMap
 metadata:

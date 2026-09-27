@@ -111,8 +111,8 @@ def redis_pods():
     selector = service.get("spec", {}).get("selector", {})
     if selector == {"app": "redis"}:
         label = "app=redis"
-    elif selector.get("app") == "redis-ha-haproxy" and selector.get("release") == "bm-cluster":
-        label = "app=redis-ha,release=bm-cluster"
+    elif selector.get("app") == "redis-ha-haproxy" and selector.get("release") == "swirl-cloud":
+        label = "app=redis-ha,release=swirl-cloud"
     else:
         raise ServiceError("Unrecognized canonical Redis selector; refusing to guess the data service")
     pods = kubectl("-n", "infra", "get", "pods", "-l", label, "-o", "json").get("items", [])
@@ -328,7 +328,7 @@ def main():
         raise ServiceError("--output-values belongs to --prepare-auth")
     if args.environment and args.environment not in inventory["environments"]:
         raise ServiceError("The selected application environment is not registered")
-    installed = kubectl("-n", "infra", "get", "configmap", "bm-cluster-identity", "-o", "json").get("data", {})
+    installed = kubectl("-n", "infra", "get", "configmap", "swirl-cloud-identity", "-o", "json").get("data", {})
     if (installed.get("PLATFORM_DOMAIN") != inventory["platform"]["domain"] or
             installed.get("INTERNAL_DNS_ZONE") != inventory["platform"]["internalDomain"]):
         raise ServiceError("The selected kubeconfig is not the inventory's shared platform")

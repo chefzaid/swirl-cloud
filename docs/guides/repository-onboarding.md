@@ -1,4 +1,4 @@
-# Add, synchronize and deploy repositories
+# Add, Synchronize And Deploy Repositories
 
 Run `./add-repos.sh` from this checkout on a configured control-plane host. It
 imports GitHub repositories into GitLab, configures two-way synchronization,
@@ -6,9 +6,9 @@ and deploys selected applications. Rerun it to add repositories, change public
 settings or resume interrupted setup.
 
 The installer calls this helper after platform and Argo CD setup when repository
-onboarding is selected. [Ansible](installation.md#optional-host-and-account-changes)
+onboarding is selected. [Ansible](../deployment.md#optional-host-and-account-changes)
 uses the same helper and unattended inputs. Application declarations stay in
-their repositories; `bm-cluster` has no application inventory.
+their repositories; `swirl-cloud` has no application inventory.
 
 ## Guided flow
 
@@ -50,7 +50,7 @@ onboarding does not start application workloads ahead of it.
 
 ## Environment deployment
 
-DevApp uses contract version 2. First [register the local or remote environments](installation.md#application-deployment-clusters)
+DevApp uses contract version 2. First [register the local or remote environments](../deployment.md#application-deployment-clusters)
 and enable [shared data access](application-onboarding.md#shared-application-data).
 Run `add-repos.sh` once on the central platform to import the one repository.
 Version 2 needs Cloudflare Zone Read, DNS Edit and SSL and Certificates Edit
@@ -60,16 +60,16 @@ clients for every registered target, reconciles their DNS/TLS, and writes the
 public inventory and target settings into the application repository.
 It also provisions project-scoped integration/release runners and their scoped
 Application permissions. The default branch must be protected; the project no
-longer uses the shared instance runner. See [delivery permissions](delivery.md#application-delivery).
+longer uses the shared instance runner. See [delivery permissions](../deployment.md#application-delivery).
 
 `APP_SUBDOMAIN` is one shared app label. With `platform.hostnameStyle: suffix`,
 `devapp` produces `devapp-int.example.com`, `devapp-uat.example.com` and
-`devapp.example.com`. The [installation guide](installation.md#application-deployment-clusters)
+`devapp.example.com`. The [installation guide](../deployment.md#application-deployment-clusters)
 also covers nested hostnames and their certificate requirements.
 Onboarding applies that label to all registered environments. It defaults the
 initial deployment to `int`; export `ONBOARDING_DEPLOYMENT_ENVIRONMENT=uat` or
 `prod` to choose a different initial target. This does not change the normal CI
-dropdown. Later deployments and release promotions use [GitLab CI](delivery.md#application-delivery).
+dropdown. Later deployments and release promotions use [GitLab CI](../deployment.md#application-delivery).
 
 Onboarding prepares every registered target and checks certificate/DNS
 prerequisites for all of them, even when the initial deployment selects only one.
@@ -110,7 +110,7 @@ are unsupported.
 | App registry deploy token | `read_registry` and `read_repository`, stored at the app-declared Vault path; valid credentials are verified and reused. |
 | Argo CD repository access | A generic `infra/repository-<hash>` ExternalSecret projects the verified app registry/repository credential from Vault; no separate unmanaged password is copied into Git. |
 | Cloudflare API token | **Zone Read** and **DNS Edit** for the selected zone; environment or hidden prompt. Onboarding uses an existing HA Tunnel rather than creating one. |
-| Vault setup access | Private `VAULT_BOOTSTRAP_TOKEN_FILE`, default `/var/lib/bm-cluster/vault-bootstrap-token`; access through a local port-forward. Declared paths need read/create/update and KV metadata-read access. |
+| Vault setup access | Private `VAULT_BOOTSTRAP_TOKEN_FILE`, default `/var/lib/swirl-cloud/vault-bootstrap-token`; access through a local port-forward. Declared paths need read/create/update and KV metadata-read access. |
 | Optional Keycloak setup access | Uses the platform administrator Secret and a local port-forward; no client credentials are committed. |
 
 Secrets stay in memory or private temporary credential files during setup, outside
@@ -138,13 +138,13 @@ inputs, service setup and CI behavior. Public choices are saved in
 `infra/onboarding-values.json`; reruns replace prior rendered values so changed
 domains/groups survive releases. Existing Vault values are retained, not rotated.
 
-Applications follow the [namespace and discovery contract](observability.md#namespace-and-discovery)
+Applications follow the [namespace and discovery contract](../operations.md#namespace-and-discovery)
 for dashboards and source analysis. Their selected deployment paths remain
 app-owned; onboarding does not add nodes or activate [HA](high-availability.md).
 The shared `apps` foundation is available even when Odoo is disabled.
 
 For hostname changes and direct/Tunnel routing, follow
-[application DNS ownership](networking.md#application-dns-ownership).
+[application DNS ownership](../dns.md#application-dns-ownership).
 
 ## Automation and reruns
 
@@ -183,7 +183,7 @@ Ansible. `ONBOARDING_TIMEOUT` controls the required-job wait in seconds: default
 `3600`, range `30`–`43200`. Application synchronization waits up to 15 minutes
 within that setting, then checks declared Deployment rollouts.
 
-Progress defaults to `~/.local/state/bm-cluster/repositories`. Each locked journal
+Progress defaults to `~/.local/state/swirl-cloud/repositories`. Each locked journal
 records project/cluster identity, configuration and pipeline progress without
 credentials. Rerun from the same host/state directory to resume a recorded
 pipeline or retry failed jobs. An active earlier pipeline must finish before
@@ -217,7 +217,7 @@ packages, Git LFS objects and hosting metadata require separate migration.
 The platform GitOps URL is an independent installer choice. Importing this
 repository copies source; it does not replace platform installation or Odoo setup.
 
-Run [repository validation](operations.md#validation), then verify onboarding
+Run [repository validation](../testing.md#validation), then verify onboarding
 changes with a disposable repository using the [app contract](application-onboarding.md):
 confirm private-source visibility, synchronization, a successful pinned pipeline,
 application readiness and an idempotent rerun.

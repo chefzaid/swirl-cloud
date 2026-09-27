@@ -138,7 +138,7 @@ if [[ "$installed" == false ]]; then
         --bind-address "$private_ip" --tls-san "$private_ip" --flannel-iface tailscale0 \
         --kubelet-arg "address=$private_ip" \
         --cluster-cidr "$pod_cidr" --kube-apiserver-arg 'api-audiences=https://kubernetes.default.svc.cluster.local,vault' \
-        --node-label "bm-cluster.io/application-environment=$environment" \
+        --node-label "swirl-cloud.io/application-environment=$environment" \
         --node-label 'svccontroller.k3s.cattle.io/enablelb=true'
 fi
 # shellcheck disable=SC2024

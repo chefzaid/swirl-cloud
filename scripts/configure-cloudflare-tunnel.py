@@ -162,7 +162,7 @@ def main():
     configured_account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
     if configured_account and account != configured_account:
         raise RuntimeError("CLOUDFLARE_ACCOUNT_ID does not own the selected zone")
-    name = "bm-cluster-" + args.domain.replace(".", "-")
+    name = "swirl-cloud-" + args.domain.replace(".", "-")
     base = f"/accounts/{account}/cfd_tunnel"
     matches = cf.request("GET", base + "?" + urllib.parse.urlencode({"name": name, "is_deleted": "false"}))
     if len(matches) > 1:
@@ -180,7 +180,7 @@ def main():
     kubectl("apply", "-f", "-", data=json.dumps(secret))
     # A candidate is deliberately not active: configure-cloudflare.sh must see
     # three ready co-located connectors before it changes public DNS.
-    state = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "bm-cluster-public-ingress", "namespace": args.namespace},
+    state = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "swirl-cloud-public-ingress", "namespace": args.namespace},
              "data": {"mode": "tunnel", "domain": args.domain, "tunnelID": tunnel_id, "publishedTunnelID": ""}}
     kubectl("apply", "-f", "-", data=json.dumps(state))
     print("Tunnel prepared. Install HA ingress and verify three connectors before publishing DNS.")

@@ -9,7 +9,7 @@ stages:
 
 default:
   tags:
-    - bm-cluster
+    - swirl-cloud
   interruptible: true
 
 variables:
@@ -19,7 +19,7 @@ validate:repository:
   stage: validate
   image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
   cache:
-    key: bm-cluster-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v1
     paths:
       - .cache/apk/
     policy: pull-push
@@ -33,7 +33,7 @@ verify:gitops:
   stage: verify
   image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
   cache:
-    key: bm-cluster-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v1
     paths:
       - .cache/apk/
     policy: pull
@@ -44,18 +44,18 @@ verify:gitops:
     - |
       deadline=$(( $(date +%s) + 900 ))
       while [ "$(date +%s)" -lt "$deadline" ]; do
-        application="$(kubectl get application bm-cluster -n infra -o json 2>/dev/null || true)"
+        application="$(kubectl get application swirl-cloud -n infra -o json 2>/dev/null || true)"
         revision="$(printf '%s' "$application" | jq -r '.status.sync.revision // empty')"
         sync="$(printf '%s' "$application" | jq -r '.status.sync.status // empty')"
         health="$(printf '%s' "$application" | jq -r '.status.health.status // empty')"
         if [[ "$revision" == "$CI_COMMIT_SHA" && "$sync" == "Synced" && "$health" == "Healthy" ]]; then
-          printf 'Argo CD reconciled bm-cluster at %s\n' "$revision"
+          printf 'Argo CD reconciled swirl-cloud at %s\n' "$revision"
           exit 0
         fi
         sleep 10
       done
       printf 'Argo CD did not reconcile %s before the timeout\n' "$CI_COMMIT_SHA" >&2
-      kubectl get application bm-cluster -n infra -o yaml >&2 || true
+      kubectl get application swirl-cloud -n infra -o yaml >&2 || true
       exit 1
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -67,7 +67,7 @@ verify:delivery-platform:
       artifacts: false
   image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
   cache:
-    key: bm-cluster-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v1
     paths:
       - .cache/apk/
     policy: pull
@@ -110,7 +110,7 @@ verify:registry-write:
   stage: verify
   image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
   cache:
-    key: bm-cluster-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v1
     paths:
       - .cache/apk/
     policy: pull

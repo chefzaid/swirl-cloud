@@ -4,7 +4,7 @@ set +x
 
 NAMESPACE="${VAULT_NAMESPACE:-infra}"
 VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:8200}"
-UNSEAL_KEY_FILE="${VAULT_UNSEAL_KEY_FILE:-/var/lib/bm-cluster/vault-unseal-key}"
+UNSEAL_KEY_FILE="${VAULT_UNSEAL_KEY_FILE:-/var/lib/swirl-cloud/vault-unseal-key}"
 export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 [[ -s "$UNSEAL_KEY_FILE" ]] || exit 0
 

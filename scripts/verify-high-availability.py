@@ -68,13 +68,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--require-fencing", action="store_true", help="Also require configured automatic recovery for storage hosts")
     args = parser.parse_args()
-    topology = get("configmap", "infra", "bm-cluster-topology")["data"]
-    require(topology.get("highAvailabilityEnabled") == "true", "HA is not enabled. Add servers and follow docs/high-availability.md first.")
+    topology = get("configmap", "infra", "swirl-cloud-topology")["data"]
+    require(topology.get("highAvailabilityEnabled") == "true", "HA is not enabled. Add servers and follow docs/guides/high-availability.md first.")
     nodes = get("nodes")["items"]
     controls = [n for n in nodes if "node-role.kubernetes.io/control-plane" in n["metadata"].get("labels", {})]
     require(len(controls) >= 3 and all(ready(n) for n in controls), "All control planes must be Ready, with at least three members")
     require(all("node-role.kubernetes.io/etcd" in n["metadata"].get("labels", {}) for n in controls), "Every control plane must be an embedded-etcd member")
-    require(all(n["metadata"].get("annotations", {}).get("node.bm-cluster.io/fenced-detach-policy") == "verified" for n in controls),
+    require(all(n["metadata"].get("annotations", {}).get("node.swirl-cloud.io/fenced-detach-policy") == "verified" for n in controls),
             "Control-plane storage detach safety has not been verified on every host")
     private_ips = {a["address"] for n in controls for a in n["status"].get("addresses", []) if a["type"] == "InternalIP"}
     slices = get("endpointslices", "default")["items"]
@@ -83,7 +83,7 @@ def main():
     require(private_ips <= api_ips, "The Kubernetes Service must advertise every private control-plane endpoint")
     print("PASS: Ready embedded-etcd control planes and private API endpoints")
 
-    ingress = get("configmap", "infra", "bm-cluster-public-ingress")["data"]
+    ingress = get("configmap", "infra", "swirl-cloud-public-ingress")["data"]
     require(ingress.get("mode") == "tunnel" and ingress.get("tunnelID") and
             ingress.get("publishedTunnelID") == ingress["tunnelID"],
             "Public DNS publication has not been verified for the prepared ingress tunnel")
@@ -130,7 +130,7 @@ def main():
                    get("engines.longhorn.io", "longhorn-system")["items"])
     print("PASS: every retained Longhorn volume has three healthy copies on distinct hosts")
     if args.require_fencing:
-        app = get("application", "infra", "bm-cluster")
+        app = get("application", "infra", "swirl-cloud")
         fencing = app["spec"]["source"]["helm"]["valuesObject"].get("nodeFencing", {})
         require(fencing.get("enabled") is True, "Automatic singleton recovery requires a verified fencing inventory")
         eligible = {n["metadata"]["name"] for n in nodes if not any(t["effect"] in ("NoSchedule", "NoExecute") for t in n.get("spec", {}).get("taints", []))}
@@ -144,7 +144,7 @@ def main():
         print("PASS: automatic fencing covers every workload host; confirm BMC power control during acceptance")
     else:
         print("NOTE: singleton recovery is not certified; use --require-fencing after configuring power control.")
-    print("Platform readiness checks passed. A controlled loss-of-one-host exercise is still required; see docs/high-availability.md.")
+    print("Platform readiness checks passed. A controlled loss-of-one-host exercise is still required; see docs/guides/high-availability.md.")
     print("Application readiness and failover checks belong to each application's deployment workflow.")
 
 

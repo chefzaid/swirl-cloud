@@ -21,7 +21,7 @@ for command in git shellcheck python3 helm ansible-playbook node jq sqlite3 floc
     command -v "$command" >/dev/null || { printf 'Required validation tool is missing: %s\n' "$command" >&2; exit 1; }
 done
 python3 -c 'import yaml' || { printf 'Python PyYAML is required.\n' >&2; exit 1; }
-WORK="$(mktemp -d /tmp/bm-cluster-validation.XXXXXX)"
+WORK="$(mktemp -d /tmp/swirl-cloud-validation.XXXXXX)"
 trap 'rm -r -- "$WORK"' EXIT
 
 mapfile -d '' -t candidates < <(git ls-files -z --cached --others --exclude-standard | LC_ALL=C sort -zu)
@@ -49,7 +49,7 @@ done
 printf '[PASS] Ansible playbook syntax\n'
 
 # These suites exercise data-loss, secret-handling and physical fencing paths.
-# The selection and reason for each exception are documented in docs/structure.md.
+# The selection and reason for each exception are documented in docs/testing.md.
 bash tests/test-k3s-backups.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py; do

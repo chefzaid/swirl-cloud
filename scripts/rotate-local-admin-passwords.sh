@@ -11,7 +11,7 @@ source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/vault-access.sh"
 NAMESPACE="${NAMESPACE:-infra}"
 VAULT_POD="${VAULT_POD:-}"
 VAULT_ADDR="http://127.0.0.1:8200"
-VAULT_BOOTSTRAP_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/bm-cluster/vault-bootstrap-token}"
+VAULT_BOOTSTRAP_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/swirl-cloud/vault-bootstrap-token}"
 PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-}"
 
 info() { printf '\033[0;32m[INFO]\033[0m  %s\n' "$*"; }

@@ -21,7 +21,7 @@ FIELDS = {
 def discover():
     try:
         result = subprocess.run(
-            ["kubectl", "--request-timeout=5s", "get", "configmap", "bm-cluster-identity",
+            ["kubectl", "--request-timeout=5s", "get", "configmap", "swirl-cloud-identity",
              "-n", "infra", "--ignore-not-found", "-o", "json"],
             capture_output=True, text=True, timeout=10, check=True,
         )

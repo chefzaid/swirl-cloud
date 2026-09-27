@@ -158,7 +158,7 @@ data:
       return {
         uid: application.uid, title: `Applications / ${application.name}`,
         description: `Automatically managed from ${application.namespace}: ${application.workloads.join(', ')}. CPU, memory, readiness and restarts use cluster metrics. Scrape panels need prometheus.io/scrape annotations; no data means no metric series, not a healthy target.`,
-        tags: ['applications', 'auto-discovered', 'bm-cluster'], timezone: 'browser', schemaVersion: 41,
+        tags: ['applications', 'auto-discovered', 'swirl-cloud'], timezone: 'browser', schemaVersion: 41,
         version: 1, refresh: '30s', time: { from: 'now-6h', to: 'now' }, editable: false,
         links: [{ title: 'Application logs in Kibana', type: 'link', url: `${kibanaUrl}/app/dashboards#/view/${application.uid}-logs`, targetBlank: true }],
         panels: [
@@ -195,7 +195,7 @@ data:
         migrationVersion: { [type]: version }, coreMigrationVersion: '7.17.0',
       });
       const visualization = (suffix, title, type, params, bucket) => saved('visualization', `${id}-${suffix}`, {
-        title: `${application.name}: ${title}`, description: 'Managed by bm-cluster application discovery.',
+        title: `${application.name}: ${title}`, description: 'Managed by swirl-cloud application discovery.',
         uiStateJSON: '{}', version: 1,
         visState: JSON.stringify({ title, type, params, aggs: [
           { id: '1', enabled: true, type: 'count', params: {}, schema: 'metric' }, bucket,
@@ -207,7 +207,7 @@ data:
           timeFieldName: '@timestamp', fields: '[]', fieldFormatMap: '{}', runtimeFieldMap: '{}', sourceFilters: '[]',
         }, [], '7.11.0'),
         saved('search', id, {
-          title: `${application.name}: container logs`, description: 'Managed by bm-cluster application discovery.',
+          title: `${application.name}: container logs`, description: 'Managed by swirl-cloud application discovery.',
           columns: ['@timestamp', 'kubernetes.pod_name', 'kubernetes.container_name', 'level', 'message', 'log'],
           sort: [['@timestamp', 'desc']], grid: {}, hideChart: false,
           kibanaSavedObjectMeta: { searchSourceJSON: JSON.stringify({ ...source, highlightAll: true, version: true }) },
@@ -281,7 +281,7 @@ data:
         throw new Error(`Pagination limit: ${path}`);
       }
       async importObjects(objects) {
-        const boundary = 'bm-cluster-saved-objects';
+        const boundary = 'swirl-cloud-saved-objects';
         const ndjson = objects.map(object => JSON.stringify(object)).join('\n') + '\n';
         const body = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="applications.ndjson"\r\nContent-Type: application/ndjson\r\n\r\n${ndjson}\r\n--${boundary}--\r\n`);
         const result = await this.call('POST', '/api/saved_objects/_import?overwrite=true', body, `multipart/form-data; boundary=${boundary}`);
@@ -303,7 +303,7 @@ data:
     export async function reconcile({ kubernetes, kibana, directory, kibanaUrl, imported = new Map(), now = Date.now() }) {
       // A failed or partial Kubernetes snapshot must never replace the last known dashboards.
       const namespaces = (await kubernetes.list('/api/v1/namespaces')).filter(namespace =>
-        namespace.metadata.name === 'apps' || namespace.metadata.labels?.['bm-cluster.io/application-workloads'] === 'true'
+        namespace.metadata.name === 'apps' || namespace.metadata.labels?.['swirl-cloud.io/application-workloads'] === 'true'
       ).map(namespace => namespace.metadata.name);
       const objects = (await Promise.all(namespaces.flatMap(workloadPaths).map(path => kubernetes.list(path)))).flat();
       const applications = discover(objects, namespaces);

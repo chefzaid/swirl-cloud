@@ -7,15 +7,15 @@ Requires=k3s.service
 Type=oneshot
 User=root
 Group=root
-Environment=HOME=/run/bm-k3s-backup
-RuntimeDirectory=bm-k3s-backup
-ExecStart=/usr/local/sbin/bm-k3s-backup
+Environment=HOME=/run/swirl-cloud-k3s-backup
+RuntimeDirectory=swirl-cloud-k3s-backup
+ExecStart=/usr/local/sbin/swirl-cloud-k3s-backup
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadOnlyPaths=/etc/rancher/k3s /etc/bm-cluster /var/lib/rancher/k3s /var/lib/bm-cluster
-ReadWritePaths=/var/backups/bm-cluster/k3s /run/lock
+ReadOnlyPaths=/etc/rancher/k3s /etc/swirl-cloud /var/lib/rancher/k3s /var/lib/swirl-cloud
+ReadWritePaths=/var/backups/swirl-cloud/k3s /run/lock
 LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictSUIDSGID=true

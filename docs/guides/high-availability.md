@@ -1,8 +1,8 @@
-# High availability
+# High Availability
 
 Follow this workflow to enable and verify HA across independent physical hosts.
-Adding control planes alone does not replicate shared services or applications. Use [networking](networking.md) for transport and
-Cloudflare configuration, and [node enrollment](node-enrollment.md) for joining
+Adding control planes alone does not replicate shared services or applications. Use [node enrollment](node-enrollment.md#private-node-network) for transport,
+[DNS and ingress](../dns.md#cloudflare) for Cloudflare configuration, and [node enrollment](node-enrollment.md) for joining
 hosts and changing scheduling.
 
 ## Availability boundaries
@@ -10,7 +10,7 @@ hosts and changing scheduling.
 | Component | Opt-in behavior and limits |
 | --- | --- |
 | K3s | Three or more control planes with an odd embedded-etcd membership; a majority must remain available |
-| Public ingress | Independent [Traefik/Tunnel pairs](networking.md#ha-public-ingress) on control planes; public DNS targets the tunnel |
+| Public ingress | Independent [Traefik/Tunnel pairs](../dns.md#ha-public-ingress) on control planes; public DNS targets the tunnel |
 | PostgreSQL | CloudNativePG primary and two standbys on different hosts; each commit requires one synchronous standby, and the canonical Service follows the primary |
 | Kafka | Three native KRaft controllers and brokers, replicated topics and an enforced minimum in-sync replica count after migration |
 | Vault | Three Raft voters on different control planes, with recovery material available on every verified control plane |
@@ -18,7 +18,7 @@ hosts and changing scheduling.
 | CoreDNS | Three replicas on three hosts, with at least two available during voluntary disruption; admission policy preserves placement and count when K3s or a scale request reapplies them |
 | External Secrets | Two replicas per component; main and certificate controllers elect leaders, while both webhook replicas accept requests |
 | Keycloak | Replicated identity service; still depends on PostgreSQL |
-| Argo CD | Replicated API, repository, ApplicationSet and cache services; see [Argo CD operations](delivery.md#argo-cd-operations) for controller recovery and Helm ownership |
+| Argo CD | Replicated API, repository, ApplicationSet and cache services; see [Argo CD operations](../deployment.md#argo-cd-operations) for controller recovery and Helm ownership |
 | External applications | Each repository owns its availability profile, replica placement, shared-state migration, secrets and background-work rules |
 | Persistent singleton tools | GitLab/Registry, SonarQube Community, Odoo and other unreplicated services recover by restarting their existing writer with its volume; they have an outage during recovery |
 
@@ -26,16 +26,16 @@ These profiles target a single-host failure while the remaining hosts have
 quorum and capacity. They do not provide site-level disaster recovery or remove
 Cloudflare, the private transport and external identity/email/storage providers
 from the dependency chain. Replicas and Longhorn snapshots do not replace
-[offsite backups and restore testing](operations.md#backups-and-recovery).
+[offsite backups and restore testing](../operations.md#backups-and-recovery).
 
-The [topology diagram](networking.md#node-topology) shows both ingress modes.
+The [topology diagram](../architecture.md#node-topology) shows both ingress modes.
 K3s etcd maintains Kubernetes state; each data service manages its own
 replication and failover.
 
 ## Prepare hosts and capacity
 
 Use at least three Ready, uncordoned control planes and three storage-eligible
-hosts on the same [private node network](networking.md#private-node-network).
+hosts on the same [private node network](node-enrollment.md#private-node-network).
 Three control planes can also host applications and storage. With
 `CONTROL_PLANE_SCHEDULABLE=false`, provide at least three workers for those
 workloads; ingress and Vault explicitly tolerate the control-plane taint.
@@ -55,7 +55,7 @@ with passwordless sudo, before testing a failure.
 ## Activate in order
 
 Run from an authenticated control-plane checkout with the normal
-[installer identity and network inputs](installation.md#unattended-installation).
+[installer identity and network inputs](../deployment.md#unattended-installation).
 Keep migration journals, dumps, credentials and recovery files in private
 durable directories outside Git. Schedule maintenance for data cutovers and
 the transition from direct ingress to Tunnel ingress.
@@ -88,10 +88,10 @@ the transition from direct ingress to Tunnel ingress.
    an unfinished PostgreSQL or Kafka migration.
 
 4. **Migrate and verify Vault.** Follow
-   [the singleton migration](vault.md#migrating-an-existing-singleton) with the
+   [the singleton migration](../security.md#migrating-an-existing-singleton) with the
    deployed compatible image and explicit `VAULT_HA_MIGRATE_EXISTING=true`.
    Verify three healthy voters, then
-   [distribute recovery material](vault.md#host-unseal-service) to every verified
+   [distribute recovery material](../security.md#host-unseal-service) to every verified
    control plane. Keep recovery keys and a tested Raft backup outside the
    cluster as well. Routine Helm upgrades use guarded, one-peer-at-a-time
    replacement.
@@ -100,8 +100,8 @@ the transition from direct ingress to Tunnel ingress.
    `postgresHa` and `kafkaHa` maps into a persistent platform values file. Do not
    replace either map with only an `enabled` flag or copy credentials into it.
    Supply the Cloudflare token and Access inputs from
-   [Cloudflare configuration](networking.md#cloudflare) and
-   [Tunnel prerequisites](networking.md#ha-public-ingress). Set the existing
+   [Cloudflare configuration](../dns.md#cloudflare) and
+   [Tunnel prerequisites](../dns.md#ha-public-ingress). Set the existing
    final node counts and scheduling inputs, then use either entry point:
 
    ```bash
@@ -119,7 +119,7 @@ the transition from direct ingress to Tunnel ingress.
    the installation's desired configuration so GitOps reconciliation retains
    the migrated services. It applies the [HA storage policy](node-enrollment.md#scheduling-and-storage)
    and reconciles CoreDNS after installing its placement admission policy.
-   Wait for actual replica health and the [public-ingress readiness checks](networking.md#ha-public-ingress)
+   Wait for actual replica health and the [public-ingress readiness checks](../dns.md#ha-public-ingress)
    before relying on recovery.
 
    Shared Redis starts with an empty cache; cached responses and rate-limit
@@ -140,7 +140,7 @@ the transition from direct ingress to Tunnel ingress.
 
 ## Reconciliation and recovery
 
-`infra/bm-cluster-topology` stores the selected availability mode. Later node
+`infra/swirl-cloud-topology` stores the selected availability mode. Later node
 enrollment, installer and Ansible runs inherit it when the environment switch
 is unset. Verified PostgreSQL and Kafka cutover records preserve their full
 active profiles. A supplied profile must match those records; incomplete
@@ -193,12 +193,12 @@ restore healthy quorum and storage replicas between drills.
 
 Include configured public hostnames, OIDC redirects, trusted client IPs, Registry
 login and an image push/pull in public-path verification, respecting the
-[Tunnel connection and request limits](networking.md#ha-public-ingress).
+[Tunnel connection and request limits](../dns.md#ha-public-ingress).
 Finally restore a backup into an isolated environment and compare application
 data. Repository render/tests are useful preparation; host-failure behavior
 requires an exercise across independent physical hosts.
 
-The maintained defaults are in [Helm values](../k8s/values.yaml),
-[HA templates](../k8s/templates/), and [component profiles](../config/).
-Use [networking](networking.md#cloudflare) for the public trust boundary and
+The maintained defaults are in [Helm values](../../k8s/values.yaml),
+[HA templates](../../k8s/templates), and [component profiles](../../config).
+Use [networking](../dns.md#cloudflare) for the public trust boundary and
 the linked service guides for migration and recovery details.

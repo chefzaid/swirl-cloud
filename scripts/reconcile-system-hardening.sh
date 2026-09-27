@@ -18,10 +18,10 @@ for target in \
   existing="$(kubectl get "$kind" "$name" -n "$namespace" --ignore-not-found -o name)"
   [[ -n "$existing" ]] || continue
   ha_dns=false
-  if [[ "$name" == coredns ]] && [[ -n "$(kubectl get mutatingadmissionpolicy bm-coredns-availability --ignore-not-found -o name)" ]]; then
+  if [[ "$name" == coredns ]] && [[ -n "$(kubectl get mutatingadmissionpolicy swirl-cloud-coredns-availability --ignore-not-found -o name)" ]]; then
     ha_dns=true
   fi
-  patch='{"metadata":{"annotations":{"security.bm-cluster.io/template-hardening":"v2"}}}'
+  patch='{"metadata":{"annotations":{"security.swirl-cloud.io/template-hardening":"v2"}}}'
   ready=false
   # Policy informer caches update asynchronously after kubectl apply.
   for (( attempt=0; attempt<30; attempt++ )); do

@@ -74,7 +74,7 @@ def platform_context(*, required=False):
 
     namespace = os.environ.get("GITLAB_NAMESPACE", "infra")
     if not all(context.get(key) for key in ("PLATFORM_DOMAIN", "INTERNAL_DNS_ZONE", "PLATFORM_SECURITY_PROJECT_PATH", "GITLAB_GROUP_PATH", "TLS_SECRET_NAME")):
-        application = resource("application", "bm-cluster", "infra")
+        application = resource("application", "swirl-cloud", "infra")
         source = application.get("spec", {}).get("source", {})
         repository = urlparse(source.get("repoURL", ""))
         project_path = repository.path.strip("/").removesuffix(".git")

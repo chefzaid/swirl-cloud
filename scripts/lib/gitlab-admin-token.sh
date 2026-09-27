@@ -3,7 +3,7 @@
 # info() and fail(), and must call gitlab_revoke_ephemeral_admin_token on exit.
 
 GITLAB_ADMIN_TOKEN_EPHEMERAL=false
-GITLAB_BOOTSTRAP_TOKEN_NAME="${GITLAB_BOOTSTRAP_TOKEN_NAME:-bm-cluster-cli-bootstrap}"
+GITLAB_BOOTSTRAP_TOKEN_NAME="${GITLAB_BOOTSTRAP_TOKEN_NAME:-swirl-cloud-cli-bootstrap}"
 GITLAB_ADMIN_USERNAME="${GITLAB_ADMIN_USERNAME:-root}"
 GITLAB_NAMESPACE="${GITLAB_NAMESPACE:-${NAMESPACE:-infra}}"
 GITLAB_WORKLOAD="${GITLAB_WORKLOAD:-deployment/gitlab}"
@@ -45,9 +45,9 @@ gitlab_acquire_admin_token() {
         )
         token.set_token(raw)
         token.save!
-        puts "BM_CLUSTER_GITLAB_ADMIN_TOKEN=#{raw}"
+        puts "SWIRL_CLOUD_GITLAB_ADMIN_TOKEN=#{raw}"
       ' 2>/dev/null)" || token_output=""
-    token="$(sed -n 's/^BM_CLUSTER_GITLAB_ADMIN_TOKEN=//p' <<< "$token_output" | tail -n 1)"
+    token="$(sed -n 's/^SWIRL_CLOUD_GITLAB_ADMIN_TOKEN=//p' <<< "$token_output" | tail -n 1)"
     if [[ "$token" == glpat-* ]]; then
       GITLAB_ADMIN_TOKEN="$token"
       GITLAB_ADMIN_TOKEN_EPHEMERAL=true

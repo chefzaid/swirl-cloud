@@ -180,7 +180,7 @@ class Safety(unittest.TestCase):
 
     def test_argo_patch_changes_only_the_owned_kafka_map(self):
         migration = HA.Migration(argparse.Namespace(action="verify", state_dir=None, timeout=30))
-        app = {"metadata": {"name": "bm-cluster", "namespace": "infra"}, "spec": {"source": {"helm": {"valuesObject": {"postgresHa": {"enabled": True}}}}}}
+        app = {"metadata": {"name": "swirl-cloud", "namespace": "infra"}, "spec": {"source": {"helm": {"valuesObject": {"postgresHa": {"enabled": True}}}}}}
         ha = HA.profile(CLUSTER_ID, "active")
         with patch.object(migration, "render", return_value=[]), patch.object(migration, "validate_images"), patch.object(migration, "checkpoint"), patch.object(migration, "get", return_value={"items": [app]}), patch.object(migration, "kube") as kube:
             migration.apply_profile(ha)
@@ -204,7 +204,7 @@ class Safety(unittest.TestCase):
 
 class Render(unittest.TestCase):
     def render(self, phase=None):
-        command = ["helm", "template", "bm-cluster", str(ROOT / "k8s"), "--set", "publicDomain=example.com,internalDnsZone=internal.example.com,gitopsRepositoryURL=https://example.com/repo.git,cloudflareAccessTeamName=example"]
+        command = ["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--set", "publicDomain=example.com,internalDnsZone=internal.example.com,gitopsRepositoryURL=https://example.com/repo.git,cloudflareAccessTeamName=example"]
         if phase:
             command += ["--set", f"kafkaHa.enabled=true,kafkaHa.phase={phase},kafkaHa.clusterId={CLUSTER_ID},kafkaHa.bootstrap=false"]
         return [doc for doc in yaml.safe_load_all(subprocess.check_output(command)) if doc]

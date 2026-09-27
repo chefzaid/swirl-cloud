@@ -15,7 +15,7 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-coredns-availability
+  name: swirl-cloud-coredns-availability
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -51,11 +51,11 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-coredns-availability
+  name: swirl-cloud-coredns-availability
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-coredns-availability
+  policyName: swirl-cloud-coredns-availability
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -79,13 +79,13 @@ spec:
   podSelector:
     matchLabels:
       app: redis-ha
-      release: bm-cluster
+      release: swirl-cloud
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              release: bm-cluster
+              release: swirl-cloud
             matchExpressions:
               - key: app
                 operator: In
@@ -95,6 +95,13 @@ spec:
           port: 6379
         - protocol: TCP
           port: 26379
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9121
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -105,7 +112,7 @@ spec:
   podSelector:
     matchLabels:
       app: redis-ha-haproxy
-      release: bm-cluster
+      release: swirl-cloud
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -116,7 +123,7 @@ spec:
                 values: [infra, apps, corp]
         - namespaceSelector:
             matchLabels:
-              bm-cluster.io/application-workloads: "true"
+              swirl-cloud.io/application-workloads: "true"
       ports:
         - protocol: TCP
           port: 6379

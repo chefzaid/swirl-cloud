@@ -23,7 +23,7 @@ def application_values():
                          text=True, capture_output=True, check=True)
     if not crd.stdout.strip():
         return {}
-    result = subprocess.run(["kubectl", "-n", "infra", "get", "application", "bm-cluster",
+    result = subprocess.run(["kubectl", "-n", "infra", "get", "application", "swirl-cloud",
                              "--ignore-not-found", "-o", "json"],
                             text=True, capture_output=True, check=True)
     app = json.loads(result.stdout) if result.stdout.strip() else {}
@@ -102,11 +102,11 @@ def resolve(topology, postgres, requested, supplied=None, kafka=None, previous=N
         if key in supplied and supplied[key] != profile.get(key):
             raise ValueError(f"The supplied {label} profile differs from the verified cutover record")
     if mode == "true" and not (profile.get("postgresHa", {}).get("enabled") and profile.get("postgresHa", {}).get("active")):
-        raise ValueError("Complete the PostgreSQL HA prepare/migrate (or fresh)/cutover workflow first; see docs/high-availability.md")
+        raise ValueError("Complete the PostgreSQL HA prepare/migrate (or fresh)/cutover workflow first; see docs/guides/high-availability.md")
     if mode == "true" and not (profile.get("kafkaHa", {}).get("enabled") is True and
                                profile["kafkaHa"].get("phase") == "active" and
                                not profile["kafkaHa"].get("bootstrap", False)):
-        raise ValueError("Complete the Kafka HA migration and verification first; see docs/kafka-ha.md")
+        raise ValueError("Complete the Kafka HA migration and verification first; see docs/guides/kafka-ha.md")
     fencing = supplied.get("nodeFencing", (previous or {}).get("nodeFencing"))
     if fencing is not None:
         if not isinstance(fencing, dict) or type(fencing.get("enabled")) is not bool:
@@ -124,7 +124,7 @@ def main():
     args = parser.parse_args()
     supplied_file = os.environ.get("PLATFORM_HA_VALUES_FILE", "")
     supplied = yaml.safe_load(Path(supplied_file).read_text()) if supplied_file else None
-    profile = resolve(state("bm-cluster-topology"), state("postgres-ha-state"),
+    profile = resolve(state("swirl-cloud-topology"), state("postgres-ha-state"),
                       os.environ.get("HIGH_AVAILABILITY_ENABLED", ""), supplied,
                       state("kafka-ha-state"), application_values())
     if profile["highAvailabilityEnabled"] or profile.get("postgresHa") or profile.get("kafkaHa") or profile.get("applicationData", {}).get("enabled"):

@@ -1,5 +1,5 @@
 ---
-- name: Reconcile the bm-cluster platform
+- name: Reconcile the swirl-cloud platform
   hosts: localhost
   connection: local
   gather_facts: false
@@ -107,7 +107,7 @@
       {{ lookup('ansible.builtin.env', 'HIGH_AVAILABILITY_ENABLED') | default('false', true) | lower }}
     cloudflare_access_team_name: >-
       {{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_TEAM_NAME') |
-         default('bm-cluster-' ~ (platform_domain | replace('.', '-')), true) | lower }}
+         default('swirl-cloud-' ~ (platform_domain | replace('.', '-')), true) | lower }}
     gitops_repository_url: >-
       {{ lookup('ansible.builtin.env', 'GITOPS_REPOSITORY_URL') or
          lookup('ansible.builtin.pipe', 'git -C ' ~ (repository_root | quote) ~ ' remote get-url github 2>/dev/null || git -C ' ~ (repository_root | quote) ~ ' remote get-url origin') |
@@ -121,7 +121,7 @@
     tls_secret_name: "{{ lookup('ansible.builtin.env', 'TLS_SECRET_NAME') | default(lookup('ansible.builtin.env', 'CLOUDFLARE_TLS_SECRET_NAME'), true) | default((platform_domain | replace('.', '-')) ~ '-tls', true) }}"
     sonar_alm_setting: "{{ lookup('ansible.builtin.env', 'SONAR_ALM_SETTING') | default(organization_slug ~ '-gitlab', true) }}"
     cloudflare_access_idp_name: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_IDP_NAME') | default(organization_name ~ ' Keycloak', true) }}"
-    gitlab_project_name: "{{ lookup('ansible.builtin.env', 'GITLAB_PROJECT_NAME') | default('bm-cluster', true) }}"
+    gitlab_project_name: "{{ lookup('ansible.builtin.env', 'GITLAB_PROJECT_NAME') | default('swirl-cloud', true) }}"
     trusted_node_cidr: "{{ k3s_node_network_cidr | default(lookup('ansible.builtin.env', 'K3S_NODE_NETWORK_CIDR'), true) }}"
     private_transport_enabled: "{{ manage_private_transport | default(false) | bool }}"
     private_transport_mode: >-
@@ -263,14 +263,14 @@
         sudo -n true
         systemctl is-active --quiet k3s
         kubectl cluster-info >/dev/null
-        stored_ha_mode="$(kubectl -n infra get configmap bm-cluster-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
+        stored_ha_mode="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
         node="$(kubectl get node "$BOOTSTRAP_NODE" -o json)"
         jq -e --arg storedHa "$stored_ha_mode" '
           .metadata.labels as $labels |
           ($labels | has("node-role.kubernetes.io/control-plane") or has("node-role.kubernetes.io/master")) and
           ($labels["svccontroller.k3s.cattle.io/enablelb"] != "false" or env.HIGH_AVAILABILITY_ENABLED == "true" or $storedHa == "true")
         ' <<< "$node" >/dev/null
-        jq -r '.metadata.labels["node.bm-cluster.io/exposure"] // ""' <<< "$node"
+        jq -r '.metadata.labels["node.swirl-cloud.io/exposure"] // ""' <<< "$node"
       args:
         executable: /bin/bash
       environment:
@@ -290,7 +290,7 @@
         that:
           - security_images_enabled is not defined
           - lookup('env', 'SECURITY_IMAGES_ENABLED') == ''
-        fail_msg: "Image profiles were retired; follow docs/platform-migration.md and remove the old inputs."
+        fail_msg: "Image profiles were retired; follow docs/guides/platform-migration.md and remove the old inputs."
 
     - name: Preserve an enrolled control plane's private exposure
       ansible.builtin.set_fact:
@@ -300,7 +300,7 @@
     - name: Create a private rendered-configuration directory
       ansible.builtin.tempfile:
         state: directory
-        prefix: bm-cluster-rendered.
+        prefix: swirl-cloud-rendered.
       register: rendered_configuration
 
     - name: Preserve verified HA settings before rendering or changing workloads
@@ -586,8 +586,8 @@
           - label
           - "node/{{ control_plane_node_name }}"
           - "svccontroller.k3s.cattle.io/enablelb={{ (high_availability_mode != 'true') | ternary('true', 'false') }}"
-          - node.bm-cluster.io/role=control-plane
-          - "node.bm-cluster.io/exposure={{ server_exposure_mode }}"
+          - node.swirl-cloud.io/role=control-plane
+          - "node.swirl-cloud.io/exposure={{ server_exposure_mode }}"
           - --overwrite
       register: node_labels
       changed_when: "'not labeled' not in node_labels.stdout"

@@ -306,7 +306,7 @@ def atomic_json(path, value):
 
 @contextmanager
 def journal(project, cluster_uid):
-    base = Path(os.environ.get("REPOSITORY_STATE_DIR") or str(Path.home() / ".local/state/bm-cluster/repositories"))
+    base = Path(os.environ.get("REPOSITORY_STATE_DIR") or str(Path.home() / ".local/state/swirl-cloud/repositories"))
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
     if base.is_symlink() or base.stat().st_mode & 0o077:
         raise OnboardingError("REPOSITORY_STATE_DIR must be a private directory (mode 0700)")
@@ -334,7 +334,7 @@ class Checkout:
         self.url, self.branch, self.token = url, branch, token
 
     def __enter__(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="bm-repository-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="swirl-cloud-repository-")
         directory = Path(self.temporary.name)
         self.root = directory / "checkout"
         helper = directory / "askpass"

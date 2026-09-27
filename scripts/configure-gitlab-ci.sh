@@ -12,18 +12,18 @@ umask 077
 NAMESPACE="${NAMESPACE:-infra}"
 RUNNER_NAMESPACE="${RUNNER_NAMESPACE:-gitlab-runners}"
 GITLAB_URL="${GITLAB_URL:-}"
-GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-$GITLAB_GROUP_PATH/bm-cluster}"
-GITLAB_PROJECT_NAME="${GITLAB_PROJECT_NAME:-bm-cluster}"
+GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-$GITLAB_GROUP_PATH/swirl-cloud}"
+GITLAB_PROJECT_NAME="${GITLAB_PROJECT_NAME:-swirl-cloud}"
 CONFIGURE_REPOSITORY_SYNC="${CONFIGURE_REPOSITORY_SYNC:-false}"
-RUNNER_DESCRIPTION="${RUNNER_DESCRIPTION:-bm-cluster-kubernetes}"
-RUNNER_TAGS="${RUNNER_TAGS:-bm-cluster,kubernetes}"
-RETENTION_TOKEN_NAME="${RETENTION_TOKEN_NAME:-bm-cluster-registry-retention}"
+RUNNER_DESCRIPTION="${RUNNER_DESCRIPTION:-swirl-cloud-kubernetes}"
+RUNNER_TAGS="${RUNNER_TAGS:-swirl-cloud,kubernetes}"
+RETENTION_TOKEN_NAME="${RETENTION_TOKEN_NAME:-swirl-cloud-registry-retention}"
 RETENTION_TOKEN_LIFETIME_DAYS="${RETENTION_TOKEN_LIFETIME_DAYS:-364}"
 # Bound a single job artifact archive so a malformed path or unexpectedly large
 # report cannot exhaust the self-hosted GitLab data volume in one upload.
 MAX_ARTIFACTS_SIZE_MB="${MAX_ARTIFACTS_SIZE_MB:-512}"
 VAULT_POD="${VAULT_POD:-}"
-VAULT_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/bm-cluster/vault-bootstrap-token}"
+VAULT_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/swirl-cloud/vault-bootstrap-token}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GITLAB_TOKEN_LIBRARY="$SCRIPT_DIR/lib/gitlab-admin-token.sh"
@@ -54,7 +54,7 @@ fi
 gitlab_acquire_admin_token
 sudo test -s "$VAULT_TOKEN_FILE" || fail "Vault bootstrap token is missing from $VAULT_TOKEN_FILE"
 
-work_dir="$(mktemp -d /tmp/bm-gitlab-ci.XXXXXX)"
+work_dir="$(mktemp -d /tmp/swirl-cloud-gitlab-ci.XXXXXX)"
 cleanup() {
   rm -r -- "$work_dir"
   gitlab_revoke_ephemeral_admin_token

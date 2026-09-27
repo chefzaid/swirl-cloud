@@ -6,7 +6,7 @@ metadata:
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: trivy-operator
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 data:
   trivy-security.json: |
     {

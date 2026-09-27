@@ -12,7 +12,7 @@ legacy="$(jq -er 'if type != "object" or (.items | type) != "array" then
       (.image // "") | test("/security/"))) | tostring end' <<< "$workloads")"
 if [[ "$legacy" == true ]]; then
     if [[ "$approved" != true ]]; then
-        echo 'This installation requires the ingress/upstream-image migration in docs/platform-migration.md. Set PLATFORM_MIGRATION_APPROVED=true only for that prepared maintenance run.' >&2
+        echo 'This installation requires the ingress/upstream-image migration in docs/guides/platform-migration.md. Set PLATFORM_MIGRATION_APPROVED=true only for that prepared maintenance run.' >&2
         exit 1
     fi
     echo '[INFO] Explicit legacy-platform migration selected.'

@@ -43,7 +43,7 @@ python3 "$@"
 '''
         return subprocess.run(["bash", "-c", command, "application-delivery",
             str(ROOT / "scripts/lib/gitlab-admin-token.sh"), str(Path(__file__).resolve()), *sys.argv[1:]], check=False,
-            env={**os.environ, "GITLAB_BOOTSTRAP_TOKEN_NAME": "bm-application-delivery-" + uuid.uuid4().hex}).returncode
+            env={**os.environ, "GITLAB_BOOTSTRAP_TOKEN_NAME": "swirl-cloud-application-delivery-" + uuid.uuid4().hex}).returncode
     spec = importlib.util.spec_from_file_location("repository_operations", ROOT / "scripts/onboard-repositories.py")
     operations = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(operations)

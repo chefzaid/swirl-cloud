@@ -32,7 +32,7 @@ spec:
       labels:
         app: redis
       annotations:
-        bm-cluster.io/application-data: disabled
+        swirl-cloud.io/application-data: disabled
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -86,6 +86,43 @@ spec:
         - name: redis-acl
           mountPath: /etc/redis-acl
           readOnly: true
+      - name: redis-exporter
+        image: quay.io/oliver006/redis_exporter:v1.92.0-alpine@sha256:b07ce24af20faeb4033a91dd30c2639dba6fc059cdfec97ecc7d320dab4f43cb
+        # The ACL Secret can exist before Redis enforces it; an unexpected
+        # password makes every scrape fail authentication.
+        command: ["sh", "-ec"]
+        args:
+        - |
+          [ "${BM_REDIS_AUTH_ENABLED:-false}" = true ] || unset REDIS_PASSWORD
+          exec /redis_exporter
+        envFrom:
+        - configMapRef:
+            name: application-data-access
+            optional: true
+        env:
+        - name: REDIS_ADDR
+          value: redis://127.0.0.1:6379
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: application-redis-auth
+              key: auth
+              optional: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+        ports:
+        - name: metrics
+          containerPort: 9121
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
       volumes:
       - name: redis-acl
         secret:

@@ -27,7 +27,7 @@ Usage: reconcile-control-plane-access.sh [options]
 
 Run on any registered control plane. The current Kubernetes inventory selects
 control-plane SSH sources and private node targets. Nodes with a recorded
-node.bm-cluster.io/ssh-user annotation use that account instead of --ssh-user.
+node.swirl-cloud.io/ssh-user annotation use that account instead of --ssh-user.
 Existing SSH keys and passwordless sudo are required. Public-entry nodes retain
 their existing administration policy. Unreachable private nodes fail the run.
 EOF
@@ -66,14 +66,14 @@ targets="$(jq -r --arg source "$SOURCE_IP" '
   select($ip != $source) |
   ((.metadata.labels | has("node-role.kubernetes.io/control-plane")) or
    (.metadata.labels | has("node-role.kubernetes.io/master"))) as $cp |
-  select(($cp | not) or .metadata.labels["node.bm-cluster.io/exposure"] == "local") |
+  select(($cp | not) or .metadata.labels["node.swirl-cloud.io/exposure"] == "local") |
   [.metadata.name, $ip, (if $cp then "control-plane" else "worker" end),
-   (.metadata.annotations["node.bm-cluster.io/ssh-user"] // "-")] | @tsv
+   (.metadata.annotations["node.swirl-cloud.io/ssh-user"] // "-")] | @tsv
 ' <<< "$nodes")"
 
 remote_dir=""; target=""
 cleanup() {
-    if [[ "$remote_dir" == /tmp/bm-node-access.* && -n "$target" ]]; then
+    if [[ "$remote_dir" == /tmp/swirl-cloud-node-access.* && -n "$target" ]]; then
         ssh -n "${ssh_options[@]}" "$target" "rm -rf -- $(printf '%q' "$remote_dir")" >/dev/null 2>&1 || true
     fi
 }
@@ -87,8 +87,8 @@ while IFS=$'\t' read -r name address role recorded_user; do
     connection="$(ssh -n "${ssh_options[@]}" "$target" '(test "$(id -u)" -eq 0 || sudo -n true) && printf "%s" "$SSH_CONNECTION"')"
     read -r actual_source _ actual_target actual_port <<< "$connection"
     [[ "$actual_source" == "$SOURCE_IP" && "$actual_target" == "$address" && "$actual_port" == "$SSH_PORT" ]] || error "Private SSH identity check failed for $name"
-    remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/bm-node-access.XXXXXX')"
-    [[ "$remote_dir" =~ ^/tmp/bm-node-access\.[A-Za-z0-9]+$ ]] || error "Invalid remote temporary directory"
+    remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-node-access.XXXXXX')"
+    [[ "$remote_dir" =~ ^/tmp/swirl-cloud-node-access\.[A-Za-z0-9]+$ ]] || error "Invalid remote temporary directory"
     quoted_dir="$(printf '%q' "$remote_dir")"
     ssh -n "${ssh_options[@]}" "$target" "mkdir -m 700 $quoted_dir/lib"
     scp "${scp_options[@]}" "$SCRIPT_DIR/configure-node-security.sh" "$target:$remote_dir/"

@@ -15,7 +15,7 @@ PRIVATE_INTERFACE="${K3S_PRIVATE_INTERFACE:-}"
 PUBLIC_IP="${K3S_PUBLIC_ADDRESS:-}"
 PRIVATE_ONLY=false
 RESTART=false
-CONFIG_PATH="/etc/rancher/k3s/config.yaml.d/20-bm-private-node-network.yaml"
+CONFIG_PATH="/etc/rancher/k3s/config.yaml.d/20-swirl-cloud-private-node-network.yaml"
 
 info() { printf '\033[0;32m[INFO]\033[0m  %s\n' "$*"; }
 error() { printf '\033[0;31m[ERROR]\033[0m %s\n' "$*" >&2; exit 1; }

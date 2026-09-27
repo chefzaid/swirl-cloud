@@ -7,7 +7,7 @@ TARGETS="${LYNIS_REMOTE_TARGETS:-}"
 SSH_USER="${LYNIS_SSH_USER:-${USER:-}}"
 SSH_PORT="${LYNIS_SSH_PORT:-22}"
 IDENTITY_FILE="${LYNIS_IDENTITY_FILE:-}"
-REPORT_ROOT="${LYNIS_REPORT_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/bm-cluster/lynis-reports}"
+REPORT_ROOT="${LYNIS_REPORT_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/swirl-cloud/lynis-reports}"
 NON_INTERACTIVE=false
 SKIP_CONTROL_PLANE=false
 SUDO=()
@@ -34,7 +34,7 @@ Options:
   --ssh-user USER        Default SSH user when a target omits user@ (default: current user)
   --ssh-port PORT        SSH port shared by worker targets (default: 22)
   --identity-file PATH   SSH private key (default: SSH agent/config)
-  --report-dir PATH      Protected report root (default: ~/.local/state/bm-cluster/lynis-reports)
+  --report-dir PATH      Protected report root (default: ~/.local/state/swirl-cloud/lynis-reports)
   --skip-control-plane   Audit only remote workers
   --non-interactive      Fail instead of prompting
   -h, --help             Show this help
@@ -137,7 +137,7 @@ work_dir="$(mktemp -d)"
 active_target=""
 active_remote_dir=""
 cleanup() {
-    if [[ -n "$active_target" && "$active_remote_dir" == /tmp/bm-cluster-lynis.* ]]; then
+    if [[ -n "$active_target" && "$active_remote_dir" == /tmp/swirl-cloud-lynis.* ]]; then
         printf -v cleanup_dir '%q' "$active_remote_dir"
         ssh "${ssh_options[@]}" "$active_target" "rm -rf -- $cleanup_dir" >/dev/null 2>&1 || true
     fi
@@ -191,8 +191,8 @@ for host in "${hosts[@]}"; do
         remote_sudo="sudo -n"
     fi
 
-    remote_dir="$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/bm-cluster-lynis.XXXXXX')"
-    [[ "$remote_dir" == /tmp/bm-cluster-lynis.* ]] || error "Could not create a safe audit directory on $target."
+    remote_dir="$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-lynis.XXXXXX')"
+    [[ "$remote_dir" == /tmp/swirl-cloud-lynis.* ]] || error "Could not create a safe audit directory on $target."
     active_target="$target"
     active_remote_dir="$remote_dir"
     printf -v quoted_dir '%q' "$remote_dir"

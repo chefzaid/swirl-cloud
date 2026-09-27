@@ -1,16 +1,16 @@
 {{- if or .Values.platformMigrationRequired (hasKey .Values "securityImagesEnabled") -}}
-{{- fail "Legacy ingress/image settings require explicit migration; follow docs/platform-migration.md and replace the root Application Helm settings." -}}
+{{- fail "Legacy ingress/image settings require explicit migration; follow docs/guides/platform-migration.md and replace the root Application Helm settings." -}}
 {{- end -}}
-{{- define "bm-cluster.render" -}}
+{{- define "swirl-cloud.render" -}}
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}
 {{- $content := $root.Files.Get $path -}}
-{{- range $annotation, $source := dict "bm-cluster.io/application-observability" "platform/application-observability.yaml" "bm-cluster.io/logging-agent" "platform/logging-agent.yaml" -}}
-{{- $checksum := printf "%s\n%s" ($root.Files.Get $source) (include "bm-cluster.identity" $root) | sha256sum -}}
+{{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "platform/monitoring.yaml" -}}
+{{- $checksum := printf "%s\n%s" ($root.Files.Get $source) (include "swirl-cloud.identity" $root) | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
 {{- end -}}
-{{- $content = replace "bm-cluster.io/application-data: disabled" (printf "bm-cluster.io/application-data: %s" (toJson ($root.Values.applicationData | default dict) | sha256sum)) $content -}}
-{{- range $token, $value := (include "bm-cluster.identity" $root | fromJson) -}}
+{{- $content = replace "swirl-cloud.io/application-data: disabled" (printf "swirl-cloud.io/application-data: %s" (toJson ($root.Values.applicationData | default dict) | sha256sum)) $content -}}
+{{- range $token, $value := (include "swirl-cloud.identity" $root | fromJson) -}}
 {{- $content = replace $token $value $content -}}
 {{- end -}}
 {{- $content = replace "__PUBLIC_DOMAIN__" (required "publicDomain is required" $root.Values.publicDomain) $content -}}
@@ -41,13 +41,13 @@
 
 {{- range $path, $_ := .Files.Glob "base/*.yaml" }}
 {{- if or $.Values.appsEnabled (ne $path "base/corp-namespace.yaml") }}
-{{ include "bm-cluster.render" (list $ $path) }}
+{{ include "swirl-cloud.render" (list $ $path) }}
 {{- end }}
 {{- end }}
 {{- range $path, $_ := .Files.Glob "datastores/*.yaml" }}
 {{- $pg := $.Values.postgresHa | default dict }}
 {{- if and (eq $path "datastores/postgres.yaml") $pg.enabled $pg.active }}
-{{- range $document := splitList "\n---" (include "bm-cluster.render" (list $ $path)) }}
+{{- range $document := splitList "\n---" (include "swirl-cloud.render" (list $ $path)) }}
 {{- $resource := $document | fromYaml }}
 {{- if $resource.kind }}
 {{- if eq $resource.kind "Deployment" }}
@@ -61,13 +61,13 @@
 {{- end }}
 {{- else }}
 {{- if and (eq $path "datastores/redis.yaml") $.Values.highAvailabilityEnabled }}
-{{- range $document := splitList "\n---" (include "bm-cluster.render" (list $ $path)) }}
+{{- range $document := splitList "\n---" (include "swirl-cloud.render" (list $ $path)) }}
 {{- $resource := $document | fromYaml }}
 {{- if $resource.kind }}
 {{- if eq $resource.kind "Deployment" }}
 {{- $_ := set $resource.spec "replicas" 0 }}
 {{- else if eq $resource.kind "Service" }}
-{{- $_ := set $resource.spec "selector" (dict "app" "redis-ha-haproxy" "release" "bm-cluster" "component" "haproxy") }}
+{{- $_ := set $resource.spec "selector" (dict "app" "redis-ha-haproxy" "release" "swirl-cloud" "component" "haproxy") }}
 {{- end }}
 {{ toYaml $resource }}
 ---
@@ -76,16 +76,16 @@
 {{- else }}
 {{- $kafka := $.Values.kafkaHa | default dict }}
 {{- if and (eq $path "datastores/kafka.yaml") $kafka.enabled }}
-{{ include "bm-cluster.kafka-ha" (list $ $path) }}
+{{ include "swirl-cloud.kafka-ha" (list $ $path) }}
 {{- else }}
-{{ include "bm-cluster.render" (list $ $path) }}
+{{ include "swirl-cloud.render" (list $ $path) }}
 {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
 {{- range $path, $_ := .Files.Glob "platform/*.yaml" }}
 {{- if and (eq $path "platform/keycloak.yaml") $.Values.highAvailabilityEnabled }}
-{{- range $document := splitList "\n---" (include "bm-cluster.render" (list $ $path)) }}
+{{- range $document := splitList "\n---" (include "swirl-cloud.render" (list $ $path)) }}
 {{- $resource := $document | fromYaml }}
 {{- if $resource.kind }}
 {{- if eq $resource.kind "Deployment" }}
@@ -102,15 +102,15 @@
 {{- end }}
 {{- end }}
 {{- else }}
-{{ include "bm-cluster.render" (list $ $path) }}
+{{ include "swirl-cloud.render" (list $ $path) }}
 {{- end }}
 {{- end }}
 {{- if .Values.appsEnabled }}
 {{- range $path, $_ := .Files.Glob "corp/*.yaml" }}
-{{ include "bm-cluster.render" (list $ $path) }}
+{{ include "swirl-cloud.render" (list $ $path) }}
 {{- end }}
 {{- end }}
 {{- if .Values.deschedulerEnabled }}
-{{ include "bm-cluster.render" (list $ "addons/descheduler.yaml") }}
+{{ include "swirl-cloud.render" (list $ "addons/descheduler.yaml") }}
 {{- end }}
-{{ include "bm-cluster.render" (list $ "addons/bm-cluster-application.yaml") }}
+{{ include "swirl-cloud.render" (list $ "addons/swirl-cloud-application.yaml") }}

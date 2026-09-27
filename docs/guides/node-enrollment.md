@@ -1,4 +1,4 @@
-# Add control-plane or worker nodes
+# Node Enrollment And Private Networking
 
 Run the node assistant from a registered control plane:
 
@@ -7,7 +7,7 @@ Run the node assistant from a registered control plane:
 ```
 
 This assistant expands the shared platform. Dedicated application targets use
-the [separate bootstrap](installation.md#application-deployment-clusters) and the
+the [separate bootstrap](../deployment.md#application-deployment-clusters) and the
 application-node procedure below; the platform enrollment assistant rejects an
 application-cluster host.
 
@@ -18,10 +18,87 @@ scheduling and storage placement together.
 
 New hosts need Debian/Ubuntu, unique names and addresses, SSH keys, and root or
 passwordless sudo access. Prepare the existing cluster's
-[private transport](networking.md#private-node-network); enrollment proves private
-SSH before applying the [host exposure policy](networking.md#exposure-boundaries).
+[private transport](#private-node-network); enrollment proves private
+SSH before applying the [host exposure policy](../security.md#exposure-boundaries).
 For service redundancy beyond node membership, follow the
 [HA activation order](high-availability.md#activate-in-order).
+
+## Private node network
+
+| Transport | Use when | Prepare |
+| --- | --- | --- |
+| OVHcloud vRack | Every node is an eligible OVHcloud Dedicated Server | Activated vRack, attached interfaces, unused RFC1918 subnet and unique node addresses |
+| Tailscale | Nodes span providers, locations or unrelated LANs | Tailnet and a temporary personal API access token |
+
+The [installer](../deployment.md#installation-prerequisites) and [node assistant](../../add-node.sh) share
+the account wizard and transport setup. They validate the account, prepare the
+private interface, prove private SSH, and then apply UFW. Keep provider console
+or rescue access available while configuring a new network.
+
+### OVHcloud vRack
+
+Activate the vRack and record every server's service name, private NIC name or
+MAC, and assigned private address. Attach servers manually in the OVHcloud
+Control Panel, or let the wizard attach their interfaces through the API.
+Host configuration uses Netplan or ifupdown and preserves the public route.
+
+For unattended installation on a prepared vRack:
+
+```bash
+export K3S_NODE_TRANSPORT=vrack
+export K3S_PRIVATE_ADDRESS=10.40.0.10
+export K3S_PRIVATE_INTERFACE=eno2
+export K3S_NODE_NETWORK_CIDR=10.40.0.0/24
+export K3S_CONTROL_PLANE_IPS=10.40.0.11,10.40.0.12
+export K3S_WORKER_IPS=10.40.0.20
+export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
+```
+
+Use `K3S_PRIVATE_INTERFACE_MAC` to verify the expected NIC and
+`K3S_VRACK_VLAN_ID` for a tagged vRack VLAN when needed. Final node counts and
+scheduling remain [installer inputs](../deployment.md#unattended-installation).
+
+API-managed attachment additionally uses `OVH_VRACK_AUTOMATE_ACCOUNT=true`,
+`OVH_API_ENDPOINT`, `OVH_VRACK_SERVICE_NAME`,
+`OVH_CONTROL_PLANE_SERVICE_NAME`, `OVH_APPLICATION_KEY`,
+`OVH_APPLICATION_SECRET` and `OVH_CONSUMER_KEY`. The temporary credentials need:
+
+```text
+GET  /vrack
+GET  /vrack/*
+POST /vrack/*/dedicatedServerInterface
+GET  /dedicated/server/*/networking
+```
+
+The wizard prints the regional credential page and verifies access before
+making changes. Revoke temporary credentials after enrollment.
+
+### Tailscale
+
+Create a short-lived personal API token in the tailnet's **Settings > Keys**
+page using an account allowed to manage its devices and policy. The wizard
+accepts a `tskey-api-` token and issues one-use tagged device keys itself. See
+the [Tailscale API documentation](https://tailscale.com/docs/reference/tailscale-api).
+
+```bash
+export K3S_NODE_TRANSPORT=tailscale
+export TAILSCALE_TAILNET='example.com' # '-' uses the token's tailnet
+export TAILSCALE_MESH_NAME=swirl-cloud
+export TAILSCALE_NODE_HOSTNAME=swirl-cloud-control-plane
+read -rsp 'Tailscale personal API token: ' TAILSCALE_API_TOKEN
+echo
+export TAILSCALE_API_TOKEN
+```
+
+The configurator merges this cluster's role tags and grants into the existing
+policy, installs Tailscale on each target, and discovers its private address.
+K3s binds to `tailscale0` with trusted node CIDR `100.64.0.0/10`. Control planes
+and workers have separate grants; etcd traffic is limited to control planes.
+Unset and revoke the API token after enrollment.
+
+To provision just the mesh, run `./scripts/configure-tailscale.sh --fleet`.
+For K3s membership, use `./add-node.sh` so installation and security are also
+reconciled.
 
 ## Role-specific installation
 
@@ -71,7 +148,7 @@ hostname. It forwards registry settings to the new host; explicit `PLATFORM_DOMA
 
 When adding control planes to a SQLite cluster, the assistant saves an
 integrity-checked database backup and server credentials/configuration under
-`/var/backups/bm-cluster/k3s/pre-etcd-<timestamp>`, restricted to root. It then
+`/var/backups/swirl-cloud/k3s/pre-etcd-<timestamp>`, restricted to root. It then
 restarts the bootstrap K3s server with embedded etcd and waits for readiness.
 Existing embedded-etcd membership is reused; external or unknown datastores
 are rejected. Adding workers does not convert the datastore.
@@ -93,7 +170,7 @@ For unattended enrollment, supply the role, mode, transport and targets:
 
 For Tailscale, use `--transport tailscale` and replace `--ips` with
 `--hosts admin@host-02,admin@host-03`. Supply the existing cluster's
-[Tailscale inputs](networking.md#tailscale); the assistant discovers private
+[Tailscale inputs](#tailscale); the assistant discovers private
 addresses and assigns tags by role. `--ips` and `--hosts` imply unattended mode;
 `--non-interactive` and `--yes` also disable prompts.
 
@@ -216,8 +293,8 @@ kubectl wait --for=condition=Ready node --all --timeout=5m
 ```
 
 Run `./add-node.sh --help`, or append `--help` after both role and mode for the
-complete options. For initial multi-node planning see [installation](installation.md);
-[Ansible installation](installation.md#ansible-installation) uses the same enrollment
+complete options. For initial multi-node planning see [installation](../deployment.md#topology-and-scheduling);
+[Ansible installation](../deployment.md#ansible-installation) uses the same enrollment
 workflow. `ansible/deploy.yml` reconciles the installed platform and does not
 add nodes.
 
@@ -225,9 +302,9 @@ add nodes.
 
 An `int`, `uat` or `prod` target is a separate cluster, not a worker pool joined
 to the platform. Bootstrap its first host with
-[`install-application-cluster.sh`](../scripts/install-application-cluster.sh),
+[`install-application-cluster.sh`](../../scripts/install-application-cluster.sh),
 then register it centrally as described in
-[installation](installation.md#application-deployment-clusters).
+[installation](../deployment.md#application-deployment-clusters).
 
 The initial application bootstrap supports one control plane per target.
 Additional target nodes require a deliberate native K3s expansion: use that

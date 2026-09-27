@@ -326,7 +326,7 @@ def render_profiles(output):
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "TMPDIR"}}
     env.update(PYTHONDONTWRITEBYTECODE="1", KUBECONFIG="/dev/null")
     for legacy in ("bootstrap", "patched"):
-        result = subprocess.run(["helm", "template", "bm-cluster", str(ROOT / "k8s"),
+        result = subprocess.run(["helm", "template", "swirl-cloud", str(ROOT / "k8s"),
                                  "--values", str(ROOT / f"k8s/profiles/security-images-{legacy}.values")],
                                 text=True, capture_output=True, env=env)
         require(result.returncode != 0 and "Legacy ingress/image settings require explicit migration" in result.stderr,
@@ -362,11 +362,11 @@ def render_profiles(output):
         run("bash", str(ROOT / "scripts/render-cluster-config.sh"), "--output", str(stage),
             "--domain", "example.com", "--internal-domain", "internal.example.com",
             "--organization-name", "Example & Company", "--organization-slug", "example",
-            "--gitlab-group", "example", "--gitlab-project", "bm-cluster",
-            "--gitops-repository", "https://github.com/example/bm-cluster.git",
+            "--gitlab-group", "example", "--gitlab-project", "swirl-cloud",
+            "--gitops-repository", "https://github.com/example/swirl-cloud.git",
             "--cloudflare-access-team", "example", "--apps-enabled", flag(apps),
             "--descheduler-enabled", flag(apps), env=profile_env)
-        application = yaml.safe_load((stage / "k8s/addons/bm-cluster-application.yaml").read_text())
+        application = yaml.safe_load((stage / "k8s/addons/swirl-cloud-application.yaml").read_text())
         helm = application["spec"]["source"]["helm"]
         values = dict(helm["valuesObject"])
         for parameter in helm["parameters"]:
@@ -385,12 +385,12 @@ def render_profiles(output):
             options += ["--values", str(ROOT / "k8s" / profile)]
         options += ["--values", str(value_file)]
         run("helm", "lint", str(ROOT / "k8s"), "--strict", *options, env=env)
-        rendered = run("helm", "template", "bm-cluster", str(ROOT / "k8s"), "--skip-tests", *options, env=env)
+        rendered = run("helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--skip-tests", *options, env=env)
         require(set(TOKEN.findall(rendered)) <= {"__RUNNER_TOKEN__"}, f"{label}: unresolved deployment placeholders")
         runtime = index(documents(rendered))
         resource_wiring(list(runtime.values()))
         owned = {identity(doc) for block in rendered.split("\n---")
-                 if "# Source: bm-cluster/templates/" in block for doc in documents(block)}
+                 if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
         require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")
         require(any(doc["kind"] == "Deployment" and doc["metadata"]["name"] == "odoo" for doc in runtime.values()) == apps, f"{label}: incorrect Odoo scope")
         for group in (*GROUPS, "ha"):

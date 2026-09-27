@@ -138,7 +138,7 @@ class EnvironmentOnboarding:
         if (data.get("name") != target["clusterName"] or data.get("server") != target["server"] or
                 data.get("namespaces") != target["namespace"] or data.get("clusterResources") != "false" or
                 data.get("project") != target["project"] or
-                metadata.get("labels", {}).get("bm-cluster.io/application-environment") != environment):
+                metadata.get("labels", {}).get("swirl-cloud.io/application-environment") != environment):
             raise OnboardingError("Registered Argo cluster does not match the selected environment")
         local = target.get("mode", "remote") == "local"
         registration_type = metadata.get("labels", {}).get("argocd.argoproj.io/secret-type")
@@ -210,7 +210,7 @@ class EnvironmentOnboarding:
             with self.target_kubeconfig(env) as path:
                 namespace = subprocess.run(["kubectl", "--kubeconfig", path, "get", "namespace", target["namespace"], "-o", "json"],
                                            text=True, capture_output=True, timeout=30, check=True)
-                if json.loads(namespace.stdout)["metadata"].get("labels", {}).get("bm-cluster.io/application-environment") != env:
+                if json.loads(namespace.stdout)["metadata"].get("labels", {}).get("swirl-cloud.io/application-environment") != env:
                     raise OnboardingError("Target namespace environment identity does not match registration")
         return ci
 

@@ -1,8 +1,8 @@
-# Migrating the platform to Traefik and upstream images
+# Migrating The Platform To Traefik And Upstream Images
 
 Chart 2 moves routing from retired ingress-nginx to native Traefik Ingress and
 replaces privately rebuilt platform images with pinned public vendor images.
-This is a maintenance operation spanning `bm-cluster`, DevApp, Indezy, Thoughty
+This is a maintenance operation spanning `swirl-cloud`, DevApp, Indezy, Thoughty
 and Website. It is separate from changing topology or activating database HA.
 New installations do not need this procedure.
 
@@ -23,11 +23,11 @@ migration changes.
    images. Restore copies into disposable infrastructure. Check PostgreSQL
    collations/extensions and globals, MongoDB authentication/data, Vault unseal
    and Raft, GitLab repositories/secrets, and Keycloak/SonarQube database access.
-   [Image maintenance](maintenance.md#runtime-and-recovery-constraints)
+   [Image maintenance](../operations.md#runtime-and-recovery-constraints)
    explains runtime identity changes. Stop writers before the final migration
    backup and ownership changes. Never run old and new writers against one volume.
 3. Render the cluster with its existing identity and HA values using
-   [the installation inputs](installation.md#organization-and-installation-identity).
+   [the installation inputs](../deployment.md#organization-and-installation-identity).
    Review the resulting root Application and every app's rendered manifests.
    Preserve all installed identity, Odoo scope and HA migration settings. Rehearse
    the source revisions, routing and data restore on an isolated K3s cluster.

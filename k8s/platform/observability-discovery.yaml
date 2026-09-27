@@ -23,7 +23,7 @@ data:
             "label": "Environment namespace",
             "type": "query",
             "datasource": {"type": "prometheus", "uid": "prometheus"},
-            "query": {"query": "label_values(kube_namespace_labels{label_bm_cluster_io_application_workloads=\"true\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+            "query": {"query": "label_values(kube_namespace_labels{label_swirl_cloud_io_application_workloads=\"true\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
             "includeAll": true,
             "multi": true,
             "refresh": 1,

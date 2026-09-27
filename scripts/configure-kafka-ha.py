@@ -325,7 +325,7 @@ class Migration:
 
     def render(self, ha, filename):
         values = self.write("render-values.json", self.desired_values(ha))
-        output = self.run(["helm", "template", "bm-cluster", str(ROOT / "k8s"), "-n", NAMESPACE, "-f", str(values)])
+        output = self.run(["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "-n", NAMESPACE, "-f", str(values)])
         names = {("StatefulSet", "kafka"), ("StatefulSet", "kafka-controller"), ("Service", "kafka"),
                  ("Service", "kafka-controller"), ("ConfigMap", "kafka-ha-startup"),
                  ("PodDisruptionBudget", "kafka"), ("PodDisruptionBudget", "kafka-controller")}
@@ -348,8 +348,8 @@ class Migration:
         # Merge only this service's map. Preserve PostgreSQL, fencing, source path,
         # sync policy and every unrelated Argo field, including existing HA mode.
         for app in self.get("applications.argoproj.io", namespace=None, all_namespaces=True)["items"]:
-            if app["metadata"]["name"] == "bm-cluster" and app["metadata"]["namespace"] == NAMESPACE:
-                self.kube("patch", "application.argoproj.io", "bm-cluster", "-n", app["metadata"]["namespace"], "--type", "merge",
+            if app["metadata"]["name"] == "swirl-cloud" and app["metadata"]["namespace"] == NAMESPACE:
+                self.kube("patch", "application.argoproj.io", "swirl-cloud", "-n", app["metadata"]["namespace"], "--type", "merge",
                           "-p", json.dumps({"spec": {"source": {"helm": {"valuesObject": {"kafkaHa": ha}}}}}))
         resources.sort(key=lambda r: {"ConfigMap": 0, "Service": 1, "StatefulSet": 2, "PodDisruptionBudget": 3}[r["kind"]])
         for resource in resources:
@@ -409,8 +409,8 @@ class Migration:
             if not full_replication(parts):
                 plan = assignment(parts)
                 self.write("reassignment.json", plan)
-                self.tool(self.broker(), ["sh", "-ceu", "cat > /tmp/bm-kafka-ha-reassignment.json"], json.dumps(plan).encode())
-                self.admin("kafka-reassign-partitions", "--reassignment-json-file", "/tmp/bm-kafka-ha-reassignment.json", "--execute")
+                self.tool(self.broker(), ["sh", "-ceu", "cat > /tmp/swirl-cloud-kafka-ha-reassignment.json"], json.dumps(plan).encode())
+                self.admin("kafka-reassign-partitions", "--reassignment-json-file", "/tmp/swirl-cloud-kafka-ha-reassignment.json", "--execute")
                 self.wait(lambda: full_replication(self.topics()), "Partition replication did not reach RF=3/full ISR; write policy remains unchanged")
             # Enforce broker overrides as well as rendered defaults, so a prior
             # dynamic setting cannot silently defeat the final durability policy.

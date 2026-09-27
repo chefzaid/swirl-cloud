@@ -41,12 +41,12 @@ def main():
         merge(values, yaml.safe_load(args.values.read_text()))
     enabled = os.environ.get("HIGH_AVAILABILITY_ENABLED", "false") == "true"
     values["highAvailabilityEnabled"] = enabled
-    with tempfile.TemporaryDirectory(prefix="bm-ha-render.") as directory:
+    with tempfile.TemporaryDirectory(prefix="swirl-cloud-ha-render.") as directory:
         value_file = Path(directory) / "values.json"
 
         def render(enabled, templates=()):
             value_file.write_text(json.dumps({**values, "highAvailabilityEnabled": enabled}))
-            command = ["helm", "template", "bm-cluster", str(ROOT / "k8s"),
+            command = ["helm", "template", "swirl-cloud", str(ROOT / "k8s"),
                        "--namespace", "infra", "--skip-tests", "--values", str(value_file)]
             for template in templates:
                 command += ["--show-only", template]

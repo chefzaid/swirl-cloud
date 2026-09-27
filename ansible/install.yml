@@ -1,5 +1,5 @@
 ---
-- name: Install bm-cluster through the shared host and platform workflow
+- name: Install swirl-cloud through the shared host and platform workflow
   hosts: localhost
   connection: local
   gather_facts: false

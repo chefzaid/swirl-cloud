@@ -1,4 +1,4 @@
-{{- define "bm-cluster.kafka-ha" -}}
+{{- define "swirl-cloud.kafka-ha" -}}
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}
 {{- $ha := $root.Values.kafkaHa -}}
@@ -12,7 +12,7 @@
 {{- if ne $ha.phase "dynamic" -}}
 {{- $quorum = printf "%s,kafka-controller-1.kafka-controller.infra.svc.cluster.local:9093,kafka-controller-2.kafka-controller.infra.svc.cluster.local:9093" $quorum -}}
 {{- end -}}
-{{- range $document := splitList "\n---" (include "bm-cluster.render" (list $root $path)) }}
+{{- range $document := splitList "\n---" (include "swirl-cloud.render" (list $root $path)) }}
 {{- $resource := $document | fromYaml }}
 {{- if $resource.kind }}
 {{- if and (eq $resource.kind "Service") (eq $resource.metadata.name "kafka-controller") }}
@@ -29,7 +29,7 @@
 {{- $_ := set $pod "volumes" $volumes }}
 {{- $selector := dict "matchLabels" (dict "app" $resource.metadata.name) }}
 {{- $_ := set $pod "affinity" (dict "podAntiAffinity" (dict "requiredDuringSchedulingIgnoredDuringExecution" (list (dict "labelSelector" $selector "topologyKey" "kubernetes.io/hostname")))) }}
-{{- $_ := set $container "command" (list "/bin/bash" "/opt/bm-cluster/kafka-start.sh") }}
+{{- $_ := set $container "command" (list "/bin/bash" "/opt/swirl-cloud/kafka-start.sh") }}
 {{- $_ := unset $container "args" }}
 {{- $env := list }}
 {{- range $value := $container.env }}
@@ -59,7 +59,7 @@
 {{- $_ := set $container "env" $env }}
 {{- $_ := set $container.securityContext "readOnlyRootFilesystem" true }}
 {{- $_ := set $container "volumeMounts" (concat $container.volumeMounts (list
-    (dict "name" "ha-startup" "mountPath" "/opt/bm-cluster" "readOnly" true)
+    (dict "name" "ha-startup" "mountPath" "/opt/swirl-cloud" "readOnly" true)
     (dict "name" "runtime-config" "mountPath" "/etc/kafka")
     (dict "name" "runtime-tmp" "mountPath" "/tmp"))) }}
 {{- $_ := set $pod "volumes" (concat ($pod.volumes | default list) (list

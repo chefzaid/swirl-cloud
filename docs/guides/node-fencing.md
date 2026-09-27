@@ -1,4 +1,4 @@
-# Recover a persistent singleton after a host failure
+# Recover A Persistent Singleton After A Host Failure
 
 [The HA profile](high-availability.md) gives application and datastore replicas
 separate hosts. Services that retain one writer, such as GitLab Omnibus and
@@ -49,7 +49,7 @@ HIGH_AVAILABILITY_ENABLED=true bash scripts/configure-ha-control-planes.sh \
 
 Use your actual private CIDR, source address and SSH account; `--ssh-port` and
 `--identity-file` are also supported. Run one reconciliation at a time. The
-helper adds `/etc/rancher/k3s/config.yaml.d/99-bm-ha-storage-safety.yaml` with
+helper adds `/etc/rancher/k3s/config.yaml.d/99-swirl-cloud-ha-storage-safety.yaml` with
 `kube-controller-manager-arg+: [disable-force-detach-on-timeout=true]`. It rejects
 custom configuration locations or conflicting controller arguments. Other K3s
 arguments remain intact.
@@ -61,7 +61,7 @@ restart requires a fresh Ready majority to survive, then a new
 Ready heartbeat before moving on. Membership and private host identities are
 checked throughout. The current K3s invocation's startup log must confirm the
 flag before the helper marks the node's
-`node.bm-cluster.io/fenced-detach-policy` annotation as `verified`.
+`node.swirl-cloud.io/fenced-detach-policy` annotation as `verified`.
 
 The installer and Ansible reconciliation use the same helper. Additional control
 planes in an existing HA cluster receive the drop-in before K3s starts. A local

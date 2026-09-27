@@ -17,7 +17,7 @@ NAMESPACE="${INGRESS_NAMESPACE:-infra}"
 MODE="${HIGH_AVAILABILITY_ENABLED:-}"
 CANDIDATE="${INGRESS_MIGRATION_CANDIDATE:-false}"
 [[ "$CANDIDATE" =~ ^(true|false)$ ]] || fail 'INGRESS_MIGRATION_CANDIDATE must be true or false.'
-state="$(kubectl get configmap bm-cluster-public-ingress -n "$NAMESPACE" --ignore-not-found -o json)"
+state="$(kubectl get configmap swirl-cloud-public-ingress -n "$NAMESPACE" --ignore-not-found -o json)"
 [[ -n "$state" ]] || state='{}'
 stored_mode="$(jq -r '.data.mode // "direct"' <<< "$state")"
 [[ -n "$MODE" ]] || { MODE=false; [[ "$stored_mode" != tunnel ]] || MODE=true; }
@@ -29,9 +29,9 @@ if [[ "$CANDIDATE" == true ]] && jq -e 'any(.[]; .name == "traefik")' <<< "$rele
     fail 'A traefik release already exists; candidate mode cannot replace an active ingress. Remove only a verified disposable candidate before repeating its installation.'
 fi
 if [[ "$CANDIDATE" != true ]] && jq -e 'any(.[]; .name == "ingress-nginx")' <<< "$releases" >/dev/null; then
-    fail 'Migrate the existing ingress-nginx release first; see docs/platform-migration.md. Use INGRESS_MIGRATION_CANDIDATE=true for an isolated ClusterIP candidate.'
+    fail 'Migrate the existing ingress-nginx release first; see docs/guides/platform-migration.md. Use INGRESS_MIGRATION_CANDIDATE=true for an isolated ClusterIP candidate.'
 fi
-temporary="$(mktemp -d /tmp/bm-ingress.XXXXXX)"
+temporary="$(mktemp -d /tmp/swirl-cloud-ingress.XXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 # Render the one TLS identity input for direct invocations of this helper too.
 python3 - "$VALUES" "$temporary/base.yaml" "$TLS_SECRET_NAME" <<'PY'
@@ -72,7 +72,7 @@ helm upgrade --install traefik traefik/traefik \
     --namespace "$NAMESPACE" --version "${TRAEFIK_CHART_VERSION:-$DEFAULT_TRAEFIK_CHART_VERSION}" \
     --reset-values "${args[@]}" --wait --timeout "${INGRESS_HELM_TIMEOUT:-$DEFAULT_INGRESS_HELM_TIMEOUT}"
 if [[ "$CANDIDATE" == true ]]; then
-    printf '[INFO] Isolated ClusterIP candidate is ready; no tunnel connector was started. Follow docs/platform-migration.md.\n'
+    printf '[INFO] Isolated ClusterIP candidate is ready; no tunnel connector was started. Follow docs/guides/platform-migration.md.\n'
 elif [[ "$MODE" == true ]]; then
     printf '[INFO] HA ingress is ready. Run configure-cloudflare.sh to publish the tunnel CNAMEs.\n'
 fi

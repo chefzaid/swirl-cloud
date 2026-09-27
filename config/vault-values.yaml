@@ -112,3 +112,26 @@ server:
     limits:
       cpu: '1'
       memory: 512Mi
+  # The chart's single-server Raft configuration plus Prometheus telemetry;
+  # vault-ha-values.yaml replaces it with the same telemetry. Unauthenticated
+  # metrics also let standbys answer. Vault reads this at startup only.
+  ha:
+    raft:
+      config: |
+        ui = true
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          telemetry {
+            unauthenticated_metrics_access = true
+          }
+        }
+        storage "raft" {
+          path = "/vault/data"
+        }
+        service_registration "kubernetes" {}
+        telemetry {
+          prometheus_retention_time = "30s"
+          disable_hostname = true
+        }

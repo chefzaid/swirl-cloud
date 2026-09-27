@@ -1,140 +1,10 @@
-# Networking
+# Public DNS And Ingress
 
-Configure private transport, service routing and Cloudflare here.
-Use [node enrollment](node-enrollment.md) to join hosts and set scheduling, and
-[high availability](high-availability.md) for activation order and service limits.
-
-## Node topology
-
-```mermaid
-flowchart TB
-    accTitle: Default and HA ingress over the private node network
-    accDescr: Default public traffic enters the first control plane. Opt-in HA uses outbound Cloudflare Tunnel connectors beside ingress on each control plane. Control planes and workers communicate privately through vRack or Tailscale.
-    Edge["Cloudflare<br/>Public hostnames and edge TLS"]
-    subgraph Private["Private node network: vRack or Tailscale"]
-        First["First control plane<br/>K3s API and ingress<br/>HA: co-located Tunnel connector"]
-        Servers["Additional control planes<br/>K3s API and embedded etcd<br/>HA: ingress and Tunnel per host"]
-        Workers["Workers, when configured<br/>Workloads and Longhorn storage"]
-        First <-->|embedded etcd replication| Servers
-        First <-->|K3s and storage traffic| Workers
-        Servers <-->|K3s node traffic| Workers
-        First -.->|private SSH enrollment| Servers
-        First -.->|private SSH enrollment| Workers
-    end
-    Edge -->|default: public HTTPS| First
-    First <-->|HA: outbound Tunnel| Edge
-    Servers <-->|HA: outbound Tunnels| Edge
-```
-
-Solid links show runtime traffic; dotted links show enrollment. Public traffic
-uses the first control plane until [HA activation](high-availability.md#activate-in-order)
-switches it to independent Tunnel connectors. Adding nodes alone does not change
-that route. See [scheduling and storage](node-enrollment.md#scheduling-and-storage)
-for workload placement and [control-plane administration](node-enrollment.md#control-plane-administration)
-for private SSH and API access.
-
-### Namespaces
-
-| Namespace | Responsibility |
-| --- | --- |
-| `infra` | Shared platform services and Argo CD Applications |
-| `apps` | Workloads managed by application repositories |
-| `corp` | Centrally managed Odoo |
-| `gitlab-runners` | Isolated CI jobs |
-| `longhorn-system` | Persistent storage management |
-| `kube-system` | Kubernetes networking and system components |
-
-## Private node network
-
-| Transport | Use when | Prepare |
-| --- | --- | --- |
-| OVHcloud vRack | Every node is an eligible OVHcloud Dedicated Server | Activated vRack, attached interfaces, unused RFC1918 subnet and unique node addresses |
-| Tailscale | Nodes span providers, locations or unrelated LANs | Tailnet and a temporary personal API access token |
-
-The [installer](installation.md) and [node assistant](node-enrollment.md) share
-the account wizard and transport setup. They validate the account, prepare the
-private interface, prove private SSH, and then apply UFW. Keep provider console
-or rescue access available while configuring a new network.
-
-### OVHcloud vRack
-
-Activate the vRack and record every server's service name, private NIC name or
-MAC, and assigned private address. Attach servers manually in the OVHcloud
-Control Panel, or let the wizard attach their interfaces through the API.
-Host configuration uses Netplan or ifupdown and preserves the public route.
-
-For unattended installation on a prepared vRack:
-
-```bash
-export K3S_NODE_TRANSPORT=vrack
-export K3S_PRIVATE_ADDRESS=10.40.0.10
-export K3S_PRIVATE_INTERFACE=eno2
-export K3S_NODE_NETWORK_CIDR=10.40.0.0/24
-export K3S_CONTROL_PLANE_IPS=10.40.0.11,10.40.0.12
-export K3S_WORKER_IPS=10.40.0.20
-export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
-```
-
-Use `K3S_PRIVATE_INTERFACE_MAC` to verify the expected NIC and
-`K3S_VRACK_VLAN_ID` for a tagged vRack VLAN when needed. Final node counts and
-scheduling remain [installer inputs](installation.md#unattended-installation).
-
-API-managed attachment additionally uses `OVH_VRACK_AUTOMATE_ACCOUNT=true`,
-`OVH_API_ENDPOINT`, `OVH_VRACK_SERVICE_NAME`,
-`OVH_CONTROL_PLANE_SERVICE_NAME`, `OVH_APPLICATION_KEY`,
-`OVH_APPLICATION_SECRET` and `OVH_CONSUMER_KEY`. The temporary credentials need:
-
-```text
-GET  /vrack
-GET  /vrack/*
-POST /vrack/*/dedicatedServerInterface
-GET  /dedicated/server/*/networking
-```
-
-The wizard prints the regional credential page and verifies access before
-making changes. Revoke temporary credentials after enrollment.
-
-### Tailscale
-
-Create a short-lived personal API token in the tailnet's **Settings > Keys**
-page using an account allowed to manage its devices and policy. The wizard
-accepts a `tskey-api-` token and issues one-use tagged device keys itself. See
-the [Tailscale API documentation](https://tailscale.com/docs/reference/tailscale-api).
-
-```bash
-export K3S_NODE_TRANSPORT=tailscale
-export TAILSCALE_TAILNET='example.com' # '-' uses the token's tailnet
-export TAILSCALE_MESH_NAME=bm-cluster
-export TAILSCALE_NODE_HOSTNAME=bm-control-plane
-read -rsp 'Tailscale personal API token: ' TAILSCALE_API_TOKEN
-echo
-export TAILSCALE_API_TOKEN
-```
-
-The configurator merges this cluster's role tags and grants into the existing
-policy, installs Tailscale on each target, and discovers its private address.
-K3s binds to `tailscale0` with trusted node CIDR `100.64.0.0/10`. Control planes
-and workers have separate grants; etcd traffic is limited to control planes.
-Unset and revoke the API token after enrollment.
-
-To provision just the mesh, run `./scripts/configure-tailscale.sh --fleet`.
-For K3s membership, use `./add-node.sh` so installation and security are also
-reconciled.
-
-## Exposure boundaries
-
-| Node | Inbound access |
-| --- | --- |
-| First control plane | Default local or internet exposure; direct public HTTP/HTTPS is restricted to Cloudflare networks. HA ingress uses an outbound Tunnel instead of public ServiceLB |
-| Additional control plane | Private SSH from verified control planes, Kubernetes API TCP 6443 and etcd TCP 2379–2380 plus node peers; HA adds an outbound Tunnel with local ingress, without public ServiceLB advertisement |
-| Worker | Private SSH from verified control planes and required K3s/Longhorn peer traffic; no inbound server API, etcd or public ingress |
-
-Added nodes use default-deny inbound UFW. Both host input and forwarded
-Docker/Kubernetes traffic are restricted on non-cluster interfaces for IPv4
-and IPv6; outbound connections and their replies remain available. Private
-SSH must originate from the declared control-plane address before the
-provider-facing path is closed. See [host security](security.md) for controls
-and audits, and [node enrollment](node-enrollment.md) for role-specific setup.
+The platform owns the managed Cloudflare zone, platform hostnames, origin TLS,
+the Traefik ingress controller and cluster-only service names. Applications own
+their own hostnames, Ingress resources and redirects. Private node transport is
+covered in [node enrollment](guides/node-enrollment.md#private-node-network) and
+host exposure in [security](security.md#exposure-boundaries).
 
 ## Service DNS and registry routing
 
@@ -194,7 +64,7 @@ controls remain enabled. The token therefore needs **Bot Management Read** and
 ### Application DNS ownership
 
 Each application declares its own DNS records and owns their lifecycle.
-[`add-repos.sh`](repository-onboarding.md) can provision or reconcile those exact
+[`add-repos.sh`](guides/repository-onboarding.md) can provision or reconcile those exact
 hosts from `infra/onboarding.json`, without adding names to this repository.
 Direct ingress uses proxied A records targeting its unique public IPv4.
 Changing a hostname does not delete the old record; retire old hosts explicitly
@@ -202,10 +72,10 @@ after verifying the replacement route.
 
 After HA activation, use proxied CNAME records targeting
 `<publishedTunnelID>.cfargotunnel.com`. The platform publishes its nonsecret
-endpoint state in `infra/bm-cluster-public-ingress`:
+endpoint state in `infra/swirl-cloud-public-ingress`:
 
 ```bash
-kubectl -n infra get configmap bm-cluster-public-ingress -o json
+kubectl -n infra get configmap swirl-cloud-public-ingress -o json
 ```
 
 An application must wait until `data.mode=tunnel`, `data.publishedTunnelID` is
@@ -230,7 +100,7 @@ bundled Traefik disabled. Native Kubernetes Ingress preserves application-owned
 hosts, DNS/Homepage discovery and TLS secrets. Same-namespace Middleware adds
 authentication and request limits; Thoughty uses native weighted routes for its
 canary. This keeps the existing ownership model without another routing API
-migration. See [controller migration](platform-migration.md) for existing clusters.
+migration. See [controller migration](guides/platform-migration.md) for existing clusters.
 
 Only HTTP/HTTPS entry points receive public application routers. The shared
 header Middleware removes RFC `Forwarded`, `X-Real-IP` and forwarded routing
@@ -277,7 +147,7 @@ its readiness check requires a connected tunnel. Before changing public DNS to
 the tunnel CNAME, the configurator checks connectors on at least three distinct
 Ready control planes and performs verified HTTPS origin probes. The API token
 also needs account-level **Cloudflare Tunnel Edit** permission. Use the ordered
-[HA migration](high-availability.md#activate-in-order); allow a maintenance
+[HA migration](guides/high-availability.md#activate-in-order); allow a maintenance
 window for replacing the direct ingress path.
 
 Tunnel replicas provide connection redundancy; they do not promise even
@@ -285,3 +155,11 @@ traffic distribution or preserve an interrupted client connection. See
 [Cloudflare's replica and load-balancer distinction](https://developers.cloudflare.com/tunnel/routing/#replicas-versus-load-balancers).
 Public uploads still pass through Cloudflare's request limits. Verify Registry
 push/pull and application login through the tunnel before relying on failover.
+
+## Related Guides
+
+- [Architecture](architecture.md#node-topology)
+- [Deployment](deployment.md)
+- [Security](security.md)
+- [High availability](guides/high-availability.md)
+- [Repository onboarding](guides/repository-onboarding.md)

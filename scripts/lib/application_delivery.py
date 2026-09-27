@@ -18,8 +18,8 @@ from onboarding_services import HTTP, HTTPFailure, ServiceError
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "gitlab-runners"
-MANAGER = "bm-cluster-application-delivery"
-TAGS = {"int": "bm-application-int", "release": "bm-application-release"}
+MANAGER = "swirl-cloud-application-delivery"
+TAGS = {"int": "swirl-cloud-application-int", "release": "swirl-cloud-application-release"}
 
 
 def resource(kind, name, namespace=None, api="v1", **fields):
@@ -50,11 +50,11 @@ class ApplicationDelivery:
         return self.kubectl(*args)
 
     def apply(self, document):
-        document["metadata"].setdefault("annotations", {})["bm-cluster.io/gitlab-project"] = self.owner
+        document["metadata"].setdefault("annotations", {})["swirl-cloud.io/gitlab-project"] = self.owner
         self.kubectl("apply", "--server-side", "--field-manager=" + MANAGER, "-f", "-", resource=document)
 
     def require_owned(self, document):
-        if document and document.get("metadata", {}).get("annotations", {}).get("bm-cluster.io/gitlab-project") != self.owner:
+        if document and document.get("metadata", {}).get("annotations", {}).get("swirl-cloud.io/gitlab-project") != self.owner:
             raise ServiceError("A delivery resource belongs to another project; explicit migration is required")
 
     def project_settings(self):
@@ -156,7 +156,7 @@ class ApplicationDelivery:
         body += '\n    [[runners.kubernetes.volumes.empty_dir]]\n      name = "cache"\n      mount_path = "/cache"\n'
         blocks = []
         for lane in TAGS:
-            block = body.replace('name = "bm-cluster-kubernetes"', 'name = ' + json.dumps(self.name + "-" + lane))
+            block = body.replace('name = "swirl-cloud-kubernetes"', 'name = ' + json.dumps(self.name + "-" + lane))
             block = block.replace('service_account = "gitlab-ci-job"', 'service_account = ' + json.dumps(self.name + "-" + lane))
             block = block.replace("__RUNNER_TOKEN__", "__RUNNER_" + lane.upper() + "_TOKEN__")
             blocks.append("[[runners]]" + block)
@@ -168,7 +168,7 @@ class ApplicationDelivery:
         deployment["spec"]["selector"]["matchLabels"] = {"app": self.name}
         pod = deployment["spec"]["template"]
         pod["metadata"]["labels"] = {"app": self.name}
-        pod["metadata"]["annotations"]["bm-cluster.io/runner-config"] = hashlib.sha256(config.encode()).hexdigest()
+        pod["metadata"]["annotations"]["swirl-cloud.io/runner-config"] = hashlib.sha256(config.encode()).hexdigest()
         container = pod["spec"]["containers"][0]
         container["args"] = ['install -d -m 0700 /home/gitlab-runner/.gitlab-runner\n'
             + "printf '%s\\n' " + self.system_id + ' > /home/gitlab-runner/.gitlab-runner/.runner_system_id\n'
@@ -238,11 +238,11 @@ class ApplicationDelivery:
             if document["kind"] == "Deployment":
                 template = document["spec"]["template"]
                 annotations = template["metadata"]["annotations"]
-                annotations["bm-cluster.io/runner-credentials"] = hashlib.sha256(json.dumps(saved, sort_keys=True).encode()).hexdigest()
+                annotations["swirl-cloud.io/runner-credentials"] = hashlib.sha256(json.dumps(saved, sort_keys=True).encode()).hexdigest()
                 template_hash = hashlib.sha256(json.dumps(template, sort_keys=True).encode()).hexdigest()
-                if existing and existing["spec"]["template"]["metadata"].get("annotations", {}).get("bm-cluster.io/runner-template") != template_hash:
+                if existing and existing["spec"]["template"]["metadata"].get("annotations", {}).get("swirl-cloud.io/runner-template") != template_hash:
                     self.require_idle()
-                annotations["bm-cluster.io/runner-template"] = template_hash
+                annotations["swirl-cloud.io/runner-template"] = template_hash
             self.apply(document)
         self.kubectl("rollout", "status", "deployment/" + self.name, "-n", NAMESPACE, "--timeout=120s")
         self.api.call("PUT", "projects/" + self.project, {"shared_runners_enabled": False,

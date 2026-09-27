@@ -311,7 +311,7 @@ class RecoveryDistributionTests(VaultFixture):
         for i,role in [(1,'control-plane'),(2,'control-plane'),(3,'worker')]:
             self.state['nodes'].append({'metadata':{'name':f'node-{i}',
                 'labels':{f'node-role.kubernetes.io/{role}':'true'},
-                'annotations':{'node.bm-cluster.io/ssh-user':f'admin{i}'}},
+                'annotations':{'node.swirl-cloud.io/ssh-user':f'admin{i}'}},
                 'status':{'addresses':[{'type':'InternalIP','address':f'10.40.0.{i}'}]}})
         self.save()
         self.tool('ip','#!/bin/bash\necho "2: private inet 10.40.0.1/24 scope global private"\n')
@@ -326,7 +326,7 @@ stdin=sys.stdin.read() if '--receive-stdin' in command else ''
 p=pathlib.Path(os.environ['FIXTURE'])
 with (p/'calls').open('a') as f: f.write(json.dumps({'tool':'ssh','args':args,'stdin':stdin})+'\n')
 if 'SSH_CONNECTION' in command: print(os.environ.get('MOCK_CONNECTION','10.40.0.1 5555 10.40.0.2 22'))
-elif 'mktemp' in command: print('/tmp/bm-vault-recovery.fixture')
+elif 'mktemp' in command: print('/tmp/swirl-cloud-vault-recovery.fixture')
 """)
         self.tool('scp',r"""#!/usr/bin/env python3
 import json,os,pathlib,sys

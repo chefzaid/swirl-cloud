@@ -4,7 +4,7 @@ set -euo pipefail
 set +x
 umask 077
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_DIR="${VAULT_STATE_DIR:-/var/lib/bm-cluster}"
+STATE_DIR="${VAULT_STATE_DIR:-/var/lib/swirl-cloud}"
 error() { echo "[ERROR] $*" >&2; exit 1; }
 
 check_secret_file() {
@@ -19,7 +19,7 @@ check_secret_file() {
 receive_material() {
   local name="$1" address="$2" nodes key token temporary file
   (( EUID == 0 )) || error "Recovery receiver must run as root"
-  [[ "$STATE_DIR" == /var/lib/bm-cluster ]] || error "Receiver uses the standard root-only recovery directory"
+  [[ "$STATE_DIR" == /var/lib/swirl-cloud ]] || error "Receiver uses the standard root-only recovery directory"
   [[ -d /var/lib/rancher/k3s/server && -r /etc/rancher/k3s/k3s.yaml ]] || error "Receiver is not a K3s server"
   nodes="$(KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get node "$name" -o json)"
   jq -e --arg ip "$address" '((.metadata.labels | has("node-role.kubernetes.io/control-plane")) or
@@ -51,11 +51,11 @@ receive_material() {
     install -o root -g root -m 0600 "$temporary/$file" "$temporary/$file.ready"
     mv -f "$temporary/$file.ready" "$STATE_DIR/$file"
   done
-  install -o root -g root -m 0750 "$SCRIPT_DIR/vault-unseal.sh" /usr/local/sbin/bm-vault-unseal
-  install -o root -g root -m 0644 "$SCRIPT_DIR/bm-vault-unseal.service" /etc/systemd/system/bm-vault-unseal.service
-  install -o root -g root -m 0644 "$SCRIPT_DIR/bm-vault-unseal.timer" /etc/systemd/system/bm-vault-unseal.timer
+  install -o root -g root -m 0750 "$SCRIPT_DIR/vault-unseal.sh" /usr/local/sbin/swirl-cloud-vault-unseal
+  install -o root -g root -m 0644 "$SCRIPT_DIR/swirl-cloud-vault-unseal.service" /etc/systemd/system/swirl-cloud-vault-unseal.service
+  install -o root -g root -m 0644 "$SCRIPT_DIR/swirl-cloud-vault-unseal.timer" /etc/systemd/system/swirl-cloud-vault-unseal.timer
   systemctl daemon-reload
-  systemctl enable --now bm-vault-unseal.timer >/dev/null
+  systemctl enable --now swirl-cloud-vault-unseal.timer >/dev/null
   rm -rf -- "$temporary"
   trap - EXIT
 }
@@ -105,7 +105,7 @@ main() {
   # Global cleanup variables survive EXIT even when main has returned.
   remote_dir=""; target=""
   cleanup() {
-    if [[ "$remote_dir" == /tmp/bm-vault-recovery.* && -n "$target" ]]; then
+    if [[ "$remote_dir" == /tmp/swirl-cloud-vault-recovery.* && -n "$target" ]]; then
       ssh -n "${ssh_options[@]}" "$target" "rm -rf -- $(printf '%q' "$remote_dir")" >/dev/null 2>&1 || true
     fi
   }
@@ -119,12 +119,12 @@ main() {
     connection="$(ssh -n "${ssh_options[@]}" "$target" 'sudo -n true && printf "%s" "$SSH_CONNECTION"')"
     read -r actual_source _ actual_target actual_port <<< "$connection"
     [[ "$actual_source" == "$source_ip" && "$actual_target" == "$address" && "$actual_port" == "$port" ]] || error "Private SSH source or destination verification failed"
-    remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/bm-vault-recovery.XXXXXX')"
-    [[ "$remote_dir" =~ ^/tmp/bm-vault-recovery\.[A-Za-z0-9]+$ ]] || error "Invalid remote staging directory"
+    remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-vault-recovery.XXXXXX')"
+    [[ "$remote_dir" =~ ^/tmp/swirl-cloud-vault-recovery\.[A-Za-z0-9]+$ ]] || error "Invalid remote staging directory"
     # Only scripts and unit files use SCP. Recovery values are never staged in
     # the SSH account's home or temporary directory.
     scp "${scp_options[@]}" "$SCRIPT_DIR/sync-vault-recovery.sh" "$SCRIPT_DIR/vault-unseal.sh" \
-      "$SCRIPT_DIR/../config/host/bm-vault-unseal.service" "$SCRIPT_DIR/../config/host/bm-vault-unseal.timer" \
+      "$SCRIPT_DIR/../config/host/swirl-cloud-vault-unseal.service" "$SCRIPT_DIR/../config/host/swirl-cloud-vault-unseal.timer" \
       "$target:$remote_dir/"
     printf -v command 'sudo -n bash %q --receive-stdin' "$remote_dir/sync-vault-recovery.sh"
     for quoted in "$name" "$address"; do printf -v quoted ' %q' "$quoted"; command+="$quoted"; done
@@ -137,7 +137,7 @@ main() {
     select((.metadata.labels | has("node-role.kubernetes.io/control-plane")) or
            (.metadata.labels | has("node-role.kubernetes.io/master"))) |
     [.metadata.name, ([.status.addresses[] | select(.type == "InternalIP") | .address][0]),
-     (.metadata.annotations["node.bm-cluster.io/ssh-user"] // "-")] | @tsv' <<< "$nodes")
+     (.metadata.annotations["node.swirl-cloud.io/ssh-user"] // "-")] | @tsv' <<< "$nodes")
   trap - EXIT
 }
 

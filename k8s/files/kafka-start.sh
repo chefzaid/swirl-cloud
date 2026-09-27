@@ -27,7 +27,7 @@ unset KAFKA_CONTROLLER_QUORUM_VOTERS
 export KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
 export KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
 # shellcheck source=/dev/null
-. /opt/bm-cluster/kafka-remote-env.sh
+. /opt/swirl-cloud/kafka-remote-env.sh
 configure_remote_kafka
 ub path /etc/kafka/ writable
 ub render-template "/etc/confluent/docker/${COMPONENT}.properties.template" > "/etc/${COMPONENT}/${COMPONENT}.properties"

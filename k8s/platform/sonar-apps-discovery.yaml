@@ -266,7 +266,7 @@ data:
       }, readFileSync(serviceAccount + 'ca.crt'));
       const namespaceList = await kube.call('GET', 'api/v1/namespaces');
       const namespaces = namespaceList.items.filter(namespace => namespace.metadata.name === 'apps' ||
-        namespace.metadata.labels?.['bm-cluster.io/application-workloads'] === 'true').map(namespace => namespace.metadata.name);
+        namespace.metadata.labels?.['swirl-cloud.io/application-workloads'] === 'true').map(namespace => namespace.metadata.name);
       const workloads = [];
       for (const namespace of namespaces) for (const path of [
         `apis/apps/v1/namespaces/${namespace}/deployments`, `apis/apps/v1/namespaces/${namespace}/statefulsets`,

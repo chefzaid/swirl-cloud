@@ -29,7 +29,7 @@ install_managed_file() {
   rm -f "$temporary_file"
 }
 
-install_managed_file /usr/local/sbin/bm-cluster-lynis-monthly 0750 <<'RUNNER'
+install_managed_file /usr/local/sbin/swirl-cloud-lynis-monthly 0750 <<'RUNNER'
 #!/bin/bash
 set -euo pipefail
 
@@ -80,15 +80,15 @@ find "$archive_dir" -maxdepth 1 -type f -name 'lynis-*' -mtime +365 -delete
 exit "$audit_status"
 RUNNER
 
-install_managed_file /etc/systemd/system/bm-cluster-lynis.service 0644 <<'SERVICE'
+install_managed_file /etc/systemd/system/swirl-cloud-lynis.service 0644 <<'SERVICE'
 [Unit]
-Description=BM Cluster monthly Lynis security audit
+Description=Swirl Cloud monthly Lynis security audit
 Documentation=man:lynis(8)
 After=local-fs.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/bm-cluster-lynis-monthly
+ExecStart=/usr/local/sbin/swirl-cloud-lynis-monthly
 UMask=0077
 Nice=10
 IOSchedulingClass=idle
@@ -96,20 +96,20 @@ PrivateTmp=true
 ProtectHome=read-only
 SERVICE
 
-install_managed_file /etc/systemd/system/bm-cluster-lynis.timer 0644 <<'TIMER'
+install_managed_file /etc/systemd/system/swirl-cloud-lynis.timer 0644 <<'TIMER'
 [Unit]
-Description=Run the BM Cluster Lynis audit monthly
+Description=Run the Swirl Cloud Lynis audit monthly
 
 [Timer]
 OnCalendar=*-*-15 03:00:00
 Persistent=true
 AccuracySec=1min
-Unit=bm-cluster-lynis.service
+Unit=swirl-cloud-lynis.service
 
 [Install]
 WantedBy=timers.target
 TIMER
 
 systemctl daemon-reload
-systemctl enable --now bm-cluster-lynis.timer >/dev/null
+systemctl enable --now swirl-cloud-lynis.timer >/dev/null
 echo "Lynis timer configured for the 15th of every month at 03:00 local time."

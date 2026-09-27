@@ -23,12 +23,12 @@ from lib.onboarding_services import private_token_file
 
 ROOT = Path(__file__).resolve().parents[1]
 MANAGER = "application-cluster-bootstrap"
-LABEL = "bm-cluster.io/application-environment"
+LABEL = "swirl-cloud.io/application-environment"
 PYTHON_IMAGE = "docker.io/library/python:3.14-alpine@sha256:c6ead215bfd31f1e433d968853b7a769989117115b728874824e6c0a27cb96fc"
 NGINX_IMAGE = "docker.io/library/nginx:1.30.4-alpine@sha256:dc5069ad14f19660b141b21236140b91656bf89bbc3e2417c70ae650cd66104c"
 API_AUDIENCE = "https://kubernetes.default.svc.cluster.local"
-TOKEN_SECRET_ANNOTATION = "bm-cluster.io/token-secret"
-PENDING_TOKENS_ANNOTATION = "bm-cluster.io/pending-token-revocations"
+TOKEN_SECRET_ANNOTATION = "swirl-cloud.io/token-secret"
+PENDING_TOKENS_ANNOTATION = "swirl-cloud.io/pending-token-revocations"
 RESOURCES = [
     {"apiGroups": [""], "resources": ["configmaps", "secrets", "services", "serviceaccounts", "pods", "pods/log", "events", "persistentvolumeclaims"]},
     {"apiGroups": ["apps"], "resources": ["deployments", "replicasets", "statefulsets", "daemonsets"]},
@@ -117,7 +117,7 @@ def namespace_foundation(context):
     name = context["namespace"]
     namespace = object_("Namespace", name)
     namespace["metadata"]["labels"].update({LABEL: context["environment"],
-        "bm-cluster.io/application-workloads": "true",
+        "swirl-cloud.io/application-workloads": "true",
         "pod-security.kubernetes.io/enforce": "baseline",
         "pod-security.kubernetes.io/enforce-version": "v1.36",
         "pod-security.kubernetes.io/warn": "restricted",
@@ -213,9 +213,9 @@ def publish_registration(platform, target, registration, current_inventory, upda
     if pending:
         # Do not erase a newer concurrent rotation's pending revocations.
         platform.call("patch", "secret", registration["metadata"]["name"], "-n", "infra", "--type=json", "-p", json.dumps([
-            {"op": "test", "path": "/metadata/annotations/bm-cluster.io~1token-secret", "value": token_secret_name},
-            {"op": "test", "path": "/metadata/annotations/bm-cluster.io~1pending-token-revocations", "value": json.dumps(pending)},
-            {"op": "replace", "path": "/metadata/annotations/bm-cluster.io~1pending-token-revocations", "value": "[]"}]))
+            {"op": "test", "path": "/metadata/annotations/swirl-cloud.io~1token-secret", "value": token_secret_name},
+            {"op": "test", "path": "/metadata/annotations/swirl-cloud.io~1pending-token-revocations", "value": json.dumps(pending)},
+            {"op": "replace", "path": "/metadata/annotations/swirl-cloud.io~1pending-token-revocations", "value": "[]"}]))
 
 
 def argo_rbac(context=None):
@@ -269,7 +269,7 @@ def cluster_registration(context, identity, token):
     else:
         # Registering the in-cluster server with Argo would replace platform-wide credentials.
         result["stringData"]["apiServer"] = identity["server"]
-    result["metadata"]["annotations"] = {"bm-cluster.io/cluster-uid": identity["uid"], "bm-cluster.io/ca-sha256": identity["caHash"]}
+    result["metadata"]["annotations"] = {"swirl-cloud.io/cluster-uid": identity["uid"], "swirl-cloud.io/ca-sha256": identity["caHash"]}
     return result
 
 
@@ -656,7 +656,7 @@ def main():
         raise ValueError("Remote targets require --target-kubeconfig")
     platform, target = Cluster(args.platform_kubeconfig), Cluster(args.target_kubeconfig or args.platform_kubeconfig)
     platform_id, target_id = platform.identity(), target.identity(None if local else context["server"])
-    platform_identity = platform.get("configmap", "bm-cluster-identity", "infra")
+    platform_identity = platform.get("configmap", "swirl-cloud-identity", "infra")
     if platform_identity["data"]["PLATFORM_DOMAIN"] != inventory["platform"]["domain"]:
         raise ValueError("Platform kubeconfig identity does not match the inventory domain")
     registered = {}
@@ -664,7 +664,7 @@ def main():
         environment = secret["metadata"].get("labels", {}).get(LABEL)
         if environment:
             annotations = secret["metadata"].get("annotations", {})
-            registered[environment] = {"uid": annotations["bm-cluster.io/cluster-uid"], "caHash": annotations["bm-cluster.io/ca-sha256"]}
+            registered[environment] = {"uid": annotations["swirl-cloud.io/cluster-uid"], "caHash": annotations["swirl-cloud.io/ca-sha256"]}
     identity_guard(platform_id, target_id, args.environment, registered, mode=context["mode"])
     if local:
         register_local(args, inventory, context, platform, target, target_id)

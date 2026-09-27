@@ -5,7 +5,7 @@ set +x
 umask 077
 
 k3s_ha_prepare() {
-    local config_path=/etc/rancher/k3s/config.yaml.d/30-bm-embedded-etcd.yaml
+    local config_path=/etc/rancher/k3s/config.yaml.d/30-swirl-cloud-embedded-etcd.yaml
     local database=/var/lib/rancher/k3s/server/db/state.db
     local existing_server=false config_file backup_dir
 
@@ -35,7 +35,7 @@ k3s_ha_prepare() {
             sudo apt-get update -qq
             sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sqlite3 >/dev/null
         fi
-        backup_dir="/var/backups/bm-cluster/k3s/pre-etcd-$(date -u +%Y%m%dT%H%M%SZ)"
+        backup_dir="/var/backups/swirl-cloud/k3s/pre-etcd-$(date -u +%Y%m%dT%H%M%SZ)"
         sudo install -d -o root -g root -m 0700 "$backup_dir"
         sudo sqlite3 "$database" '.timeout 60000' ".backup '$backup_dir/state.db'"
         [[ "$(sudo sqlite3 "$backup_dir/state.db" 'PRAGMA integrity_check;')" == ok ]] || {

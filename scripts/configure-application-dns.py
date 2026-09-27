@@ -117,7 +117,7 @@ def reconcile(args):
     if actual.get("server", "").rstrip("/") != expected_server or actual.get("insecure-skip-tls-verify"):
         raise ServiceError("Target kubeconfig does not match the selected registered cluster with verified TLS")
     namespace = json.loads(run([*kube, "get", "namespace", target["namespace"], "-o", "json"]))
-    if namespace.get("metadata", {}).get("labels", {}).get("bm-cluster.io/application-environment") != args.environment:
+    if namespace.get("metadata", {}).get("labels", {}).get("swirl-cloud.io/application-environment") != args.environment:
         raise ServiceError("Target namespace does not belong to the selected application environment")
     if target.get("mode", "remote") == "local" and not args.certificate_only:
         verify_hostname_owner(platform_kube, target, hostname, getattr(args, "application_name", None))
@@ -144,7 +144,7 @@ def reconcile(args):
         kind = "AAAA" if ipaddress.ip_address(address).version == 6 else "A"
     except ValueError:
         kind = "CNAME"
-    owner = "bm-cluster:application:" + args.environment + ":" + label
+    owner = "swirl-cloud:application:" + args.environment + ":" + label
     if len(addresses) > 1 or any(item.get("comment") not in (None, "", owner) or
                                   item.get("content") != address for item in addresses):
         raise ServiceError("Existing DNS points elsewhere or has another owner; migrate that record explicitly before onboarding")
@@ -157,7 +157,7 @@ def reconcile(args):
             path.write_bytes(base64.b64decode(secret.get("data", {}).get(key, "")))
             path.chmod(0o600)
         valid = certificate_valid(directory, target["domain"])
-        if not valid and secret and secret.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/managed-by") != "bm-cluster":
+        if not valid and secret and secret.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/managed-by") != "swirl-cloud":
             raise ServiceError("The externally managed origin certificate is invalid or expires within 30 days; renew it explicitly before onboarding")
         if args.check:
             print(f"[READY] Cloudflare prerequisites for {hostname}")
@@ -171,7 +171,7 @@ def reconcile(args):
             if not certificate_valid(directory, target["domain"]):
                 raise ServiceError("Cloudflare returned an invalid origin certificate")
             resource = {"apiVersion": "v1", "kind": "Secret", "type": "kubernetes.io/tls", "metadata": {
-                "name": target["tlsSecretName"], "namespace": certificate_namespace, "labels": {"app.kubernetes.io/managed-by": "bm-cluster"}},
+                "name": target["tlsSecretName"], "namespace": certificate_namespace, "labels": {"app.kubernetes.io/managed-by": "swirl-cloud"}},
                 "data": {key: base64.b64encode((directory / key).read_bytes()).decode() for key in ("tls.crt", "tls.key")}}
             # Server-side apply keeps private keys out of last-applied annotations.
             run([*certificate_kube, "apply", "--server-side", "--field-manager=application-origin", "-f", "-"], data=json.dumps(resource))

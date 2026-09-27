@@ -202,7 +202,7 @@ prompt_cluster_identity() {
         installer_prompt_value ORGANIZATION_SLUG "Organization identifier (lowercase letters, digits, hyphens)" "$ORGANIZATION_SLUG"
         installer_prompt_value GITLAB_GROUP_PATH "GitLab group path" "${GITLAB_GROUP_PATH:-$ORGANIZATION_SLUG}"
         installer_prompt_value GITLAB_GROUP_NAME "GitLab group display name" "${GITLAB_GROUP_NAME:-$ORGANIZATION_NAME}"
-        installer_prompt_value GITLAB_PROJECT_NAME "Platform GitLab project name" "${GITLAB_PROJECT_NAME:-bm-cluster}"
+        installer_prompt_value GITLAB_PROJECT_NAME "Platform GitLab project name" "${GITLAB_PROJECT_NAME:-swirl-cloud}"
         installer_prompt_value KEYCLOAK_REALM "Application SSO realm" "${KEYCLOAK_REALM:-$ORGANIZATION_SLUG}"
         installer_prompt_value TLS_SECRET_NAME "Shared TLS secret name" "${TLS_SECRET_NAME:-${CLOUDFLARE_TLS_SECRET_NAME:-${PLATFORM_DOMAIN//./-}-tls}}"
         installer_prompt_value INTERNAL_DNS_ZONE "Private service DNS zone" "${INTERNAL_DNS_ZONE:-internal.$PLATFORM_DOMAIN}"
@@ -233,7 +233,7 @@ prompt_cluster_identity() {
     [[ "$CLOUDFLARE_NODE_DNS_LABEL" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ && ${#CLOUDFLARE_NODE_DNS_LABEL} -le 63 ]] || \
         error "CLOUDFLARE_NODE_DNS_LABEL must be a single valid lowercase DNS label."
     K3S_REGISTRY_HOST="${K3S_REGISTRY_HOST:-registry.$PLATFORM_DOMAIN}"
-    CLOUDFLARE_ACCESS_TEAM_NAME="${CLOUDFLARE_ACCESS_TEAM_NAME:-bm-cluster-${PLATFORM_DOMAIN//./-}}"
+    CLOUDFLARE_ACCESS_TEAM_NAME="${CLOUDFLARE_ACCESS_TEAM_NAME:-swirl-cloud-${PLATFORM_DOMAIN//./-}}"
     [[ "$CLOUDFLARE_ACCESS_TEAM_NAME" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ && ${#CLOUDFLARE_ACCESS_TEAM_NAME} -le 63 ]] || \
         error "CLOUDFLARE_ACCESS_TEAM_NAME must be a single lowercase DNS label."
     TAILSCALE_NODE_HOSTNAME="${TAILSCALE_NODE_HOSTNAME:-$CONTROL_PLANE_NODE_NAME}"
@@ -273,7 +273,7 @@ configure_repository_delivery() {
     esac
 
     if [[ -n "${REPOSITORY_SYNC_MAPPINGS:-}" ]]; then
-        error "REPOSITORY_SYNC_MAPPINGS was replaced by GITHUB_USERNAME, GITHUB_REPOSITORIES, and GITLAB_GROUP_PATH; see docs/repository-onboarding.md."
+        error "REPOSITORY_SYNC_MAPPINGS was replaced by GITHUB_USERNAME, GITHUB_REPOSITORIES, and GITLAB_GROUP_PATH; see docs/guides/repository-onboarding.md."
     fi
     [[ "$GITLAB_GROUP_PATH" =~ ^[A-Za-z0-9_.-]+$ ]] || error "The platform GitLab group must be a top-level group."
     GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-$GITLAB_GROUP_PATH/$GITLAB_PROJECT_NAME}"
@@ -347,7 +347,7 @@ EOF
 
 prepare_rendered_configuration() {
     [[ -x "$RENDER_CONFIG_SCRIPT" ]] || error "Configuration renderer is not executable: $RENDER_CONFIG_SCRIPT"
-    RENDERED_CONFIG_DIR="$(mktemp -d /tmp/bm-cluster-rendered.XXXXXX)"
+    RENDERED_CONFIG_DIR="$(mktemp -d /tmp/swirl-cloud-rendered.XXXXXX)"
     chmod 700 "$RENDERED_CONFIG_DIR"
     "$RENDER_CONFIG_SCRIPT" \
         --output "$RENDERED_CONFIG_DIR" \
@@ -577,10 +577,10 @@ cleanup_private_credentials() {
     if declare -F gitlab_revoke_ephemeral_admin_token >/dev/null 2>&1; then
         gitlab_revoke_ephemeral_admin_token
     fi
-    if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/bm-cluster-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
+    if [[ -n "$INSTALLER_TEMP_DIR" && "$INSTALLER_TEMP_DIR" == /tmp/swirl-cloud-installers.* && -d "$INSTALLER_TEMP_DIR" ]]; then
         rm -r -- "$INSTALLER_TEMP_DIR"
     fi
-    if [[ -n "$RENDERED_CONFIG_DIR" && "$RENDERED_CONFIG_DIR" == /tmp/bm-cluster-rendered.* && -d "$RENDERED_CONFIG_DIR" ]]; then
+    if [[ -n "$RENDERED_CONFIG_DIR" && "$RENDERED_CONFIG_DIR" == /tmp/swirl-cloud-rendered.* && -d "$RENDERED_CONFIG_DIR" ]]; then
         rm -r -- "$RENDERED_CONFIG_DIR"
     fi
 }
@@ -591,7 +591,7 @@ download_installer() {
     [[ "$url" == https://* ]] || error "Installer URL must use HTTPS: $url"
     [[ "$filename" =~ ^[A-Za-z0-9._-]+$ ]] || error "Invalid installer filename: $filename"
     if [[ -z "$INSTALLER_TEMP_DIR" ]]; then
-        INSTALLER_TEMP_DIR="$(mktemp -d /tmp/bm-cluster-installers.XXXXXX)"
+        INSTALLER_TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-installers.XXXXXX)"
         chmod 700 "$INSTALLER_TEMP_DIR"
     fi
     destination="$INSTALLER_TEMP_DIR/$filename"
@@ -635,7 +635,7 @@ configure_repository_delivery
 enrolled_exposure=""
 if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
     enrolled_exposure="$(kubectl get node "$CONTROL_PLANE_NODE_NAME" --ignore-not-found \
-        -o jsonpath='{.metadata.labels.node\.bm-cluster\.io/exposure}')"
+        -o jsonpath='{.metadata.labels.node\.swirl-cloud\.io/exposure}')"
 fi
 if [[ "$enrolled_exposure" == local ]]; then
     SERVER_EXPOSURE=local
@@ -668,14 +668,14 @@ installer_prompt_section "Cluster nodes and scheduling" \
 configure_cluster_topology_plan
 POSTGRES_HA_ACTIVE=false
 if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
-    INSTALLER_TEMP_DIR="$(mktemp -d /tmp/bm-cluster-installers.XXXXXX)"
+    INSTALLER_TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-installers.XXXXXX)"
     HIGH_AVAILABILITY_ENABLED="$(python3 "$SCRIPT_DIR/scripts/resolve-ha-profile.py" --output "$INSTALLER_TEMP_DIR/ha-values.json")"
     if [[ -f "$INSTALLER_TEMP_DIR/ha-values.json" ]]; then
         export PLATFORM_HA_VALUES_FILE="$INSTALLER_TEMP_DIR/ha-values.json"
         POSTGRES_HA_ACTIVE="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("postgresHa", {}).get("active", False)).lower())' "$PLATFORM_HA_VALUES_FILE")"
     fi
 elif [[ "$HIGH_AVAILABILITY_ENABLED" == true ]]; then
-    error "Install and enroll the nodes first, then activate HA using docs/high-availability.md."
+    error "Install and enroll the nodes first, then activate HA using docs/guides/high-availability.md."
 fi
 HIGH_AVAILABILITY_ENABLED="${HIGH_AVAILABILITY_ENABLED:-false}"
 [[ "$HIGH_AVAILABILITY_ENABLED" =~ ^(true|false)$ ]] || error "HIGH_AVAILABILITY_ENABLED must be true or false."
@@ -1039,8 +1039,8 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         error "CONTROL_PLANE_NODE_NAME must identify the bootstrap control-plane node."
     kubectl label "node/$CONTROL_PLANE_NODE_NAME" \
         "svccontroller.k3s.cattle.io/enablelb=$([[ "$HIGH_AVAILABILITY_ENABLED" == true ]] && echo false || echo true)" \
-        node.bm-cluster.io/role=control-plane \
-        "node.bm-cluster.io/exposure=$SERVER_EXPOSURE" \
+        node.swirl-cloud.io/role=control-plane \
+        "node.swirl-cloud.io/exposure=$SERVER_EXPOSURE" \
         --overwrite >/dev/null
 
     if [[ "$INSTALL_K3S" == "true" ]]; then
@@ -1326,7 +1326,7 @@ if [[ -n "$DEPLOYMENT_ENVIRONMENTS_FILE" ]]; then
     step "Registering application environments on this cluster..."
     [[ -r "$DEPLOYMENT_ENVIRONMENTS_FILE" ]] || error "Deployment inventory is not readable: $DEPLOYMENT_ENVIRONMENTS_FILE"
     if [[ -z "$INSTALLER_TEMP_DIR" ]]; then
-        INSTALLER_TEMP_DIR="$(mktemp -d /tmp/bm-cluster-installers.XXXXXX)"
+        INSTALLER_TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-installers.XXXXXX)"
     fi
     environment_config_dir="$INSTALLER_TEMP_DIR/application-environments"
     install -d -m 0700 "$environment_config_dir"
@@ -1350,7 +1350,7 @@ for environment, target in inventory["environments"].items():
     subprocess.run([sys.executable, str(Path(root) / "scripts/configure-deployment-environments.py"),
                     "--config", path, "--environment", environment,
                     "--platform-kubeconfig", kubeconfig,
-                    "--vault-token-file", os.environ.get("VAULT_BOOTSTRAP_TOKEN_FILE", "/var/lib/bm-cluster/vault-bootstrap-token")],
+                    "--vault-token-file", os.environ.get("VAULT_BOOTSTRAP_TOKEN_FILE", "/var/lib/swirl-cloud/vault-bootstrap-token")],
                    check=True)
 PY
     then
@@ -1403,10 +1403,11 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     echo ""
     echo "Retrieve credentials:"
     echo "  Keycloak SSO administrator: kubectl get secret -n infra keycloak-sso-credentials -o go-template='{{printf \"%s:%s\" (index .data \"SSO_BOOTSTRAP_USERNAME\" | base64decode) (index .data \"SSO_BOOTSTRAP_PASSWORD\" | base64decode)}}'"
-    echo "  ArgoCD:   kubectl -n infra get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
-    echo "  GitLab:   kubectl exec -n infra deployment/gitlab -- grep 'Password:' /etc/gitlab/initial_root_password"
+    echo "  ArgoCD:   sign in at https://argocd.$PLATFORM_DOMAIN with the Keycloak SSO administrator (local admin is disabled)"
+    echo "  GitLab:   sign in at https://gitlab.$PLATFORM_DOMAIN with the Keycloak SSO administrator (linked to root)"
+    echo "            local root password, once set by scripts/rotate-local-admin-passwords.sh: Vault secret/infra/gitlab, field root_password"
     echo "  MongoDB:  kubectl get secret -n infra mongodb-secret -o jsonpath='{.data.MONGO_INITDB_ROOT_PASSWORD}' | base64 -d"
-    echo "  Vault:    sudo cat /var/lib/bm-cluster/vault-bootstrap-token"
+    echo "  Vault:    sudo cat /var/lib/swirl-cloud/vault-bootstrap-token"
     echo "  DBGate:   kubectl get secret -n infra dbgate-auth-secret -o go-template='{{printf \"%s\" (index .data \"LOGIN\" | base64decode)}}:{{printf \"%s\" (index .data \"PASSWORD\" | base64decode)}}'"
     echo "  Kafka UI: kubectl get secret -n infra kafka-ui-auth-secret -o go-template='{{printf \"%s\" (index .data \"SPRING_SECURITY_USER_NAME\" | base64decode)}}:{{printf \"%s\" (index .data \"SPRING_SECURITY_USER_PASSWORD\" | base64decode)}}'"
     echo "  Portainer: username admin; password: kubectl get secret -n infra portainer-auth-secret -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d"

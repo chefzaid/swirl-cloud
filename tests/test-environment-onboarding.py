@@ -67,7 +67,7 @@ class Platform:
         data = {"name":target["clusterName"],"server":target["server"],"namespaces":target["namespace"],"clusterResources":"false",
                 "project":"applications-"+env,"config":json.dumps({"bearerToken":"fixture-token",
                  "tlsClientConfig":{"insecure":self.insecure,"caData":"Zml4dHVyZS1jYQ=="}})}
-        labels = {"bm-cluster.io/application-environment": env}
+        labels = {"swirl-cloud.io/application-environment": env}
         if target.get("mode", "remote") == "local":
             data["apiServer"] = self.api_server
         else:
@@ -218,7 +218,7 @@ class CertificateTests(unittest.TestCase):
             if "view" in arguments:
                 return json.dumps({"clusters": [{"cluster": {"server": INVENTORY["environments"]["int"]["server"]}}]})
             if "namespace" in arguments:
-                return json.dumps({"metadata": {"labels": {"bm-cluster.io/application-environment": "int"}}})
+                return json.dumps({"metadata": {"labels": {"swirl-cloud.io/application-environment": "int"}}})
             if "secret" in arguments:
                 return json.dumps({"metadata": {"labels": {"app.kubernetes.io/managed-by": "external-manager"}}, "data": {}})
             raise AssertionError(arguments)
@@ -245,7 +245,7 @@ class CertificateTests(unittest.TestCase):
                 return json.dumps({"clusters": [{"cluster": {"server": "https://127.0.0.1:6443"}}]})
             if "namespace" in arguments:
                 self.assertIn("apps-int", arguments)
-                return json.dumps({"metadata": {"labels": {"bm-cluster.io/application-environment": "int"}}})
+                return json.dumps({"metadata": {"labels": {"swirl-cloud.io/application-environment": "int"}}})
             if "secret" in arguments:
                 self.assertEqual(arguments[arguments.index("-n") + 1], "apps-int")
                 return "{}"
@@ -273,7 +273,7 @@ class CertificateTests(unittest.TestCase):
                 return json.dumps({"clusters": [{"cluster": {"server": "https://127.0.0.1:6443"}}]})
             if "namespace" in arguments:
                 self.assertEqual(arguments[arguments.index("--kubeconfig") + 1], "/scoped")
-                return json.dumps({"metadata": {"labels": {"bm-cluster.io/application-environment": "int"}}})
+                return json.dumps({"metadata": {"labels": {"swirl-cloud.io/application-environment": "int"}}})
             self.assertEqual(arguments[arguments.index("--kubeconfig") + 1], "/central")
             self.assertEqual(arguments[arguments.index("-n") + 1], "infra")
             if "tlsstore" in arguments:
@@ -322,7 +322,7 @@ class CertificateTests(unittest.TestCase):
             if "view" in arguments:
                 return json.dumps({"clusters": [{"cluster": {"server": "https://127.0.0.1:6443"}}]})
             if "namespace" in arguments:
-                return json.dumps({"metadata": {"labels": {"bm-cluster.io/application-environment": "prod"}}})
+                return json.dumps({"metadata": {"labels": {"swirl-cloud.io/application-environment": "prod"}}})
             if "ingresses" in arguments:
                 return json.dumps({"items": [{"metadata": {"name": "website", "namespace": "apps", "annotations": {
                     "argocd.argoproj.io/tracking-id": "website:networking.k8s.io/Ingress:apps/website"}},

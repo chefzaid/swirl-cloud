@@ -17,7 +17,7 @@ if [[ -r "$PLATFORM_CONFIG" ]]; then
 fi
 
 TAILNET="${TAILSCALE_TAILNET:-${DEFAULT_TAILSCALE_TAILNET:--}}"
-MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-bm-cluster}}"
+MESH_NAME="${TAILSCALE_MESH_NAME:-${DEFAULT_TAILSCALE_MESH_NAME:-swirl-cloud}}"
 CONTROL_PLANE_TAG="${TAILSCALE_CONTROL_PLANE_TAG:-}"
 WORKER_TAG="${TAILSCALE_WORKER_TAG:-}"
 AUTH_KEY_EXPIRY_SECONDS="${TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-${DEFAULT_TAILSCALE_AUTH_KEY_EXPIRY_SECONDS:-3600}}"
@@ -43,7 +43,7 @@ cleanup() {
     API_TOKEN=""
     AUTH_KEY=""
     unset API_TOKEN AUTH_KEY TAILSCALE_API_TOKEN TAILSCALE_AUTH_KEY 2>/dev/null || true
-    if [[ -n "$TEMP_DIR" && "$TEMP_DIR" == /tmp/bm-cluster-tailscale.* && -d "$TEMP_DIR" ]]; then
+    if [[ -n "$TEMP_DIR" && "$TEMP_DIR" == /tmp/swirl-cloud-tailscale.* && -d "$TEMP_DIR" ]]; then
         rm -rf -- "$TEMP_DIR"
     fi
 }
@@ -220,7 +220,7 @@ ensure_api_tools() {
 }
 
 ensure_api_tools
-TEMP_DIR="$(mktemp -d /tmp/bm-cluster-tailscale.XXXXXX)"
+TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-tailscale.XXXXXX)"
 chmod 700 "$TEMP_DIR"
 
 prepare_api_client() {

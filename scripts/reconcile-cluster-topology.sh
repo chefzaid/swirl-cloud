@@ -145,7 +145,7 @@ fi
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach the Kubernetes API"
-stored_ha_mode="$(kubectl -n infra get configmap bm-cluster-topology --ignore-not-found \
+stored_ha_mode="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found \
     -o jsonpath='{.data.highAvailabilityEnabled}')" || fail "Cannot read persisted HA topology mode"
 [[ -z "$stored_ha_mode" || "$stored_ha_mode" == true || "$stored_ha_mode" == false ]] || \
     fail "Persisted highAvailabilityEnabled must be true or false"
@@ -200,7 +200,7 @@ mapfile -t control_plane_nodes < <(jq -r '.items[] |
 (( ${#control_plane_nodes[@]} >= 1 )) || fail "No control-plane node was found"
 
 if [[ "$CONTROL_PLANE_SCHEDULABLE" == "preserve" ]]; then
-    stored_mode="$(kubectl -n infra get configmap bm-cluster-topology \
+    stored_mode="$(kubectl -n infra get configmap swirl-cloud-topology \
         -o jsonpath='{.data.controlPlaneSchedulable}' 2>/dev/null || true)"
     if [[ "$stored_mode" =~ ^(true|false)$ ]]; then
         CONTROL_PLANE_SCHEDULABLE="$stored_mode"
@@ -263,7 +263,7 @@ else
     info "Control-plane nodes are controller-only."
 fi
 kubectl label nodes "${control_plane_nodes[@]}" \
-    "node.bm-cluster.io/control-plane-mode=$control_plane_mode" \
+    "node.swirl-cloud.io/control-plane-mode=$control_plane_mode" \
     --overwrite >/dev/null
 
 longhorn_installed=false
@@ -408,7 +408,7 @@ if [[ "$longhorn_installed" == "true" ]]; then
 fi
 
 if kubectl get namespace infra >/dev/null 2>&1; then
-    kubectl -n infra create configmap bm-cluster-topology \
+    kubectl -n infra create configmap swirl-cloud-topology \
         --from-literal="expectedNodeCount=${EXPECTED_NODE_COUNT:-$node_count}" \
         --from-literal="expectedControlPlaneCount=${EXPECTED_CONTROL_PLANE_COUNT:-$control_plane_count}" \
         --from-literal="nodeCount=$node_count" \
@@ -421,5 +421,5 @@ if kubectl get namespace infra >/dev/null 2>&1; then
         --from-literal="highAvailabilityEnabled=$HIGH_AVAILABILITY_ENABLED" \
         --from-literal="longhornReplicaCount=$replica_count" \
         --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-    info "Cluster topology configuration is reconciled in infra/bm-cluster-topology."
+    info "Cluster topology configuration is reconciled in infra/swirl-cloud-topology."
 fi

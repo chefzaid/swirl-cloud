@@ -196,7 +196,7 @@ data:
     log_format = "json"
 
     [[runners]]
-      name = "bm-cluster-kubernetes"
+      name = "swirl-cloud-kubernetes"
       url = "http://gitlab.__INTERNAL_DNS_ZONE__"
       clone_url = "http://gitlab.__INTERNAL_DNS_ZONE__"
       token = "__RUNNER_TOKEN__"

@@ -1,8 +1,9 @@
-# Repository structure
+# Development Guide
 
-Use this map when changing platform source. The [README](../README.md) explains
-platform boundaries and links operator workflows. Keep runtime resources in their
-owning application repository; this repository centrally owns Odoo.
+Use this guide when changing platform source. The [README](../README.md) is the
+entry point, [architecture](architecture.md) explains platform boundaries, and
+each other guide owns one workflow. Keep runtime resources in their owning
+application repository; this repository centrally owns Odoo.
 
 ## Directory map
 
@@ -13,7 +14,7 @@ owning application repository; this repository centrally owns Odoo.
 | `config/` | Shared version and service inventories in `platform.env`; Helm release values and the public origin CA certificate. |
 | `config/application-cluster/` | Target firewall policy and temporary route/dependency probes used during registration. |
 | `config/host/` | AppArmor, Longhorn multipath settings, and systemd backup/unseal units copied onto hosts. |
-| `docs/` | Task guides; the root README is the guide index. |
+| `docs/` | Reader guides mirroring the application repositories; `docs/adr/` holds decisions and `docs/guides/` long procedures. |
 | `k8s/` | The GitOps Helm chart, shared values. Argo CD continues to use `path: k8s`. |
 | `k8s/base/` | Namespaces, cluster identity, DNS and baseline admission/network/host policy. |
 | `k8s/datastores/` | Shared PostgreSQL, MongoDB, Redis and Kafka resources. |
@@ -26,13 +27,21 @@ owning application repository; this repository centrally owns Odoo.
 | `k8s/profiles/` | Two small migration guards for installed root Applications that still reference retired image profiles. |
 | `scripts/` | Installation, configuration, rendering, maintenance and validation commands. |
 | `scripts/lib/` | Shared shell/Python libraries used by those commands. |
-| `tests/` | The small set of deployment safety exceptions listed below. |
+| `tests/` | The small set of deployment safety exceptions listed in the [validation policy](testing.md#validation-policy). |
 
 Keep this layout shallow. Use the existing responsibility before adding a new
 directory; group related Kubernetes resources in a service manifest. The chart
 retains Helm's [standard chart structure](https://helm.sh/docs/topics/charts/#the-chart-file-structure).
 The ownership boundaries and declarative source follow Kubernetes'
 [configuration guidance](https://kubernetes.io/blog/2025/11/25/configuration-good-practices/).
+
+## Toolchain
+
+Offline validation requires Bash, Git, ShellCheck, Python 3 with PyYAML, Helm,
+Ansible, Node.js, jq, SQLite's `sqlite3` CLI and `flock`. Live validation adds
+`kubectl` and access to a cluster with the platform CRDs. The platform CI job
+installs the same tools on a digest-pinned Alpine image. Missing tools fail
+validation instead of silently skipping checks.
 
 ## Change the owning source
 
@@ -52,7 +61,7 @@ The ownership boundaries and declarative source follow Kubernetes'
   `configure-repository-sync.sh` configures ongoing synchronization for one
   repository and remains a separate internal step.
 - **Image versions:** update the owning manifest and Helm values;
-  follow [image updates](maintenance.md#image-updates) when replacing a
+  follow [image updates](operations.md#image-updates) when replacing a
   service with a compatible upstream release. No private platform image
   registry or profile selection is needed.
 
@@ -62,34 +71,53 @@ directory is generated output for installer-only HA resource delivery, not a
 source directory. Credentials, recovery state, scans, logs and build output stay
 outside Git. Do not add another copy of generated manifests or upstream source.
 
-## Validation policy
+## Render Locally
 
-Run `./scripts/validate-repository.sh` before submitting changes. It checks actual
-source inputs and rendered deployment output, then runs only these safety suites:
+Render the chart and installer manifests into a new private directory outside
+the checkout, using synthetic or installed identity values:
 
-| Retained suite | Failure it guards against |
-| --- | --- |
-| `test-k3s-backups.sh` | Unrestorable archives, stale SQLite backups after etcd migration, and missing recovery tokens. |
-| `test-postgres-ha.py` | Data or role loss, unverified cutover, and restarting an obsolete writer. Includes an optional isolated SQL restore drill. |
-| `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
-| `test-vault-unseal.py` | Recovery keys leaking into process arguments and false unseal success. |
-| `test-vault-ha.py` | Unsafe peer replacement, loss of recovery access and distributing keys to the wrong host. |
-| `test-node-fencing.py` | Powering off a healthy/wrong host or recovering storage before confirmed fencing. |
-| `test-application-clusters.py` | Wrong cluster/namespace identity, unsafe shared-cluster ingress, and unverified remote gateway access. |
-| `test-application-data.py` | Cross-environment data access, anonymous remote cache access and unsafe database adoption; optional disposable datastore checks. |
-| `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage and accepting a certificate that does not cover an environment hostname. |
+```bash
+umask 077
+scripts/render-cluster-config.sh --output "$(mktemp -d)/rendered" \
+  --domain example.com --internal-domain internal.example.com \
+  --gitops-repository https://gitlab.example.com/example/swirl-cloud.git \
+  --cloudflare-access-team example
+```
 
-Do not restore broad application, UI, source-text assertion or per-image test
-frameworks here. New tests need a concrete deployment or recovery failure that
-syntax, manifest policy and rendering cannot detect. Image promotion still
-requires isolated runtime and recovery checks; cluster availability still
-requires the documented host-failure drills. See [validation](operations.md#validation) for commands and coverage, and
-[maintenance](maintenance.md#image-updates) for image promotion.
+Inspect the output, then discard it. Never commit rendered manifests,
+credentials, journals or recovery files.
 
-## Documentation ownership
+## Adding A Platform Capability
 
-The README is the entry point; each guide owns one workflow or reference.
-Put a procedure or input table in that guide and link to its heading from other
-pages. Keep prerequisites beside the step that needs them. Link configuration
-values to their source rather than copying inventories into several guides.
-Historical audits, execution receipts and generated output stay outside Git.
+1. Record the decision in a new [ADR](architecture.md#adr-process) when it changes
+   ownership, a runtime dependency, identity, secret flow, data durability or
+   delivery.
+2. Add resources to the owning manifest under `k8s/`, digest-pin every image,
+   declare `automountServiceAccountToken` and CPU/memory requests and limits.
+3. Register new manifests, ExternalSecrets or wait targets in
+   [`config/platform.env`](../config/platform.env) so the installer and Ansible
+   apply and wait for them in order.
+4. Add public hostnames to both the Ingress and `DEFAULT_CLOUDFLARE_HOST_LABELS`;
+   the validator rejects a mismatch.
+5. Seed credentials in [`configure-vault.sh`](../scripts/configure-vault.sh) and
+   project them with an ExternalSecret; never place secrets in Helm values.
+6. Update [features](features.md), the owning guide and [TODO.md](../TODO.md).
+7. Run [validation](testing.md#quick-commands) and rehearse on a disposable host.
+
+## Documentation Ownership
+
+The docs tree mirrors DevApp, Indezy and Thoughty; [ADR 0001](adr/0001-documentation-structure.md)
+records the structure. The README is the entry point; each guide owns one
+workflow or reference. Put a procedure or input table in that guide and link to
+its heading from other pages. Keep prerequisites beside the step that needs
+them. Link configuration values to their source rather than copying inventories
+into several guides. Implemented behavior belongs in [features](features.md);
+planned work belongs in [TODO.md](../TODO.md). Historical audits, execution
+receipts and generated output stay outside Git.
+
+## Related Guides
+
+- [Architecture](architecture.md)
+- [Testing](testing.md)
+- [Code quality](code-quality.md)
+- [Deployment](deployment.md)

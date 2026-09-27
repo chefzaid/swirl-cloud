@@ -1,4 +1,4 @@
-# Application onboarding contract
+# Application Onboarding Contract
 
 Applications opt into `add-repos.sh` by committing `infra/onboarding.json`.
 This reference is for application authors; the
@@ -6,7 +6,7 @@ This reference is for application authors; the
 Contracts declare supported platform operations without running repository
 scripts or playbooks. DevApp uses version 2 for delivery to local or remote environment namespaces;
 version 1 remains compatible with existing applications in `apps`. Follow the
-[namespace and discovery contract](observability.md#namespace-and-discovery).
+[namespace and discovery contract](../operations.md#namespace-and-discovery).
 
 ## Shared-platform contract (version 2)
 
@@ -51,7 +51,7 @@ expose an `int`/`uat`/`prod` selector, default to `int`, update only that
 Application, and verify the destination, images and exact revision after sync.
 Integration may deploy branch snapshots; `uat` and `prod` require finalized
 releases. Project-scoped runners and Application admission rules enforce the
-integration/protected-release boundary described in [delivery](delivery.md#application-delivery).
+integration/protected-release boundary described in [delivery](../deployment.md#application-delivery).
 The final pointer commit carries the onboarding trailers described below;
 the pinned runtime commit precedes it. Onboarding verifies both commits and
 checks Deployment readiness on the selected cluster.
@@ -102,7 +102,7 @@ KUBECONFIG=/secure/platform.yaml python3 scripts/configure-application-data.py \
 That command prepares credentials; it does not expose ports or change a running
 Redis listener. The platform administrator password stays at Vault `infra/application-redis`;
 applications never receive it. Enable the generated
-[application-data profile](../config/application-data-values.yaml). Its broker
+[application-data profile](../../config/application-data-values.yaml). Its broker
 endpoints come directly from the inventory. Application consumers receive separate scoped
 users, never this platform password. The staged compatibility credential keeps migrated clients working during
 authentication activation. The helper writes the public profile outside
@@ -228,7 +228,7 @@ mappers. It does not import demonstration realms, users or secrets.
 | `SONAR_PROJECT_KEY` | GitLab project path with `/` converted to `:`. |
 
 Explicit `PLATFORM_DOMAIN`, `INTERNAL_DNS_ZONE` and `KEYCLOAK_REALM` settings
-override discovery. Otherwise the installed `bm-cluster` Application supplies
+override discovery. Otherwise the installed `swirl-cloud` Application supplies
 Helm parameters, then `valuesObject`, then inline values. CoreDNS provides a
 private-zone fallback; OAuth2 Proxy's OIDC issuer provides public-domain and
 realm fallbacks. The private zone is never guessed from the public domain, and
@@ -255,7 +255,7 @@ Release jobs must preserve these choices.
 The default-branch pipeline must accept source `api` and automatically run its
 declared jobs with `APP_ONBOARDING=true`. Ordinary manual-release behavior remains
 independent of onboarding; source-analysis pipelines follow the separate
-[scanner contract](observability.md#scanner-contract).
+[scanner contract](../operations.md#scanner-contract).
 
 Before publication, validate that `CI_COMMIT_SHA` equals a valid
 `ONBOARDING_EXPECTED_SHA`, the branch is the default branch and source is `api`.

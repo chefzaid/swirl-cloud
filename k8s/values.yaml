@@ -8,7 +8,7 @@ organizationName: ""
 organizationSlug: ""
 gitlabGroupPath: ""
 gitlabGroupName: ""
-gitlabProjectName: bm-cluster
+gitlabProjectName: swirl-cloud
 keycloakRealm: ""
 tlsSecretName: ""
 sonarAlmSetting: ""
@@ -69,6 +69,39 @@ redis-ha:
     resources:
       requests: {cpu: 25m, memory: 32Mi}
       limits: {cpu: 250m, memory: 64Mi}
+  # Not the chart's exporter: its scrape annotations would also match the
+  # annotated-pod job once per container. Matches datastores/redis.yaml.
+  extraContainers:
+    - name: redis-exporter
+      image: quay.io/oliver006/redis_exporter:v1.92.0-alpine@sha256:b07ce24af20faeb4033a91dd30c2639dba6fc059cdfec97ecc7d320dab4f43cb
+      command: ["sh", "-ec"]
+      args:
+        - |
+          [ "${BM_REDIS_AUTH_ENABLED:-false}" = true ] || unset REDIS_PASSWORD
+          exec /redis_exporter
+      envFrom:
+        - configMapRef:
+            name: application-data-access
+            optional: true
+      env:
+        - name: REDIS_ADDR
+          value: redis://127.0.0.1:6379
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: application-redis-auth
+              key: auth
+              optional: true
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: ["ALL"]}
+        readOnlyRootFilesystem: true
+      ports:
+        - name: metrics
+          containerPort: 9121
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {cpu: 100m, memory: 64Mi}
   haproxy:
     enabled: true
     replicas: 3

@@ -189,7 +189,7 @@ spec:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:01171220c7c059afc85034ffe687bfe7249e41c0cc46fbe9a5128503ceee3016
           args:
-            - --metric-labels-allowlist=namespaces=[bm-cluster.io/application-workloads],pods=[app]
+            - --metric-labels-allowlist=namespaces=[swirl-cloud.io/application-workloads],pods=[app]
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -307,6 +307,84 @@ spec:
             path: /
 
 ---
+# Kafka's headless Service resolves to every broker in single-node and HA
+# topologies; the private listener admits infra clients (see application-data).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-exporter
+  namespace: infra
+  labels:
+    app: kafka-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-exporter
+  template:
+    metadata:
+      labels:
+        app: kafka-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-exporter
+          image: docker.io/danielqsj/kafka-exporter:v1.10.0@sha256:346a53c2489a3530790d01f7b96632496d0d58926662f4c35bb65f569db2ab42
+          args:
+            - --kafka.server=kafka.__INTERNAL_DNS_ZONE__:9092
+            - --kafka.version=4.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: metrics
+              containerPort: 9308
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+---
+# Longhorn limits its manager API to Longhorn components. Admit Prometheus to
+# the manager port only, which also serves /metrics.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-manager-metrics
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: infra
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9500
+
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -379,6 +457,91 @@ data:
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
 
+      # Separately installed platform releases are selected by their chart
+      # labels and named metrics ports; their charts need no annotations.
+      - job_name: traefik
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [infra]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: traefik;metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # Listener telemetry permits unauthenticated reads, so standbys report too.
+      - job_name: vault
+        metrics_path: /v1/sys/metrics
+        params:
+          format: [prometheus]
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [infra]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: vault;server;http
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      - job_name: argocd
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [infra]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: argocd;metrics
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            target_label: component
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # The manager API port also serves /metrics; see longhorn-manager-metrics.
+      - job_name: longhorn
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [longhorn-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: longhorn-manager;manager
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # Datastore exporters are containers named <datastore>-exporter with a
+      # metrics port; CloudNativePG instances serve the same PostgreSQL role.
+      # Each target's job is the datastore name.
+      - job_name: datastores
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [infra]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_cnpg_io_cluster]
+            action: keep
+            regex: (postgres|mongodb|redis|kafka)-exporter;metrics;|postgres;metrics;postgres-ha
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: (postgres|mongodb|redis|kafka).*
+            target_label: job
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
       # Applications opt in from their owning repository with these pod annotations:
       # prometheus.io/scrape=true, prometheus.io/path=/metrics, prometheus.io/port=<port>.
       - job_name: kubernetes-pods
@@ -417,7 +580,7 @@ data:
 
   rules.yaml: |
     groups:
-      - name: bm-cluster.capacity
+      - name: swirl-cloud.capacity
         rules:
           - alert: NodeFilesystemSpaceLow
             expr: |
@@ -455,7 +618,7 @@ data:
             annotations:
               summary: Filesystem is predicted to fill within 24 hours
               description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} is consuming its remaining space quickly.'
-      - name: bm-cluster.kubernetes
+      - name: swirl-cloud.kubernetes
         rules:
           - alert: KubernetesDeploymentUnavailable
             expr: kube_deployment_spec_replicas > kube_deployment_status_replicas_available
@@ -512,7 +675,7 @@ data:
             annotations:
               summary: Kubernetes Job failed
               description: '{{ $labels.namespace }}/{{ $labels.job_name }} has a failed execution.'
-      - name: bm-cluster.monitoring
+      - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown
             expr: up == 0
@@ -689,6 +852,9 @@ spec:
     metadata:
       labels:
         app: prometheus
+      annotations:
+        # subPath mounts never refresh; roll Prometheus when its config changes.
+        swirl-cloud.io/prometheus-config: pending
     spec:
       serviceAccountName: prometheus
       automountServiceAccountToken: true
@@ -1071,7 +1237,7 @@ spec:
       labels:
         app: grafana
       annotations:
-        bm-cluster.io/application-observability: pending
+        swirl-cloud.io/application-observability: pending
     spec:
       serviceAccountName: grafana
       automountServiceAccountToken: true

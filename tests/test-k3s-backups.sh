@@ -6,13 +6,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
-TEST_DIR="$(mktemp -d /tmp/bm-cluster-backup-test.XXXXXX)"
+TEST_DIR="$(mktemp -d /tmp/swirl-cloud-backup-test.XXXXXX)"
 trap 'rm -r -- "$TEST_DIR"' EXIT
 command -v sqlite3 >/dev/null || { printf 'sqlite3 is required for backup tests.\n' >&2; exit 1; }
 
 mkdir -p "$TEST_DIR/data/server/db" "$TEST_DIR/config/config.yaml.d" "$TEST_DIR/vault" "$TEST_DIR/locks"
 printf 'fixture-token\n' > "$TEST_DIR/data/server/token"
-printf 'node-ip: 10.40.0.1\n' > "$TEST_DIR/config/config.yaml.d/20-bm-private-node-network.yaml"
+printf 'node-ip: 10.40.0.1\n' > "$TEST_DIR/config/config.yaml.d/20-swirl-cloud-private-node-network.yaml"
 sqlite3 "$TEST_DIR/data/server/db/state.db" <<'SQL'
 CREATE TABLE kine (id INTEGER PRIMARY KEY, name TEXT, prev_revision INTEGER, deleted INTEGER, old_value BLOB);
 INSERT INTO kine VALUES (1, '/test', 0, 0, X'');
@@ -58,7 +58,7 @@ run_backup() (
         -e '/^\[\[ "\$EUID" -eq 0 \]\]/d' \
         -e "s|^POSTGRES_ACCESS_LIBRARY=.*|POSTGRES_ACCESS_LIBRARY='$SCRIPT_DIR/lib/postgres-access.sh'|" \
         -e "s|/run/lock/|$TEST_DIR/locks/|g" \
-        -e "s|/var/lib/bm-cluster/|$TEST_DIR/vault/|g" \
+        -e "s|/var/lib/swirl-cloud/|$TEST_DIR/vault/|g" \
         "$SCRIPT_DIR/backup-k3s.sh")
 )
 
@@ -73,8 +73,8 @@ grep -Fxq 'Datastore: sqlite' "$TEST_DIR/sqlite-extracted/RESTORE.txt"
 [[ "$(sqlite3 "$TEST_DIR/sqlite-extracted/k3s-db/state.db" 'SELECT count(*) FROM kine;')" == 1 ]]
 [[ "$(sqlite3 "$TEST_DIR/data/server/db/state.db" 'SELECT count(*) FROM kine;')" == 3 ]]
 cmp "$TEST_DIR/data/server/token" "$TEST_DIR/sqlite-extracted/k3s-server/token"
-cmp "$TEST_DIR/config/config.yaml.d/20-bm-private-node-network.yaml" \
-    "$TEST_DIR/sqlite-extracted/k3s-config/config.yaml.d/20-bm-private-node-network.yaml"
+cmp "$TEST_DIR/config/config.yaml.d/20-swirl-cloud-private-node-network.yaml" \
+    "$TEST_DIR/sqlite-extracted/k3s-config/config.yaml.d/20-swirl-cloud-private-node-network.yaml"
 
 # Retain state.db to prove an etcd migration can never silently back up stale SQLite.
 mkdir "$TEST_DIR/data/server/db/etcd/member"

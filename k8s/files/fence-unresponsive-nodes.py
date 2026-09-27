@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 
 TAINT = 'node.kubernetes.io/out-of-service'
-POLICY = 'node.bm-cluster.io/fenced-detach-policy'
+POLICY = 'node.swirl-cloud.io/fenced-detach-policy'
 STALE_SECONDS = 300
 SURVIVOR_FRESH_SECONDS = 60
 REQUEST_TIMEOUT = 10

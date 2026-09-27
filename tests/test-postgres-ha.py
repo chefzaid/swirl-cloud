@@ -20,7 +20,7 @@ SPEC.loader.exec_module(HA)
 
 class SafetyTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="bm-postgres-ha-test-")
+        self.temp = tempfile.TemporaryDirectory(prefix="swirl-cloud-postgres-ha-test-")
         self.addCleanup(self.temp.cleanup)
         self.migration = HA.Migration(argparse.Namespace(state_dir=self.temp.name, maintenance=True, desired_values=None))
         self.addCleanup(self.migration.lock.close)
@@ -91,9 +91,9 @@ def docker_canary():
     image = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())["postgresHa"]["image"]
     docker = ["docker"] if os.geteuid() == 0 else ["sudo", "-n", "docker"]
     subprocess.run([*docker, "image", "inspect", image], check=True, stdout=subprocess.DEVNULL)
-    with tempfile.TemporaryDirectory(prefix="bm-postgres-ha-canary-") as directory:
+    with tempfile.TemporaryDirectory(prefix="swirl-cloud-postgres-ha-canary-") as directory:
         directory = Path(directory)
-        names = ["bm-pg-ha-source-" + str(os.getpid()), "bm-pg-ha-target-" + str(os.getpid())]
+        names = ["swirl-cloud-pg-ha-source-" + str(os.getpid()), "swirl-cloud-pg-ha-target-" + str(os.getpid())]
         wrapper = directory / "kubectl"
         wrapper.write_text("#!/usr/bin/env python3\nimport subprocess,sys\na=sys.argv[1:]\n"
                            "assert a[0]=='exec'\ni=a.index('--');p=a[a.index('-n')+2]\n"

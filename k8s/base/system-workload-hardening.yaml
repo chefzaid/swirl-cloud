@@ -4,7 +4,7 @@
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-longhorn-csi-controller-hardening
+  name: swirl-cloud-longhorn-csi-controller-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -69,18 +69,18 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-longhorn-csi-controller-hardening
+  name: swirl-cloud-longhorn-csi-controller-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-longhorn-csi-controller-hardening
+  policyName: swirl-cloud-longhorn-csi-controller-hardening
 ---
 # K3s reconciles these manifests on restart. Admission preserves the hardening
 # without editing files managed by K3s or moving system services to another namespace.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-k3s-stateless-controller-hardening
+  name: swirl-cloud-k3s-stateless-controller-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -110,7 +110,7 @@ spec:
                     seccompProfile: Object.spec.template.spec.securityContext.seccompProfile{type: 'RuntimeDefault'}
                   },
                   volumes: [Object.spec.template.spec.volumes{
-                    name: 'bm-security-tmp', emptyDir: Object.spec.template.spec.volumes.emptyDir{}
+                    name: 'swirl-cloud-security-tmp', emptyDir: Object.spec.template.spec.volumes.emptyDir{}
                   }],
                   containers: object.spec.template.spec.containers.map(c,
                     Object.spec.template.spec.containers{
@@ -121,7 +121,7 @@ spec:
                         allowPrivilegeEscalation: false, readOnlyRootFilesystem: true
                       },
                       volumeMounts: [Object.spec.template.spec.containers.volumeMounts{
-                        name: 'bm-security-tmp', mountPath: '/tmp'
+                        name: 'swirl-cloud-security-tmp', mountPath: '/tmp'
                       }],
                       resources: Object.spec.template.spec.containers.resources{
                         requests: {
@@ -153,18 +153,18 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-k3s-stateless-controller-hardening
+  name: swirl-cloud-k3s-stateless-controller-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-k3s-stateless-controller-hardening
+  policyName: swirl-cloud-k3s-stateless-controller-hardening
 ---
 # The public SUSE image uses these writable mounts. The UI proxies the manager
 # API and does not need a Kubernetes token.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-longhorn-ui-hardening
+  name: swirl-cloud-longhorn-ui-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -194,7 +194,7 @@ spec:
                   },
                   volumes: ['tmp', 'logs', 'lib'].map(n,
                     Object.spec.template.spec.volumes{
-                      name: 'bm-nginx-' + n, emptyDir: Object.spec.template.spec.volumes.emptyDir{}
+                      name: 'swirl-cloud-nginx-' + n, emptyDir: Object.spec.template.spec.volumes.emptyDir{}
                     }
                   ),
                   containers: object.spec.template.spec.containers.filter(c, c.name == 'longhorn-ui').map(c,
@@ -205,9 +205,9 @@ spec:
                         allowPrivilegeEscalation: false, readOnlyRootFilesystem: true
                       },
                       volumeMounts: [
-                        Object.spec.template.spec.containers.volumeMounts{name: 'bm-nginx-tmp', mountPath: '/tmp'},
-                        Object.spec.template.spec.containers.volumeMounts{name: 'bm-nginx-logs', mountPath: '/var/log/nginx'},
-                        Object.spec.template.spec.containers.volumeMounts{name: 'bm-nginx-lib', mountPath: '/var/lib/nginx'}
+                        Object.spec.template.spec.containers.volumeMounts{name: 'swirl-cloud-nginx-tmp', mountPath: '/tmp'},
+                        Object.spec.template.spec.containers.volumeMounts{name: 'swirl-cloud-nginx-logs', mountPath: '/var/log/nginx'},
+                        Object.spec.template.spec.containers.volumeMounts{name: 'swirl-cloud-nginx-lib', mountPath: '/var/lib/nginx'}
                       ],
                       resources: Object.spec.template.spec.containers.resources{
                         requests: {
@@ -238,18 +238,18 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-longhorn-ui-hardening
+  name: swirl-cloud-longhorn-ui-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-longhorn-ui-hardening
+  policyName: swirl-cloud-longhorn-ui-hardening
 ---
 # This controller only calls the Kubernetes/Longhorn APIs; it has no host mounts.
 # Its API credential remains enabled because it creates the CSI controllers.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-longhorn-driver-deployer-hardening
+  name: swirl-cloud-longhorn-driver-deployer-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -277,7 +277,7 @@ spec:
                     runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001,
                     seccompProfile: Object.spec.template.spec.securityContext.seccompProfile{type: 'RuntimeDefault'}
                   },
-                  volumes: [Object.spec.template.spec.volumes{name: 'bm-security-tmp', emptyDir: Object.spec.template.spec.volumes.emptyDir{}}],
+                  volumes: [Object.spec.template.spec.volumes{name: 'swirl-cloud-security-tmp', emptyDir: Object.spec.template.spec.volumes.emptyDir{}}],
                   containers: object.spec.template.spec.containers.map(c,
             Object.spec.template.spec.containers{
               name: c.name,
@@ -285,7 +285,7 @@ spec:
                 runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001,
                 allowPrivilegeEscalation: false, readOnlyRootFilesystem: true
               },
-              volumeMounts: [Object.spec.template.spec.containers.volumeMounts{name: 'bm-security-tmp', mountPath: '/tmp'}],
+              volumeMounts: [Object.spec.template.spec.containers.volumeMounts{name: 'swirl-cloud-security-tmp', mountPath: '/tmp'}],
               resources: Object.spec.template.spec.containers.resources{
                 requests: {
                   'cpu': has(c.resources) && has(c.resources.requests) && 'cpu' in c.resources.requests ? c.resources.requests['cpu'] : '25m',
@@ -305,7 +305,7 @@ spec:
                 runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001,
                 allowPrivilegeEscalation: false, readOnlyRootFilesystem: true
               },
-              volumeMounts: [Object.spec.template.spec.initContainers.volumeMounts{name: 'bm-security-tmp', mountPath: '/tmp'}],
+              volumeMounts: [Object.spec.template.spec.initContainers.volumeMounts{name: 'swirl-cloud-security-tmp', mountPath: '/tmp'}],
               resources: Object.spec.template.spec.initContainers.resources{
                 requests: {
                   'cpu': has(c.resources) && has(c.resources.requests) && 'cpu' in c.resources.requests ? c.resources.requests['cpu'] : '25m',
@@ -331,18 +331,18 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-longhorn-driver-deployer-hardening
+  name: swirl-cloud-longhorn-driver-deployer-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-longhorn-driver-deployer-hardening
+  policyName: swirl-cloud-longhorn-driver-deployer-hardening
 ---
 # Only the two socket clients are hardened; the driver retains host mount privileges.
 # Root is required by the existing root-owned CSI and registration sockets.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-longhorn-csi-sidecar-hardening
+  name: swirl-cloud-longhorn-csi-sidecar-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -406,18 +406,18 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-longhorn-csi-sidecar-hardening
+  name: swirl-cloud-longhorn-csi-sidecar-hardening
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-longhorn-csi-sidecar-hardening
+  policyName: swirl-cloud-longhorn-csi-sidecar-hardening
 ---
 # Keep the tested upstream sidecars when Longhorn recreates its DaemonSet.
 # These public images need no registry credentials.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: bm-longhorn-csi-plugin-security-image
+  name: swirl-cloud-longhorn-csi-plugin-security-image
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -455,8 +455,8 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: bm-longhorn-csi-plugin-security-image
+  name: swirl-cloud-longhorn-csi-plugin-security-image
   annotations:
     argocd.argoproj.io/sync-wave: "-9"
 spec:
-  policyName: bm-longhorn-csi-plugin-security-image
+  policyName: swirl-cloud-longhorn-csi-plugin-security-image

@@ -4,8 +4,8 @@ set -euo pipefail
 set +x
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_ROOT=/etc/rancher/k3s
-CONFIG_PATH="$CONFIG_ROOT/config.yaml.d/99-bm-ha-storage-safety.yaml"
-POLICY_KEY=node.bm-cluster.io/fenced-detach-policy
+CONFIG_PATH="$CONFIG_ROOT/config.yaml.d/99-swirl-cloud-ha-storage-safety.yaml"
+POLICY_KEY=node.swirl-cloud.io/fenced-detach-policy
 error() { echo "[ERROR] $*" >&2; exit 1; }
 
 prepare_local() {
@@ -153,8 +153,8 @@ main() {
             connection="$(ssh -n "${ssh_options[@]}" "$target" 'sudo -n true && printf "%s" "$SSH_CONNECTION"')"
             read -r actual_source _ actual_target actual_port <<< "$connection"
             [[ "$actual_source" == "$source_ip" && "$actual_target" == "$address" && "$actual_port" == "$port" ]] || error "Private SSH identity mismatch"
-            remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/bm-ha-control-plane.XXXXXX')"
-            [[ "$remote_dir" =~ ^/tmp/bm-ha-control-plane\.[A-Za-z0-9]+$ ]] || error "Invalid remote staging directory"
+            remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-ha-control-plane.XXXXXX')"
+            [[ "$remote_dir" =~ ^/tmp/swirl-cloud-ha-control-plane\.[A-Za-z0-9]+$ ]] || error "Invalid remote staging directory"
             scp "${scp_options[@]}" "$SCRIPT_DIR/configure-ha-control-planes.sh" "$target:$remote_dir/"
             printf -v command 'HIGH_AVAILABILITY_ENABLED=true bash %q' "$remote_dir/configure-ha-control-planes.sh"
             ssh -n "${ssh_options[@]}" "$target" "$command --prepare-local"
@@ -188,7 +188,7 @@ main() {
     done < <(jq -r --arg local "$source_ip" '[.items[] |
         select((.metadata.labels | has("node-role.kubernetes.io/control-plane")) or (.metadata.labels | has("node-role.kubernetes.io/master"))) |
         [.metadata.name, ([.status.addresses[] | select(.type == "InternalIP") | .address][0]), .metadata.uid,
-         (.metadata.annotations["node.bm-cluster.io/ssh-user"] // "-")]] |
+         (.metadata.annotations["node.swirl-cloud.io/ssh-user"] // "-")]] |
         sort_by(.[1] == $local)[] | @tsv' <<< "$nodes")
 }
 

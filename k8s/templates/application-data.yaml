@@ -54,7 +54,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              bm-cluster.io/application-workloads: "true"
+              swirl-cloud.io/application-workloads: "true"
       ports:
         - {protocol: TCP, port: 9094}
 ---

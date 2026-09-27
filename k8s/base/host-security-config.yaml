@@ -5,9 +5,9 @@ metadata:
   namespace: infra
   labels:
     app.kubernetes.io/name: host-security
-    app.kubernetes.io/part-of: ds-cluster
+    app.kubernetes.io/part-of: swirl-cloud
   annotations:
-    ds-cluster.__PUBLIC_DOMAIN__/enforced-by: scripts/configure-node-security.sh
+    swirl-cloud.__PUBLIC_DOMAIN__/enforced-by: scripts/configure-node-security.sh
 data:
   node-policy.yaml: |
     control-plane:

@@ -41,7 +41,7 @@ cleanup() {
     CONSUMER_KEY=""
     unset OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY \
         APPLICATION_KEY APPLICATION_SECRET CONSUMER_KEY 2>/dev/null || true
-    if [[ -n "$TEMP_DIR" && "$TEMP_DIR" == /tmp/bm-cluster-vrack.* && -d "$TEMP_DIR" ]]; then
+    if [[ -n "$TEMP_DIR" && "$TEMP_DIR" == /tmp/swirl-cloud-vrack.* && -d "$TEMP_DIR" ]]; then
         rm -rf -- "$TEMP_DIR"
     fi
 }
@@ -133,7 +133,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$MODE" ]] || error "Select --attach-server, --verify-account, or --configure-node."
-TEMP_DIR="$(mktemp -d /tmp/bm-cluster-vrack.XXXXXX)"
+TEMP_DIR="$(mktemp -d /tmp/swirl-cloud-vrack.XXXXXX)"
 chmod 700 "$TEMP_DIR"
 
 configure_api_endpoint() {
@@ -398,7 +398,7 @@ configure_node() {
     fi
 
     if command -v netplan >/dev/null 2>&1; then
-        config_file="/etc/netplan/90-bm-cluster-vrack.yaml"
+        config_file="/etc/netplan/90-swirl-cloud-vrack.yaml"
         if [[ -n "$VLAN_ID" ]]; then
             config_content="network:
   version: 2
@@ -441,7 +441,7 @@ configure_node() {
         fi
     elif [[ -d /etc/network/interfaces.d && -z "$VLAN_ID" ]]; then
         command -v ifup >/dev/null 2>&1 || error "ifupdown is required for this Debian network configuration."
-        config_file="/etc/network/interfaces.d/90-bm-cluster-vrack"
+        config_file="/etc/network/interfaces.d/90-swirl-cloud-vrack"
         netmask="$(prefix_to_netmask "$prefix")"
         config_content="auto $PRIVATE_INTERFACE
 iface $PRIVATE_INTERFACE inet static

@@ -114,7 +114,7 @@ data:
         "index.refresh_interval": "5s",
         "index.mapping.total_fields.limit": 200,
         "index.mapping.ignore_malformed": true,
-        "index.lifecycle.name": "bm-cluster-logs-7d"
+        "index.lifecycle.name": "swirl-cloud-logs-7d"
       },
       "mappings": {
         "dynamic": false,
@@ -162,7 +162,7 @@ data:
       local namespace = record["kubernetes_namespace"] or {}
       local namespace_labels = namespace["labels"] or {}
       if kubernetes["namespace_name"] == "apps" or
-          namespace_labels["bm-cluster.io/application-workloads"] == "true" then
+          namespace_labels["swirl-cloud.io/application-workloads"] == "true" then
         record["observability_scope"] = "application"
       end
 
@@ -216,8 +216,8 @@ spec:
       labels:
         app: fluent-bit
       annotations:
-        bm-cluster.io/logging-agent: pending
-        bm-cluster.__PUBLIC_DOMAIN__/config-version: "5"
+        swirl-cloud.io/logging-agent: pending
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "5"
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
@@ -244,14 +244,14 @@ spec:
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/ilm-policy.json \
-                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/bm-cluster-logs-7d >/dev/null
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-logs-7d >/dev/null
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/index-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-logs-v2 >/dev/null
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
-                --data-binary '{"index.lifecycle.name":"bm-cluster-logs-7d"}' \
+                --data-binary '{"index.lifecycle.name":"swirl-cloud-logs-7d"}' \
                 'http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/kubernetes-logs-*,app-logs-*/_settings?allow_no_indices=true&ignore_unavailable=true' >/dev/null
           securityContext:
             runAsNonRoot: true
@@ -411,7 +411,7 @@ spec:
       labels:
         app: filebeat-lynis
       annotations:
-        bm-cluster.__PUBLIC_DOMAIN__/config-version: "1"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "1"
     spec:
       automountServiceAccountToken: false
       nodeSelector:
@@ -494,5 +494,5 @@ spec:
             type: Directory
         - name: state
           hostPath:
-            path: /var/lib/bm-cluster/filebeat-lynis
+            path: /var/lib/swirl-cloud/filebeat-lynis
             type: DirectoryOrCreate

@@ -309,7 +309,7 @@ class ChartTests(unittest.TestCase):
     def test_opt_in_and_least_privilege_resources(self):
         import yaml
         def render(extra):
-            result = subprocess.run(['helm', 'template', 'bm-cluster', str(ROOT/'k8s'),
+            result = subprocess.run(['helm', 'template', 'swirl-cloud', str(ROOT/'k8s'),
                                      '--set', 'publicDomain=example.test', '--set', 'internalDnsZone=internal.example.test',
                                      '--set', 'gitopsRepositoryURL=https://example.test/platform.git',
                                      '--set', 'cloudflareAccessTeamName=example',

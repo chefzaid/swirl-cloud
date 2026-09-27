@@ -19,9 +19,9 @@ INHERITED_PRIVATE_CONTROL_PLANE=false
 K3S_NODE_NETWORK_CIDR="${K3S_NODE_NETWORK_CIDR:-}"
 CONTROL_PLANE_IP="${CONTROL_PLANE_IP:-}"
 CONTROL_PLANE_SSH_IPS="${CONTROL_PLANE_SSH_IPS:-}"
-CONTROL_PLANE_SSH_STATE=/etc/bm-cluster/control-plane-ssh-ips
-PRIVATE_NETWORK_CIDR_STATE=/etc/bm-cluster/private-node-network-cidr
-PRIVATE_NETWORK_CONFIG=/etc/rancher/k3s/config.yaml.d/20-bm-private-node-network.yaml
+CONTROL_PLANE_SSH_STATE=/etc/swirl-cloud/control-plane-ssh-ips
+PRIVATE_NETWORK_CIDR_STATE=/etc/swirl-cloud/private-node-network-cidr
+PRIVATE_NETWORK_CONFIG=/etc/rancher/k3s/config.yaml.d/20-swirl-cloud-private-node-network.yaml
 HARDENED_SSH_PORT="${HARDENED_SSH_PORT:-}"
 CLOUDFLARE_PROXY_ONLY="${CLOUDFLARE_PROXY_ONLY:-}"
 SSH_ALLOWED_USERS="${SSH_ALLOWED_USERS:-${SUDO_USER:-$USER}}"
@@ -119,7 +119,7 @@ inherit_private_control_plane_policy() {
     if [[ "$PRIVATE_CONTROL_PLANE" != true ]] && {
       sudo test -f "$CONTROL_PLANE_SSH_STATE" ||
       sudo test -f "$PRIVATE_NETWORK_CIDR_STATE" ||
-      sudo test -f /etc/nftables.d/bm-cluster-worker-ingress.nft;
+      sudo test -f /etc/nftables.d/swirl-cloud-worker-ingress.nft;
     }; then
       err "Existing private-node policy lacks its managed control-plane network marker; refusing public firewall reconciliation"
     fi
@@ -218,7 +218,7 @@ allow_control_plane_ssh() {
   local -a addresses=()
   IFS=',' read -r -a addresses <<< "$CONTROL_PLANE_SSH_IPS"
   for address in "${addresses[@]}"; do
-    sudo ufw allow in on "$cluster_interface" from "$address" to any port "$HARDENED_SSH_PORT" proto tcp comment 'BM control-plane SSH' >/dev/null
+    sudo ufw allow in on "$cluster_interface" from "$address" to any port "$HARDENED_SSH_PORT" proto tcp comment 'Swirl Cloud control-plane SSH' >/dev/null
   done
 }
 
@@ -243,7 +243,7 @@ reconcile_control_plane_ssh() {
   # are active. All unrelated host rules and the active SSH source are preserved.
   while IFS= read -r address; do
     [[ -n "$address" && ",$CONTROL_PLANE_SSH_IPS," != *",$address,"* ]] || continue
-    sudo ufw --force delete allow in on "$cluster_interface" from "$address" to any port "$HARDENED_SSH_PORT" proto tcp comment 'BM control-plane SSH' >/dev/null
+    sudo ufw --force delete allow in on "$cluster_interface" from "$address" to any port "$HARDENED_SSH_PORT" proto tcp comment 'Swirl Cloud control-plane SSH' >/dev/null
   done <<< "$previous"
   persist_control_plane_ssh_policy
   info "Private SSH administration reconciled for verified control planes: $CONTROL_PLANE_SSH_IPS"
@@ -406,7 +406,7 @@ ensure_packages() {
 
 backup_file_if_exists() {
   local path="$1"
-  local backup_path="/var/backups/bm-cluster/config${path}.bak"
+  local backup_path="/var/backups/swirl-cloud/config${path}.bak"
 
   if sudo test -f "$path" && ! sudo test -f "$backup_path"; then
     sudo install -d -o root -g root -m 0700 "$(dirname "$backup_path")"
@@ -640,7 +640,7 @@ get_crowdsec_bouncer_api_key() {
   fi
 
   if [[ -z "$api_key" ]]; then
-    bouncer_name="ds-cluster-$(hostname -s)-firewall-bouncer-$(date +%s)"
+    bouncer_name="swirl-cloud-$(hostname -s)-firewall-bouncer-$(date +%s)"
     api_key="$(sudo cscli bouncers add "$bouncer_name" -o raw 2>/dev/null || true)"
   fi
 
@@ -707,8 +707,8 @@ configure_worker_forwarding_guard() {
   local interface
 
   if ! private_node_policy || [[ ${#interfaces[@]} -eq 0 ]]; then
-    if sudo systemctl cat bm-cluster-worker-ingress-guard.service >/dev/null 2>&1; then
-      sudo systemctl disable --now bm-cluster-worker-ingress-guard.service >/dev/null 2>&1 || true
+    if sudo systemctl cat swirl-cloud-worker-ingress-guard.service >/dev/null 2>&1; then
+      sudo systemctl disable --now swirl-cloud-worker-ingress-guard.service >/dev/null 2>&1 || true
     fi
     return 0
   fi
@@ -721,7 +721,7 @@ configure_worker_forwarding_guard() {
   {
     printf '%s\n' \
       '# Managed by scripts/configure-node-security.sh' \
-      'table inet bm_cluster_worker_guard {' \
+      'table inet swirl_cloud_worker_guard {' \
       '  chain input_guard {' \
       '    type filter hook input priority -150; policy accept;' \
       '    ct state established,related accept'
@@ -740,41 +740,41 @@ configure_worker_forwarding_guard() {
       printf '    iifname "%s" drop\n' "$interface"
     done
     printf '%s\n' '  }' '}'
-  } | write_root_file /etc/nftables.d/bm-cluster-worker-ingress.nft 0600
+  } | write_root_file /etc/nftables.d/swirl-cloud-worker-ingress.nft 0600
 
-  write_root_file /usr/local/sbin/bm-cluster-worker-ingress-guard 0755 <<'EOF'
+  write_root_file /usr/local/sbin/swirl-cloud-worker-ingress-guard 0755 <<'EOF'
 #!/bin/sh
 set -eu
-table_name=bm_cluster_worker_guard
+table_name=swirl_cloud_worker_guard
 if /usr/sbin/nft list table inet "$table_name" >/dev/null 2>&1; then
     /usr/sbin/nft delete table inet "$table_name"
 fi
 if [ "${1:-start}" = stop ]; then
     exit 0
 fi
-exec /usr/sbin/nft -f /etc/nftables.d/bm-cluster-worker-ingress.nft
+exec /usr/sbin/nft -f /etc/nftables.d/swirl-cloud-worker-ingress.nft
 EOF
 
-  write_root_file /etc/systemd/system/bm-cluster-worker-ingress-guard.service <<'EOF'
+  write_root_file /etc/systemd/system/swirl-cloud-worker-ingress-guard.service <<'EOF'
 [Unit]
-Description=Block public input and forwarded ingress on private bm-cluster nodes
+Description=Block public input and forwarded ingress on Swirl Cloud private nodes
 After=network-pre.target nftables.service ufw.service
 Before=docker.service k3s-agent.service k3s.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/sbin/bm-cluster-worker-ingress-guard start
-ExecStop=/usr/local/sbin/bm-cluster-worker-ingress-guard stop
+ExecStart=/usr/local/sbin/swirl-cloud-worker-ingress-guard start
+ExecStop=/usr/local/sbin/swirl-cloud-worker-ingress-guard stop
 
 [Install]
 WantedBy=multi-user.target
 EOF
-  sudo unshare --net /usr/sbin/nft -c -f /etc/nftables.d/bm-cluster-worker-ingress.nft || \
+  sudo unshare --net /usr/sbin/nft -c -f /etc/nftables.d/swirl-cloud-worker-ingress.nft || \
     err "Refusing to replace the worker ingress guard because its nftables policy is invalid"
   sudo systemctl daemon-reload
-  sudo systemctl enable bm-cluster-worker-ingress-guard.service >/dev/null
-  sudo systemctl restart bm-cluster-worker-ingress-guard.service
+  sudo systemctl enable swirl-cloud-worker-ingress-guard.service >/dev/null
+  sudo systemctl restart swirl-cloud-worker-ingress-guard.service
 }
 
 configure_ufw() {
@@ -806,7 +806,7 @@ configure_ufw() {
     if [[ "$SERVER_EXPOSURE" == "local" ]]; then
       CLOUDFLARE_PROXY_ONLY=false
     elif [[ -z "$CLOUDFLARE_PROXY_ONLY" ]]; then
-      if sudo test -f /etc/bm-cluster/cloudflare-proxy-only; then
+      if sudo test -f /etc/swirl-cloud/cloudflare-proxy-only; then
         CLOUDFLARE_PROXY_ONLY=true
       else
         CLOUDFLARE_PROXY_ONLY=false
@@ -923,8 +923,8 @@ configure_ufw() {
 }
 
 configure_sshd() {
-  local config_path="/etc/ssh/sshd_config.d/40-bm-cluster-hardening.conf"
-  local backup_path="/var/backups/bm-cluster/config${config_path}.bak"
+  local config_path="/etc/ssh/sshd_config.d/40-swirl-cloud-hardening.conf"
+  local backup_path="/var/backups/swirl-cloud/config${config_path}.bak"
 
   [[ "$SSH_ALLOWED_USERS" =~ ^[a-zA-Z0-9_.@-]+([[:space:]]+[a-zA-Z0-9_.@-]+)*$ ]] || \
     err "SSH_ALLOWED_USERS must be a space-separated list of local usernames"
@@ -976,7 +976,7 @@ configure_log_retention() {
   local duplicate_config="/etc/logrotate.d/cloud-init-base"
   local legacy_backup
 
-  write_root_file /etc/systemd/journald.conf.d/99-bm-cluster-retention.conf <<'EOF'
+  write_root_file /etc/systemd/journald.conf.d/99-swirl-cloud-retention.conf <<'EOF'
 # Managed by scripts/configure-node-security.sh
 Storage=persistent
 SystemMaxUse=4G
@@ -1028,16 +1028,16 @@ EOF
   # duplicate outside logrotate's accepted filename pattern.
   if sudo test -f "$cloud_init_config" && sudo test -f "$duplicate_config" && \
      sudo cmp -s "$cloud_init_config" "$duplicate_config"; then
-    sudo install -d -o root -g root -m 0700 /var/backups/bm-cluster/config/etc/logrotate.d
-    sudo mv "$duplicate_config" /var/backups/bm-cluster/config/etc/logrotate.d/cloud-init-base.disabled-bm-cluster
+    sudo install -d -o root -g root -m 0700 /var/backups/swirl-cloud/config/etc/logrotate.d
+    sudo mv "$duplicate_config" /var/backups/swirl-cloud/config/etc/logrotate.d/cloud-init-base.disabled-swirl-cloud
   fi
 
   # Older revisions left backup files inside logrotate.d, where logrotate
   # interpreted them as active policies. Move those backups out of the include
   # directory before validating the complete configuration.
   while IFS= read -r legacy_backup; do
-    sudo install -d -o root -g root -m 0700 /var/backups/bm-cluster/config/etc/logrotate.d
-    sudo mv "$legacy_backup" "/var/backups/bm-cluster/config/etc/logrotate.d/$(basename "$legacy_backup")"
+    sudo install -d -o root -g root -m 0700 /var/backups/swirl-cloud/config/etc/logrotate.d
+    sudo mv "$legacy_backup" "/var/backups/swirl-cloud/config/etc/logrotate.d/$(basename "$legacy_backup")"
   done < <(sudo find /etc/logrotate.d -maxdepth 1 -type f -name '*.bak-*' -print)
 
   if sudo logrotate --debug /etc/logrotate.conf 2>&1 | grep -q '^error:'; then
@@ -1076,14 +1076,14 @@ configure_lynis_control_plane() {
   ensure_packages lynis openssh-client
   if [[ -x "$SCRIPT_DIR/audit-cluster-nodes.sh" ]]; then
     sudo install -D -o root -g root -m 0755 \
-      "$SCRIPT_DIR/audit-cluster-nodes.sh" /usr/local/sbin/bm-cluster-audit-nodes
+      "$SCRIPT_DIR/audit-cluster-nodes.sh" /usr/local/sbin/swirl-cloud-audit-nodes
   fi
   [[ -x "$SCRIPT_DIR/configure-lynis-schedule.sh" ]] || \
     err "The Lynis schedule reconciler is missing or not executable"
   sudo "$SCRIPT_DIR/configure-lynis-schedule.sh"
   if ! sudo test -s /var/log/lynis-report.dat; then
     info "Running the initial Lynis baseline audit..."
-    sudo systemctl start bm-cluster-lynis.service
+    sudo systemctl start swirl-cloud-lynis.service
   fi
 }
 
@@ -1165,8 +1165,8 @@ current_map_count="$(sysctl -n vm.max_map_count)"
 if (( current_map_count < 1048576 )); then
   current_map_count=1048576
 fi
-printf 'vm.max_map_count=%s\n' "$current_map_count" | write_root_file /etc/sysctl.d/99-bm-search.conf
-sudo sysctl -p /etc/sysctl.d/99-bm-search.conf >/dev/null
+printf 'vm.max_map_count=%s\n' "$current_map_count" | write_root_file /etc/sysctl.d/99-swirl-cloud-search.conf
+sudo sysctl -p /etc/sysctl.d/99-swirl-cloud-search.conf >/dev/null
 
 configure_tailscale_firewall_integration
 validate_worker_private_ssh_before_firewall

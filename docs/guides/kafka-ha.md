@@ -1,4 +1,4 @@
-# Kafka high availability
+# Kafka High Availability
 
 The default Kafka deployment has one static KRaft controller and one broker.
 The opt-in profile uses three controllers and three brokers on distinct hosts.
@@ -33,7 +33,7 @@ until the final values have been persisted and verified.
 
 Use rendered installation Helm values for `--desired-values`, with the normal
 domain, internal DNS and GitOps inputs. Follow
-[installation inputs](installation.md#unattended-installation); do not
+[installation inputs](../deployment.md#unattended-installation); do not
 pass the placeholder reference in `config/kafka-ha-values.yaml` as the complete
 platform values. Keep this file and the migration journal outside Git:
 

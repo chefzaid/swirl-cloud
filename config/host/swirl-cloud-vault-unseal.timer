@@ -6,7 +6,7 @@ OnBootSec=30s
 OnUnitActiveSec=1min
 AccuracySec=10s
 Persistent=true
-Unit=bm-vault-unseal.service
+Unit=swirl-cloud-vault-unseal.service
 
 [Install]
 WantedBy=timers.target

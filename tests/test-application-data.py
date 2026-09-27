@@ -170,13 +170,13 @@ class DataContract(unittest.TestCase):
         self.assertNotEqual(0, subprocess.run(command, env=env, capture_output=True).returncode)
 
     def test_opt_in_helm_profile_persists_and_ha_mounts_are_unambiguous(self):
-        command = ["helm", "template", "bm-cluster", str(ROOT / "k8s"), "--set-string",
+        command = ["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--set-string",
                    "publicDomain=example.com,internalDnsZone=internal.example.com,organizationName=Example,gitopsRepositoryURL=https://example.com/platform.git,cloudflareAccessTeamName=example"]
         default = list(yaml.safe_load_all(subprocess.run(command, text=True, capture_output=True, check=True).stdout))
         self.assertFalse(any(r and r["metadata"]["name"] == "application-data-access" for r in default))
         profile = ["--values", str(ROOT / "config/application-data-values.yaml")]
         enabled = list(yaml.safe_load_all(subprocess.run(command + profile, text=True, capture_output=True, check=True).stdout))
-        app = next(r for r in enabled if r and r["kind"] == "Application" and r["metadata"]["name"] == "bm-cluster")
+        app = next(r for r in enabled if r and r["kind"] == "Application" and r["metadata"]["name"] == "swirl-cloud")
         values = app["spec"]["source"]["helm"]["valuesObject"]
         self.assertTrue(values["applicationData"]["enabled"])
         controller_policy = next(r for r in enabled if r and r["kind"] == "NetworkPolicy" and r["metadata"]["name"] == "kafka-controller-access")
@@ -191,13 +191,13 @@ class DataContract(unittest.TestCase):
             ha += ["--set", f"applicationData.kafkaBrokers[{index}].id={index}", "--set-string", f"applicationData.kafkaBrokers[{index}].host=100.64.0.{10 + index}", "--set", f"applicationData.kafkaBrokers[{index}].port={30940 + index}"]
         rendered = list(yaml.safe_load_all(subprocess.run(command + profile + ha, text=True, capture_output=True, check=True).stdout))
         redis_ingress = next(item for item in rendered if item and item["kind"] == "NetworkPolicy" and item["metadata"]["name"] == "shared-redis-ha-clients")
-        self.assertIn({"namespaceSelector": {"matchLabels": {"bm-cluster.io/application-workloads": "true"}}}, redis_ingress["spec"]["ingress"][0]["from"])
+        self.assertIn({"namespaceSelector": {"matchLabels": {"swirl-cloud.io/application-workloads": "true"}}}, redis_ingress["spec"]["ingress"][0]["from"])
         self.assertEqual(redis_ingress["spec"]["ingress"][0]["ports"], [{"protocol": "TCP", "port": 6379}])
         for item in rendered:
             if item and item["kind"] == "StatefulSet" and item["metadata"]["name"] in ("kafka", "kafka-controller"):
                 pod = item["spec"]["template"]["spec"]
                 paths = [mount["mountPath"] for mount in pod["containers"][0]["volumeMounts"]]
-                self.assertEqual(1, paths.count("/opt/bm-cluster"))
+                self.assertEqual(1, paths.count("/opt/swirl-cloud"))
 
 
 @unittest.skipUnless(os.environ.get("BM_TEST_DATA_DOCKER") == "1", "set BM_TEST_DATA_DOCKER=1 for disposable PostgreSQL/Redis checks")
@@ -206,7 +206,7 @@ class LiveDataIsolation(unittest.TestCase):
         return subprocess.run(["docker", *args], input=payload, text=True, capture_output=True, check=check).stdout.strip()
 
     def test_postgres_and_cache_reject_other_environment_credentials_and_keys(self):
-        prefix = "bm-data-test-" + uuid.uuid4().hex[:10]
+        prefix = "swirl-cloud-data-test-" + uuid.uuid4().hex[:10]
         pg, redis = prefix + "-pg", prefix + "-redis"
         with tempfile.TemporaryDirectory(prefix=prefix) as temp:
             path = Path(temp) / "users.acl"
@@ -252,7 +252,7 @@ class LiveDataIsolation(unittest.TestCase):
                 self.docker("rm", "-f", pg, redis, check=False)
 
     def test_real_kafka_scram_and_acl_reject_other_environment_topics_and_groups(self):
-        prefix = "bm-kafka-test-" + uuid.uuid4().hex[:10]
+        prefix = "swirl-cloud-kafka-test-" + uuid.uuid4().hex[:10]
         image = "docker.io/confluentinc/cp-kafka@sha256:0ad069035863aa1b090f4d9af47bfd2c08dc32864f3575d7d8579e3155c2586d"
         controller, broker = prefix + "-controller", prefix + "-broker"
         shared = {"CLUSTER_ID": "8ipNY9RxQtWkattTais5yQ", "KAFKA_CONTROLLER_QUORUM_VOTERS": "3000@controller:9093",
@@ -271,7 +271,7 @@ class LiveDataIsolation(unittest.TestCase):
                               KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://kafka-0:9092", KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT",
                               BM_KAFKA_REMOTE_ENABLED="true", BM_KAFKA_REMOTE_BROKERS="kafka-0:9094")
             self.docker("run", "-d", "--name", broker, "--hostname", "kafka-0", "--network", prefix, "--network-alias", "kafka-0",
-                        "--mount", f"type=bind,source={ROOT / 'k8s/files'},target=/opt/bm-cluster,readonly", *env_args(broker_env), image, "bash", "/opt/bm-cluster/kafka-remote-start.sh")
+                        "--mount", f"type=bind,source={ROOT / 'k8s/files'},target=/opt/swirl-cloud,readonly", *env_args(broker_env), image, "bash", "/opt/swirl-cloud/kafka-remote-start.sh")
             for _ in range(90):
                 if "Transition from STARTING to STARTED" in self.docker("logs", broker):
                     break

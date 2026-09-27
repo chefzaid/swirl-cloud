@@ -170,7 +170,7 @@ if [[ -z "$ACCESS_TEAM_NAME" && -n "${CLOUDFLARE_ACCESS_TEAM_NAME:-}" ]]; then
 fi
 platform_identity_defaults
 platform_identity_validate
-ACCESS_TEAM_NAME="${ACCESS_TEAM_NAME:-bm-cluster-${ZONE_NAME//./-}}"
+ACCESS_TEAM_NAME="${ACCESS_TEAM_NAME:-swirl-cloud-${ZONE_NAME//./-}}"
 [[ -n "$ZONE_NAME" ]] || error "Set PLATFORM_DOMAIN or CLOUDFLARE_ZONE."
 [[ -z "$INTERNAL_DNS_ZONE" || "$ZONE_NAME" != "$INTERNAL_DNS_ZONE" ]] || \
     error "$ZONE_NAME is the cluster-only CoreDNS zone and must never be published through Cloudflare."
@@ -244,7 +244,7 @@ case "$API_TOKEN" in
 esac
 
 if [[ "$ENABLE_ACCESS" == "true" && -z "$ACCESS_ALLOWED_EMAILS" ]]; then
-    read -rp "Email address(es) allowed into BM Cluster admin UIs (space-separated): " ACCESS_ALLOWED_EMAILS
+    read -rp "Email address(es) allowed into Swirl Cloud admin UIs (space-separated): " ACCESS_ALLOWED_EMAILS
 fi
 if [[ "$ENABLE_ACCESS" == "true" ]]; then
     read -r -a ACCESS_EMAILS <<< "$ACCESS_ALLOWED_EMAILS"
@@ -255,7 +255,7 @@ if [[ "$ENABLE_ACCESS" == "true" ]]; then
     done
 fi
 
-WORK_DIR="$(mktemp -d /tmp/bm-cloudflare.XXXXXX)"
+WORK_DIR="$(mktemp -d /tmp/swirl-cloud-cloudflare.XXXXXX)"
 CURL_CONFIG="$WORK_DIR/curl.conf"
 printf 'silent\nshow-error\nheader = "Authorization: Bearer %s"\n' "$API_TOKEN" > "$CURL_CONFIG"
 chmod 600 "$CURL_CONFIG"
@@ -430,15 +430,15 @@ configure_registry_bot_compatibility() {
             '{
                 action:"skip",
                 action_parameters:{phases:["http_request_sbfm"]},
-                description:"bm-cluster: allow non-browser Registry clients",
+                description:"swirl-cloud: allow non-browser Registry clients",
                 enabled:true,
                 expression:$expression,
                 logging:{enabled:true}
             }' > "$skip_rule_file"
         reconcile_ruleset_rule \
             http_request_firewall_custom \
-            "BM Cluster custom firewall rules" \
-            "bm-cluster: allow non-browser Registry clients" \
+            "Swirl Cloud custom firewall rules" \
+            "swirl-cloud: allow non-browser Registry clients" \
             "$skip_rule_file"
         REGISTRY_BOT_STATUS="Super Bot Fight Mode skipped for $registry_host"
     elif [[ "$fight_mode" == "true" ]]; then
@@ -470,37 +470,37 @@ configure_edge_rules() {
     jq -n --arg expression "(http.host in {$host_set})" '{
         action:"rewrite",
         action_parameters:{headers:{"x-forwarded-for":{operation:"remove"}}},
-        description:"bm-cluster: discard client-supplied forwarding chains",
+        description:"swirl-cloud: discard client-supplied forwarding chains",
         enabled:true,
         expression:$expression
     }' > "$rule_file"
     reconcile_ruleset_rule \
         http_request_late_transform \
-        "BM Cluster request header rules" \
-        "bm-cluster: discard client-supplied forwarding chains" \
+        "Swirl Cloud request header rules" \
+        "swirl-cloud: discard client-supplied forwarding chains" \
         "$rule_file"
 
     if [[ "$ENABLE_WAF" == "true" ]]; then
-        step "Reconciling the BM Cluster custom WAF rule"
+        step "Reconciling the Swirl Cloud custom WAF rule"
         waf_expression="(http.host in {$host_set} and ((http.request.method in {\"TRACE\" \"TRACK\"}) or (http.request.uri.path in {\"/.env\" \"/.git/config\" \"/.git/HEAD\" \"/wp-login.php\" \"/xmlrpc.php\" \"/server-status\" \"/actuator/env\" \"/actuator/heapdump\" \"/actuator/configprops\"}) or starts_with(http.request.uri.path, \"/phpmyadmin\") or starts_with(http.request.uri.path, \"/vendor/phpunit/\")))"
         rule_file="$WORK_DIR/rule-waf.json"
         jq -n \
             --arg expression "$waf_expression" \
-            '{action:"block",description:"bm-cluster: block unsafe methods and scanner targets",enabled:true,expression:$expression}' \
+            '{action:"block",description:"swirl-cloud: block unsafe methods and scanner targets",enabled:true,expression:$expression}' \
             > "$rule_file"
         reconcile_ruleset_rule \
             http_request_firewall_custom \
-            "BM Cluster custom firewall rules" \
-            "bm-cluster: block unsafe methods and scanner targets" \
+            "Swirl Cloud custom firewall rules" \
+            "swirl-cloud: block unsafe methods and scanner targets" \
             "$rule_file"
     fi
 
     if [[ "$ENABLE_RATE_LIMIT" == "true" ]]; then
-        step "Reconciling the BM Cluster login rate limit"
+        step "Reconciling the Swirl Cloud login rate limit"
         rule_file="$WORK_DIR/rule-rate-limit.json"
         jq -n '{
             action:"block",
-            description:"bm-cluster: rate limit interactive login endpoints",
+            description:"swirl-cloud: rate limit interactive login endpoints",
             enabled:true,
             expression:"(http.request.uri.path in {\"/web/login\" \"/users/sign_in\"})",
             ratelimit:{
@@ -512,23 +512,23 @@ configure_edge_rules() {
         }' > "$rule_file"
         reconcile_ruleset_rule \
             http_ratelimit \
-            "BM Cluster rate limiting rules" \
-            "bm-cluster: rate limit interactive login endpoints" \
+            "Swirl Cloud rate limiting rules" \
+            "swirl-cloud: rate limit interactive login endpoints" \
             "$rule_file"
     fi
 
     if [[ "$ENABLE_CACHE_RULES" == "true" ]]; then
-        step "Reconciling the BM Cluster private-response cache bypass"
+        step "Reconciling the Swirl Cloud private-response cache bypass"
         cache_expression="(http.host in {$host_set} and ((any(http.request.headers[\"authorization\"][*] ne \"\")) or starts_with(http.request.uri.path, \"/api/\") or starts_with(http.request.uri.path, \"/auth/\") or starts_with(http.request.uri.path, \"/oauth\") or starts_with(http.request.uri.path, \"/realms/\") or starts_with(http.request.uri.path, \"/admin/\") or starts_with(http.request.uri.path, \"/websocket\") or starts_with(http.request.uri.path, \"/socket.io/\") or (http.request.uri.path in {\"/login\" \"/web/login\" \"/users/sign_in\"})))"
         rule_file="$WORK_DIR/rule-cache.json"
         jq -n \
             --arg expression "$cache_expression" \
-            '{action:"set_cache_settings",action_parameters:{cache:false},description:"bm-cluster: bypass cache for private and authenticated traffic",enabled:true,expression:$expression}' \
+            '{action:"set_cache_settings",action_parameters:{cache:false},description:"swirl-cloud: bypass cache for private and authenticated traffic",enabled:true,expression:$expression}' \
             > "$rule_file"
         reconcile_ruleset_rule \
             http_request_cache_settings \
-            "BM Cluster cache rules" \
-            "bm-cluster: bypass cache for private and authenticated traffic" \
+            "Swirl Cloud cache rules" \
+            "swirl-cloud: bypass cache for private and authenticated traffic" \
             "$rule_file"
     fi
 }
@@ -558,7 +558,7 @@ configure_access() {
     local configured_labels=" ${HOST_LABELS[*]} "
 
     [[ "$ENABLE_ACCESS" == "true" ]] || return 0
-    step "Reconciling Zero Trust Access for BM Cluster admin interfaces"
+    step "Reconciling Zero Trust Access for Swirl Cloud admin interfaces"
 
     oidc_client_secret="$ACCESS_OIDC_CLIENT_SECRET"
     if [[ -z "$oidc_client_secret" ]]; then
@@ -572,7 +572,7 @@ configure_access() {
     if ! jq -e '.success == true' <<< "$organization_response" >/dev/null 2>&1; then
         organization_file="$WORK_DIR/access-organization.json"
         jq -n \
-            --arg name "BM Cluster" \
+            --arg name "Swirl Cloud" \
             --arg auth_domain "$ACCESS_TEAM_NAME.cloudflareaccess.com" \
             '{name:$name,auth_domain:$auth_domain,auto_redirect_to_identity:true,deny_unmatched_requests:false}' \
             > "$organization_file"
@@ -662,7 +662,7 @@ configure_access() {
     access_emails_json="$(printf '%s\n' "${ACCESS_EMAILS[@]}" | jq -R . | jq -s .)"
     policy_file="$WORK_DIR/access-policy.json"
     jq -n \
-        --arg name "BM Cluster administrators" \
+        --arg name "Swirl Cloud administrators" \
         --arg duration "$ACCESS_SESSION_DURATION" \
         --arg idp_id "$oidc_idp_id" \
         --argjson emails "$access_emails_json" \
@@ -677,26 +677,26 @@ configure_access() {
 
     policy_response="$(cf_request GET "/accounts/$ACCOUNT_ID/access/policies?per_page=100")"
     require_success "$policy_response" "Reading reusable Access policies"
-    policy_count="$(jq '[.result[] | select(.name == "BM Cluster administrators" and .reusable == true)] | length' <<< "$policy_response")"
-    ((policy_count <= 1)) || error "More than one reusable Access policy is named BM Cluster administrators."
+    policy_count="$(jq '[.result[] | select(.name == "Swirl Cloud administrators" and .reusable == true)] | length' <<< "$policy_response")"
+    ((policy_count <= 1)) || error "More than one reusable Access policy is named Swirl Cloud administrators."
     if ((policy_count == 0)); then
         update_response="$(cf_request POST "/accounts/$ACCOUNT_ID/access/policies" "$policy_file")"
-        require_success "$update_response" "Creating the BM Cluster Access policy"
+        require_success "$update_response" "Creating the Swirl Cloud Access policy"
         policy_id="$(jq -r '.result.id' <<< "$update_response")"
-        info "Created the BM Cluster email allowlist policy."
+        info "Created the Swirl Cloud email allowlist policy."
     else
-        policy_id="$(jq -r '.result[] | select(.name == "BM Cluster administrators" and .reusable == true) | .id' <<< "$policy_response")"
+        policy_id="$(jq -r '.result[] | select(.name == "Swirl Cloud administrators" and .reusable == true) | .id' <<< "$policy_response")"
         current_fingerprint="$(jq -Sc \
-            '.result[] | select(.name == "BM Cluster administrators" and .reusable == true) |
+            '.result[] | select(.name == "Swirl Cloud administrators" and .reusable == true) |
              {name,decision,session_duration,include,exclude,require}' <<< "$policy_response")"
         desired_fingerprint="$(jq -Sc \
             '{name,decision,session_duration,include,exclude,require}' "$policy_file")"
         if [[ "$current_fingerprint" == "$desired_fingerprint" ]]; then
-            info "The BM Cluster email allowlist policy is already correct."
+            info "The Swirl Cloud email allowlist policy is already correct."
         else
             update_response="$(cf_request PUT "/accounts/$ACCOUNT_ID/access/policies/$policy_id" "$policy_file")"
-            require_success "$update_response" "Updating the BM Cluster Access policy"
-            info "Reconciled the BM Cluster email allowlist policy."
+            require_success "$update_response" "Updating the Swirl Cloud Access policy"
+            info "Reconciled the Swirl Cloud email allowlist policy."
         fi
     fi
 
@@ -711,7 +711,7 @@ configure_access() {
         [[ "$label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || error "Invalid Access hostname label: $label"
         [[ "$configured_labels" == *" $label "* ]] || error "Access hostname $label is not present in CLOUDFLARE_HOST_LABELS."
         fqdn="$label.$ZONE_NAME"
-        app_name="BM Cluster - $(access_app_name "$label")"
+        app_name="Swirl Cloud - $(access_app_name "$label")"
         app_file="$WORK_DIR/access-app-$label.json"
         jq -n \
             --arg name "$app_name" \
@@ -855,21 +855,21 @@ lock_origin_firewall() {
         "${sudo_command[@]}" ufw allow from "$cidr" to any port 80 proto tcp comment 'Cloudflare proxy' >/dev/null
         "${sudo_command[@]}" ufw allow from "$cidr" to any port 443 proto tcp comment 'Cloudflare proxy' >/dev/null
     done
-    if "${sudo_command[@]}" test -f /etc/bm-cluster/cloudflare-proxy-only; then
+    if "${sudo_command[@]}" test -f /etc/swirl-cloud/cloudflare-proxy-only; then
         while IFS= read -r previous_cidr; do
             [[ "$previous_cidr" =~ ^[0-9A-Fa-f:.]+/[0-9]{1,3}$ ]] || continue
             if [[ ",${cloudflare_proxy_cidr_csv}," != *",${previous_cidr},"* ]]; then
                 "${sudo_command[@]}" ufw --force delete allow from "$previous_cidr" to any port 80 proto tcp >/dev/null 2>&1 || true
                 "${sudo_command[@]}" ufw --force delete allow from "$previous_cidr" to any port 443 proto tcp >/dev/null 2>&1 || true
             fi
-        done < <("${sudo_command[@]}" cat /etc/bm-cluster/cloudflare-proxy-only)
+        done < <("${sudo_command[@]}" cat /etc/swirl-cloud/cloudflare-proxy-only)
     fi
     "${sudo_command[@]}" ufw --force delete allow 80/tcp >/dev/null 2>&1 || true
     "${sudo_command[@]}" ufw --force delete allow 443/tcp >/dev/null 2>&1 || true
     "${sudo_command[@]}" ufw --force delete allow 'Nginx Full' >/dev/null 2>&1 || true
-    "${sudo_command[@]}" install -d -m 0755 /etc/bm-cluster
-    printf '%s\n' '# Managed by bm-cluster: web ingress is restricted to these Cloudflare proxy networks.' "${CLOUDFLARE_PROXY_CIDRS[@]}" | \
-        "${sudo_command[@]}" tee /etc/bm-cluster/cloudflare-proxy-only >/dev/null
+    "${sudo_command[@]}" install -d -m 0755 /etc/swirl-cloud
+    printf '%s\n' '# Managed by swirl-cloud: web ingress is restricted to these Cloudflare proxy networks.' "${CLOUDFLARE_PROXY_CIDRS[@]}" | \
+        "${sudo_command[@]}" tee /etc/swirl-cloud/cloudflare-proxy-only >/dev/null
     ORIGIN_LOCK_STATUS="Cloudflare proxy networks only"
     info "Direct Internet access to origin ports 80/443 is now blocked."
 }
@@ -968,7 +968,7 @@ verify_registrar_and_dnssec() {
 }
 
 step "Validating the Cloudflare User API Token"
-ingress_state="$(kubectl get configmap bm-cluster-public-ingress -n "$INGRESS_NAMESPACE" -o json --ignore-not-found)"
+ingress_state="$(kubectl get configmap swirl-cloud-public-ingress -n "$INGRESS_NAMESPACE" -o json --ignore-not-found)"
 [[ -n "$ingress_state" ]] || ingress_state='{}'
 stored_ingress_mode="$(jq -r '.data.mode // "direct"' <<< "$ingress_state")"
 INGRESS_MODE="${INGRESS_MODE:-$stored_ingress_mode}"
@@ -1120,7 +1120,7 @@ for fqdn in "${DNS_HOSTS[@]}"; do
 
     desired_record_file="$WORK_DIR/dns-${fqdn//./-}.json"
     jq -n --arg name "$fqdn" --arg content "$DNS_RECORD_CONTENT" --arg type "$DNS_RECORD_TYPE" \
-        '{type:$type,name:$name,content:$content,ttl:1,proxied:true,comment:"Managed by bm-cluster/scripts/configure-cloudflare.sh"}' \
+        '{type:$type,name:$name,content:$content,ttl:1,proxied:true,comment:"Managed by swirl-cloud/scripts/configure-cloudflare.sh"}' \
         > "$desired_record_file"
 
     if ((address_record_count == 0)); then
@@ -1156,7 +1156,7 @@ if [[ "$PUBLISH_NODE_DNS" == "true" ]]; then
     ((address_record_count <= 1)) || error "$NODE_FQDN has multiple address records."
     desired_record_file="$WORK_DIR/dns-control-plane-node.json"
     jq -n --arg name "$NODE_FQDN" --arg content "$ORIGIN_IP" \
-        '{type:"A",name:$name,content:$content,ttl:1,proxied:false,comment:"Managed control-plane node DNS for bm-cluster"}' \
+        '{type:"A",name:$name,content:$content,ttl:1,proxied:false,comment:"Managed control-plane node DNS for swirl-cloud"}' \
         > "$desired_record_file"
     if ((address_record_count == 0)); then
         update_response="$(cf_request POST "/zones/$ZONE_ID/dns_records" "$desired_record_file")"
@@ -1350,7 +1350,7 @@ if [[ "$INGRESS_MODE" == tunnel ]]; then
     publication_patch="$(jq -cn --arg tunnel "$TUNNEL_ID" \
         '[{op:"test",path:"/data/tunnelID",value:$tunnel},
           {op:"add",path:"/data/publishedTunnelID",value:$tunnel}]')"
-    kubectl patch configmap bm-cluster-public-ingress -n "$INGRESS_NAMESPACE" \
+    kubectl patch configmap swirl-cloud-public-ingress -n "$INGRESS_NAMESPACE" \
         --type=json -p "$publication_patch" >/dev/null
 fi
 

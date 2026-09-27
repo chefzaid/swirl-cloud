@@ -6,7 +6,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 automountServiceAccountToken: true
 
 ---
@@ -17,7 +17,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 rules:
 - apiGroups: [""]
   resources: ["namespaces", "nodes", "pods", "services"]
@@ -37,7 +37,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -56,7 +56,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 data:
   kubernetes.yaml: |
     mode: cluster
@@ -371,7 +371,7 @@ data:
     }
 
   custom.js: |
-    // Managed by bm-cluster. Intentionally empty.
+    // Managed by swirl-cloud. Intentionally empty.
 
 ---
 apiVersion: v1
@@ -387,7 +387,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 spec:
   type: ClusterIP
   selector:
@@ -407,7 +407,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 spec:
   minAvailable: 1
   selector:
@@ -423,7 +423,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -442,11 +442,11 @@ spec:
       labels:
         app: homepage
         app.kubernetes.io/name: homepage
-        app.kubernetes.io/part-of: bm-cluster
+        app.kubernetes.io/part-of: swirl-cloud
       annotations:
-        bm-cluster/config-revision: "8"
+        swirl-cloud/config-revision: "8"
         # settings.yaml uses subPath; replace pods when the organization title changes.
-        bm-cluster/organization-name: __ORGANIZATION_NAME_JSON__
+        swirl-cloud/organization-name: __ORGANIZATION_NAME_JSON__
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
@@ -585,7 +585,7 @@ metadata:
   labels:
     app: homepage
     app.kubernetes.io/name: homepage
-    app.kubernetes.io/part-of: bm-cluster
+    app.kubernetes.io/part-of: swirl-cloud
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd,infra-platform-body-limit@kubernetescrd
 spec:
