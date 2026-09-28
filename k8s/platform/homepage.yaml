@@ -85,7 +85,15 @@ data:
       showSearchSuggestions: true
       hideVisitURL: true
     layout:
-      Applications:
+      Applications - PROD:
+        icon: mdi-apps
+        style: row
+        columns: 4
+      Applications - UAT:
+        icon: mdi-apps
+        style: row
+        columns: 4
+      Applications - INT:
         icon: mdi-apps
         style: row
         columns: 4
@@ -119,7 +127,11 @@ data:
         columns: 4
 
   services.yaml: |
-    - Applications: []
+    - Applications - PROD: []
+
+    - Applications - UAT: []
+
+    - Applications - INT: []
 
     - Corporate:
         - Odoo:
