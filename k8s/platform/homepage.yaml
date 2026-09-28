@@ -65,7 +65,7 @@ data:
   settings.yaml: |
     title: __PLATFORM_TITLE_JSON__
     description: Private cloud applications, infrastructure, data, delivery, and observability
-    startUrl: https://intranet.__PUBLIC_DOMAIN__
+    startUrl: https://cloud.__PUBLIC_DOMAIN__
     theme: dark
     color: slate
     language: en
@@ -152,7 +152,7 @@ data:
     - Cluster Management:
         - Cloud Dashboard:
             icon: homepage.png
-            href: https://intranet.__PUBLIC_DOMAIN__
+            href: https://cloud.__PUBLIC_DOMAIN__
             description: Private cloud service catalog
             namespace: infra
             podSelector: app=homepage
@@ -482,7 +482,7 @@ spec:
             fieldRef:
               fieldPath: status.podIP
         - name: HOMEPAGE_ALLOWED_HOSTS
-          value: "$(MY_POD_IP):3000,homepage.__INTERNAL_DNS_ZONE__:3000,intranet.__PUBLIC_DOMAIN__"
+          value: "$(MY_POD_IP):3000,homepage.__INTERNAL_DNS_ZONE__:3000,cloud.__PUBLIC_DOMAIN__"
         - name: LOG_TARGETS
           value: stdout
         ports:
@@ -592,10 +592,10 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - intranet.__PUBLIC_DOMAIN__
+    - cloud.__PUBLIC_DOMAIN__
     secretName: __TLS_SECRET_NAME__
   rules:
-  - host: intranet.__PUBLIC_DOMAIN__
+  - host: cloud.__PUBLIC_DOMAIN__
     http:
       paths:
       - path: /

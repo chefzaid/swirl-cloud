@@ -75,13 +75,13 @@ Additional hosts alone do not activate the [HA profile](guides/high-availability
 
 The installer renders URLs, registry paths, authentication issuers, discovery
 settings and branding from your inputs; the source checkout stays generic.
-The required company display name gives the intranet its `<company name> Cloud`
+The required company display name gives the portal its `<company name> Cloud`
 title and cluster label. Keycloak's realm display name and Odoo's main company
 use the company name without the suffix.
 
 | Environment input | Helm value | Default or requirement |
 |---|---|---|
-| `ORGANIZATION_NAME` | `organizationName` | Required company display name, including spaces and punctuation; the intranet appends ` Cloud`. |
+| `ORGANIZATION_NAME` | `organizationName` | Required company display name, including spaces and punctuation; the portal appends ` Cloud`. |
 | `ORGANIZATION_SLUG` | `organizationSlug` | First label of the public domain; a lowercase DNS label. |
 | `PLATFORM_DOMAIN` | `publicDomain` | Required public base domain, such as `example.com`. |
 | `INTERNAL_DNS_ZONE` | `internalDnsZone` | `internal.<PLATFORM_DOMAIN>`; must differ from the public domain. |
@@ -605,7 +605,7 @@ persists, inspect the live heap/cache and adjust both budgets within node capaci
 ## Verify the result
 
 The installer waits for selected components and reports their endpoints. Check
-cluster and GitOps status, then open `https://intranet.<your-domain>`:
+cluster and GitOps status, then open `https://cloud.<your-domain>`:
 
 ```bash
 kubectl get nodes

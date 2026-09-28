@@ -51,7 +51,7 @@ the pieces fit together.
 
 - Keycloak realm reconciled declaratively with password and brute-force policy
 - single sign-on to GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo through native OIDC
-- OAuth2 Proxy gate for DBGate, Kibana, Longhorn, SonarQube and the intranet
+- OAuth2 Proxy gate for DBGate, Kibana, Longhorn, SonarQube and the portal
 - Cloudflare Access backed by Keycloak
 - `platform-admins` group mapped to administrator roles in every service
 
@@ -98,7 +98,7 @@ the pieces fit together.
 
 ## Administration And Corporate Tools
 
-- Homepage intranet titled `<company name> Cloud` with live Kubernetes status and app discovery
+- Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery
 - Portainer, DBGate and Kafbat UI behind SSO
 - Descheduler for manual rebalancing
 - Odoo ERP with SSO and a persistent dark mode

@@ -7,7 +7,7 @@ and [security](security.md) for credentials and Vault recovery.
 
 ## Services and URLs
 
-Homepage at `https://intranet.<your-domain>` is the service directory, including
+Homepage at `https://cloud.<your-domain>` is the service directory, including
 internal components and application-owned entries. Replace `<your-domain>`
 below with the domain supplied during installation. Administrative UIs
 use the access controls described in [security and identity](security.md).
@@ -15,7 +15,7 @@ use the access controls described in [security and identity](security.md).
 | Service | URL | Purpose |
 |---|---|---|
 | Odoo | `https://odoo.<your-domain>` | ERP and CRM |
-| Homepage | `https://intranet.<your-domain>` | Service catalog and cluster status |
+| Homepage | `https://cloud.<your-domain>` | Service catalog and cluster status |
 | GitLab | `https://gitlab.<your-domain>` | Source, CI, artifacts, and packages |
 | Container Registry | `https://registry.<your-domain>/v2/` | OCI image API; browse images in GitLab |
 | Argo CD | `https://argocd.<your-domain>` | GitOps delivery |

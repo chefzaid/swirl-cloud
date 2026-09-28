@@ -55,7 +55,7 @@ flowchart LR
 | Identity | Keycloak 26, OAuth2 Proxy, Cloudflare Access IdP | Platform chart |
 | Delivery | GitLab CE 19 with Registry and Dependency Proxy, GitLab Runner, Argo CD 3.5 | Platform chart and shared Helm helper |
 | Observability | Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter, Elasticsearch, Logstash, Kibana, Fluent Bit, Filebeat, Trivy Operator, SonarQube | Platform chart |
-| Administration | Homepage intranet, Portainer, DBGate, Kafbat UI, Descheduler | Platform chart |
+| Administration | Homepage portal, Portainer, DBGate, Kafbat UI, Descheduler | Platform chart |
 | Corporate | Odoo 19 in `corp` | Platform chart when `appsEnabled` |
 
 Exact versions and digests live in [`config/platform.env`](../config/platform.env),

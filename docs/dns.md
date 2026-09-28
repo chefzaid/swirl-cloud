@@ -36,10 +36,10 @@ part of that inventory. Apex DNS publication is disabled by default; set
 Applications own their public DNS records, Ingress resources and redirects,
 including apex/`www` behavior when applicable.
 
-Homepage is published at `intranet.<your-domain>` and protected by Cloudflare
+Homepage is published at `cloud.<your-domain>` and protected by Cloudflare
 Access. Its Ingress, allowed hosts and links share that hostname. The retired
-`dashboard` label remains in `DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS` so Cloudflare
-reconciliation removes its old address records and Access application.
+`dashboard` and `intranet` labels remain in `DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS` so Cloudflare
+reconciliation removes their old address records and Access applications.
 
 In the default layout, node administration has a separate unproxied hostname
 controlled by `CLOUDFLARE_NODE_DNS_LABEL`. HA public-host reconciliation does

@@ -10,7 +10,7 @@ Automated installation and GitOps keep the platform repeatable as it grows.
 [![Traefik](https://img.shields.io/badge/Traefik-3.7-blue.svg)](https://traefik.io/)
 [![License](https://img.shields.io/badge/License-GPL%203.0-lightgrey.svg)](LICENSE)
 
-Supply your company name during installation to present the intranet as
+Supply your company name during installation to present the portal as
 **`<company name> Cloud`**. Company identity, domains and deployment settings are
 configuration inputs; no organization is built into the platform.
 
@@ -24,7 +24,7 @@ On the first Ubuntu control-plane host, review the
 ```
 
 The installer guides setup and verifies the selected services. Open
-`https://intranet.<your-domain>` for the service catalog. The
+`https://cloud.<your-domain>` for the service catalog. The
 [deployment guide](docs/deployment.md) also covers unattended setup, Ansible,
 reconciliation and application environments.
 

@@ -536,9 +536,9 @@ configure_edge_rules() {
 access_app_name() {
     case "$1" in
         argocd) echo "Argo CD" ;;
+        cloud) echo "Portal" ;;
         dbgate) echo "DBGate" ;;
         grafana) echo "Grafana" ;;
-        intranet) echo "Intranet" ;;
         kafka) echo "Kafka UI" ;;
         kibana) echo "Kibana" ;;
         longhorn) echo "Longhorn" ;;

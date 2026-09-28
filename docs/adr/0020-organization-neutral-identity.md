@@ -19,7 +19,7 @@ reuse and made renaming risky.
   inputs and carry them as Helm parameters on the root Application.
 - Record installed choices in `infra/swirl-cloud-identity` so reruns, Ansible and
   helpers reuse them; explicit inputs override stored ones.
-- Derive branding from identity: the intranet shows `<company name> Cloud`
+- Derive branding from identity: the portal shows `<company name> Cloud`
   (2026-09-23); Keycloak and Odoo use the plain company name.
 
 ## Rationale
