@@ -412,6 +412,9 @@ Keep experiments, downloaded images, reports and recovery archives outside Git.
 The [validation policy](testing.md#validation-policy) defines which permanent
 tests belong in this repository.
 
+The [September 2026 maintenance record](guides/service-upgrades-2026-09.md) lists
+the selected releases, compatibility exceptions and recovery evidence.
+
 ### Runtime and recovery constraints
 
 | Component | Check before changing its image |

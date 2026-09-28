@@ -4,7 +4,7 @@
 server:
   image:
     repository: docker.io/hashicorp/vault
-    tag: 2.1.0@sha256:783103ba38c5e3edcaa9bbbcb0ff80fc93c690361f03fd487e89227da6c3efa9
+    tag: 2.1.1@sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2
   shareProcessNamespace: true
   statefulSet:
     securityContext:
@@ -28,7 +28,7 @@ server:
       mountPath: /tmp
   extraContainers:
     - name: audit-log-rotate
-      image: busybox@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+      image: docker.io/library/busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
       command: ["/bin/sh", "-ceu"]
       args:
         - |

@@ -584,7 +584,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: reconcile
-          image: docker.io/curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+          image: docker.io/curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
           command: ["/bin/sh", "/opt/platform/reconcile.sh"]
           env:
             - name: ORGANIZATION_NAME

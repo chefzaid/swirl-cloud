@@ -235,7 +235,7 @@ class Migration:
         database = config["data"]["POSTGRES_DB"] if config else "appdb"
         require(database not in {"postgres", "template0", "template1"}, "Bootstrap application database must have a distinct name")
         self.run(["helm", "upgrade", "--install", "cloudnative-pg", "cloudnative-pg", "--repo",
-                  "https://cloudnative-pg.github.io/charts", "--version", "0.29.0", "--namespace", "cnpg-system",
+                  "https://cloudnative-pg.github.io/charts", "--version", "0.29.1", "--namespace", "cnpg-system",
                   "--create-namespace", "-f", str(ROOT / "config/postgres-ha-operator-values.yaml"), "--wait", "--timeout", "10m"])
         self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "postgres-ha-bootstrap", "namespace": NAMESPACE},
                     "type": "kubernetes.io/basic-auth", "data": {"username": secret["data"]["POSTGRES_USER"],

@@ -191,7 +191,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: render-config
-          image: odoo@sha256:7fcd40c8638205f4844240397712ebbaa07918eb54f734f09e2c61274c3ae83f
+          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
           command: ["/bin/bash", "-ec"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -252,7 +252,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: bootstrap-database
-          image: odoo@sha256:7fcd40c8638205f4844240397712ebbaa07918eb54f734f09e2c61274c3ae83f
+          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
           command: ["/bin/bash", "-ec"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -427,7 +427,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: odoo
-          image: odoo@sha256:7fcd40c8638205f4844240397712ebbaa07918eb54f734f09e2c61274c3ae83f
+          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
           env:
             - name: SSO_PRIMARY_EMAIL
               valueFrom:

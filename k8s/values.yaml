@@ -30,7 +30,7 @@ redis-ha:
   fullnameOverride: shared-redis-ha
   image:
     repository: docker.io/library/redis
-    tag: 8.10.0-alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241
+    tag: 8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
   replicas: 3
   hardAntiAffinity: true
   persistentVolume:
@@ -73,7 +73,7 @@ redis-ha:
   # annotated-pod job once per container. Matches datastores/redis.yaml.
   extraContainers:
     - name: redis-exporter
-      image: quay.io/oliver006/redis_exporter:v1.92.0-alpine@sha256:b07ce24af20faeb4033a91dd30c2639dba6fc059cdfec97ecc7d320dab4f43cb
+      image: quay.io/oliver006/redis_exporter:v1.92.1-alpine@sha256:f6f0528b12a26d2f89d73d74dd323005022142c7f7bde939f7bbba9adde48fce
       command: ["sh", "-ec"]
       args:
         - |
@@ -247,7 +247,7 @@ trivy-operator:
   policiesBundle:
     registry: docker.io
     repository: aquasec/trivy-checks
-    tag: "1@sha256:0491169789b867ae5a7353381220c1d4d97b3a0d6d9dfd84a25d06f0ba68aa93"
+    tag: "2.2.0@sha256:b4a7e239039f2ed756c2e88f2d2f95f80658aed99545e637db3ce6133051fb87"
   nodeCollector:
     registry: ghcr.io
     repository: aquasecurity/node-collector

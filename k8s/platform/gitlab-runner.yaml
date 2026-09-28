@@ -207,8 +207,8 @@ data:
       [runners.kubernetes]
         namespace = "gitlab-runners"
         service_account = "gitlab-ci-job"
-        image = "docker.io/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
-        helper_image = "registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.3.1@sha256:ce41f9ba0465950d1c7e290e38e33ea9064385b4015ba4fa4b12b318a6242682"
+        image = "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+        helper_image = "registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.4.1@sha256:25db4eaaff9ff231b010eca4e189065b821b637a443897e14e0271a9faf370bf"
         image_pull_secrets = []
         pull_policy = ["if-not-present"]
         privileged = false
@@ -286,7 +286,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gitlab-runner
-          image: docker.io/gitlab/gitlab-runner:alpine-v19.3.1@sha256:af0325804248aee217e055e753add77ccaaba6c8f5e2143b01108fd401165ef3
+          image: docker.io/gitlab/gitlab-runner:alpine-v19.4.1@sha256:4da99e249eb79dc86a27af77b5c5d6cc46445c802b29294441081ae27410159a
           command: ["/bin/sh", "-ceu"]
           args:
             - |

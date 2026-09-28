@@ -189,7 +189,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: cleanup
-              image: docker.io/library/ruby:3.4-alpine@sha256:c5a5064d190055633011c03aa800170cc36945ff3afb5f6c915329f92d6f1e00
+              image: docker.io/library/ruby:3.4.11-alpine@sha256:ae2f369670fbf93cc819f299d56af471db6e2223f05268a04fa3fa8b21d8fb65
               command: [ruby, /scripts/cleanup.rb]
               env:
                 - name: GITLAB_API_URL

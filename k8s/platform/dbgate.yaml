@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: dbgate
-          image: docker.io/dbgate/dbgate@sha256:03956fb18367a2b1d736b4ebb702401c68ec5f7bde691f9ea2412c3df0c27e34
+          image: docker.io/dbgate/dbgate:7.3.1@sha256:965d78362a84f3881bfff03be684c5884968f9e6a5262a635a747d9efc508389
           # Kubernetes owns /etc/hosts; bypass the upstream Docker wrapper.
           command: ["node"]
           args: ["bundle.js", "--listen-api"]

@@ -42,7 +42,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: kafka-ui
-          image: ghcr.io/kafbat/kafka-ui@sha256:2fc9a60b223de6d8cb45a64175afcbb79207ae19306a0b99c558aeaa1b22b6e9
+          image: ghcr.io/kafbat/kafka-ui:v1.5.0@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

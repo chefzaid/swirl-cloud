@@ -24,8 +24,8 @@ from lib.onboarding_services import private_token_file
 ROOT = Path(__file__).resolve().parents[1]
 MANAGER = "application-cluster-bootstrap"
 LABEL = "swirl-cloud.io/application-environment"
-PYTHON_IMAGE = "docker.io/library/python:3.14-alpine@sha256:c6ead215bfd31f1e433d968853b7a769989117115b728874824e6c0a27cb96fc"
-NGINX_IMAGE = "docker.io/library/nginx:1.30.4-alpine@sha256:dc5069ad14f19660b141b21236140b91656bf89bbc3e2417c70ae650cd66104c"
+PYTHON_IMAGE = "docker.io/library/python:3.14.7-alpine@sha256:9e9fde4d32eedce0b661d9ab91e826b62dddf28e928c230ec55f1866cac66b01"
+NGINX_IMAGE = "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94"
 API_AUDIENCE = "https://kubernetes.default.svc.cluster.local"
 TOKEN_SECRET_ANNOTATION = "swirl-cloud.io/token-secret"
 PENDING_TOKENS_ANNOTATION = "swirl-cloud.io/pending-token-revocations"

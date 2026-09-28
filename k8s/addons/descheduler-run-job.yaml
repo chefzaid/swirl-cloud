@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: descheduler
-          image: registry.k8s.io/descheduler/descheduler@sha256:4001c25d6c967c7c69c76ea1b4619ddcd5568f42df6360e1ba320834cbcd0d5f
+          image: registry.k8s.io/descheduler/descheduler:v0.36.0@sha256:7ca92c0a7b4f1c51d306409da6b832005fcadb224e384795646376726734c6e5
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

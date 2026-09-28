@@ -90,7 +90,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: portainer
-          image: docker.io/portainer/portainer-ce@sha256:663641360fb1cab6ace4fe0f0855e97506c222ae52f129676673d52108d8b59e
+          image: docker.io/portainer/portainer-ce:2.45.1@sha256:4d616db18cfeb5dd41a69c0958bc825c84483ea9cde1106eb82a5d26f3bd8b0e
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

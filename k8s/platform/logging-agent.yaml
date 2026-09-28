@@ -231,7 +231,7 @@ spec:
         - operator: Exists
       initContainers:
         - name: configure-index-template
-          image: docker.io/curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+          image: docker.io/curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
           envFrom:
             - secretRef:
                 name: fluent-bit-elasticsearch-credentials
@@ -274,7 +274,7 @@ spec:
               readOnly: true
       containers:
         - name: fluent-bit
-          image: cr.fluentbit.io/fluent/fluent-bit@sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169
+          image: cr.fluentbit.io/fluent/fluent-bit:5.1.2@sha256:d792375ca8e53be72fc25716c28f291f32c6fc6f4f31d12d0d14bc78cefe9226
           envFrom:
             - secretRef:
                 name: fluent-bit-elasticsearch-credentials
@@ -429,7 +429,7 @@ spec:
       containers:
         - name: filebeat
           # The standard 9.4.6 image requires x86-64-v3; Wolfi supports this node.
-          image: docker.elastic.co/beats/filebeat-wolfi:9.4.6@sha256:61aec7c583a77eac1c8fdb262b5af5a9eb5945ba40e08ea381f916826323303f
+          image: docker.elastic.co/beats/filebeat-wolfi:9.5.4@sha256:119f38ac1c161f660669e5b1a37de9f831920636a4bbe7181e7795f54d622e91
           args:
             - -e
             - -c

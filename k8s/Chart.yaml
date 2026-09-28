@@ -2,8 +2,8 @@ apiVersion: v2
 name: swirl-cloud
 description: An organization-configurable private cloud platform on bare-metal Kubernetes
 type: application
-version: 2.0.0
-appVersion: "2.0.0"
+version: 2.0.1
+appVersion: "2.0.1"
 dependencies:
   - name: redis-ha
     version: 4.39.0

@@ -17,7 +17,7 @@ variables:
 
 validate:repository:
   stage: validate
-  image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
     key: swirl-cloud-alpine-tools-v1
     paths:
@@ -31,7 +31,7 @@ validate:repository:
 
 verify:gitops:
   stage: verify
-  image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
     key: swirl-cloud-alpine-tools-v1
     paths:
@@ -65,7 +65,7 @@ verify:delivery-platform:
   needs:
     - job: verify:gitops
       artifacts: false
-  image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
     key: swirl-cloud-alpine-tools-v1
     paths:
@@ -108,7 +108,7 @@ verify:delivery-platform:
 
 verify:registry-write:
   stage: verify
-  image: "docker.io/library/alpine@sha256:eafc1edb577d2e9b458664a15f23ea1c370214193226069eb22921169fc7e43f"
+  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
     key: swirl-cloud-alpine-tools-v1
     paths:

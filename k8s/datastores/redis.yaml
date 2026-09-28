@@ -24,6 +24,9 @@ metadata:
     app: redis
 spec:
   replicas: 1
+  # A single cache must not serve two independent datasets during a rollout.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: redis
@@ -55,7 +58,7 @@ spec:
         - configMapRef:
             name: application-data-access
             optional: true
-        image: docker.io/library/redis:8.10.0-alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241
+        image: docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -87,7 +90,7 @@ spec:
           mountPath: /etc/redis-acl
           readOnly: true
       - name: redis-exporter
-        image: quay.io/oliver006/redis_exporter:v1.92.0-alpine@sha256:b07ce24af20faeb4033a91dd30c2639dba6fc059cdfec97ecc7d320dab4f43cb
+        image: quay.io/oliver006/redis_exporter:v1.92.1-alpine@sha256:f6f0528b12a26d2f89d73d74dd323005022142c7f7bde939f7bbba9adde48fce
         # The ACL Secret can exist before Redis enforces it; an unexpected
         # password makes every scrape fail authentication.
         command: ["sh", "-ec"]

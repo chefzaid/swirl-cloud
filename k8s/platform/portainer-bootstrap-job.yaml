@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: bootstrap
-          image: python@sha256:42825e7ec3437b3bce923c237484eb23d32128476e18307d2f48951bf86f1db2
+          image: docker.io/library/python:3.14.7-alpine@sha256:9e9fde4d32eedce0b661d9ab91e826b62dddf28e928c230ec55f1866cac66b01
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

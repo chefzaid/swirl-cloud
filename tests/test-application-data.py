@@ -253,7 +253,7 @@ class LiveDataIsolation(unittest.TestCase):
 
     def test_real_kafka_scram_and_acl_reject_other_environment_topics_and_groups(self):
         prefix = "swirl-cloud-kafka-test-" + uuid.uuid4().hex[:10]
-        image = "docker.io/confluentinc/cp-kafka@sha256:0ad069035863aa1b090f4d9af47bfd2c08dc32864f3575d7d8579e3155c2586d"
+        image = "docker.io/confluentinc/cp-kafka:8.3.2@sha256:5e8f3ab5b4977c9a8fd6137d26af2caad878aca316f24c55f08206217e3cec48"
         controller, broker = prefix + "-controller", prefix + "-broker"
         shared = {"CLUSTER_ID": "8ipNY9RxQtWkattTais5yQ", "KAFKA_CONTROLLER_QUORUM_VOTERS": "3000@controller:9093",
                   "KAFKA_CONTROLLER_LISTENER_NAMES": "CONTROLLER", "KAFKA_AUTHORIZER_CLASS_NAME": "org.apache.kafka.metadata.authorizer.StandardAuthorizer",

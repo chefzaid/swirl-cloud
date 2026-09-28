@@ -8,4 +8,4 @@ postgresHa:
   bootstrapOwner: admin
   bootstrapDatabase: appdb
   storageSize: 2Gi
-  image: ghcr.io/cloudnative-pg/postgresql:18.6-system-bookworm@sha256:1365ec5cae7bd2b80dd3ccf95a4f500a2d5e7dc13a38a5145203880cd6c0f600
+  image: ghcr.io/cloudnative-pg/postgresql:18.6-system-bookworm@sha256:df7e540a933bad4448e2dec7b2ec947c8857f19fa2a7e51849554cfb2119f4be
