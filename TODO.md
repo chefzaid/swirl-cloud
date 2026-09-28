@@ -373,31 +373,33 @@ disposable copy for stateful services, update the pin, validate, reconcile, then
 check the running digest and a fresh Trivy report. Upgrade one stateful service
 per change. The target remains current stable services, with supported upgrade
 paths and explicit exceptions rather than a simultaneous platform-wide jump.
-The pins below are the 2026-09-27 inventory, not newly verified upgrade targets.
+The pins below were the 2026-09-27 inventory. The 2026-09-28 maintenance is
+recorded in [September 2026 service upgrades](docs/guides/service-upgrades-2026-09.md).
 
-- [ ] Refresh the source/running-version inventory and check upstream releases at execution time. Record target version/digest, compatibility, required intermediate versions, backup/restore needs and rollback limits in one tracking issue; prioritize §22's verified fixes and unsupported components.
-- [ ] Add the human-readable tag next to every digest-only pin (`fluent-bit`, `cp-kafka`, `dbgate`, `portainer-ce`, `prometheus`, `alertmanager`, `node-exporter`, `kube-state-metrics`, `descheduler`, `kafka-ui`, `odoo`, `python`) so upgrades and reports are auditable.
-- [ ] K3s `v1.36.4+k3s1` — one minor version at a time, after a fresh datastore backup; servers before agents.
-- [ ] Longhorn 1.12.1 — follow the supported minor-by-minor path; check the CSI sidecar pins in `k8s/base/system-workload-hardening.yaml`.
-- [ ] Traefik chart 41.5.0 / Traefik v3.7.13 and `cloudflared` 2026.8.3.
-- [ ] Vault chart 0.34.1 / Vault 2.1.0 — Raft snapshot first; preserve UID and mounts; roll HA peers one at a time.
-- [ ] External Secrets chart 2.9.0.
-- [ ] Argo CD chart 10.3.3 / v3.5.2 — confirm the selected upstream build actually resolves applicable findings in §22.
-- [ ] CloudNativePG operator 1.30.0 (HA profile only).
-- [ ] GitLab CE 19.3.1 — respect GitLab's required upgrade stops and back up first; keep GitLab Runner 19.3.1 on the matching minor.
-- [ ] Keycloak 26.7.3 and OAuth2 Proxy v7.15.4.
-- [ ] Grafana 13.2.1, `k8s-sidecar` 2.11.2, Prometheus, Alertmanager, node-exporter, kube-state-metrics.
-- [ ] Elasticsearch, Kibana, Logstash and Filebeat 9.4.6 together (Elasticsearch first), plus Fluent Bit.
-- [ ] Trivy Operator 0.34.0 (chart 0.36.0), Trivy 0.74.0, `trivy-checks`, `node-collector` 0.3.1.
-- [ ] SonarQube 26.8 Community.
-- [ ] PostgreSQL 18.6 — latest 18.x patch on **Bookworm** only; moving to Trixie changes glibc collations and is a separate migration with reindexing.
-- [ ] MongoDB 7.0.40 — latest 7.0 patch now; a move to 8.0 needs the `featureCompatibilityVersion` step and its own decision.
-- [ ] Redis 8.10.0 (single and HA chart 4.39.0), Kafka (`cp-kafka`) and Kafbat UI.
-- [ ] Homepage v2.2.0, Portainer CE, DBGate, Descheduler.
-- [ ] Odoo 19 — re-check the vendored `web_dark_mode` and SSO add-ons.
-- [ ] Helper images: `nginx` 1.30.4, `node` 24.19.0, `python` 3.14, `ruby` 3.4, `curl`, `busybox`, and the platform CI Alpine digest.
-- [ ] Bump `DEFAULT_*` versions in `config/platform.env` and the chart version; rerun installer/Ansible for the separately installed Helm releases.
+- [x] Refresh the source/running-version inventory and check upstream releases at execution time. Record target version/digest, compatibility, required intermediate versions, backup/restore needs and rollback limits; recorded 2026-09-28 in the maintenance guide.
+- [x] Add the human-readable tag next to every digest-only pin (`fluent-bit`, `cp-kafka`, `dbgate`, `portainer-ce`, `prometheus`, `alertmanager`, `node-exporter`, `kube-state-metrics`, `descheduler`, `kafka-ui`, `odoo`, `python`) so upgrades and reports are auditable.
+- [ ] K3s `v1.36.4+k3s1` — one minor version at a time, after a fresh datastore backup; servers before agents. 1.37 was deferred on 2026-09-28: Longhorn 1.12.1's tested Kubernetes versions stop at 1.36.
+- [x] Longhorn 1.12.1 — follow the supported minor-by-minor path; check the CSI sidecar pins in `k8s/base/system-workload-hardening.yaml`. Already current on 2026-09-28.
+- [x] Traefik chart 41.5.0 → 41.6.0 (Traefik v3.7.13) live; `cloudflared` 2026.8.3 → 2026.9.3 in the HA profile (2026-09-28).
+- [x] Vault chart 0.34.1 / Vault 2.1.0 → 2.1.1 — Raft snapshot first; preserve UID and mounts; roll HA peers one at a time (2026-09-28).
+- [x] External Secrets chart 2.9.0 → 2.11.0 (2026-09-28).
+- [x] Argo CD chart 10.3.3 / v3.5.2 → 10.9.2 / v3.5.3 (2026-09-28). Its remaining scanner findings belong to §22's triage.
+- [x] CloudNativePG operator 1.30.0 → 1.30.1, chart 0.29.1 (HA profile pin; not installed on the single node).
+- [x] GitLab CE 19.3.1 → 19.4.1 — respect GitLab's required upgrade stops and back up first; GitLab Runner and helper moved to 19.4.1 together (2026-09-28, restore rehearsed).
+- [x] Keycloak 26.7.3 → 26.7.4; OAuth2 Proxy v7.15.4 already current (2026-09-28).
+- [x] Grafana 13.2.1 → 13.2.2, Prometheus 3.15.0, Alertmanager 0.34.1; `k8s-sidecar` 2.11.2, node-exporter and kube-state-metrics already current (2026-09-28).
+- [x] Elasticsearch, Kibana, Logstash and Filebeat 9.4.6 → 9.5.4 together (Elasticsearch first, native snapshot taken), plus Fluent Bit 5.1.2 (2026-09-28).
+- [x] Trivy Operator 0.34.0 (chart 0.36.0), Trivy 0.74.0 and `node-collector` 0.3.1 already current; the stale major-1 `trivy-checks` bundle pin moved to 2.2.0 (2026-09-28).
+- [x] SonarQube 26.8 → 26.9 Community (2026-09-28, migration rehearsed).
+- [x] PostgreSQL 18.6 — latest 18.x patch on **Bookworm** only (image digest refreshed 2026-09-28); moving to Trixie changes glibc collations and is a separate migration with reindexing.
+- [x] MongoDB 7.0.40 → 7.0.43 (2026-09-28); a move to 8.0 needs the `featureCompatibilityVersion` step and its own decision.
+- [x] Redis 8.10.0 → 8.10.2 (single and HA; chart 4.39.0 current), Kafka (`cp-kafka`) 8.3.1 → 8.3.2, Kafbat UI 1.5.0 current (2026-09-28).
+- [x] Homepage v2.2.0 → v2.4.0, Portainer CE 2.45.1, DBGate 7.3.1, Descheduler 0.36.0 (2026-09-28).
+- [x] Odoo 19.0-20260810 → 19.0-20260908 — vendored `web_dark_mode` and SSO add-ons re-checked (2026-09-28).
+- [x] Helper images: `nginx` 1.30.5, `node` 24.21.0, `python` 3.14.7, `ruby` 3.4.11, `curl` 8.22.0, `busybox` 1.38.0, and the platform CI Alpine 3.24.2 (2026-09-28).
+- [x] Bump `DEFAULT_*` versions in `config/platform.env` and the chart version (2.0.1); reconcile the separately installed Helm releases (2026-09-28).
 - [ ] Establish a recurring pin/advisory review with proposed changes, fresh scan evidence and staged rollout. Retain recovery digests and mark each component complete only after runtime verification; use the existing validation policy instead of adding a general per-image test framework.
+- [ ] Keep maintenance headroom on the node root filesystem: alert before the kubelet image-GC (85 %) and eviction thresholds, and require about 30 GB free before upgrades. On 2026-09-28 a GitLab backup, its host copy and pinned recovery images triggered ephemeral-storage evictions. Store upgrade recovery archives off the root filesystem (§16).
 
 ### 21. Remediate Lynis findings (light-touch, non-blocking)
 
