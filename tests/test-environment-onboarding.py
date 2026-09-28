@@ -296,7 +296,7 @@ class CertificateTests(unittest.TestCase):
     def test_local_hostname_reuse_requires_self_referencing_same_application_owner(self):
         target = {"namespace": "apps-prod", "environment": "prod"}
         for namespace, owner, valid in (("apps", "devapp", True), ("apps-prod", "devapp-prod", True),
-                                        ("apps", "website", False), ("apps-uat", "devapp-uat", False),
+                                        ("apps", "swirl-website", False), ("apps-uat", "devapp-uat", False),
                                         ("apps", "devapp-prod", False), ("apps-prod", "", False)):
             metadata = {"name": "existing", "namespace": namespace, "annotations": {
                 "argocd.argoproj.io/tracking-id": f"{owner}:networking.k8s.io/Ingress:{namespace}/existing"}}
@@ -312,7 +312,7 @@ class CertificateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ServiceError, "unverified local Ingress"):
                     dns.verify_hostname_owner(["kubectl"], target, "devapp.example.com", "devapp")
 
-    def test_existing_website_apex_blocks_dns_even_when_address_and_empty_comment_would_match(self):
+    def test_existing_swirl_website_apex_blocks_dns_even_when_address_and_empty_comment_would_match(self):
         inventory = local_inventory("suffix")
         target = inventory["environments"]["prod"]
         # This record would pass the old DNS-only ownership condition.
@@ -324,8 +324,8 @@ class CertificateTests(unittest.TestCase):
             if "namespace" in arguments:
                 return json.dumps({"metadata": {"labels": {"swirl-cloud.io/application-environment": "prod"}}})
             if "ingresses" in arguments:
-                return json.dumps({"items": [{"metadata": {"name": "website", "namespace": "apps", "annotations": {
-                    "argocd.argoproj.io/tracking-id": "website:networking.k8s.io/Ingress:apps/website"}},
+                return json.dumps({"items": [{"metadata": {"name": "swirl-website", "namespace": "apps", "annotations": {
+                    "argocd.argoproj.io/tracking-id": "swirl-website:networking.k8s.io/Ingress:apps/swirl-website"}},
                     "spec": {"rules": [{"host": "example.com"}]}}]})
             raise AssertionError(arguments)
         args = SimpleNamespace(config="public.yaml", environment="prod", host_label="@", application_name="devapp",
