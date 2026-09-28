@@ -70,8 +70,9 @@ non-HA installation; enabling HA is separate work.
   not make Redis durable. The HA profile's persistence is unchanged.
 
 The operator explicitly selected verified **local** backups for this maintenance.
-The archive root is `/var/backups/swirl-cloud/upgrades/20260928`, alongside the
-fresh K3s/Vault/database archive under `/var/backups/swirl-cloud/k3s`.
+The archive root was `/var/backups/swirl-cloud/upgrades/20260928`, alongside the
+fresh K3s/Vault/database archive under `/var/backups/swirl-cloud/k3s`. The upgrade
+archives were deleted after verification to recover disk space; the K3s archives remain.
 Archives, secrets, full scan results and experiment files must remain outside Git.
 Pre-upgrade images were pinned in the node's containerd against garbage collection
 during the rollouts and unpinned once each service was verified; rollback pulls the
