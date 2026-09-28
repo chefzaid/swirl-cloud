@@ -6,7 +6,7 @@
 
 ## Context
 
-The repository started as one company's infrastructure, under an earlier name, with its
+The repository started as one company's infrastructure, with its
 domain, realm, GitLab group and branding written into manifests. That prevented
 reuse and made renaming risky.
 
