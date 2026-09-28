@@ -1,23 +1,38 @@
-# swirl-cloud — reverse-engineered feature map and TODO
+# Swirl Cloud — platform inventory and roadmap
 
-This file reconstructs, step by step, how the bare-metal K3s platform was built
-and what it contains today. Every item was derived from the repository source
-(`main` at `3926910`, 105 commits from 2026-03-07 to 2026-09-26) and checked
-against a read-only inspection of the live control plane on 2026-09-27.
+The direction is a reusable private cloud: recover the existing installation
+reliably, expand onto several hosts, then make installation and application
+delivery easier and add company services. Application repositories keep their
+runtime resources and delivery contracts; this repository owns the shared
+platform and centrally managed corporate services.
+
+**Source review: 2026-09-28, `main` at `6ada82b`.** The original inventory covered
+`3926910` and a read-only live inspection on 2026-09-27. This review compared the
+backlog with current source, documentation and subsequent commits; it did not
+inspect or change the running cluster. Completed entries remain as history.
 
 **Legend**
 
-- `[x]` Implemented in source; validated by `scripts/validate-repository.sh`
-  (passes: nine render profiles plus nine safety suites) and, where marked
-  *(live)*, observed running on the production host.
+- `[x]` Recorded implementation or completed work. The original audit recorded
+  nine render profiles and nine safety suites passing; *(live)* means observed
+  in that dated audit, not a fresh health check or a successful failover drill.
 - `[ ]` Not done, broken, partial, only documented, or still needs a real-world
   exercise. Each open item says why.
 
-**Live snapshot (2026-09-27):** one node (`swirlit-node-01`, 8 vCPU, 31 GiB
+**Historical live snapshot (2026-09-27):** one node (`swirlit-node-01`, 8 vCPU, 31 GiB
 RAM, 145 GiB disk at 66 % used), K3s `v1.36.4+k3s1`, SQLite datastore, Tailscale
 private address, internet exposure, `appsEnabled=true`, `applicationData.enabled=true`,
 `highAvailabilityEnabled=false`, `nodeFencing.enabled=false`. Root Argo CD
-Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
+Application `swirl-cloud` was **Synced at `3926910` but Degraded**. Source fixes
+for disabled-project discovery and retention have since landed (§12–13);
+current cluster health still needs verification.
+
+Work in dependency order: **recovery and current health → access controls and
+useful alerts → capacity and HA → installer/delivery UX → additional services**.
+Use the [priority index](#part-iv--priority-index-of-open-items) to pick work.
+Repeated gaps in the inventory point to their owning roadmap section; they are
+not separate implementations. Close operational items only with a dated result
+(restore, migration or failure drill); source/render checks alone are insufficient.
 
 ---
 
@@ -38,6 +53,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 | 10. Chart 2.0 | 2026-09-14 | ingress-nginx → Traefik, private images → pinned upstream digests, migration guards | `ef35d1c` … `a20c85c` |
 | 11. Recovery & edge polish | 2026-09-20 → 09-23 | Registry backup coverage docs, GitLab visitor IP, Cloudflare permissions, branding, guide consolidation | `811ba6e` … `2484453` |
 | 12. Environments | 2026-09-24 → 09-26 | `int`/`uat`/`prod` local or remote targets, scoped runners, admission for Traefik middleware and Argo projects | `0e52e16` … `3926910` |
+| 13. Platform cleanup | 2026-09-27 → 09-28 | Documentation, additional metrics/exporters, disabled-project discovery/retention fixes, portal at `cloud.<domain>` | `1eecfe6` … `6ada82b` |
 
 ---
 
@@ -56,7 +72,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Documentation follows the shared application-repository layout ([ADR 0001](docs/adr/0001-documentation-structure.md)): `features`, `architecture` (overview + ADR index), `data-model`, `development`, `testing`, `code-quality`, `deployment`, `operations`, `security`, `dns`, plus eight procedures under `docs/guides/`; Mermaid topology and delivery diagrams.
 - [x] 24 ADRs in `docs/adr/` reconstructed from the Git history, including three superseded decisions (ingress-nginx, Jenkins/Nexus, private rebuilt images).
 - [ ] Rename the Ansible task "Reconcile system security image overrides after registry credentials" in `ansible/deploy.yml`; private image overrides were retired in Chart 2.
-- [ ] Rename the Elasticsearch ILM policy `swirl-cloud-logs-7d`: its delete phase is `min_age: 1d` (about three days with daily indices), not seven days.
+- [ ] Reconcile the Elasticsearch ILM policy name `swirl-cloud-logs-7d` with its actual delete phase (`min_age: 1d`) and the retention decision in §27; migrate existing index/template references without dropping retained logs.
 
 ### 2. Installer (`install-control-plane.sh`)
 
@@ -78,9 +94,8 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [ ] Final summary prints `Longhorn replicas: <worker count or 1>` and ignores HA mode (actual HA default is 3). Read the value from `infra/swirl-cloud-topology`.
 - [x] Final summary points Argo CD to Keycloak SSO (local `admin` is disabled) instead of `argocd-initial-admin-secret`.
 - [x] Final summary points GitLab to Keycloak SSO (linked to `root`) instead of `/etc/gitlab/initial_root_password`, and to Vault `secret/infra/gitlab:root_password`. Only `rotate-local-admin-passwords.sh` writes that field; a fresh install stores no local root password.
-- [ ] "System prerequisites" installs `openjdk-21-jdk`, `maven`, `docker.io`, Node 24 and appends `MAVEN_OPTS` to `~/.bashrc` on a platform control plane. None is needed by the platform; Docker widens the attack surface, and app repos have moved to Java 25. Drop them or move them to an opt-in developer profile.
-- [ ] Helm is installed by piping `raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3` (unpinned branch, Helm 3). Pin a released Helm version and verify its checksum.
-- [ ] Node.js is installed through the NodeSource setup script without a pinned checksum.
+- [ ] Separate runtime/bootstrap prerequisites from developer and validation tools. Remove unconditional Java 21, Maven, Docker and the `MAVEN_OPTS` shell-profile edit; retain Node only where repository validation needs it. Make developer tooling opt-in and keep fresh-host installation and validation documented (§24).
+- [ ] Pin and verify the Helm installer/release instead of downloading the mutable `helm/main/scripts/get-helm-3`; remove the NodeSource setup step with the developer bundle or pin/verify it if retained.
 
 ### 3. Ansible
 
@@ -108,10 +123,9 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Longhorn host prerequisites: open-iscsi, NFS client, multipath blacklist (`config/host/multipath-longhorn.conf`).
 - [x] Workers and internet-only tools removed where not applicable (no Fail2ban/CrowdSec/persistent Lynis on workers).
 - [ ] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console.
-- [ ] Package `lynis.timer` (daily) runs alongside the managed monthly `swirl-cloud-lynis.timer` on the live host. Disable one or document why both run.
-- [ ] Automatic security updates are the Ubuntu defaults (`unattended-upgrades` enabled) but not managed or monitored by the repo; there is no reboot orchestration (for example kured) for kernel updates. *(from `todo.txt`)*
-- [ ] No `auditd` host audit trail. *(from `todo.txt`)*
-- [ ] No host malware scanning or EDR. *(from `todo.txt`)*
+- [ ] Recheck and remove the duplicate distro `lynis.timer` seen in the audit; keep one managed schedule with last-success monitoring (§21).
+- [ ] Manage unattended security updates, pending-reboot reporting and maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§21, §26).
+- [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §21; assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
 - [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config).
 
@@ -129,7 +143,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] CoreDNS private zone: `<service>.<internal zone>` → `infra` Services, exact aliases such as Longhorn, preserved headless labels.
 - [x] Containerd routes `registry.<domain>` to the fixed internal Registry ClusterIP `10.43.255.251:5050` (`configure-k3s-registry-mirror.sh`).
 - [ ] Only one host exists. Every service, the datastore and all backups share one physical failure domain (see §15 and §16).
-- [ ] No floating Kubernetes API endpoint; external kubectl clients must pick a reachable server manually after a control-plane loss.
+- [ ] Provide a stable private Kubernetes API endpoint with certificate SANs and tested failover (§26); a DNS alias alone does not detect or route around a failed server.
 
 ### 6. Kubernetes security baseline and admission
 
@@ -141,8 +155,8 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] `reconcile-system-hardening.sh` re-applies hardening to already-running system controllers.
 - [x] Default-deny ingress NetworkPolicy in `apps` and `corp`; environment namespaces receive `default-deny` plus `application-connectivity`.
 - [x] Workload hardening across platform manifests: non-root UIDs, `RuntimeDefault` seccomp, dropped capabilities, read-only root filesystems where supported, `automountServiceAccountToken: false` where no API access is needed, resource requests/limits.
-- [ ] `infra` only audits/warns `restricted`; nothing is enforced there. The manifest comment says "enforce after each workload has been migrated". Enforce `baseline` at least.
-- [ ] `infra` has **no default-deny NetworkPolicy**. PostgreSQL, MongoDB, single Redis, Elasticsearch, Keycloak's admin endpoints and every admin backend are reachable from any pod, including CI jobs in `gitlab-runners` and environment namespaces. Only Argo CD (chart-provided), Kafka, HA Redis and the Vault UI helper have policies. *(live: eight policies in `infra`, none default-deny)*
+- [ ] Inventory PSA violations in `infra`, including host-access telemetry agents; move workloads needing host privileges to a narrowly controlled namespace or define explicit exceptions, then enforce `baseline`. Verify rollouts and recovery before enforcement.
+- [ ] Introduce default-deny ingress in `infra` with explicit service/port allowlists for platform dependencies, app data, CI, ingress, metrics and remote gateways. Current source has only selected service policies. Prove required traffic and denied cross-environment/admin access before rollout; stage egress restrictions separately with DNS/API/external dependencies accounted for.
 - [ ] Registered environment namespaces (`apps-int`/`uat`/`prod`) do not carry the `security.<domain>/deny-hostpath` label. PSA baseline already blocks hostPath, but the extra guard is inconsistent with `apps`.
 
 ### 7. Ingress, TLS and edge (Traefik + Cloudflare)
@@ -172,9 +186,11 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Longhorn UI behind Keycloak SSO and Cloudflare Access through a platform-owned ExternalName Service.
 - [x] HA storage policy: replica soft anti-affinity disabled, `node-down-pod-deletion-policy: do-nothing`, controller-manager `disable-force-detach-on-timeout=true` via `configure-ha-control-planes.sh`.
 - [x] Optional recurring off-node Longhorn backups to the restic S3 bucket (`swirl-cloud-daily-backup`), host backup enrolls new volumes.
-- [ ] **Off-node Longhorn backups are not configured live**: no `swirl-cloud-daily-backup` RecurringJob and the `default` BackupTarget has no URL. GitLab repositories/registry, SonarQube, Odoo filestore, Elasticsearch, Grafana, Portainer and Prometheus volumes have no off-host copy.
+- [ ] Activate and restore-test off-node Longhorn backups (§16). The 2026-09-27 audit found no daily backup job or configured `default` BackupTarget; repeat that check before declaring coverage.
+- [ ] Update `configure-k3s-backups.sh` to configure and verify the current BackupTarget resource instead of gating on legacy `settings.longhorn.io/backup-target`; its current branch can skip volume backups while host offsite backup succeeds. Use the supported [Longhorn backup-target configuration](https://longhorn.io/docs/1.12.1/snapshots-and-backups/backup-and-restore/set-backup-target/), report partial coverage as a failure, and restore a newly created volume from the target.
 - [x] Longhorn manager metrics are scraped (job `longhorn`) through the `longhorn-manager-metrics` NetworkPolicy.
 - [ ] No alerts for degraded/faulted volumes or replica rebuilds.
+- [x] Snapshot deletion cleanup was recorded complete on 2026-09-28 in `9e736db`; retain that resolution as history. Current snapshot health was not rechecked in this source review.
 - [ ] One volume (`gitlab-runners/gitlab-runner-cache`) reports robustness `unknown` while detached — expected, but confirm it is still used after the move to ephemeral project-runner caches.
 
 ### 9. Secrets (Vault + External Secrets)
@@ -204,10 +220,10 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Kafka HA profile: dynamic quorum upgrade (`kraft.version=1`), observer admission, three controllers and brokers, full reassignment, `min.insync.replicas=2`, unclean election disabled, `prepare`/`migrate`/`fresh`/`verify` with locked journal and `infra/kafka-ha-state`.
 - [x] Shared Redis HA (`redis-ha` chart): three Redis/Sentinel, three HAProxy, `min-replicas-to-write 1`, `noeviction`, PDBs, NetworkPolicies limiting clients to HAProxy 6379.
 - [ ] PostgreSQL PVC is only 2 Gi for Keycloak, SonarQube, Odoo, GitLab-adjacent and all application databases; add a usage alert and capacity plan.
-- [ ] No continuous WAL archiving or point-in-time recovery; recovery granularity is the daily `pg_dumpall`.
+- [ ] Set PostgreSQL RPO/RTO and implement continuous WAL archiving/PITR if daily `pg_dumpall` is insufficient. Prove recovery to a chosen timestamp; HA replication does not protect against accidental data changes (§16).
 - [ ] Kafka's in-cluster `PLAINTEXT` listener (9092) stays unauthenticated with `KAFKA_SUPER_USERS=User:ANONYMOUS` and `auto.create.topics.enable=true`. NetworkPolicy limits it to `infra`, `apps` and `corp`, so every legacy app and platform pod is an anonymous Kafka superuser. Migrate legacy clients to SCRAM and close 9092 to `apps`.
-- [ ] Every installation shares the hard-coded Kafka cluster ID `8ipNY9RxQtWkattTais5yQ` from `k8s/datastores/kafka.yaml`; generate it per installation for new clusters.
-- [ ] Redis ACLs isolate values but `KEYS`/`SCAN` still reveal other environments' key names (documented limitation).
+- [ ] Generate and persist a Kafka cluster ID on new installations; reuse the recorded ID on reruns and migrations. Never replace the hard-coded ID on an existing data directory.
+- [ ] Decide whether Redis key-name visibility through `KEYS`/`SCAN` is acceptable for shared environments; document the boundary or use separate instances where metadata isolation is required.
 - [x] Datastore exporters: PostgreSQL, MongoDB and Redis sidecars (including shared Redis HA), CloudNativePG's built-in endpoint, and a Kafka exporter Deployment (jobs `postgres`, `mongodb`, `redis`, `kafka`).
 - [ ] No datastore health alerts.
 - [ ] PostgreSQL/Kafka HA migrations have only been tested offline and against an isolated SQL canary; no three-host rehearsal.
@@ -236,10 +252,11 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] GitLab Runner 19.3.1 (Kubernetes executor) in `gitlab-runners`, `concurrent = 1`, non-privileged, pinned helper image, per-job CPU/memory/ephemeral-storage limits, `if-not-present` pulls, drains jobs during rollout, metrics Service, Grafana "GitLab Delivery" dashboard.
 - [x] Project-scoped integration and protected-release runners for version-2 apps with scoped Argo CD permissions (`application_delivery.py`).
 - [x] Daily `gitlab-registry-retention` CronJob (03:17 UTC): container cleanup policies and package pruning older than `RETENTION_DAYS` (default 1 095 days); protected tags and `latest` kept.
+- [x] Package retention skips projects with `packages_enabled=false` (`6ada82b`), preserving container cleanup without a failing packages API call.
 - [x] Alertmanager webhook into the infrastructure project's **Monitor → Alerts**.
 - [x] Platform pipeline `.gitlab-ci.yml`: `validate:repository`; on default branch `verify:gitops` (same SHA Synced/Healthy), `verify:delivery-platform` (GitLab, Prometheus, Grafana, Trivy, Elasticsearch, Registry 401, dashboards, log ingestion) and `verify:registry-write` (OCI blob/manifest push/read). Alpine image digest-pinned, apk cache.
-- [ ] GitLab native backup (`gitlab-backup create` plus `gitlab-secrets.json`/`gitlab.rb`, and `db/registry_database.sql.gz` when the metadata DB is used) is documented but **not automated**; the daily host archive does not include it.
-- [ ] Deleted tags/packages do not reclaim Registry blobs; there is no scheduled registry garbage collection, and 3-year retention will keep growing `gitlab-data`.
+- [ ] Automate GitLab native backup plus matching configuration, secrets, registry files and metadata DB where enabled; upload offsite and restore with the matching GitLab version. Verify repository, LFS, package and Registry push/pull recovery, then integrate backup age/failure alerts (§16).
+- [ ] Identify the installed Registry metadata mode and implement its supported garbage collection: legacy collection with writes stopped/read-only, or monitored online GC with the metadata DB. Protect deployed and rollback digests before tag pruning, test pullability after cleanup, and measure reclaimed bytes; see [GitLab GC](https://docs.gitlab.com/administration/packages/container_registry/#container-registry-garbage-collection).
 - [ ] `concurrent = 1` on the instance runner serializes every platform job; revisit once more nodes exist.
 - [ ] GitLab is a persistent singleton with no replica; recovery depends on Longhorn plus (future) fencing.
 
@@ -252,10 +269,11 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Repository credentials projected by generic `infra/repository-<hash>` ExternalSecrets; AppProjects per environment with nested GitLab path matching (`6bf088d`).
 - [x] Admission policies binding environment Applications to their registered destination.
 - [x] Sonar discovery no longer fails on application projects with GitLab CI/CD disabled: they are skipped and logged (the root Application was Degraded by an HTTP 403 on such a project).
-- [ ] Argo CD Helm release is not self-managed; upgrades require the installer, Ansible or a manual Helm run.
+- [ ] Document and verify Argo CD's existing Helm upgrade/recovery ownership through installer/Ansible (§20). Self-management is a separate architectural decision, not a prerequisite for a working platform.
+- [ ] Verify the current root revision and health after the Sonar discovery and retention fixes: `Synced/Healthy`, successful new CronJob runs and passing default-branch delivery checks. Record remaining causes from current events instead of carrying forward the old Degraded status.
 - [ ] Notifications controller is deployed with no triggers/services configured, so sync failures and degraded health notify nobody.
 - [x] Argo CD metrics are scraped (job `argocd`).
-- [ ] HA application controller relies on upstream *alpha* dynamic cluster distribution with a single active controller.
+- [ ] Exercise Argo CD controller replacement and reconciliation recovery under the configured dynamic cluster distribution; record its upstream support status and failover result before claiming HA (§15, §20).
 
 ### 14. Observability
 
@@ -271,11 +289,14 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [ ] Missing alerts: node NotReady, K3s/Vault/Longhorn backup failure (`swirl-cloud-k3s-backup.service` result), certificate expiry, Vault sealed, Longhorn volume degraded, Elasticsearch health, ExternalSecret not Ready, Argo CD app degraded, Trivy critical findings, CrowdSec/Fail2ban activity.
 - [x] Scraped: Traefik, Vault, Argo CD, Longhorn, PostgreSQL, MongoDB, Redis and Kafka.
 - [ ] Not scraped: cloudflared, Elasticsearch, External Secrets.
-- [ ] Remote application clusters have no metrics/log collection or central dashboards (documented gap).
-- [ ] Elasticsearch is a single node with no snapshot repository; log history is lost with its volume.
-- [ ] **Vulnerability backlog live: 119 critical / 924 high findings across 90 image reports.** Largest: `postgres:18.6-bookworm` (16C/32H, also used by the SonarQube helper and application jobs), Elasticsearch (6C/34H), DBGate (5C/19H), Keycloak (4C/7H), SonarQube (4C/26H), GitLab Runner (3C/15H), Argo CD 3.5.2 (2C/26H on every component), Longhorn `csi-provisioner` (2C/10H), MongoDB (1C/49H), Node 24 helper image (1C/7H).
-- [ ] Exposed-secret reports flag the GitLab image (11 critical) — review whether they are packaged test fixtures, and suppress with a documented exception or fix.
-- [ ] A stale report remains for the retired private image `swirlit/swirl-cloud/security/gitlab`; expire reports whose owners no longer exist.
+- [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
+- [ ] Define recoverable Elasticsearch log/audit retention and configure a snapshot repository if that history must survive volume loss (§16).
+- [ ] Add an external availability check and notification path that still works when the only cluster or GitLab is down. Test a synthetic failure and recovery notification; SMTP/chat routing (§28, §30) alone does not monitor an unavailable cluster.
+
+The historical Trivy snapshot was **119 critical / 924 high findings across 90
+image reports**, plus 11 critical exposed-secret findings in the GitLab image
+and stale retired-image reports. Refresh and triage these in §22; they are not
+current totals or three additional remediation projects.
 
 ### 15. High availability (opt-in, not active)
 
@@ -283,7 +304,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] HA templates: CoreDNS three replicas with admission-enforced placement and PDB, Keycloak PDB, Redis HA policies, PostgreSQL HA cluster, Kafka HA PDBs/startup, Traefik/Tunnel DaemonSet, Vault three voters, ESO two replicas, Argo CD HA.
 - [x] `verify-high-availability.py` read-only readiness checker (placement, quorum, storage copies, optional fencing coverage).
 - [x] Optional Redfish node fencing CronJob (every minute, one host per run, stale Lease + NotReady ≥ 5 min, quorum rechecks, `ForceOff`, then `node.kubernetes.io/out-of-service` taint), inventory Secret, `--check-inventory` mode, RBAC limited to named nodes.
-- [ ] Add at least two more control planes (or two control planes plus three workers) — the documented prerequisite for everything below.
+- [ ] Complete the topology and capacity prerequisites in §26: at least three eligible control planes and three storage hosts, with capacity after one host fails. The planned two-storage-host interim state cannot satisfy the current three-replica HA profile.
 - [ ] Execute the ordered activation: PostgreSQL migration → Kafka migration → Vault migration and recovery distribution → shared HA profile with Cloudflare Tunnel cutover → application-owned availability.
 - [ ] Run the controlled one-host failure drills (original control plane, database leader, consensus leader) and verify public requests, sessions, writes, Kafka, Vault and Registry push/pull.
 - [ ] Acquire Redfish-capable BMC access and enable fencing, or document the manual non-graceful shutdown runbook as the permanent path.
@@ -295,11 +316,11 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Archive contents: SQLite `.backup` or etcd snapshot, server token, encryption config/state, K3s config and drop-ins, registries.yaml, Vault Raft snapshot, `pg_dumpall`, `mongodump`, PVC and Longhorn volume inventories, datastore-specific `RESTORE.txt`. *(live: verified in the 2026-09-27 archive)*
 - [x] Optional restic to S3-compatible storage (encrypted, `keep-daily 7 / weekly 5 / monthly 12`, prune) with root-only `/etc/swirl-cloud/backup.env`.
 - [x] Recovery tests: SQLite/etcd restorability, recovery token presence (`test-k3s-backups.sh`), Vault unseal/HA, PostgreSQL SQL canary.
-- [ ] **Offsite backups are not configured on the live host**: no `/etc/swirl-cloud/backup.env`, no restic repository. All seven archives live on the same disk as the cluster; a disk or host loss loses everything.
-- [ ] Local archives bundle `vault-unseal-key` and `vault-bootstrap-token` with the Raft snapshot; once offsite, keep recovery keys in a separate trust domain (for example a second repository or a password manager) so one leaked archive is not full compromise.
-- [ ] No `restic check` or scheduled restore drill; backup success is only the exit status.
-- [ ] No automated GitLab, SonarQube, Odoo filestore, Elasticsearch or Grafana data backup (see §8 and §12).
-- [ ] No documented and rehearsed full-platform rebuild from offsite backups onto a new host (RTO/RPO unknown).
+- [ ] Configure offsite restic and Longhorn storage now using a target outside the cluster's host/site failure domain; do not wait for the future NAS (§32). Verify uploads, backup age and volume coverage after fixing the Longhorn integration (§8).
+- [ ] Separate Vault recovery keys and bootstrap tokens from routine data archives and keep an independently accessible recovery copy of the restic password, K3s token/encryption state and required credentials. Define automated-unseal and bootstrap-token privileges explicitly; a password manager hosted only on this cluster is not sufficient for recovery.
+- [ ] Define a backup coverage/RPO/RTO table: K3s state, Vault, PostgreSQL, MongoDB, GitLab/Registry, Odoo database plus filestore, SonarQube, dashboards, logs/audits and Kafka/Redis data. Mark rebuildable caches explicitly; coordinate database/filestore recovery points and assign native backup or volume backup per service.
+- [ ] Schedule `restic check` and isolated restore drills for both archives and Longhorn volumes, with integrity/data checks and alerts on missing or stale backups. Keep deletion protection compatible with restic pruning and Longhorn's own backup retention; do not apply generic object expiry to active backup stores.
+- [ ] Write and rehearse a full rebuild on an empty host with the original host unavailable: obtain Git, pinned recovery images and keys independently; restore K3s/storage/Vault/data, then GitLab/Argo CD, SSO and application traffic. Measure achieved RPO/RTO and exercise the documented backup format before upgrades or node migration.
 
 ### 17. Corporate workloads (Odoo in `corp`)
 
@@ -330,35 +351,38 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Remote application cluster bootstrap (`install-application-cluster.sh`): pinned K3s, nftables node firewall, Tailscale route checks, refuses unrelated clusters.
 - [x] `configure-application-delivery.py` for preparing CI before targets exist.
 - [x] Six applications onboarded live, each with its own Argo CD Application in `infra`.
-- [ ] Only one application uses contract version 2; the others still deploy single-target into the legacy `apps` namespace. *(live)*
-- [ ] Issues, merge requests, releases, packages and LFS objects are not synchronized between GitHub and GitLab (documented).
-- [ ] No platform SMTP relay for applications, GitLab notifications, Keycloak, Grafana, Alertmanager or Odoo.
+- [ ] Refresh the app/contract/environment inventory, then migrate remaining version-1 apps in their owning repositories, including data, credentials, DNS and rollback. Verify isolated `int`/`uat`/`prod` delivery before retiring legacy credentials or Kafka access (§10).
+- [ ] Document GitLab as the delivery/metadata authority and the GitHub↔GitLab sync boundary (Git refs only); back up issues, merge requests, releases, packages and LFS through GitLab recovery (§12). Add cross-forge metadata synchronization only for a concrete requirement.
+- [ ] Deliver the shared SMTP capability in §28 and its app onboarding contract; application repositories own their mail usage and templates.
+- [x] Environment `ingressAddress` accepts hostnames, and `configure-application-dns.py` already selects A, AAAA or CNAME records. Remaining ingress alias and API endpoint work is in §26.
 
 ---
 
-## Part IV — Requested roadmap (added 2026-09-27)
+## Part III — Requested roadmap (added 2026-09-27, reviewed 2026-09-28)
 
-Items below were requested on 2026-09-27. Sub-steps come from the current source
-and the live installation; the notes flag constraints to settle before building.
+The requested direction is retained below. Sub-steps now distinguish existing
+source support, historical live findings, prerequisites and decisions still open.
 Decisions marked **ADR** need a record in [`docs/adr/`](docs/adr/) first (see the
 proposed list in [architecture](docs/architecture.md#proposed-adrs-for-roadmap-work)).
 
-### 20. Upgrade every service to its latest stable release
+### 20. Maintain supported, compatible stable releases
 
 Follow the [image update procedure](docs/operations.md#image-updates) for each
 component: review release notes and upgrade paths, restore a backup into a
 disposable copy for stateful services, update the pin, validate, reconcile, then
 check the running digest and a fresh Trivy report. Upgrade one stateful service
-per change. Current pins, as of 2026-09-27:
+per change. The target remains current stable services, with supported upgrade
+paths and explicit exceptions rather than a simultaneous platform-wide jump.
+The pins below are the 2026-09-27 inventory, not newly verified upgrade targets.
 
-- [ ] Check the latest stable release of every pin below on 2026-09-27 and record target versions in one tracking issue.
+- [ ] Refresh the source/running-version inventory and check upstream releases at execution time. Record target version/digest, compatibility, required intermediate versions, backup/restore needs and rollback limits in one tracking issue; prioritize §22's verified fixes and unsupported components.
 - [ ] Add the human-readable tag next to every digest-only pin (`fluent-bit`, `cp-kafka`, `dbgate`, `portainer-ce`, `prometheus`, `alertmanager`, `node-exporter`, `kube-state-metrics`, `descheduler`, `kafka-ui`, `odoo`, `python`) so upgrades and reports are auditable.
 - [ ] K3s `v1.36.4+k3s1` — one minor version at a time, after a fresh datastore backup; servers before agents.
 - [ ] Longhorn 1.12.1 — follow the supported minor-by-minor path; check the CSI sidecar pins in `k8s/base/system-workload-hardening.yaml`.
 - [ ] Traefik chart 41.5.0 / Traefik v3.7.13 and `cloudflared` 2026.8.3.
 - [ ] Vault chart 0.34.1 / Vault 2.1.0 — Raft snapshot first; preserve UID and mounts; roll HA peers one at a time.
 - [ ] External Secrets chart 2.9.0.
-- [ ] Argo CD chart 10.3.3 / v3.5.2 (also fixes the Go stdlib critical in §22).
+- [ ] Argo CD chart 10.3.3 / v3.5.2 — confirm the selected upstream build actually resolves applicable findings in §22.
 - [ ] CloudNativePG operator 1.30.0 (HA profile only).
 - [ ] GitLab CE 19.3.1 — respect GitLab's required upgrade stops and back up first; keep GitLab Runner 19.3.1 on the matching minor.
 - [ ] Keycloak 26.7.3 and OAuth2 Proxy v7.15.4.
@@ -373,21 +397,22 @@ per change. Current pins, as of 2026-09-27:
 - [ ] Odoo 19 — re-check the vendored `web_dark_mode` and SSO add-ons.
 - [ ] Helper images: `nginx` 1.30.4, `node` 24.19.0, `python` 3.14, `ruby` 3.4, `curl`, `busybox`, and the platform CI Alpine digest.
 - [ ] Bump `DEFAULT_*` versions in `config/platform.env` and the chart version; rerun installer/Ansible for the separately installed Helm releases.
+- [ ] Establish a recurring pin/advisory review with proposed changes, fresh scan evidence and staged rollout. Retain recovery digests and mark each component complete only after runtime verification; use the existing validation policy instead of adding a general per-image test framework.
 
 ### 21. Remediate Lynis findings (light-touch, non-blocking)
 
-Live control plane on 2026-09-27: hardening index **66**, one warning, about 40
+Historical control-plane audit on 2026-09-27: hardening index **66**, one warning, about 40
 suggestions. Apply through [`configure-node-security.sh`](scripts/configure-node-security.sh)
 so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 
-- [ ] **KRNL-5830 (warning):** reboot is pending after a kernel update. Schedule a maintenance-window reboot now (single node means full outage); add reboot orchestration (for example kured) once there are several nodes.
+- [ ] Refresh Lynis and the pending-reboot state; retain only findings applicable to the installed OS and selected workload roles.
+- [ ] **KRNL-5830 (warning):** if still pending, schedule a maintenance-window reboot after verifying the backup, off-host recovery material and console access (§16). Check Vault unseal, volumes, SSO and applications after boot; add coordinated reboots only after multi-host recovery is proven.
 - [ ] **SSH-7408:** `ClientAliveCountMax 2`, `LogLevel VERBOSE`, `MaxSessions 4`, `TCPKeepAlive no` (client-alive probes keep dead sessions detected).
 - [ ] **BANN-7126/7130:** legal banner in `/etc/issue` and `/etc/issue.net`.
 - [ ] **DEB-0280, DEB-0811, PKGS-7370, PKGS-7394:** install `libpam-tmpdir`, `apt-listchanges`, `debsums`, `apt-show-versions`.
-- [ ] **AUTH-9230/9262/9328:** SHA-crypt rounds and `UMASK 027` in `/etc/login.defs`; `libpam-passwdqc` for local passwords.
+- [ ] **AUTH-9230/9262/9328:** review the installed distribution's password-hashing defaults, human-account umask and PAM password-quality policy; avoid replacing a stronger supported default just to silence a finding. Rehearse console and automation login before rollout.
 - [ ] **AUTH-9282/9286:** password ageing only for human accounts, never for service accounts (optional once SSH is key-only).
-- [ ] **NETW-3200:** blacklist unused `dccp`, `sctp`, `rds`, `tipc` protocol modules.
-- [ ] **USB-1000:** blacklist `usb-storage` on dedicated servers.
+- [ ] **NETW-3200 / USB-1000:** confirm workload and remote-console requirements before blacklisting unused protocol modules or `usb-storage`; apply only the exclusions proven safe for each host role.
 - [ ] **PKGS-7346:** purge the 33 removed-but-not-purged packages.
 - [ ] **KRNL-6000:** apply safe sysctl values (`kernel.kptr_restrict`, `kernel.dmesg_restrict`, `fs.protected_*`, `log_martians`) and leave Kubernetes-required settings (`ip_forward`, bridge netfilter) untouched.
 - [ ] **FILE-7524:** tighten the file permissions Lynis lists.
@@ -395,7 +420,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [ ] **FINT-4350:** AIDE with `/var/lib/rancher`, `/var/lib/longhorn` and container paths excluded, weekly, report-only.
 - [ ] **HRDN-7230:** weekly `rkhunter` or `chkrootkit` scan, report-only, shipped to Kibana (overlaps §4).
 - [ ] **LOGG-2154:** forward the system journal to Elasticsearch through Fluent Bit.
-- [ ] Record accepted risks as `skip-test` entries in a managed Lynis custom profile so the index reflects real gaps.
+- [ ] Record accepted or inapplicable findings with rationale, owner and review date in a managed Lynis profile; keep the raw audit available and do not suppress a real gap merely to improve the score.
 
 Deliberately not planned (too disruptive for the benefit): GRUB password
 (BOOT-5122, breaks remote console recovery), separate `/home` and `/var`
@@ -404,24 +429,26 @@ breaks tooling).
 
 ### 22. Remediate Trivy findings (critical, exploitable, low-effort)
 
-Rules: fix only critical, realistically exploitable findings; prefer a newer
-upstream image that contains the fix; when no fix exists, keep the current image
-and record the risk; allow only small tweaks, no private rebuilds
+Scope: critical, realistically exploitable findings first; prefer a newer
+upstream image that contains the fix. Where no upstream fix exists, assess
+exposure and mitigations and record the residual risk; allow small configuration
+changes, no private rebuilds
 ([ADR 0022](docs/adr/0022-upstream-images-by-digest.md)). Start with
 network-facing components (Keycloak, Argo CD server, GitLab, Traefik).
-Criticals with a fix available on 2026-09-27:
 
-- [ ] Argo CD v3.5.2 — Go stdlib CVE-2025-68121 (fixed in Go 1.24.13/1.25.7): upgrade to an Argo CD patch built with a fixed Go.
-- [ ] Keycloak 26.7.3 — netty-handler CVE-2026-75595, bcprov CVE-2026-8763, freemarker CVE-2026-84939: upgrade to a Keycloak patch that bundles them.
-- [ ] SonarQube 26.8 — netty-handler and bcprov: newer SonarQube.
-- [ ] Elasticsearch 9.4.6 (netty-handler) and Logstash 9.4.6 (bcprov): next Elastic patch, all four images together.
-- [ ] Kafbat UI — netty-handler: newer image.
-- [ ] GitLab Runner alpine-v19.3.1 — openssh CVE-2026-60002 (fixed in `10.3_p1-r1`): next runner patch.
-- [ ] Longhorn `csi-provisioner` v5.3.0 — gRPC CVE-2026-33186 and Go stdlib: small tweak — pin a compatible newer sidecar through the existing CSI image admission policy, as already done for `node-driver-registrar` and `livenessprobe`.
-- [ ] MongoDB 7.0.40 — Go stdlib in bundled tools: next 7.0 patch.
-- [ ] `node` 24.19.0 helper, Homepage v2.2.0, DBGate — npm's bundled `tar` CVE-2026-59873: take newer images when published; npm is not executed at runtime, so linger otherwise.
-- [ ] No fix available yet (linger and record): Debian Bookworm `perl`, `libxml2`, `libsqlite3`, `zlib` findings in `postgres:18.6-bookworm` (also used by SonarQube's helper and application backup jobs) and DBGate. The server does not invoke Perl, and the zlib CVE is in minizip, which PostgreSQL does not use.
-- [ ] Triage the 11 critical exposed-secret findings in the GitLab image (likely packaged test fixtures); record documented exceptions in Trivy policy data.
+The following are candidates from the historical scan, not verified current
+advisories or proof that a fixed service image has been published. Package fixes
+and availability of a compatible upstream image must be checked separately.
+
+- [ ] Refresh reports for the running digests and current Trivy DB; deduplicate repeated image findings and verify advisory IDs, affected package versions, runtime reachability and fixed-image availability against upstream sources. Record dated, expiring exceptions and retest after §20 upgrades.
+- [ ] Argo CD — reported Go stdlib findings, including CVE-2025-68121; check the Go toolchain used by the candidate build.
+- [ ] Keycloak, SonarQube and Kafbat UI — reported Netty/Bouncy Castle/FreeMarker findings; verify affected libraries and compatible upstream fixes.
+- [ ] Elasticsearch/Logstash — reported Netty/Bouncy Castle findings; coordinate the supported Elastic stack upgrade in §20.
+- [ ] GitLab Runner — reported OpenSSH finding; confirm the affected runtime path and matching runner/helper patch.
+- [ ] Longhorn `csi-provisioner` — reported gRPC/Go findings; validate the Longhorn/Kubernetes sidecar compatibility matrix before adding an admission image override.
+- [ ] MongoDB tools, Node helper, Homepage and DBGate — distinguish reachable runtime vulnerabilities from bundled build/tooling packages, then select upstream fixes or record time-bounded exceptions.
+- [ ] PostgreSQL/DBGate Debian-library findings — check distro security status/backports and affected functionality; document accepted findings with evidence instead of assuming all Perl, XML, SQLite or zlib reports are harmless.
+- [ ] Triage the historical GitLab exposed-secret findings; distinguish fixtures from usable credentials, rotate any real credentials, and narrowly scope exceptions with evidence and expiry.
 - [ ] Expire stale reports for retired owners (for example `swirlit/swirl-cloud/security/gitlab`).
 - [ ] Scan platform artifacts too: the vendored charts in `k8s/charts/`, the CI Alpine image and pinned GitHub Actions, as a non-blocking CI report.
 - [ ] Hand application image findings to the owning repositories.
@@ -432,10 +459,10 @@ Applications own their UI changes in their own repositories; the platform owns
 Odoo and the wiring.
 
 - [ ] Install and configure Odoo `crm` (contact forms become CRM leads) and `im_livechat` (support chat) in the Odoo bootstrap.
-- [ ] Create a dedicated Odoo integration user per consuming application with an API key limited to leads and chat; store it at Vault `secret/apps/<app>/<env>/odoo` and project it with an ExternalSecret.
-- [ ] Allow in-cluster API calls from an application's namespace to Odoo on port 8069 through a `corp` NetworkPolicy (default deny today), instead of the public route.
-- [ ] Keep the public Live Chat loader and chat endpoints on `odoo.<domain>` reachable without Cloudflare Access (Odoo is already outside the Access list), rate-limited at the edge.
-- [ ] Document the API contract (fields, errors, idempotency) for consuming applications.
+- [ ] Choose and verify the API supported by the pinned self-hosted Odoo build. Create a dedicated integration user per application/environment with model ACLs and record rules for the intended lead/chat operations; API keys inherit user permissions ([Odoo API access rights](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html#access-rights)). Store rotating keys in Vault under the existing app/env contract and keep them out of browsers.
+- [ ] Permit local app→Odoo traffic on 8069 in both `corp` ingress and environment egress policies; the current environment egress allowlist does not include `corp`. Define a separate authenticated path for remote app clusters rather than assuming cross-cluster Service DNS works.
+- [ ] Verify the public Live Chat loader and session/WebSocket flow (existing `/websocket` route to 8072), approved origins and edge rate limits. Preserve staff authentication while keeping required public chat endpoints usable without Access.
+- [ ] Document fields, errors, retry/idempotency behavior, consent/retention and a sandbox integration. Prove duplicate retries create one lead and non-production apps cannot modify production CRM data; application repositories own forms and chat UI.
 
 ### 24. Installer: TUI, central `.env`, reruns, verification and email
 
@@ -443,26 +470,26 @@ Goal: one versioned `.env` drives every entry point (TUI now, web UI next,
 Ansible and unattended runs); the installer engine reads only that file and never
 prompts. **ADR** on the file schema and TUI technology.
 
-- [ ] Define a versioned `.env` schema covering every current input (identity, scope, exposure, topology, transport, components, backups, Cloudflare/Access, Tailscale/OVH, repositories, administrator credentials, password rotation, HA and environments), with types, defaults, required flags and secret flags.
+- [ ] Define a versioned installation-input schema covering every current input, with types, defaults, conditional requirements and secret flags. Keep `config/platform.env` as the checked-in version/service contract; parse per-install `.env` values as data, never shell code. Reference structured topology/environment files rather than flattening arbitrary YAML into shell strings.
 - [ ] Split `install-control-plane.sh` into an engine (`--env-file`, no prompts, reports every missing or invalid key at once) and a front end.
 - [ ] Build the TUI front end (for example `whiptail`/`dialog`, available on Ubuntu without extra runtimes) that walks every question of the current installer and writes the `.env` (mode `0600`).
 - [ ] Start with an **express** screen proposing a default configuration and listing what it installs: every platform service, no application repositories unless provided. It asks only for company name and domain, administrator credentials, required API keys (Cloudflare; Tailscale/OVH for multiple nodes; optional S3 backups) and optional GitHub repositories to import.
 - [ ] Keep an **advanced** path with every current prompt grouped as today.
-- [ ] After a successful run, redact secrets in the `.env` (store them in Vault and keep references such as `vault:secret/infra/installer#KEY`). Reversible obfuscation would not protect them, so redact rather than obfuscate.
-- [ ] Make reruns idempotent: detect installed components (Helm releases, workloads, `swirl-cloud-identity`, topology, environments), show installed/missing/drifted, and propose only what is missing. Always offer the GitHub repository sync step.
-- [ ] Add a post-install verification stage: nodes Ready, Argo CD Applications Synced/Healthy, ExternalSecrets Ready, pods Ready, HTTPS check of every Ingress host, TLS validity, Vault unsealed, backup timers active, `validate-repository.sh --live`; exit nonzero with a readable report on failure.
+- [ ] Define secret resolution before adding redaction: fresh bootstrap and disaster recovery must work while Vault/Keycloak are unavailable. Support protected files/stdin and authenticated Vault references, redact logs/reports, and replace inline secrets only after durable recovery and rerun access are verified (§16); never require a secret from the Vault being bootstrapped.
+- [ ] Build rerun planning on the existing identity/topology/HA readers and reconciliation helpers. Show installed/missing/drifted/failed stages, reconcile selected drift, preserve explicit values and resume interrupted work. Keep repository onboarding selectable on every run without starting it unexpectedly.
+- [ ] Add bounded post-install verification: current nodes/pods/ExternalSecrets ready, expected Argo revisions healthy, Vault unsealed, authenticated service/Ingress probes, TLS validity and successful recent backups. Treat intentional login redirects/401s correctly and check backup results, not just active timers. Include `validate-repository.sh --live` for API compatibility and emit a readable nonzero failure report.
 - [ ] Email the report when the deployment is ready, with dashboard URLs for every service and application (from Ingress hosts and Homepage). Depends on the SMTP relay in §28.
 - [ ] Make `ansible/install.yml` and `--yes` consume the same `.env`.
-- [ ] Next step: a web UI that edits the same schema, runs the engine and streams its logs, behind Keycloak.
-- [ ] Tests: schema validation, secret redaction (no secret survives), rerun detection.
+- [ ] After the engine/TUI is proven, design the optional Keycloak-protected web front end around constrained jobs, authorization, redacted logs and a single execution lock. Keep console-based bootstrap/recovery independent of that UI.
+- [ ] Rehearse fresh install, no-change rerun, interrupted resume, invalid inputs and Vault-unavailable recovery on disposable hosts; add focused safety tests only for credential leakage or deployment/recovery failures under the existing test policy.
 
 ### 25. Deployment UI (app → environment → deploy)
 
 - [ ] Small web app in `infra` behind Keycloak and Cloudflare Access, listed on Homepage, added to the host inventories.
 - [ ] List onboarded applications (Argo CD Applications or GitLab projects with an onboarding contract).
-- [ ] Offer an environment selector only when `infra/deployment-environments` has targets for that app.
-- [ ] **Deploy** triggers the app's GitLab pipeline through the API with `PIPELINE_MODE=full` and the chosen `DEPLOYMENT_ENVIRONMENT` (latest release for `uat`/`prod`), using a scoped token from Vault; version-1 apps trigger their release pipeline.
-- [ ] Show progress and, on success, the application URL from its Ingress. Nothing else: no configuration editing.
+- [ ] Derive valid choices from the app's onboarding contract intersected with `infra/deployment-environments`; the inventory records cluster targets, not a per-app release catalog.
+- [ ] **Deploy** uses the owning app's pipeline contract (`PIPELINE_MODE=full` and `DEPLOYMENT_ENVIRONMENT` where supported), a server-side scoped Vault token and the permitted branch/tag. Resolve and display the immutable release being promoted to `uat`/`prod`; honor protected-environment approvals and prevent duplicate/conflicting runs. Version-1 apps retain their declared pipeline until §19 migration.
+- [ ] Show pipeline progress and report success only after the selected Argo revision is healthy and the target rollout is verified; show the app URL from its owned Ingress. Keep configuration editing out of this UI.
 - [ ] Restrict to `platform-admins` initially; post results to Mattermost (§30).
 
 ### 26. Expand onto new EPYC servers and move workloads off the current node
@@ -471,27 +498,29 @@ Target hardware: AMD EPYC ≥ 16 cores, 128 GB RAM, ≥ 1 TB NVMe, public and pr
 bandwidth (for example OVHcloud Advance/Scale with vRack). The current server
 stays as a lightweight control plane; no replacement migration is needed.
 
-- [ ] Order two servers now and a third later.
+- [ ] Confirm cost, location, private connectivity, console/BMC access and capacity after one failure; then provision two servers first and the third as a separate expansion stage.
 - [ ] **ADR — transport:** the repository supports one transport per cluster (`K3S_NODE_TRANSPORT`), and the current server has only a public interface and uses Tailscale. Either run all nodes over Tailscale (works today), or add mixed-transport support (vRack between new servers, Tailscale to the current one), which needs per-node addresses reachable by every node for flannel, etcd and Longhorn.
-- [ ] Before starting: complete offsite backups (§16), take a verified backup, and measure `fdatasync` latency with `fio` on the current SATA SSD and the new NVMe disks (etcd wants a 99th percentile under about 10 ms).
+- [ ] Before starting: complete a restore drill (§16), take a fresh verified backup, and benchmark etcd fsync latency and inter-node RTT/throughput using disposable test files. Budget Longhorn rebuild traffic, database copies and concurrent CI within the chosen transport.
 - [ ] **Phase 1 — three etcd members:** `./add-node.sh --role control-plane --mode remote --count 2` converts the current SQLite datastore to embedded etcd (with its pre-conversion backup) and joins both new servers.
-- [ ] Add a **per-node** scheduling policy: the current server becomes `NoSchedule` for workloads while the new control planes stay schedulable. Today `CONTROL_PLANE_SCHEDULABLE` is cluster-wide in `reconcile-cluster-topology.sh`.
-- [ ] Longhorn: disable disk scheduling on the current server, request replica eviction, wait for healthy replicas on the new nodes, and define the replica rule for two storage nodes (the current table covers only "no workers", "workers" and HA).
-- [ ] Move workloads: let singletons (GitLab, SonarQube, Odoo, PostgreSQL) follow their evicted volumes in a maintenance window, then run the Descheduler.
+- [ ] Add durable **per-node** workload/storage eligibility to enrollment, topology reconciliation, Helm placement and HA validation. Keep the current server lightweight while the new control planes remain schedulable; audit Vault/ingress tolerations and node-local audit PVCs so the old host does not silently keep heavy workloads.
+- [ ] Define the two-storage-node interim replica policy before eviction. Build and verify healthy copies on the new disks, then disable old-disk scheduling and evict its replicas in order; do not enable the three-storage-host HA profile yet.
+- [ ] Move workloads with an explicit drain/restart plan, singleton maintenance windows, PDB handling and verified volume attachment on the destination. `NoSchedule` does not move existing pods, and replica eviction alone does not relocate a workload. Rebalance only after data checks and healthy storage copies.
 - [ ] Ingress: direct Traefik is pinned to the bootstrap node (`svccontroller.k3s.cattle.io/enablelb`) and every DNS record points to its public IP. Either keep ingress there, move the label and update platform and application DNS, or activate Tunnel ingress (§15).
-- [ ] **Use DNS names instead of IP addresses.** Today `configure-cloudflare.sh` publishes A records to the origin IP (`--origin-ip`), environments store an IP `ingressAddress`, and nodes join through `https://<private IP>:6443`. Publish one ingress hostname (for example `ingress.<domain>`) and point platform and application records at it as CNAMEs (Cloudflare flattens the apex), accept a hostname for `ingressAddress`, and join nodes through a server hostname included in the K3s TLS SANs. Moving ingress or a server then changes one record.
+- [ ] **Public ingress alias:** extend the platform configurator and legacy onboarding path to use one origin hostname or the HA tunnel target, preserving DNS ownership, apex behavior, TLS coverage and origin firewall rules. Reuse existing environment hostname/CNAME support (§19); rehearse explicit A→CNAME migration because onboarding rejects conflicting records.
+- [ ] **Private API endpoint:** choose a reachable private DNS name plus a health-checked load balancer/VIP or documented manual failover, add K3s TLS SANs, and update join/kubeconfig consumers. Keep API endpoint failover separate from public Cloudflare ingress; prove access when the original server is down.
 - [ ] Distribute Vault recovery material to the new control planes (`sync-vault-recovery.sh`) and install the unseal and backup timers there.
 - [ ] Apply host security to the new servers' public interfaces (UFW, Fail2ban, CrowdSec) and confirm only the private transport carries cluster traffic.
-- [ ] **Phase 2 — fourth control plane:** add the third new server, run etcd only on the three new servers, and turn the current server into an API-only control plane (`--disable-etcd`). This means removing its etcd member and rejoining it, so move Vault recovery, backup timers and ingress first.
-- [ ] Teach enrollment, quorum checks and backups about API-only servers: count etcd members, not control planes, and skip snapshots on etcd-less servers.
-- [ ] Then activate HA (§15) with three storage nodes, and amend ADR 0011.
+- [ ] **Before phase 2, ADR and rehearsal:** extend odd-quorum enrollment guards, topology, HA verification, recovery distribution and backups to distinguish etcd members, API servers and eligible workload/storage hosts. Specify a supported member replacement/rejoin sequence that preserves healthy quorum at every step; current helpers reject a four-control-plane target.
+- [ ] **Phase 2 — three new etcd hosts plus the old API server:** after the new helpers are proven, add the third new server and remove the old server's etcd membership using the rehearsed sequence. Rejoin it as a dedicated control-plane server (`--disable-etcd`); move ingress, Vault placement/recovery and snapshot timers first. See [K3s server roles](https://docs.k3s.io/installation/server-roles).
+- [ ] Activate and drill HA (§15) with three eligible storage/service hosts. Record singleton recovery downtime and keep the old host out of required data paths; amend ADR 0011 and the operational guides with the verified topology.
 
 ### 27. Resize platform services for the new capacity
 
-Size from observed Prometheus usage with about 2× headroom; be generous but not
-excessive.
+Size from observed requests, usage, disk growth and concurrent builds. Reserve
+capacity for one-host failure, storage rebuilds and rolling maintenance; suggested
+sizes below are starting points to validate, not automatic allocations.
 
-- [ ] Introduce sizing profiles (for example `small`/`large`) in chart values, selected by the installer from node allocatable CPU and memory.
+- [ ] Introduce explicit sizing profiles shared by Helm values, installer and Ansible. Suggest a profile from capacity, preserve operator overrides and reject budgets that cannot schedule after one-host failure; account for replicated database and Longhorn storage multiplication.
 - [ ] GitLab: more Puma workers and Sidekiq concurrency, higher memory limits, larger `gitlab-data`.
 - [ ] GitLab Runner: raise `concurrent` from 1 (for example 4–6) and per-job limits (CPU 2 → 4, memory 3 Gi → 6–8 Gi, ephemeral storage 4 Gi → 20 Gi); resize the cache.
 - [ ] PostgreSQL PVC 2 Gi → 20 Gi+ with tuned `shared_buffers` and `work_mem`; MongoDB and Kafka volumes accordingly.
@@ -503,83 +532,94 @@ excessive.
 
 ### 28. Directory, mail and SSO
 
-**ADR — provider:** Option A, Microsoft 365 Business: mail and user accounts
-(provisioned into Keycloak), Office and Teams, with a higher tier for advanced
-directory and policy management. Option B, self-hosted LDAP (FreeIPA or similar)
-plus Mailcow or equivalent: EU-sovereign and a potential SaaS offer.
+**ADR — provider:** compare Microsoft 365/Entra with a self-hosted directory and
+mail service on operational burden, required device management, SSO integration,
+hosting/data location and current licences. Keep the selected organization,
+domain, realm and administrator as installation inputs (ADR 0020). The mailbox
+names below are deployment goals for the current installation, not source defaults.
+
+Transactional SMTP is an independent early deliverable: it need not wait for
+directory migration, virtualization or a new collaboration service.
 
 Mail (either option):
 
 - [ ] Create `zaid@swirlit.dev` on the chosen provider.
-- [ ] Forward incoming mail to `c.zaid@outlook.com` while keeping a copy in the mailbox (for Exchange Online, forwarding with "keep a copy" and external forwarding allowed in the outbound anti-spam policy, which blocks it by default).
-- [ ] Remove the inbound mail configuration from Cloudflare (Email Routing) and Resend (receiving/MX) to avoid MX conflicts; keep Resend's outgoing-mail records (SPF include, DKIM) for applications that still send through it.
-- [ ] Add the provider's MX, SPF, DKIM, DMARC and autodiscover records, managed alongside `configure-cloudflare.sh` (it preserves unrelated MX/TXT records).
-- [ ] Provide a platform SMTP relay credential in Vault for Keycloak, GitLab, Grafana, Alertmanager, Argo CD notifications, Odoo and the installer report. This closes the SMTP gap in §11, §17 and §19.
+- [ ] Forward incoming mail to `c.zaid@outlook.com` while keeping a mailbox copy; verify the chosen provider's external-forwarding policy and test delivery before enabling it for the production address.
+- [ ] Inventory existing mail DNS and verify the new mailbox/send/receive path before switching MX. Retire only conflicting Cloudflare Email Routing/Resend inbound records; preserve still-used outbound verification, DKIM and SPF senders, with a documented rollback.
+- [ ] Manage the provider's MX, a single SPF policy per hostname, DKIM, DMARC and autodiscover alongside the platform DNS workflow. Test mailbox delivery and retained forwarding without loops before closing the migration.
+- [ ] Provide a transactional SMTP contract (host, port, TLS/auth method, allowed sender and scoped credentials in Vault) for Keycloak, GitLab, Grafana, Alertmanager, Argo CD, Odoo, applications and the installer. Select an auth/relay mode the clients and provider actually support; verify password reset, invitation and alert delivery before marking §11/§17/§19 complete.
 
 Directory and SSO:
 
-- [ ] Stand up the directory for `swirlit.dev`. Option B note: FreeIPA and Mailcow expect a VM or dedicated host, not Kubernetes pods (ties to §31).
-- [ ] Default access: a new directory user gets access to everything (directory group mapped to `platform-admins`); fine-grained roles later.
-- [ ] Provision directory users into Keycloak (Microsoft 365 accounts for Option A, LDAP federation for Option B) in the `swirlit` and `master` realms, with periodic sync and group mappers.
-- [ ] The directory `zaid` gets the same rights as today's superadmin: `master` admin and `swirlit` `platform-admins` + `realm-admin`. Resolve the username clash first: Keycloak cannot hold two `zaid` users in one realm, so rename the local break-glass account (for example `zaid-local`) and keep it active as backup.
+- [ ] Establish the selected directory/tenant and document its supported deployment model and independent recovery access. For self-hosting, validate dedicated host/VM requirements before choosing §31's infrastructure.
+- [ ] Set default service access and administrator access separately: ordinary directory users receive the intended application roles; membership in `platform-admins` is an explicit admin-group grant with MFA. Record any deliberate initial all-admin policy in the ADR rather than making every future user an administrator implicitly.
+- [ ] Integrate the organization realm through Entra OIDC/SAML brokering or LDAP federation as appropriate; define group mapping, account linking and deprovisioning/session revocation. Decide any bulk provisioning separately from login brokering ([Keycloak identity providers](https://www.keycloak.org/docs/latest/server_admin/#_identity_broker)); keep `master` access limited to designated administrators.
+- [ ] Preserve the directory `zaid` administrator's intended rights in the current installation, including `master` access, while rehearsing account linking/rename with stable identities. Keep a distinct tested local break-glass administrator and prevent `keycloak-sso-reconcile` from recreating an account/role collision on reruns.
 - [ ] Verify that every SSO client (GitLab, Argo CD, Grafana, Vault, Kafka UI, Portainer, Odoo, OAuth2 Proxy) accepts directory users and that GitLab links the directory `zaid` to the existing account.
 - [ ] Move application logins (in the application repositories) to the shared realm where they authenticate users.
-- [ ] Device enrollment scripts in a dedicated folder or repository: Windows (Entra join/Intune for Option A; Samba AD for Option B, since FreeIPA is not an AD domain for Windows GPOs), macOS (Intune/Platform SSO or directory binding), Linux (`sssd`/`ipa-client-install`; Intune support for Linux is limited).
+- [ ] Define device-enrollment requirements for Windows, macOS and Linux in a dedicated folder/repository, then validate the selected provider's supported join/management options and licences. Evaluate Entra/Intune or Samba AD where Windows domain policy is required, and LDAP/SSSD/IPA clients where appropriate; prove enrollment and removal on a spare device before fleet rollout.
+- [ ] Exercise an ordinary user, an administrator, a disabled directory user and an IdP outage across the SSO clients; prove break-glass access and timely removal of former users' access.
 
 ### 29. New `corp` services: n8n and Open WebUI
 
-- [ ] n8n: PostgreSQL database, encryption key in Vault, Longhorn volume, Ingress with the editor behind SSO (OAuth2 Proxy, since n8n's own OIDC SSO is a paid feature) and webhook paths public but rate-limited, Homepage entry, backups.
+Introduce these after capacity, recoverability, SMTP and the identity decisions
+are ready. Use the [platform capability checklist](docs/development.md#adding-a-platform-capability)
+for each service: opt-in installation, pinned images, identity inputs, Vault/ESO,
+resource budgets, network policy, ingress/Access, Homepage, alerts and restore.
+
+- [ ] n8n: PostgreSQL, encryption key in Vault and recoverable persistent state. Verify the selected edition's authentication options: an OAuth2 Proxy gate alone does not provision n8n users or roles. Keep editor/admin routes authenticated; expose only required webhook paths with application authentication/signatures and rate limits.
 - [ ] Open WebUI: Keycloak OIDC login, PostgreSQL database, persistent volume, OpenRouter as an OpenAI-compatible connection with its key in Vault.
-- [ ] RAG: vector store (pgvector in PostgreSQL or Qdrant), embedding model, ingestion jobs (n8n workflows or CronJobs) from GitLab repositories and wikis, Odoo, read-only database users, Elasticsearch and Prometheus/Grafana (read-only tools). There is no separate wiki service today; confirm which wikis are meant.
-- [ ] Data governance: exclude secrets and personal data, keep per-source read-only credentials, and select an EU datacenter region in the OpenRouter settings.
+- [ ] Start RAG with one approved source and a retrieval-quality check; decide vector storage (pgvector-compatible PostgreSQL image or separate store), embedding model and ingestion/update/deletion behavior. Add GitLab repositories/wikis, Odoo and read-only telemetry tools only after source ownership and access scope are defined.
+- [ ] Preserve source permissions during ingestion and retrieval so private repositories, environments and CRM records are not exposed through a shared index. Exclude secrets/disallowed personal data, use per-source read-only credentials, and test denied retrieval as well as successful search.
+- [ ] Verify OpenRouter account/region eligibility, model availability, retention and fallback behavior before sending company data. EU routing uses the supported regional endpoint and eligible plan, not merely a preference in generic settings; see [OpenRouter regional routing](https://openrouter.ai/blog/announcements/us-in-region-routing/). Set usage budgets and define an approved local-model fallback if required.
 - [ ] NetworkPolicies from `corp` to the data sources in `infra`.
 
 ### 30. New `infra` services: Mattermost, Nexterm, Bitwarden
 
-- [ ] Mattermost: PostgreSQL, file storage (volume now, S3 later), GitLab SSO (OIDC is a paid feature), channels for deployments, releases and alerts.
-- [ ] Wire notifications: GitLab pipeline integration, Argo CD notifications (sync succeeded/failed, health degraded — closes §13), Alertmanager webhook (closes the receiver gap in §14), installer and Deployment UI results.
-- [ ] Nexterm on a control plane (`nodeSelector`), behind SSO and Access, preloaded with every node's private address. Use a dedicated non-root SSH key from Vault, and extend the node SSH allowlists to Nexterm's source address (today only control-plane private IPs may SSH to nodes).
-- [ ] Bitwarden for human logins: **ADR** between official self-hosted Bitwarden (SSO needs an Enterprise licence) and Vaultwarden (lighter, community). Disable open sign-ups, admin token in Vault, daily backup, and let browser/mobile clients reach the API without Cloudflare Access interception. HashiCorp Vault remains the store for machine secrets.
+- [ ] Mattermost: verify a supported edition/SSO path, PostgreSQL and file storage, then create deployment/release/alert channels with backups, quotas and service health checks.
+- [ ] Wire GitLab pipelines, Argo CD sync/health, Alertmanager, installer and Deployment UI notifications using scoped webhook credentials, deduplication and actionable links. Verify failure and recovery delivery; retain the external outage path in §14 because in-cluster Mattermost can fail with the platform.
+- [ ] Nexterm: verify supported SSO and audited session access behind Access; use dedicated non-root SSH credentials and narrow sudo rights. Prove the actual pod/node egress source before updating private SSH allowlists, and choose placement compatible with moving workloads off the old node. Preserve independent console/private SSH recovery.
+- [ ] Bitwarden for human logins: **ADR** comparing official self-hosting and Vaultwarden on supported clients, current SSO/licensing, updates and recovery. Disable open sign-ups, store required secrets in Vault, back up and restore-test data, and verify browser/mobile APIs without Access interception. Keep an independent emergency credential/recovery copy; HashiCorp Vault continues to hold machine secrets.
+- [ ] Apply the same opt-in service integration and restore requirements as §29; verify namespace placement in the ADR before adding new runtime resources.
 
 ### 31. Host backup and virtualization
 
-- [ ] Veeam for host-level backups on the live servers (Veeam Agent for Linux, outside this repository or as an optional host role) to an S3-compatible target. Evaluate Kasten K10 (Veeam's Kubernetes product) against the existing Longhorn/restic backups for application-consistent PVC backups.
-- [ ] VM capability once there is spare capacity: **ADR** between Apache CloudStack (separate management plane and KVM hosts) and KubeVirt (VMs as Kubernetes workloads under Argo CD). A VM layer would also host FreeIPA/Mailcow (§28).
+- [ ] Evaluate Veeam Agent/Kasten only against a named gap remaining after §16's restore drills. Verify OS/K3s/Longhorn and repository-target compatibility, licensing, consistency and measured restore benefit in a disposable proof of concept before adding another backup system.
+- [ ] VM capability after a concrete directory/mail or other VM requirement: **ADR** comparing dedicated KVM/CloudStack and KubeVirt on supported hardware, spare/failover capacity, storage, networking, operations and restore. Keep platform recovery independent of VMs hosted on the same failed platform.
 
 ### 32. Future hardware
 
-- [ ] NAS on the private network serving S3-compatible storage with MinIO (check its current community-edition terms; Garage or SeaweedFS are alternatives). Consumers: GitLab object storage (artifacts, registry, LFS), Mattermost and Open WebUI files, and any service that needs S3.
-- [ ] LLM server with 512 GB–1 TB RAM and good GPUs with **120 GB+ of total VRAM** for an open-weights coding model. Keep the model weights and KV cache in VRAM; RAM holds offloaded layers and larger models. CPU-only inference (for example on OVHcloud Eco) is bound by memory bandwidth and too slow for interactive coding. Benchmark tokens per second for the chosen model and quantization on the exact GPU configuration before buying. Expose an OpenAI-compatible API privately (Tailscale) to Open WebUI and developer tools; keep it outside the platform cluster or as a tainted dedicated node.
+- [ ] NAS/private S3: choose a maintained implementation after checking current support/licensing and consumer API compatibility. Define separate buckets/credentials, durability, capacity, monitoring and migration for GitLab artifacts/Registry/LFS and other service files. Keep an independent offsite copy; NAS on the same site is not §16's disaster-recovery target by itself.
+- [ ] GPU LLM server: retain 512 GB–1 TB RAM and 120 GB+ aggregate VRAM as a candidate budget, then size from the actual model, quantization, context, concurrency, GPU interconnect and latency/throughput measurements before purchase. Compare a rented benchmark with expected usage/cost; expose the chosen runtime privately to Open WebUI and developer tools on separate or tainted capacity.
 
 ---
 
-## Part III — Priority index of open items (Parts II and IV)
+## Part IV — Priority index of open items
 
-| Priority | Item | Section |
-|---|---|---|
-| P0 | Configure offsite restic + Longhorn backups; separate recovery keys from data archives | §8, §16 |
-| P0 | Automate GitLab native backups (with secrets and registry DB) | §12, §16 |
-| P1 | Default-deny NetworkPolicy and PSA `baseline` enforcement in `infra` | §6 |
-| P1 | Key-only or Tailscale-only SSH; MFA for `platform-admins` | §4, §11 |
-| P1 | Alert receivers beyond GitLab and the missing backup/node/cert/Vault/Longhorn alerts | §14 |
-| P1 | Reduce 119 critical / 924 high image findings, starting with PostgreSQL, Elasticsearch, DBGate, Argo CD | §14 |
-| P1 | Move legacy Kafka clients off the anonymous-superuser `PLAINTEXT` listener | §10 |
-| P1 | Trivy criticals with an upstream fix (Argo CD, Keycloak, SonarQube, ELK, Runner, CSI provisioner) | §22 |
-| P1 | Light Lynis hardening and the pending reboot | §21 |
-| P1 | Upgrade every service to its latest stable release | §20 |
-| P1 | New EPYC servers, three etcd members, workloads and storage off the current node; DNS names instead of IPs | §26 |
-| P2 | Platform SMTP relay | §11, §17, §19 |
-| P2 | Argo CD notifications | §7, §13, §14 |
-| P2 | Installer cleanup: Longhorn replica summary line, dev-tool prerequisites, pinned Helm/Node installers | §2 |
-| P2 | Kubernetes API audit logging, auditd, HTTP IDS, reboot orchestration | §4 |
-| P2 | Mail provider, SMTP relay, inbound mail DNS cleanup; directory users in Keycloak | §28 |
-| P2 | Installer `.env` engine, TUI, idempotent reruns, verification and email report | §24 |
-| P2 | Resize services, runners and retention for the new capacity | §27 |
-| P2 | Mattermost notifications, Bitwarden, Nexterm | §30 |
-| P2 | Odoo API for applications: CRM leads and Live Chat | §23 |
-| P3 | Add nodes and run the ordered HA activation and failure drills | §15 |
-| P3 | Migrate version-1 apps to contract version 2 | §19 |
-| P3 | Naming cleanups (`swirl-cloud`, ILM `7d`, Ansible task title) and per-install Kafka cluster ID | §1, §10 |
-| P3 | Deployment UI | §25 |
-| P3 | n8n and Open WebUI with RAG | §29 |
-| P3 | Veeam, CloudStack or KubeVirt, NAS S3, GPU LLM server (120 GB+ VRAM) | §31, §32 |
+P0 protects recovery before disruptive changes. P1 closes operating gaps and
+prepares expansion. P2 improves delivery and company services once prerequisites
+are met. P3 requires a demonstrated need/capacity or a separate product decision.
+These rows group the checklists above; priority does not bypass dependencies.
+
+| Priority | Deliverable | Dependency / completion evidence | Section |
+|---|---|---|---|
+| P0 | Current platform health | Root Application and maintenance jobs healthy after the discovery/retention fixes | §12–13 |
+| P0 | Offsite archives, current Longhorn backup integration and separate recovery keys | Target outside the failure domain; fresh uploads and successful archive/volume restores | §8, §16 |
+| P0 | GitLab and full-platform recovery coverage | Native backups plus configuration/secrets; isolated rebuild with measured RPO/RTO | §12, §16 |
+| P1 | Useful alerts, transactional SMTP and independent outage detection | Synthetic failure/recovery delivered even if GitLab/the cluster is down | §14, §28 |
+| P1 | Private/key-only SSH and administrator MFA | Tested second session/console and break-glass login; recovery prerequisites complete | §4, §11 |
+| P1 | `infra` network isolation and PSA enforcement | Dependency allowlists and host-agent placement validated before enforcement | §6 |
+| P1 | Fresh vulnerability triage and compatible security/support upgrades | Verified upstream fixes, restore evidence and new scans; one stateful change at a time | §20, §22 |
+| P1 | Pending reboot and selected host hardening | Fresh audit; backup/unseal/console recovery verified before maintenance | §4, §21 |
+| P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §27 |
+| P1 | Version-2 app migration and removal of legacy anonymous Kafka access | Owning repos verify environment isolation and delivery before credentials/listener retirement | §10, §19 |
+| P1 | Multi-host expansion, stable endpoints and HA | P0 complete; topology helpers first; three eligible storage hosts; ordered migration and host-loss drills | §5, §15, §26–27 |
+| P2 | Installer prerequisite cleanup, schema/engine and TUI | Bootstrap without Vault, idempotent rerun/resume and useful verification report | §2, §24 |
+| P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §21 |
+| P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §28 |
+| P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §30 |
+| P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §23 |
+| P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §25 |
+| P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
+| P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §24, §29 |
+| P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §31–32 |
