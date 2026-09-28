@@ -62,7 +62,7 @@ data:
     import http from 'node:http';
     import https from 'node:https';
     import { createHash } from 'node:crypto';
-    import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+    import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
     import { readFileSync, realpathSync } from 'node:fs';
     import { join } from 'node:path';
     import { pathToFileURL } from 'node:url';
@@ -287,6 +287,16 @@ data:
         const result = await this.call('POST', '/api/saved_objects/_import?overwrite=true', body, `multipart/form-data; boundary=${boundary}`);
         if (!result.success || result.successCount !== objects.length) throw new Error('Kibana saved-object import was incomplete');
       }
+      async pruneObjects(keep) {
+        // Discovery owns only apps-<hash>-logs* objects; remove those of departed applications.
+        for (const type of ['dashboard', 'search', 'visualization']) {
+          const result = await this.call('GET', `/api/saved_objects/_find?type=${type}&per_page=10000&fields=title`);
+          for (const object of result.saved_objects || []) {
+            const match = /^(apps-[0-9a-f]{20})-logs(?:-volume|-containers)?$/.exec(object.id);
+            if (match && !keep.has(match[1])) await this.call('DELETE', `/api/saved_objects/${type}/${encodeURIComponent(object.id)}`);
+          }
+        }
+      }
     }
 
     export async function writeDashboard(directory, dashboard) {
@@ -300,6 +310,15 @@ data:
       return true;
     }
 
+    export async function pruneDashboards(directory, keep) {
+      let names = [];
+      try { names = await readdir(directory); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      for (const name of names) {
+        const match = /^(apps-[0-9a-f]{20})\.json$/.exec(name);
+        if (match && !keep.has(match[1])) await unlink(join(directory, name));
+      }
+    }
+
     export async function reconcile({ kubernetes, kibana, directory, kibanaUrl, imported = new Map(), now = Date.now() }) {
       // A failed or partial Kubernetes snapshot must never replace the last known dashboards.
       const namespaces = (await kubernetes.list('/api/v1/namespaces')).filter(namespace =>
@@ -308,7 +327,11 @@ data:
       const objects = (await Promise.all(namespaces.flatMap(workloadPaths).map(path => kubernetes.list(path)))).flat();
       const applications = discover(objects, namespaces);
       for (const application of applications) await writeDashboard(directory, grafanaDashboard(application, kibanaUrl));
+      // Only a complete snapshot reaches this point, so departed applications can be pruned.
+      const keep = new Set(applications.map(application => application.uid));
+      await pruneDashboards(directory, keep);
       const errors = [];
+      try { await kibana.pruneObjects(keep); } catch (error) { errors.push(`prune: ${error.message}`); }
       for (const application of applications) {
         const objects = kibanaObjects(application);
         const fingerprint = hash(JSON.stringify(objects));
