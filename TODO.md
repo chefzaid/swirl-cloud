@@ -365,6 +365,8 @@ source support, historical live findings, prerequisites and decisions still open
 Decisions marked **ADR** need a record in [`docs/adr/`](docs/adr/) first (see the
 proposed list in [architecture](docs/architecture.md#proposed-adrs-for-roadmap-work)).
 
+- [ ] Keep services versions updated *(perpetual; never marked done)*.
+
 ### 20. Remediate Lynis findings (light-touch, non-blocking)
 
 Historical control-plane audit on 2026-09-27: hardening index **66**, one warning, about 40
