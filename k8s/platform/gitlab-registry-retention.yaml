@@ -129,7 +129,12 @@ data:
       end
       puts "#{project_path}: container image policy=#{retention_days}d"
 
-      packages = api.all_pages("projects/#{project_id}/packages")
+      if project['packages_enabled'] == false
+        puts "#{project_path}: package registry disabled; skipping packages"
+        next
+      end
+
+      packages =api.all_pages("projects/#{project_id}/packages")
       packages.each do |package|
         created_at = package['created_at']
         unless created_at
