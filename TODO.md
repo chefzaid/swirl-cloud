@@ -43,7 +43,7 @@ not separate implementations. Close operational items only with a dated result
 | 0. Genesis | 2026-03-07 → 03-15 | Single dedicated server, K3s, first manifests, MongoDB, security baseline, Descheduler, DBGate, Vault unseal fix | `efb0452` … `e540da8` |
 | 1. Host hardening | 2026-05-20 → 06-10 | `todo.txt` security wish-list (Fail2ban, CrowdSec, Lynis, auto-updates, auditd, AV, EDR/IDS/WAF); internet-exposed node controls | `3952910`, `9630f0f`, `3b917e9` |
 | 2. Corporate ERP | 2026-08-08 | Odoo added | `57b41c7` |
-| 3. Automation | 2026-08-13 → 08-23 | Full platform automation, upgrades, private networking (vRack/Tailscale), service discovery | `0c259a9`, `d721d2b`, `9f5fc21` |
+| 3. Automation | 2026-08-13 → 08-23 | Full platform automation, private networking (vRack/Tailscale), service discovery | `0c259a9`, `d721d2b`, `9f5fc21` |
 | 4. Layout & GitLab | 2026-08-28 → 08-31 | Namespace standardization (`infra`/`apps`/`corp`), delivery migrated to GitLab, SSO centralization, portable bootstrap, Trivy, runner fixes | `aab48f8` … `b22ce24` |
 | 5. Public web & quorum | 2026-09-06 | Apex DNS reserved for an application-owned public site, odd-quorum multi-control-plane support | `56aa1c0`, `7e3d48d` |
 | 6. Security remediation | 2026-09-07 → 09-10 | Patched/rebuilt images, Odoo → `corp`, Sonar discovery, dark themes, registry persistence, repo replication, role-aware enrollment, later replaced by official upstream images | `c3daa69` … `a76882a` |
@@ -72,7 +72,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Documentation follows the shared application-repository layout ([ADR 0001](docs/adr/0001-documentation-structure.md)): `features`, `architecture` (overview + ADR index), `data-model`, `development`, `testing`, `code-quality`, `deployment`, `operations`, `security`, `dns`, plus eight procedures under `docs/guides/`; Mermaid topology and delivery diagrams.
 - [x] 24 ADRs in `docs/adr/` reconstructed from the Git history, including three superseded decisions (ingress-nginx, Jenkins/Nexus, private rebuilt images).
 - [ ] Rename the Ansible task "Reconcile system security image overrides after registry credentials" in `ansible/deploy.yml`; private image overrides were retired in Chart 2.
-- [ ] Reconcile the Elasticsearch ILM policy name `swirl-cloud-logs-7d` with its actual delete phase (`min_age: 1d`) and the retention decision in §27; migrate existing index/template references without dropping retained logs.
+- [ ] Reconcile the Elasticsearch ILM policy name `swirl-cloud-logs-7d` with its actual delete phase (`min_age: 1d`) and the retention decision in §26; migrate existing index/template references without dropping retained logs.
 
 ### 2. Installer (`install-control-plane.sh`)
 
@@ -94,7 +94,7 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Final summary prints `Longhorn replicas: <worker count or 1>` and ignores HA mode (actual HA default is 3). Read the value from `infra/swirl-cloud-topology`.
 - [x] Final summary points Argo CD to Keycloak SSO (local `admin` is disabled) instead of `argocd-initial-admin-secret`.
 - [x] Final summary points GitLab to Keycloak SSO (linked to `root`) instead of `/etc/gitlab/initial_root_password`, and to Vault `secret/infra/gitlab:root_password`. Only `rotate-local-admin-passwords.sh` writes that field; a fresh install stores no local root password.
-- [ ] Separate runtime/bootstrap prerequisites from developer and validation tools. Remove unconditional Java 21, Maven, Docker and the `MAVEN_OPTS` shell-profile edit; retain Node only where repository validation needs it. Make developer tooling opt-in and keep fresh-host installation and validation documented (§24).
+- [ ] Separate runtime/bootstrap prerequisites from developer and validation tools. Remove unconditional Java 21, Maven, Docker and the `MAVEN_OPTS` shell-profile edit; retain Node only where repository validation needs it. Make developer tooling opt-in and keep fresh-host installation and validation documented (§23).
 - [ ] Pin and verify the Helm installer/release instead of downloading the mutable `helm/main/scripts/get-helm-3`; remove the NodeSource setup step with the developer bundle or pin/verify it if retained.
 
 ### 3. Ansible
@@ -123,9 +123,9 @@ not separate implementations. Close operational items only with a dated result
 - [x] Longhorn host prerequisites: open-iscsi, NFS client, multipath blacklist (`config/host/multipath-longhorn.conf`).
 - [x] Workers and internet-only tools removed where not applicable (no Fail2ban/CrowdSec/persistent Lynis on workers).
 - [ ] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console.
-- [ ] Recheck and remove the duplicate distro `lynis.timer` seen in the audit; keep one managed schedule with last-success monitoring (§21).
-- [ ] Manage unattended security updates, pending-reboot reporting and maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§21, §26).
-- [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §21; assess a full EDR only if those checks leave a concrete detection gap.
+- [ ] Recheck and remove the duplicate distro `lynis.timer` seen in the audit; keep one managed schedule with last-success monitoring (§20).
+- [ ] Manage unattended security updates, pending-reboot reporting and maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).
+- [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §20; assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
 - [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config).
 
@@ -143,7 +143,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] CoreDNS private zone: `<service>.<internal zone>` → `infra` Services, exact aliases such as Longhorn, preserved headless labels.
 - [x] Containerd routes `registry.<domain>` to the fixed internal Registry ClusterIP `10.43.255.251:5050` (`configure-k3s-registry-mirror.sh`).
 - [ ] Only one host exists. Every service, the datastore and all backups share one physical failure domain (see §15 and §16).
-- [ ] Provide a stable private Kubernetes API endpoint with certificate SANs and tested failover (§26); a DNS alias alone does not detect or route around a failed server.
+- [ ] Provide a stable private Kubernetes API endpoint with certificate SANs and tested failover (§25); a DNS alias alone does not detect or route around a failed server.
 
 ### 6. Kubernetes security baseline and admission
 
@@ -269,11 +269,11 @@ not separate implementations. Close operational items only with a dated result
 - [x] Repository credentials projected by generic `infra/repository-<hash>` ExternalSecrets; AppProjects per environment with nested GitLab path matching (`6bf088d`).
 - [x] Admission policies binding environment Applications to their registered destination.
 - [x] Sonar discovery no longer fails on application projects with GitLab CI/CD disabled: they are skipped and logged (the root Application was Degraded by an HTTP 403 on such a project).
-- [ ] Document and verify Argo CD's existing Helm upgrade/recovery ownership through installer/Ansible (§20). Self-management is a separate architectural decision, not a prerequisite for a working platform.
+- [ ] Document and verify Argo CD's existing Helm release and recovery ownership through installer/Ansible. Self-management is a separate architectural decision, not a prerequisite for a working platform.
 - [ ] Verify the current root revision and health after the Sonar discovery and retention fixes: `Synced/Healthy`, successful new CronJob runs and passing default-branch delivery checks. Record remaining causes from current events instead of carrying forward the old Degraded status.
 - [ ] Notifications controller is deployed with no triggers/services configured, so sync failures and degraded health notify nobody.
 - [x] Argo CD metrics are scraped (job `argocd`).
-- [ ] Exercise Argo CD controller replacement and reconciliation recovery under the configured dynamic cluster distribution; record its upstream support status and failover result before claiming HA (§15, §20).
+- [ ] Exercise Argo CD controller replacement and reconciliation recovery under the configured dynamic cluster distribution; record its upstream support status and failover result before claiming HA (§15).
 
 ### 14. Observability
 
@@ -291,11 +291,11 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Not scraped: cloudflared, Elasticsearch, External Secrets.
 - [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
 - [ ] Define recoverable Elasticsearch log/audit retention and configure a snapshot repository if that history must survive volume loss (§16).
-- [ ] Add an external availability check and notification path that still works when the only cluster or GitLab is down. Test a synthetic failure and recovery notification; SMTP/chat routing (§28, §30) alone does not monitor an unavailable cluster.
+- [ ] Add an external availability check and notification path that still works when the only cluster or GitLab is down. Test a synthetic failure and recovery notification; SMTP/chat routing (§27, §29) alone does not monitor an unavailable cluster.
 
 The historical Trivy snapshot was **119 critical / 924 high findings across 90
 image reports**, plus 11 critical exposed-secret findings in the GitLab image
-and stale retired-image reports. Refresh and triage these in §22; they are not
+and stale retired-image reports. Refresh and triage these in §21; they are not
 current totals or three additional remediation projects.
 
 ### 15. High availability (opt-in, not active)
@@ -304,7 +304,7 @@ current totals or three additional remediation projects.
 - [x] HA templates: CoreDNS three replicas with admission-enforced placement and PDB, Keycloak PDB, Redis HA policies, PostgreSQL HA cluster, Kafka HA PDBs/startup, Traefik/Tunnel DaemonSet, Vault three voters, ESO two replicas, Argo CD HA.
 - [x] `verify-high-availability.py` read-only readiness checker (placement, quorum, storage copies, optional fencing coverage).
 - [x] Optional Redfish node fencing CronJob (every minute, one host per run, stale Lease + NotReady ≥ 5 min, quorum rechecks, `ForceOff`, then `node.kubernetes.io/out-of-service` taint), inventory Secret, `--check-inventory` mode, RBAC limited to named nodes.
-- [ ] Complete the topology and capacity prerequisites in §26: at least three eligible control planes and three storage hosts, with capacity after one host fails. The planned two-storage-host interim state cannot satisfy the current three-replica HA profile.
+- [ ] Complete the topology and capacity prerequisites in §25: at least three eligible control planes and three storage hosts, with capacity after one host fails. The planned two-storage-host interim state cannot satisfy the current three-replica HA profile.
 - [ ] Execute the ordered activation: PostgreSQL migration → Kafka migration → Vault migration and recovery distribution → shared HA profile with Cloudflare Tunnel cutover → application-owned availability.
 - [ ] Run the controlled one-host failure drills (original control plane, database leader, consensus leader) and verify public requests, sessions, writes, Kafka, Vault and Registry push/pull.
 - [ ] Acquire Redfish-capable BMC access and enable fencing, or document the manual non-graceful shutdown runbook as the permanent path.
@@ -316,11 +316,11 @@ current totals or three additional remediation projects.
 - [x] Archive contents: SQLite `.backup` or etcd snapshot, server token, encryption config/state, K3s config and drop-ins, registries.yaml, Vault Raft snapshot, `pg_dumpall`, `mongodump`, PVC and Longhorn volume inventories, datastore-specific `RESTORE.txt`. *(live: verified in the 2026-09-27 archive)*
 - [x] Optional restic to S3-compatible storage (encrypted, `keep-daily 7 / weekly 5 / monthly 12`, prune) with root-only `/etc/swirl-cloud/backup.env`.
 - [x] Recovery tests: SQLite/etcd restorability, recovery token presence (`test-k3s-backups.sh`), Vault unseal/HA, PostgreSQL SQL canary.
-- [ ] Configure offsite restic and Longhorn storage now using a target outside the cluster's host/site failure domain; do not wait for the future NAS (§32). Verify uploads, backup age and volume coverage after fixing the Longhorn integration (§8).
+- [ ] Configure offsite restic and Longhorn storage now using a target outside the cluster's host/site failure domain; do not wait for the future NAS (§31). Verify uploads, backup age and volume coverage after fixing the Longhorn integration (§8).
 - [ ] Separate Vault recovery keys and bootstrap tokens from routine data archives and keep an independently accessible recovery copy of the restic password, K3s token/encryption state and required credentials. Define automated-unseal and bootstrap-token privileges explicitly; a password manager hosted only on this cluster is not sufficient for recovery.
 - [ ] Define a backup coverage/RPO/RTO table: K3s state, Vault, PostgreSQL, MongoDB, GitLab/Registry, Odoo database plus filestore, SonarQube, dashboards, logs/audits and Kafka/Redis data. Mark rebuildable caches explicitly; coordinate database/filestore recovery points and assign native backup or volume backup per service.
 - [ ] Schedule `restic check` and isolated restore drills for both archives and Longhorn volumes, with integrity/data checks and alerts on missing or stale backups. Keep deletion protection compatible with restic pruning and Longhorn's own backup retention; do not apply generic object expiry to active backup stores.
-- [ ] Write and rehearse a full rebuild on an empty host with the original host unavailable: obtain Git, pinned recovery images and keys independently; restore K3s/storage/Vault/data, then GitLab/Argo CD, SSO and application traffic. Measure achieved RPO/RTO and exercise the documented backup format before upgrades or node migration.
+- [ ] Write and rehearse a full rebuild on an empty host with the original host unavailable: obtain Git, pinned recovery images and keys independently; restore K3s/storage/Vault/data, then GitLab/Argo CD, SSO and application traffic. Measure achieved RPO/RTO and exercise the documented backup format before node migration.
 
 ### 17. Corporate workloads (Odoo in `corp`)
 
@@ -353,8 +353,8 @@ current totals or three additional remediation projects.
 - [x] Six applications onboarded live, each with its own Argo CD Application in `infra`.
 - [ ] Refresh the app/contract/environment inventory, then migrate remaining version-1 apps in their owning repositories, including data, credentials, DNS and rollback. Verify isolated `int`/`uat`/`prod` delivery before retiring legacy credentials or Kafka access (§10).
 - [ ] Document GitLab as the delivery/metadata authority and the GitHub↔GitLab sync boundary (Git refs only); back up issues, merge requests, releases, packages and LFS through GitLab recovery (§12). Add cross-forge metadata synchronization only for a concrete requirement.
-- [ ] Deliver the shared SMTP capability in §28 and its app onboarding contract; application repositories own their mail usage and templates.
-- [x] Environment `ingressAddress` accepts hostnames, and `configure-application-dns.py` already selects A, AAAA or CNAME records. Remaining ingress alias and API endpoint work is in §26.
+- [ ] Deliver the shared SMTP capability in §27 and its app onboarding contract; application repositories own their mail usage and templates.
+- [x] Environment `ingressAddress` accepts hostnames, and `configure-application-dns.py` already selects A, AAAA or CNAME records. Remaining ingress alias and API endpoint work is in §25.
 
 ---
 
@@ -365,43 +365,7 @@ source support, historical live findings, prerequisites and decisions still open
 Decisions marked **ADR** need a record in [`docs/adr/`](docs/adr/) first (see the
 proposed list in [architecture](docs/architecture.md#proposed-adrs-for-roadmap-work)).
 
-### 20. Maintain supported, compatible stable releases
-
-Follow the [image update procedure](docs/operations.md#image-updates) for each
-component: review release notes and upgrade paths, restore a backup into a
-disposable copy for stateful services, update the pin, validate, reconcile, then
-check the running digest and a fresh Trivy report. Upgrade one stateful service
-per change. The target remains current stable services, with supported upgrade
-paths and explicit exceptions rather than a simultaneous platform-wide jump.
-The pins below were the 2026-09-27 inventory. The 2026-09-28 maintenance is
-recorded in [September 2026 service upgrades](docs/guides/service-upgrades-2026-09.md).
-
-- [x] Refresh the source/running-version inventory and check upstream releases at execution time. Record target version/digest, compatibility, required intermediate versions, backup/restore needs and rollback limits; recorded 2026-09-28 in the maintenance guide.
-- [x] Add the human-readable tag next to every digest-only pin (`fluent-bit`, `cp-kafka`, `dbgate`, `portainer-ce`, `prometheus`, `alertmanager`, `node-exporter`, `kube-state-metrics`, `descheduler`, `kafka-ui`, `odoo`, `python`) so upgrades and reports are auditable.
-- [ ] K3s `v1.36.4+k3s1` — one minor version at a time, after a fresh datastore backup; servers before agents. 1.37 was deferred on 2026-09-28: Longhorn 1.12.1's tested Kubernetes versions stop at 1.36.
-- [x] Longhorn 1.12.1 — follow the supported minor-by-minor path; check the CSI sidecar pins in `k8s/base/system-workload-hardening.yaml`. Already current on 2026-09-28.
-- [x] Traefik chart 41.5.0 → 41.6.0 (Traefik v3.7.13) live; `cloudflared` 2026.8.3 → 2026.9.3 in the HA profile (2026-09-28).
-- [x] Vault chart 0.34.1 / Vault 2.1.0 → 2.1.1 — Raft snapshot first; preserve UID and mounts; roll HA peers one at a time (2026-09-28).
-- [x] External Secrets chart 2.9.0 → 2.11.0 (2026-09-28).
-- [x] Argo CD chart 10.3.3 / v3.5.2 → 10.9.2 / v3.5.3 (2026-09-28). Its remaining scanner findings belong to §22's triage.
-- [x] CloudNativePG operator 1.30.0 → 1.30.1, chart 0.29.1 (HA profile pin; not installed on the single node).
-- [x] GitLab CE 19.3.1 → 19.4.1 — respect GitLab's required upgrade stops and back up first; GitLab Runner and helper moved to 19.4.1 together (2026-09-28, restore rehearsed).
-- [x] Keycloak 26.7.3 → 26.7.4; OAuth2 Proxy v7.15.4 already current (2026-09-28).
-- [x] Grafana 13.2.1 → 13.2.2, Prometheus 3.15.0, Alertmanager 0.34.1; `k8s-sidecar` 2.11.2, node-exporter and kube-state-metrics already current (2026-09-28).
-- [x] Elasticsearch, Kibana, Logstash and Filebeat 9.4.6 → 9.5.4 together (Elasticsearch first, native snapshot taken), plus Fluent Bit 5.1.2 (2026-09-28).
-- [x] Trivy Operator 0.34.0 (chart 0.36.0), Trivy 0.74.0 and `node-collector` 0.3.1 already current; the stale major-1 `trivy-checks` bundle pin moved to 2.2.0 (2026-09-28).
-- [x] SonarQube 26.8 → 26.9 Community (2026-09-28, migration rehearsed).
-- [x] PostgreSQL 18.6 — latest 18.x patch on **Bookworm** only (image digest refreshed 2026-09-28); moving to Trixie changes glibc collations and is a separate migration with reindexing.
-- [x] MongoDB 7.0.40 → 7.0.43 (2026-09-28); a move to 8.0 needs the `featureCompatibilityVersion` step and its own decision.
-- [x] Redis 8.10.0 → 8.10.2 (single and HA; chart 4.39.0 current), Kafka (`cp-kafka`) 8.3.1 → 8.3.2, Kafbat UI 1.5.0 current (2026-09-28).
-- [x] Homepage v2.2.0 → v2.4.0, Portainer CE 2.45.1, DBGate 7.3.1, Descheduler 0.36.0 (2026-09-28).
-- [x] Odoo 19.0-20260810 → 19.0-20260908 — vendored `web_dark_mode` and SSO add-ons re-checked (2026-09-28).
-- [x] Helper images: `nginx` 1.30.5, `node` 24.21.0, `python` 3.14.7, `ruby` 3.4.11, `curl` 8.22.0, `busybox` 1.38.0, and the platform CI Alpine 3.24.2 (2026-09-28).
-- [x] Bump `DEFAULT_*` versions in `config/platform.env` and the chart version (2.0.1); reconcile the separately installed Helm releases (2026-09-28).
-- [ ] Establish a recurring pin/advisory review with proposed changes, fresh scan evidence and staged rollout. Retain recovery digests and mark each component complete only after runtime verification; use the existing validation policy instead of adding a general per-image test framework.
-- [ ] Keep maintenance headroom on the node root filesystem: alert before the kubelet image-GC (85 %) and eviction thresholds, and require about 30 GB free before upgrades. On 2026-09-28 a GitLab backup, its host copy and pinned recovery images triggered ephemeral-storage evictions. Store upgrade recovery archives off the root filesystem (§16).
-
-### 21. Remediate Lynis findings (light-touch, non-blocking)
+### 20. Remediate Lynis findings (light-touch, non-blocking)
 
 Historical control-plane audit on 2026-09-27: hardening index **66**, one warning, about 40
 suggestions. Apply through [`configure-node-security.sh`](scripts/configure-node-security.sh)
@@ -429,7 +393,7 @@ Deliberately not planned (too disruptive for the benefit): GRUB password
 partitions (FILE-6310, requires reinstalling), moving SSH off port 22 (low value,
 breaks tooling).
 
-### 22. Remediate Trivy findings (critical, exploitable, low-effort)
+### 21. Remediate Trivy findings (critical, exploitable, low-effort)
 
 Scope: critical, realistically exploitable findings first; prefer a newer
 upstream image that contains the fix. Where no upstream fix exists, assess
@@ -442,10 +406,10 @@ The following are candidates from the historical scan, not verified current
 advisories or proof that a fixed service image has been published. Package fixes
 and availability of a compatible upstream image must be checked separately.
 
-- [ ] Refresh reports for the running digests and current Trivy DB; deduplicate repeated image findings and verify advisory IDs, affected package versions, runtime reachability and fixed-image availability against upstream sources. Record dated, expiring exceptions and retest after §20 upgrades.
+- [ ] Refresh reports for the running digests and current Trivy DB; deduplicate repeated image findings and verify advisory IDs, affected package versions, runtime reachability and fixed-image availability against upstream sources. Record dated, expiring exceptions.
 - [ ] Argo CD — reported Go stdlib findings, including CVE-2025-68121; check the Go toolchain used by the candidate build.
 - [ ] Keycloak, SonarQube and Kafbat UI — reported Netty/Bouncy Castle/FreeMarker findings; verify affected libraries and compatible upstream fixes.
-- [ ] Elasticsearch/Logstash — reported Netty/Bouncy Castle findings; coordinate the supported Elastic stack upgrade in §20.
+- [ ] Elasticsearch/Logstash — reported Netty/Bouncy Castle findings; verify affected libraries and compatible upstream fixes.
 - [ ] GitLab Runner — reported OpenSSH finding; confirm the affected runtime path and matching runner/helper patch.
 - [ ] Longhorn `csi-provisioner` — reported gRPC/Go findings; validate the Longhorn/Kubernetes sidecar compatibility matrix before adding an admission image override.
 - [ ] MongoDB tools, Node helper, Homepage and DBGate — distinguish reachable runtime vulnerabilities from bundled build/tooling packages, then select upstream fixes or record time-bounded exceptions.
@@ -455,7 +419,7 @@ and availability of a compatible upstream image must be checked separately.
 - [ ] Scan platform artifacts too: the vendored charts in `k8s/charts/`, the CI Alpine image and pinned GitHub Actions, as a non-blocking CI report.
 - [ ] Hand application image findings to the owning repositories.
 
-### 23. Odoo API for applications (CRM leads and Live Chat)
+### 22. Odoo API for applications (CRM leads and Live Chat)
 
 Applications own their UI changes in their own repositories; the platform owns
 Odoo and the wiring.
@@ -466,7 +430,7 @@ Odoo and the wiring.
 - [ ] Verify the public Live Chat loader and session/WebSocket flow (existing `/websocket` route to 8072), approved origins and edge rate limits. Preserve staff authentication while keeping required public chat endpoints usable without Access.
 - [ ] Document fields, errors, retry/idempotency behavior, consent/retention and a sandbox integration. Prove duplicate retries create one lead and non-production apps cannot modify production CRM data; application repositories own forms and chat UI.
 
-### 24. Installer: TUI, central `.env`, reruns, verification and email
+### 23. Installer: TUI, central `.env`, reruns, verification and email
 
 Goal: one versioned `.env` drives every entry point (TUI now, web UI next,
 Ansible and unattended runs); the installer engine reads only that file and never
@@ -480,21 +444,21 @@ prompts. **ADR** on the file schema and TUI technology.
 - [ ] Define secret resolution before adding redaction: fresh bootstrap and disaster recovery must work while Vault/Keycloak are unavailable. Support protected files/stdin and authenticated Vault references, redact logs/reports, and replace inline secrets only after durable recovery and rerun access are verified (§16); never require a secret from the Vault being bootstrapped.
 - [ ] Build rerun planning on the existing identity/topology/HA readers and reconciliation helpers. Show installed/missing/drifted/failed stages, reconcile selected drift, preserve explicit values and resume interrupted work. Keep repository onboarding selectable on every run without starting it unexpectedly.
 - [ ] Add bounded post-install verification: current nodes/pods/ExternalSecrets ready, expected Argo revisions healthy, Vault unsealed, authenticated service/Ingress probes, TLS validity and successful recent backups. Treat intentional login redirects/401s correctly and check backup results, not just active timers. Include `validate-repository.sh --live` for API compatibility and emit a readable nonzero failure report.
-- [ ] Email the report when the deployment is ready, with dashboard URLs for every service and application (from Ingress hosts and Homepage). Depends on the SMTP relay in §28.
+- [ ] Email the report when the deployment is ready, with dashboard URLs for every service and application (from Ingress hosts and Homepage). Depends on the SMTP relay in §27.
 - [ ] Make `ansible/install.yml` and `--yes` consume the same `.env`.
 - [ ] After the engine/TUI is proven, design the optional Keycloak-protected web front end around constrained jobs, authorization, redacted logs and a single execution lock. Keep console-based bootstrap/recovery independent of that UI.
 - [ ] Rehearse fresh install, no-change rerun, interrupted resume, invalid inputs and Vault-unavailable recovery on disposable hosts; add focused safety tests only for credential leakage or deployment/recovery failures under the existing test policy.
 
-### 25. Deployment UI (app → environment → deploy)
+### 24. Deployment UI (app → environment → deploy)
 
 - [ ] Small web app in `infra` behind Keycloak and Cloudflare Access, listed on Homepage, added to the host inventories.
 - [ ] List onboarded applications (Argo CD Applications or GitLab projects with an onboarding contract).
 - [ ] Derive valid choices from the app's onboarding contract intersected with `infra/deployment-environments`; the inventory records cluster targets, not a per-app release catalog.
 - [ ] **Deploy** uses the owning app's pipeline contract (`PIPELINE_MODE=full` and `DEPLOYMENT_ENVIRONMENT` where supported), a server-side scoped Vault token and the permitted branch/tag. Resolve and display the immutable release being promoted to `uat`/`prod`; honor protected-environment approvals and prevent duplicate/conflicting runs. Version-1 apps retain their declared pipeline until §19 migration.
 - [ ] Show pipeline progress and report success only after the selected Argo revision is healthy and the target rollout is verified; show the app URL from its owned Ingress. Keep configuration editing out of this UI.
-- [ ] Restrict to `platform-admins` initially; post results to Mattermost (§30).
+- [ ] Restrict to `platform-admins` initially; post results to Mattermost (§29).
 
-### 26. Expand onto new EPYC servers and move workloads off the current node
+### 25. Expand onto new EPYC servers and move workloads off the current node
 
 Target hardware: AMD EPYC ≥ 16 cores, 128 GB RAM, ≥ 1 TB NVMe, public and private
 bandwidth (for example OVHcloud Advance/Scale with vRack). The current server
@@ -516,7 +480,7 @@ stays as a lightweight control plane; no replacement migration is needed.
 - [ ] **Phase 2 — three new etcd hosts plus the old API server:** after the new helpers are proven, add the third new server and remove the old server's etcd membership using the rehearsed sequence. Rejoin it as a dedicated control-plane server (`--disable-etcd`); move ingress, Vault placement/recovery and snapshot timers first. See [K3s server roles](https://docs.k3s.io/installation/server-roles).
 - [ ] Activate and drill HA (§15) with three eligible storage/service hosts. Record singleton recovery downtime and keep the old host out of required data paths; amend ADR 0011 and the operational guides with the verified topology.
 
-### 27. Resize platform services for the new capacity
+### 26. Resize platform services for the new capacity
 
 Size from observed requests, usage, disk growth and concurrent builds. Reserve
 capacity for one-host failure, storage rebuilds and rolling maintenance; suggested
@@ -530,9 +494,10 @@ sizes below are starting points to validate, not automatic allocations.
 - [ ] Prometheus retention from 15 d / 1 500 MB to about 30 d / 20 GB; GitLab embedded Prometheus from 1 d to 7 d.
 - [ ] Keycloak, SonarQube, Argo CD controller (`GOMEMLIMIT` with its limit), repo server, Trivy scan concurrency (2 → 4), Grafana.
 - [ ] Raise `apps-int`/`apps-uat`/`apps-prod` ResourceQuotas.
+- [ ] Keep maintenance headroom on the node root filesystem: alert before the kubelet image-GC (85 %) and ephemeral-storage eviction thresholds, and require about 30 GB free before maintenance. On 2026-09-28 a GitLab backup, its host copy and pinned recovery images triggered pod evictions. Store recovery archives off the root filesystem (§16).
 - [ ] Review CI artifact expiry per application and keep registry retention with garbage collection (§12).
 
-### 28. Directory, mail and SSO
+### 27. Directory, mail and SSO
 
 **ADR — provider:** compare Microsoft 365/Entra with a self-hosted directory and
 mail service on operational burden, required device management, SSO integration,
@@ -553,7 +518,7 @@ Mail (either option):
 
 Directory and SSO:
 
-- [ ] Establish the selected directory/tenant and document its supported deployment model and independent recovery access. For self-hosting, validate dedicated host/VM requirements before choosing §31's infrastructure.
+- [ ] Establish the selected directory/tenant and document its supported deployment model and independent recovery access. For self-hosting, validate dedicated host/VM requirements before choosing §30's infrastructure.
 - [ ] Set default service access and administrator access separately: ordinary directory users receive the intended application roles; membership in `platform-admins` is an explicit admin-group grant with MFA. Record any deliberate initial all-admin policy in the ADR rather than making every future user an administrator implicitly.
 - [ ] Integrate the organization realm through Entra OIDC/SAML brokering or LDAP federation as appropriate; define group mapping, account linking and deprovisioning/session revocation. Decide any bulk provisioning separately from login brokering ([Keycloak identity providers](https://www.keycloak.org/docs/latest/server_admin/#_identity_broker)); keep `master` access limited to designated administrators.
 - [ ] Preserve the directory `zaid` administrator's intended rights in the current installation, including `master` access, while rehearsing account linking/rename with stable identities. Keep a distinct tested local break-glass administrator and prevent `keycloak-sso-reconcile` from recreating an account/role collision on reruns.
@@ -562,7 +527,7 @@ Directory and SSO:
 - [ ] Define device-enrollment requirements for Windows, macOS and Linux in a dedicated folder/repository, then validate the selected provider's supported join/management options and licences. Evaluate Entra/Intune or Samba AD where Windows domain policy is required, and LDAP/SSSD/IPA clients where appropriate; prove enrollment and removal on a spare device before fleet rollout.
 - [ ] Exercise an ordinary user, an administrator, a disabled directory user and an IdP outage across the SSO clients; prove break-glass access and timely removal of former users' access.
 
-### 29. New `corp` services: n8n and Open WebUI
+### 28. New `corp` services: n8n and Open WebUI
 
 Introduce these after capacity, recoverability, SMTP and the identity decisions
 are ready. Use the [platform capability checklist](docs/development.md#adding-a-platform-capability)
@@ -576,20 +541,20 @@ resource budgets, network policy, ingress/Access, Homepage, alerts and restore.
 - [ ] Verify OpenRouter account/region eligibility, model availability, retention and fallback behavior before sending company data. EU routing uses the supported regional endpoint and eligible plan, not merely a preference in generic settings; see [OpenRouter regional routing](https://openrouter.ai/blog/announcements/us-in-region-routing/). Set usage budgets and define an approved local-model fallback if required.
 - [ ] NetworkPolicies from `corp` to the data sources in `infra`.
 
-### 30. New `infra` services: Mattermost, Nexterm, Bitwarden
+### 29. New `infra` services: Mattermost, Nexterm, Bitwarden
 
 - [ ] Mattermost: verify a supported edition/SSO path, PostgreSQL and file storage, then create deployment/release/alert channels with backups, quotas and service health checks.
 - [ ] Wire GitLab pipelines, Argo CD sync/health, Alertmanager, installer and Deployment UI notifications using scoped webhook credentials, deduplication and actionable links. Verify failure and recovery delivery; retain the external outage path in §14 because in-cluster Mattermost can fail with the platform.
 - [ ] Nexterm: verify supported SSO and audited session access behind Access; use dedicated non-root SSH credentials and narrow sudo rights. Prove the actual pod/node egress source before updating private SSH allowlists, and choose placement compatible with moving workloads off the old node. Preserve independent console/private SSH recovery.
 - [ ] Bitwarden for human logins: **ADR** comparing official self-hosting and Vaultwarden on supported clients, current SSO/licensing, updates and recovery. Disable open sign-ups, store required secrets in Vault, back up and restore-test data, and verify browser/mobile APIs without Access interception. Keep an independent emergency credential/recovery copy; HashiCorp Vault continues to hold machine secrets.
-- [ ] Apply the same opt-in service integration and restore requirements as §29; verify namespace placement in the ADR before adding new runtime resources.
+- [ ] Apply the same opt-in service integration and restore requirements as §28; verify namespace placement in the ADR before adding new runtime resources.
 
-### 31. Host backup and virtualization
+### 30. Host backup and virtualization
 
 - [ ] Evaluate Veeam Agent/Kasten only against a named gap remaining after §16's restore drills. Verify OS/K3s/Longhorn and repository-target compatibility, licensing, consistency and measured restore benefit in a disposable proof of concept before adding another backup system.
 - [ ] VM capability after a concrete directory/mail or other VM requirement: **ADR** comparing dedicated KVM/CloudStack and KubeVirt on supported hardware, spare/failover capacity, storage, networking, operations and restore. Keep platform recovery independent of VMs hosted on the same failed platform.
 
-### 32. Future hardware
+### 31. Future hardware
 
 - [ ] NAS/private S3: choose a maintained implementation after checking current support/licensing and consumer API compatibility. Define separate buckets/credentials, durability, capacity, monitoring and migration for GitLab artifacts/Registry/LFS and other service files. Keep an independent offsite copy; NAS on the same site is not §16's disaster-recovery target by itself.
 - [ ] GPU LLM server: retain 512 GB–1 TB RAM and 120 GB+ aggregate VRAM as a candidate budget, then size from the actual model, quantization, context, concurrency, GPU interconnect and latency/throughput measurements before purchase. Compare a rented benchmark with expected usage/cost; expose the chosen runtime privately to Open WebUI and developer tools on separate or tainted capacity.
@@ -608,20 +573,20 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P0 | Current platform health | Root Application and maintenance jobs healthy after the discovery/retention fixes | §12–13 |
 | P0 | Offsite archives, current Longhorn backup integration and separate recovery keys | Target outside the failure domain; fresh uploads and successful archive/volume restores | §8, §16 |
 | P0 | GitLab and full-platform recovery coverage | Native backups plus configuration/secrets; isolated rebuild with measured RPO/RTO | §12, §16 |
-| P1 | Useful alerts, transactional SMTP and independent outage detection | Synthetic failure/recovery delivered even if GitLab/the cluster is down | §14, §28 |
+| P1 | Useful alerts, transactional SMTP and independent outage detection | Synthetic failure/recovery delivered even if GitLab/the cluster is down | §14, §27 |
 | P1 | Private/key-only SSH and administrator MFA | Tested second session/console and break-glass login; recovery prerequisites complete | §4, §11 |
 | P1 | `infra` network isolation and PSA enforcement | Dependency allowlists and host-agent placement validated before enforcement | §6 |
-| P1 | Fresh vulnerability triage and compatible security/support upgrades | Verified upstream fixes, restore evidence and new scans; one stateful change at a time | §20, §22 |
-| P1 | Pending reboot and selected host hardening | Fresh audit; backup/unseal/console recovery verified before maintenance | §4, §21 |
-| P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §27 |
+| P1 | Fresh vulnerability triage | Verified upstream fixes and new scans | §21 |
+| P1 | Pending reboot and selected host hardening | Fresh audit; backup/unseal/console recovery verified before maintenance | §4, §20 |
+| P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §26 |
 | P1 | Version-2 app migration and removal of legacy anonymous Kafka access | Owning repos verify environment isolation and delivery before credentials/listener retirement | §10, §19 |
-| P1 | Multi-host expansion, stable endpoints and HA | P0 complete; topology helpers first; three eligible storage hosts; ordered migration and host-loss drills | §5, §15, §26–27 |
-| P2 | Installer prerequisite cleanup, schema/engine and TUI | Bootstrap without Vault, idempotent rerun/resume and useful verification report | §2, §24 |
-| P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §21 |
-| P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §28 |
-| P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §30 |
-| P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §23 |
-| P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §25 |
+| P1 | Multi-host expansion, stable endpoints and HA | P0 complete; topology helpers first; three eligible storage hosts; ordered migration and host-loss drills | §5, §15, §25–26 |
+| P2 | Installer prerequisite cleanup, schema/engine and TUI | Bootstrap without Vault, idempotent rerun/resume and useful verification report | §2, §23 |
+| P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §20 |
+| P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §27 |
+| P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §29 |
+| P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §22 |
+| P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §24 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
-| P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §24, §29 |
-| P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §31–32 |
+| P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
+| P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §30–31 |
