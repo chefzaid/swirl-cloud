@@ -13,13 +13,14 @@ default:
   interruptible: true
 
 variables:
-  APK_CACHE_DIR: .cache/apk
+  # apk-tools 3 resolves a relative cache directory against the filesystem root.
+  APK_CACHE_DIR: $CI_PROJECT_DIR/.cache/apk
 
 validate:repository:
   stage: validate
   image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
-    key: swirl-cloud-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v2
     paths:
       - .cache/apk/
     policy: pull-push
@@ -33,7 +34,7 @@ verify:gitops:
   stage: verify
   image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
-    key: swirl-cloud-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v2
     paths:
       - .cache/apk/
     policy: pull
@@ -67,7 +68,7 @@ verify:delivery-platform:
       artifacts: false
   image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
-    key: swirl-cloud-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v2
     paths:
       - .cache/apk/
     policy: pull
@@ -110,7 +111,7 @@ verify:registry-write:
   stage: verify
   image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
   cache:
-    key: swirl-cloud-alpine-tools-v1
+    key: swirl-cloud-alpine-tools-v2
     paths:
       - .cache/apk/
     policy: pull
