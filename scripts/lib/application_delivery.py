@@ -20,6 +20,9 @@ ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "gitlab-runners"
 MANAGER = "swirl-cloud-application-delivery"
 TAGS = {"int": "swirl-cloud-application-int", "release": "swirl-cloud-application-release"}
+# Deploy jobs select their runner by environment tag; only the protected
+# release lane accepts the uat and prod tags.
+LANE_TAGS = {"int": [TAGS["int"]], "release": [TAGS["release"], "swirl-cloud-application-uat", "swirl-cloud-application-prod"]}
 
 
 def resource(kind, name, namespace=None, api="v1", **fields):
@@ -193,13 +196,13 @@ class ApplicationDelivery:
             self.apply(document)
         self.prepare_applications()
         runner_ids = []
-        for lane, tag in TAGS.items():
+        for lane in TAGS:
             description = self.name + "-" + lane
             runners = self.api.call("GET", f"projects/{self.project}/runners?type=project_type&per_page=100")
             matches = [item for item in runners if item.get("description") == description]
             if len(matches) > 1 or len(runners) >= 100:
                 raise ServiceError("Ambiguous project runner inventory; reconcile duplicate registrations explicitly")
-            desired = {"description": description, "tag_list": [tag], "locked": True, "run_untagged": False,
+            desired = {"description": description, "tag_list": LANE_TAGS[lane], "locked": True, "run_untagged": False,
                        "access_level": "ref_protected" if lane == "release" else "not_protected", "paused": False}
             if matches:
                 identity = matches[0]["id"]
