@@ -175,7 +175,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [ ] **Off-node Longhorn backups are not configured live**: no `swirl-cloud-daily-backup` RecurringJob and the `default` BackupTarget has no URL. GitLab repositories/registry, SonarQube, Odoo filestore, Elasticsearch, Grafana, Portainer and Prometheus volumes have no off-host copy.
 - [x] Longhorn manager metrics are scraped (job `longhorn`) through the `longhorn-manager-metrics` NetworkPolicy.
 - [ ] No alerts for degraded/faulted volumes or replica rebuilds.
-- [ ] Longhorn snapshot deletion is stuck on 12 snapshots whose deletion has been deferred since 2026-09-20 with a stale "volume engine is upgrading from image ''" state (engines and volumes all report v1.12.1). Six more snapshots with names longer than 63 characters cannot be deleted at all: their data is purged, but Longhorn's validating webhook rejects deleting the objects (label value length). Investigate the snapshot controller state, and avoid names over 63 characters for manual snapshots.
+- [x] Cleared snapshots stuck in deletion (2026-09-28): a snapshot marked removed that is the direct parent of the volume head is only purged after a newer snapshot exists, and Longhorn's validating webhook rejects deleting snapshots whose names exceed 63 characters. Keep manual snapshot names under 63 characters; `purge-20260928` snapshots remain as ordinary checkpoints.
 - [ ] One volume (`gitlab-runners/gitlab-runner-cache`) reports robustness `unknown` while detached — expected, but confirm it is still used after the move to ephemeral project-runner caches.
 
 ### 9. Secrets (Vault + External Secrets)
