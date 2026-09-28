@@ -178,6 +178,10 @@ data:
         try {
           const project = await gitlab.call('GET', `projects/${encodeURIComponent(path)}`);
           if (!project?.default_branch || project.archived) throw new Error('Missing active default branch');
+          // A project without CI/CD cannot hold the scanner token or run the scan-only pipeline.
+          if (project.builds_access_level === 'disabled' || project.jobs_enabled === false) {
+            log(`${path}: CI/CD is disabled in GitLab; skipped until pipelines are enabled`); continue;
+          }
           const id = project.id, branch = encodeURIComponent(project.default_branch);
           const key = path.replaceAll('/', ':');
           const search = await sonar.call('GET', `api/projects/search?projects=${encodeURIComponent(key)}`);

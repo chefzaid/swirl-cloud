@@ -250,7 +250,7 @@ Each application repository must provide:
   submission failures must be visible; quality findings may be non-blocking for
   delivery.
 
-Missing contracts, unmapped workloads and unsupported sources fail the discovery
+Projects with GitLab CI/CD disabled are skipped and logged. Missing contracts, unmapped workloads and unsupported sources fail the discovery
 Job while valid repositories continue. A project can be provisioned without a
 working scanner contract. Check its source inventory to confirm backend and
 frontend coverage; each app documents its inventory and manual scan commands.

@@ -251,7 +251,7 @@ Application `swirl-cloud` is **Synced at `3926910` but Degraded** (see §13).
 - [x] Root Application `swirl-cloud` (`path: k8s`) with automated sync, prune, self-heal, `PruneLast`, `RespectIgnoreDifferences`, identity/HA parameters carried as Helm values. *(live: Synced at `3926910`)*
 - [x] Repository credentials projected by generic `infra/repository-<hash>` ExternalSecrets; AppProjects per environment with nested GitLab path matching (`6bf088d`).
 - [x] Admission policies binding environment Applications to their registered destination.
-- [ ] **Root Application is Degraded live.** Cause: the `sonar-apps-discovery` CronJob fails every 15 min with `GET /api/v4/projects/7/variables: HTTP 403` for one discovered application project. Grant the discovery token access to that project (or move it into the configured group), or make a single-repository permission error non-fatal.
+- [x] Sonar discovery no longer fails on application projects with GitLab CI/CD disabled: they are skipped and logged (the root Application was Degraded by an HTTP 403 on such a project).
 - [ ] Argo CD Helm release is not self-managed; upgrades require the installer, Ansible or a manual Helm run.
 - [ ] Notifications controller is deployed with no triggers/services configured, so sync failures and degraded health notify nobody.
 - [x] Argo CD metrics are scraped (job `argocd`).
@@ -559,7 +559,6 @@ Directory and SSO:
 |---|---|---|
 | P0 | Configure offsite restic + Longhorn backups; separate recovery keys from data archives | §8, §16 |
 | P0 | Automate GitLab native backups (with secrets and registry DB) | §12, §16 |
-| P0 | Fix `sonar-apps-discovery` 403 so the root Application is Healthy | §13 |
 | P1 | Default-deny NetworkPolicy and PSA `baseline` enforcement in `infra` | §6 |
 | P1 | Key-only or Tailscale-only SSH; MFA for `platform-admins` | §4, §11 |
 | P1 | Alert receivers beyond GitLab and the missing backup/node/cert/Vault/Longhorn alerts | §14 |
