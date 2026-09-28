@@ -9,7 +9,8 @@ data:
     input {
       kafka {
         bootstrap_servers => "kafka.__INTERNAL_DNS_ZONE__:9092"
-        topics => ["order_topic", "order_result_topic"]
+        # Environment-prefixed application order events; a pattern never auto-creates topics.
+        topics_pattern => "^[a-z0-9-]+\.(int|uat|prod)\.order(_result)?_topic$"
         group_id => "logstash"
         codec => "json"
         decorate_events => "basic"
