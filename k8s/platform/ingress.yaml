@@ -190,7 +190,9 @@ metadata:
   namespace: infra
   annotations:
     # DBGate's server-sent event stream must not pass through response buffering.
+    # Rule-length priorities tie with the catch-all route, so pin this one above it.
     traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "1000"
     argocd.argoproj.io/sync-wave: "0"
 spec:
   ingressClassName: traefik
