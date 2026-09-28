@@ -106,7 +106,7 @@ credentials, journals or recovery files.
 
 ## Documentation Ownership
 
-The docs tree mirrors DevApp, Indezy and Thoughty; [ADR 0001](adr/0001-documentation-structure.md)
+The docs tree mirrors Swirl Demo App, Indezy and Thoughty; [ADR 0001](adr/0001-documentation-structure.md)
 records the structure. The README is the entry point; each guide owns one
 workflow or reference. Put a procedure or input table in that guide and link to
 its heading from other pages. Keep prerequisites beside the step that needs

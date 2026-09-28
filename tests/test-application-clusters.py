@@ -159,9 +159,9 @@ class ApplicationClusterSafety(unittest.TestCase):
 
     def test_suffix_hostnames_preserve_one_wildcard_certificate_and_environment_boundaries(self):
         inventory = load_inventory(ROOT / "config/deployment-environments.example.yaml")
-        expected = {"int": "devapp-int.example.com", "uat": "devapp-uat.example.com", "prod": "devapp.example.com"}
+        expected = {"int": "demo-int.example.com", "uat": "demo-uat.example.com", "prod": "demo.example.com"}
         for env, target in inventory["environments"].items():
-            self.assertEqual(application_hostname(target, "devapp"), expected[env])
+            self.assertEqual(application_hostname(target, "demo"), expected[env])
             self.assertEqual(application_hostname(target, "@"), "example.com" if env == "prod" else env + ".example.com")
             self.assertEqual(target["tlsSecretName"], "example-com-tls")
             policy = registration.ingress_boundary(environment_context(inventory, env))[0]["spec"]["validations"][0]["expression"]
@@ -169,7 +169,7 @@ class ApplicationClusterSafety(unittest.TestCase):
             self.assertIsNotNone(re.fullmatch(pattern, expected[env]))
             self.assertIsNotNone(re.fullmatch(pattern, application_hostname(target, "@")))
             if env != "prod":
-                for hostname in ("devapp.example.com", "gitlab.example.com", "devapp.int.example.com"):
+                for hostname in ("demo.example.com", "gitlab.example.com", "demo.int.example.com"):
                     self.assertIsNone(re.fullmatch(pattern, hostname))
             else:
                 self.assertIn('!r.host.endsWith("-int.example.com")', policy)

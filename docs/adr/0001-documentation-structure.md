@@ -11,7 +11,7 @@ node enrollment, four HA and migration runbooks, and two onboarding references).
 Each guide owned one workflow, but readers had no stable path by role, and
 architectural rationale lived only in commit messages.
 
-DevApp, Indezy and Thoughty already share a reader-oriented `docs/` structure with
+Swirl Demo App, Indezy and Thoughty already share a reader-oriented `docs/` structure with
 an ADR log. Operators moving between the platform and those applications had to
 learn two documentation shapes.
 

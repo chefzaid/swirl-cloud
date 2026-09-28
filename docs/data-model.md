@@ -41,7 +41,7 @@ Keycloak `platform-admins` group. See [recovery credentials](security.md#recover
 
 | Service | Store | Owned databases or keys |
 | --- | --- | --- |
-| PostgreSQL (`infra/postgres`, 2 Gi) | Logical databases | `keycloak`, SonarQube, Odoo (`odoo`), per-environment application databases such as `devapp_int`, and legacy application databases such as `devappdb` |
+| PostgreSQL (`infra/postgres`, 2 Gi) | Logical databases | `keycloak`, SonarQube, Odoo (`odoo`), per-environment application databases such as `swirl_demo_app_int`, and legacy application databases such as `swirl_demo_app_db` |
 | MongoDB (`infra/mongodb`, 5 Gi) | Databases | Available to applications; no platform service or current workspace application depends on it |
 | Redis (`infra/redis`, ephemeral) | Keys with environment prefixes | Disposable cache and rate-limit state; never durable jobs |
 | Kafka (`infra/kafka`, 1 Gi broker, 1 Gi controller) | Topics and consumer groups with environment prefixes | Application events |

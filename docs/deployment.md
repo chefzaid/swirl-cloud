@@ -3,7 +3,7 @@
 This guide installs, reconciles and expands the shared platform, registers
 application environments, and explains the delivery path shared by GitLab CI
 and Argo CD. The [architecture overview](architecture.md) explains why the
-platform is shaped this way; step-by-step procedures without a DevApp
+platform is shaped this way; step-by-step procedures without a Swirl Demo App
 counterpart live in [specialized guides](architecture.md#specialized-guides).
 
 ## Infrastructure Layout
@@ -348,9 +348,9 @@ networking; `mode: remote` requires a separate cluster and Tailscale connectivit
 
 | Environment | Default local namespace | Example application hostname |
 | --- | --- | --- |
-| `int` | `apps-int` | `devapp-int.example.com` |
-| `uat` | `apps-uat` | `devapp-uat.example.com` |
-| `prod` | `apps-prod` | `devapp.example.com` |
+| `int` | `apps-int` | `demo-int.example.com` |
+| `uat` | `apps-uat` | `demo-uat.example.com` |
+| `prod` | `apps-prod` | `demo.example.com` |
 
 Each local environment has a distinct namespace, restricted Argo project, Vault
 store, network rules and resource quota. In suffix mode, application ingress uses
@@ -362,7 +362,7 @@ The legacy `apps` namespace keeps existing deployments until an explicit cutover
 
 `platform.hostnameStyle: suffix` produces the hostnames above and uses ordinary
 base-domain wildcard certificate coverage. `nested` produces
-`devapp.int.example.com` and `devapp.uat.example.com`; omitted values retain this
+`demo.int.example.com` and `demo.uat.example.com`; omitted values retain this
 older style. The application label and company domain remain installation inputs.
 
 ### Register an environment
@@ -444,7 +444,7 @@ protect its default branch, finish any active jobs, and prepare CI independently
 
 ```bash
 python3 scripts/configure-application-delivery.py \
-  --application devapp --project team/devapp --checkout /path/to/devapp
+  --application swirl-demo-app --project team/swirl-demo-app --checkout /path/to/swirl-demo-app
 ```
 
 Run from the shared platform administration host. The command acquires and revokes
@@ -479,7 +479,7 @@ created token is required.
 
 #### Application delivery
 
-DevApp uses one GitLab project and registry for all environments. In **Build →
+Swirl Demo App uses one GitLab project and registry for all environments. In **Build →
 Pipelines → New pipeline**, select `PIPELINE_MODE=full` and the destination:
 
 - `int`: select any branch to build and deploy a snapshot, including source
@@ -503,7 +503,7 @@ flowchart LR
     Prod --> Data
 ```
 
-Each Application (`devapp-int`, `devapp-uat`, `devapp-prod`) uses its own restricted
+Each Application (`swirl-demo-app-int`, `swirl-demo-app-uat`, `swirl-demo-app-prod`) uses its own restricted
 AppProject, registered cluster/namespace pair and immutable runtime configuration commit.
 A second commit records that revision in the selected Application. Updating
 shared source or deploying integration therefore does not move the production
@@ -534,7 +534,7 @@ Existing version 1 applications keep their current runner configuration.
 
 GitHub/GitLab synchronization still connects one repository pair. Existing
 applications retain their own delivery contracts until explicitly migrated;
-DevApp is the first environment-aware implementation. See the app's deployment
+Swirl Demo App is the first environment-aware implementation. See the app's deployment
 guide for its job details and the [scanner contract](operations.md#source-analysis)
 for analysis-only pipelines. Remote metrics/log shipping requires a collector;
 central namespace discovery does not automatically extend to another cluster.

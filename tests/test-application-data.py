@@ -58,40 +58,40 @@ class DataContract(unittest.TestCase):
             ha_profile.resolve({}, {}, "", supplied={"redis-ha": {"auth": False}}, previous=first)
 
     def test_identifiers_cannot_escape_the_application_environment(self):
-        for app in ("bad/path", "bad;sql", "DevApp", "x" * 32):
+        for app in ("bad/path", "bad;sql", "Swirl Demo App", "x" * 32):
             with self.assertRaises(data.ServiceError):
                 data.identity(app, "int")
         with self.assertRaises(data.ServiceError):
-            data.identity("devapp", "qa")
-        self.assertEqual("devapp_int", data.identity("devapp", "int")["database"])
-        self.assertEqual("devappdb", data.identity("devapp", "prod", "devappdb")["database"])
+            data.identity("swirl-demo-app", "qa")
+        self.assertEqual("swirl_demo_app_int", data.identity("swirl-demo-app", "int")["database"])
+        self.assertEqual("swirl_demo_app_db", data.identity("swirl-demo-app", "prod", "swirl_demo_app_db")["database"])
 
     def test_database_creation_is_restricted_and_reruns_preserve_owners(self):
-        identity = data.identity("devapp", "int")
+        identity = data.identity("swirl-demo-app", "int")
         sql = data.database_sql(identity, "x" * 40)
         self.assertIn("NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS", sql)
-        self.assertIn("CREATE DATABASE devapp_int OWNER devapp_int", sql)
+        self.assertIn("CREATE DATABASE swirl_demo_app_int OWNER swirl_demo_app_int", sql)
         repeat = data.database_sql(identity, "x" * 40, existing_role=True, existing_database=True)
         self.assertNotIn("CREATE DATABASE", repeat)
         self.assertNotIn("ALTER", repeat)
-        self.assertIn("REVOKE CONNECT ON DATABASE devapp_int FROM PUBLIC", repeat)
+        self.assertIn("REVOKE CONNECT ON DATABASE swirl_demo_app_int FROM PUBLIC", repeat)
         with self.assertRaises(data.ServiceError):
             data.database_sql(identity, "';bad")
 
     def test_legacy_or_privileged_database_owner_is_rejected_before_credential_write(self):
-        for owner, role in (("admin", "devapp_prod:false"), ("devapp_prod", "devapp_prod:true")):
+        for owner, role in (("admin", "swirl_demo_app_prod:false"), ("swirl_demo_app_prod", "swirl_demo_app_prod:true")):
             with patch.object(data.Services, "_kv_get", return_value=({}, 0)), patch.object(data, "postgres_target", return_value="deployment/postgres"), patch.object(data, "postgres", side_effect=[owner, role]), patch.object(data, "credentials") as create:
                 with self.assertRaises(data.ServiceError):
-                    data.provision_database(object(), data.identity("devapp", "prod", "devappdb"))
+                    data.provision_database(object(), data.identity("swirl-demo-app", "prod", "swirl_demo_app_db"))
                 create.assert_not_called()
 
     def test_redis_secret_keeps_other_environments_and_prevents_lost_updates(self):
-        first = data.redis_secret("admin" * 10, user_line=data.redis_acl_user("devapp_int", "x" * 40, "devapp:int:"))
+        first = data.redis_secret("admin" * 10, user_line=data.redis_acl_user("swirl_demo_app_int", "x" * 40, "swirl-demo-app:int:"))
         current = {"metadata": {"resourceVersion": "7"}, "data": {key: base64.b64encode(value.encode()).decode() for key, value in first["stringData"].items()}}
-        second = data.redis_secret("admin" * 10, current, data.redis_acl_user("devapp_uat", "y" * 40, "devapp:uat:"))
+        second = data.redis_secret("admin" * 10, current, data.redis_acl_user("swirl_demo_app_uat", "y" * 40, "swirl-demo-app:uat:"))
         self.assertEqual("7", second["metadata"]["resourceVersion"])
-        self.assertIn("~devapp:int:*", second["stringData"]["users.acl"])
-        self.assertIn("~devapp:uat:*", second["stringData"]["users.acl"])
+        self.assertIn("~swirl-demo-app:int:*", second["stringData"]["users.acl"])
+        self.assertIn("~swirl-demo-app:uat:*", second["stringData"]["users.acl"])
         self.assertNotIn("nopass", second["stringData"]["users.acl"])
         self.assertNotIn("x" * 40, second["stringData"]["users.acl"])
 
@@ -117,9 +117,9 @@ class DataContract(unittest.TestCase):
             self.assertEqual(applied[1]["stringData"], {"username": "legacy_platform", "password": legacy})
             self.assertTrue(any(call.args[2:] == ("--user", "legacy_platform", "PING") for call in authenticated_command.call_args_list))
             current = {"data": {key: base64.b64encode(value.encode()).decode() for key, value in applied[0]["stringData"].items()}}
-            activated = data.redis_secret(admin, current, data.redis_acl_user("devapp_int", "i" * 40, "devapp:int:"))
+            activated = data.redis_secret(admin, current, data.redis_acl_user("swirl_demo_app_int", "i" * 40, "swirl-demo-app:int:"))
             self.assertIn("user legacy_platform on #", activated["stringData"]["users.acl"])
-            self.assertIn("~devapp:int:*", activated["stringData"]["users.acl"])
+            self.assertIn("~swirl-demo-app:int:*", activated["stringData"]["users.acl"])
             self.assertNotIn("nopass", activated["stringData"]["users.acl"])
 
     def test_legacy_acl_exception_does_not_accept_arbitrary_administrators(self):
@@ -130,21 +130,21 @@ class DataContract(unittest.TestCase):
                 data.redis_secret("a" * 40, current)
 
     def test_kafka_acl_includes_dlt_and_groups_without_wildcard_cluster_access(self):
-        commands = data.kafka_acls(data.identity("devapp", "uat"))
+        commands = data.kafka_acls(data.identity("swirl-demo-app", "uat"))
         self.assertIn("--resource-pattern-type", commands[0])
-        self.assertIn("devapp.uat.", commands[0])
-        self.assertIn("devapp.uat.", commands[1])
+        self.assertIn("swirl-demo-app.uat.", commands[0])
+        self.assertIn("swirl-demo-app.uat.", commands[1])
         self.assertEqual("IdempotentWrite", commands[2][-1])
         self.assertNotIn("All", str(commands))
         self.assertNotIn("*", str(commands))
 
     def test_existing_broad_kafka_permissions_stop_reconciliation(self):
-        identity = data.identity("devapp", "int")
-        granted = "Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=*, patternType=LITERAL)`:\n    (principal=User:devapp_int, host=*, operation=ALL, permissionType=ALLOW)\n"
+        identity = data.identity("swirl-demo-app", "int")
+        granted = "Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=*, patternType=LITERAL)`:\n    (principal=User:swirl_demo_app_int, host=*, operation=ALL, permissionType=ALLOW)\n"
         with self.assertRaisesRegex(data.ServiceError, "overbroad"):
             data.validate_kafka_acls(granted, identity)
         with self.assertRaisesRegex(data.ServiceError, "overbroad"):
-            data.validate_kafka_acls(granted.replace("User:devapp_int", "User:*"), identity, wildcard=True)
+            data.validate_kafka_acls(granted.replace("User:swirl_demo_app_int", "User:*"), identity, wildcard=True)
         with self.assertRaisesRegex(data.ServiceError, "Unrecognized"):
             data.validate_kafka_acls("unexpected response", identity)
 
@@ -224,30 +224,30 @@ class LiveDataIsolation(unittest.TestCase):
                 def postgres_exec(command, payload=None):
                     return original_run(["docker", "exec", "-i", pg, *command[command.index("--") + 1:]], payload)
                 for env in ("int", "uat"):
-                    self.docker("exec", "-i", pg, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", payload=data.database_sql(data.identity("devapp", env), env * 20))
+                    self.docker("exec", "-i", pg, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", payload=data.database_sql(data.identity("swirl-demo-app", env), env * 20))
                     with patch.object(data, "run", side_effect=postgres_exec):
-                        credential = {"username": "devapp_" + env, "password": env * 20}
-                        own = data.postgres("CREATE TABLE fixture (id int); INSERT INTO fixture VALUES (1); SELECT * FROM fixture;", pg, credential, "devapp_" + env)
+                        credential = {"username": "swirl_demo_app_" + env, "password": env * 20}
+                        own = data.postgres("CREATE TABLE fixture (id int); INSERT INTO fixture VALUES (1); SELECT * FROM fixture;", pg, credential, "swirl_demo_app_" + env)
                         self.assertEqual("1", own)
                         with self.assertRaises(data.ServiceError):
-                            data.postgres("SELECT current_user;", pg, {**credential, "password": "wrong" * 10}, "devapp_" + env)
+                            data.postgres("SELECT current_user;", pg, {**credential, "password": "wrong" * 10}, "swirl_demo_app_" + env)
                     existing = {"metadata": {"resourceVersion": "1"}, "data": {key: base64.b64encode(value.encode()).decode() for key, value in current["stringData"].items()}}
                     def apply_acl(document):
                         nonlocal current
                         current = document
                     def redis_exec(command, payload=None):
                         return self.docker("exec", "-i", redis, *command[command.index("--") + 1:], payload=payload)
-                    with patch.object(data, "credentials", return_value={"username": "devapp_" + env, "password": env * 20}), patch.object(data, "kubectl", return_value=existing), patch.object(data, "apply", side_effect=apply_acl), patch.object(data, "redis_pods", return_value=[redis]), patch.object(data, "run", side_effect=redis_exec):
-                        data.provision_redis(None, data.identity("devapp", env), "admin" * 10)
+                    with patch.object(data, "credentials", return_value={"username": "swirl_demo_app_" + env, "password": env * 20}), patch.object(data, "kubectl", return_value=existing), patch.object(data, "apply", side_effect=apply_acl), patch.object(data, "redis_pods", return_value=[redis]), patch.object(data, "run", side_effect=redis_exec):
+                        data.provision_redis(None, data.identity("swirl-demo-app", env), "admin" * 10)
                 with patch.object(data, "run", side_effect=postgres_exec):
                     with self.assertRaises(data.ServiceError):
-                        data.postgres("SELECT 1;", pg, {"username": "devapp_int", "password": "int" * 20}, "devapp_uat")
+                        data.postgres("SELECT 1;", pg, {"username": "swirl_demo_app_int", "password": "int" * 20}, "swirl_demo_app_uat")
                 self.assertTrue(self.docker("exec", redis, "redis-cli", "PING").startswith("NOAUTH"))
-                self.assertEqual("OK", self.docker("exec", "-e", "REDISCLI_AUTH=" + "int" * 20, redis, "redis-cli", "--user", "devapp_int", "SET", "devapp:int:users::1", "one"))
-                self.assertTrue(self.docker("exec", "-e", "REDISCLI_AUTH=" + "uat" * 20, redis, "redis-cli", "--user", "devapp_uat", "GET", "devapp:int:users::1").startswith("NOPERM"))
+                self.assertEqual("OK", self.docker("exec", "-e", "REDISCLI_AUTH=" + "int" * 20, redis, "redis-cli", "--user", "swirl_demo_app_int", "SET", "swirl-demo-app:int:users::1", "one"))
+                self.assertTrue(self.docker("exec", "-e", "REDISCLI_AUTH=" + "uat" * 20, redis, "redis-cli", "--user", "swirl_demo_app_uat", "GET", "swirl-demo-app:int:users::1").startswith("NOPERM"))
                 # Shared cache ACLs isolate values, not key-name enumeration.
-                self.assertIn("devapp:int:users::1", self.docker("exec", "-e", "REDISCLI_AUTH=" + "uat" * 20, redis, "redis-cli", "--user", "devapp_uat", "KEYS", "*"))
-                self.assertTrue(self.docker("exec", "-e", "REDISCLI_AUTH=" + "int" * 20, redis, "redis-cli", "--user", "devapp_int", "FLUSHALL").startswith("NOPERM"))
+                self.assertIn("swirl-demo-app:int:users::1", self.docker("exec", "-e", "REDISCLI_AUTH=" + "uat" * 20, redis, "redis-cli", "--user", "swirl_demo_app_uat", "KEYS", "*"))
+                self.assertTrue(self.docker("exec", "-e", "REDISCLI_AUTH=" + "int" * 20, redis, "redis-cli", "--user", "swirl_demo_app_int", "FLUSHALL").startswith("NOPERM"))
             finally:
                 self.docker("rm", "-f", pg, redis, check=False)
 
@@ -281,16 +281,16 @@ class LiveDataIsolation(unittest.TestCase):
             def execute(*args, payload=None):
                 return self.docker("exec", "-i", broker, *args, payload=payload)
             for env in ("int", "uat"):
-                with patch.object(data, "credentials", return_value={"username": "devapp_" + env, "password": env * 20}), patch.object(data, "kafka", side_effect=execute):
-                    data.provision_kafka(None, data.identity("devapp", env))
-                config = f'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=SCRAM-SHA-512\nsasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="devapp_{env}" password="{env * 20}";\ndefault.api.timeout.ms=5000\nrequest.timeout.ms=5000\n'
+                with patch.object(data, "credentials", return_value={"username": "swirl_demo_app_" + env, "password": env * 20}), patch.object(data, "kafka", side_effect=execute):
+                    data.provision_kafka(None, data.identity("swirl-demo-app", env))
+                config = f'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=SCRAM-SHA-512\nsasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="swirl_demo_app_{env}" password="{env * 20}";\ndefault.api.timeout.ms=5000\nrequest.timeout.ms=5000\n'
                 execute("sh", "-ec", 'cat > "$1"', "config", "/tmp/" + env + ".properties", payload=config)
-            execute("kafka-topics", "--bootstrap-server", "kafka-0:9094", "--command-config", "/tmp/int.properties", "--create", "--topic", "devapp.int.order_topic", "--partitions", "1", "--replication-factor", "1")
-            execute("kafka-console-producer", "--bootstrap-server", "kafka-0:9094", "--producer.config", "/tmp/int.properties", "--topic", "devapp.int.order_topic", "--producer-property", "enable.idempotence=true", payload="environment-isolation\n")
-            received = execute("kafka-console-consumer", "--bootstrap-server", "kafka-0:9094", "--consumer.config", "/tmp/int.properties", "--topic", "devapp.int.order_topic", "--group", "devapp.int.fixture", "--from-beginning", "--max-messages", "1", "--timeout-ms", "10000")
+            execute("kafka-topics", "--bootstrap-server", "kafka-0:9094", "--command-config", "/tmp/int.properties", "--create", "--topic", "swirl-demo-app.int.order_topic", "--partitions", "1", "--replication-factor", "1")
+            execute("kafka-console-producer", "--bootstrap-server", "kafka-0:9094", "--producer.config", "/tmp/int.properties", "--topic", "swirl-demo-app.int.order_topic", "--producer-property", "enable.idempotence=true", payload="environment-isolation\n")
+            received = execute("kafka-console-consumer", "--bootstrap-server", "kafka-0:9094", "--consumer.config", "/tmp/int.properties", "--topic", "swirl-demo-app.int.order_topic", "--group", "swirl-demo-app.int.fixture", "--from-beginning", "--max-messages", "1", "--timeout-ms", "10000")
             self.assertIn("environment-isolation", received)
-            for credential, group, error in (("uat", "devapp.uat.fixture", "TopicAuthorizationException"), ("int", "devapp.uat.fixture", "GroupAuthorizationException")):
-                result = subprocess.run(["docker", "exec", broker, "kafka-console-consumer", "--bootstrap-server", "kafka-0:9094", "--consumer.config", "/tmp/" + credential + ".properties", "--topic", "devapp.int.order_topic", "--group", group, "--from-beginning", "--max-messages", "1", "--timeout-ms", "5000"], text=True, capture_output=True, timeout=30)
+            for credential, group, error in (("uat", "swirl-demo-app.uat.fixture", "TopicAuthorizationException"), ("int", "swirl-demo-app.uat.fixture", "GroupAuthorizationException")):
+                result = subprocess.run(["docker", "exec", broker, "kafka-console-consumer", "--bootstrap-server", "kafka-0:9094", "--consumer.config", "/tmp/" + credential + ".properties", "--topic", "swirl-demo-app.int.order_topic", "--group", group, "--from-beginning", "--max-messages", "1", "--timeout-ms", "5000"], text=True, capture_output=True, timeout=30)
                 self.assertNotIn("environment-isolation", result.stdout)
                 self.assertIn(error, result.stderr)
         finally:

@@ -194,7 +194,7 @@ def main():
     parser.add_argument("--environment", required=True, choices=("int", "uat", "prod"))
     parser.add_argument("--target-kubeconfig", required=True)
     parser.add_argument("--platform-kubeconfig", help="Central operator kubeconfig for shared TLS; defaults to the current context")
-    parser.add_argument("--host-label", default="devapp")
+    parser.add_argument("--host-label", default="demo")
     parser.add_argument("--application-name", help="Argo application identity required to reuse an existing local hostname")
     parser.add_argument("--certificate-only", action="store_true")
     parser.add_argument("--check", action="store_true")

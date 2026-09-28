@@ -26,12 +26,12 @@ spec.loader.exec_module(dns)
 
 INVENTORY = load_inventory(ROOT / "config/deployment-environments.remote.example.yaml")
 CONTEXT = {"PUBLIC_DOMAIN":"example.com", "INTERNAL_DNS_ZONE":"internal.example.com", "KEYCLOAK_REALM":"example",
-           "APPLICATION_NAME":"devapp", "APP_SUBDOMAIN":"portal", "APP_HOST":"portal.example.com",
-           "GITLAB_REPOSITORY_URL":"http://gitlab.internal.example.com/team/devapp.git",
-           "GITLAB_PROJECT_ID":"7", "GITLAB_PROJECT_PATH":"team/devapp"}
+           "APPLICATION_NAME":"swirl-demo-app", "APP_SUBDOMAIN":"portal", "APP_HOST":"portal.example.com",
+           "GITLAB_REPOSITORY_URL":"http://gitlab.internal.example.com/team/swirl-demo-app.git",
+           "GITLAB_PROJECT_ID":"7", "GITLAB_PROJECT_PATH":"team/swirl-demo-app"}
 CONTRACT = {"application":"infra/argocd/application.yaml", "deployment":{"inventory":"infra/deployment-environments.json",
             "settingsDirectory":"infra/environments", "defaultEnvironment":"int"}}
-TEMPLATE = {"apiVersion":"argoproj.io/v1alpha1", "kind":"Application", "metadata":{"name":"devapp","namespace":"infra"},
+TEMPLATE = {"apiVersion":"argoproj.io/v1alpha1", "kind":"Application", "metadata":{"name":"swirl-demo-app","namespace":"infra"},
             "spec":{"project":"applications", "destination":{"server":"https://kubernetes.default.svc","namespace":"apps"},
                     "source":{"repoURL":CONTEXT["GITLAB_REPOSITORY_URL"],"path":"infra/k8s","targetRevision":"main"}}}
 
@@ -95,17 +95,17 @@ class OnboardingTests(unittest.TestCase):
         with patch.dict(os.environ, {"ONBOARDING_DEPLOYMENT_ENVIRONMENT":"int"}):
             return EnvironmentOnboarding(self.platform, self.checkout, CONTRACT, CONTEXT)
     def test_repository_rules_match_argocd_slash_globs_and_denials(self):
-        repository = "http://gitlab.internal.example.com/team/devapp.git"
+        repository = "http://gitlab.internal.example.com/team/swirl-demo-app.git"
         self.assertFalse(repository_permitted(["http://gitlab.internal.example.com/*"], repository))
         self.assertTrue(repository_permitted(["http://gitlab.internal.example.com/**"], repository))
         self.assertTrue(repository_permitted(["http://gitlab.internal.example.com/*/*"], repository))
         self.assertTrue(repository_permitted([repository.removesuffix(".git").upper()], repository))
-        nested = "http://gitlab.internal.example.com/team/subgroup/devapp.git"
+        nested = "http://gitlab.internal.example.com/team/subgroup/swirl-demo-app.git"
         self.assertTrue(repository_permitted(["http://gitlab.internal.example.com/**"], nested))
         self.assertFalse(repository_permitted(["http://gitlab.internal.example.com/*/*"], nested))
         self.assertFalse(repository_permitted(["http://gitlab.internal.example.com/**", "!http://gitlab.internal.example.com/team/**"], nested))
         self.assertFalse(repository_permitted(["https://gitlab.example.com/**"], repository))
-        self.assertFalse(repository_permitted(["http://gitlab.internal.example.com/**"], "http://gitlab.internal.example.com.attacker.test/team/devapp.git"))
+        self.assertFalse(repository_permitted(["http://gitlab.internal.example.com/**"], "http://gitlab.internal.example.com.attacker.test/team/swirl-demo-app.git"))
         self.assertTrue(repository_permitted(["*"], repository))
 
     def test_public_inventory_never_contains_registration_credentials(self):
@@ -158,7 +158,7 @@ class OnboardingTests(unittest.TestCase):
         self.manager()
         path = self.root / "infra/environments/prod/settings.json"
         settings = json.loads(path.read_text())
-        settings.update(trustedProxyCIDRs="10.60.0.0/16", highAvailability=True, databaseName="devappdb")
+        settings.update(trustedProxyCIDRs="10.60.0.0/16", highAvailability=True, databaseName="swirl_demo_app_db")
         path.write_text(json.dumps(settings))
         self.manager()
         self.assertEqual(settings, json.loads(path.read_text()))
@@ -172,16 +172,16 @@ class OnboardingTests(unittest.TestCase):
         self.checkout.pointer["spec"]["destination"]["name"]="apps-prod"
         with self.assertRaises(OnboardingError): manager.release_application(self.checkout,"b"*40)
     def test_keycloak_clients_share_realm_with_distinct_audiences_and_callbacks(self):
-        original={"clientId":"devapp-web","rootUrl":"https://portal.example.com","redirectUris":["https://portal.example.com/*"],
+        original={"clientId":"swirlapp-web","rootUrl":"https://portal.example.com","redirectUris":["https://portal.example.com/*"],
                   "webOrigins":["https://portal.example.com"],"attributes":{"post.logout.redirect.uris":"+"},
-                  "protocolMappers":[{"protocolMapper":"oidc-audience-mapper","config":{"included.client.audience":"devapp-web"}}]}
+                  "protocolMappers":[{"protocolMapper":"oidc-audience-mapper","config":{"included.client.audience":"swirlapp-web"}}]}
         manager=self.manager()
         for env,target in manager.targets.items():
             with patch("onboarding_services.Services._client",return_value=("example",copy.deepcopy(original))):
                 service=EnvironmentServices(object(),self.platform.kubectl,CONTEXT,target=target)
                 realm,client=service._client({},self.root)
             self.assertEqual(realm,"example")
-            self.assertEqual(client["clientId"],"devapp-"+env+"-web")
+            self.assertEqual(client["clientId"],"swirl-demo-app-"+env+"-web")
             self.assertEqual(client["protocolMappers"][0]["config"]["included.client.audience"],client["clientId"])
             self.assertEqual(client["webOrigins"],["https://portal."+target["domain"]])
         suffix = local_inventory("suffix")
@@ -224,7 +224,7 @@ class CertificateTests(unittest.TestCase):
             raise AssertionError(arguments)
         from argparse import Namespace
         args = Namespace(config=str(ROOT / "config/deployment-environments.remote.example.yaml"), environment="int",
-                         host_label="devapp", target_kubeconfig="/fixture", certificate_only=True, check=True)
+                         host_label="swirl-demo-app", target_kubeconfig="/fixture", certificate_only=True, check=True)
         with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "fixture"}), patch.object(dns, "HTTP", return_value=API()), \
                 patch.object(dns, "run", side_effect=kubectl), patch.object(dns, "certificate_valid", return_value=True):
             dns.reconcile(args)
@@ -250,7 +250,7 @@ class CertificateTests(unittest.TestCase):
                 self.assertEqual(arguments[arguments.index("-n") + 1], "apps-int")
                 return "{}"
             raise AssertionError(arguments)
-        args = SimpleNamespace(config="public.yaml", environment="int", host_label="devapp",
+        args = SimpleNamespace(config="public.yaml", environment="int", host_label="swirl-demo-app",
                                target_kubeconfig="/fixture", certificate_only=True, check=True)
         with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "fixture"}), patch.object(dns, "HTTP", return_value=API()), \
                 patch.object(dns, "load_inventory", return_value=local_inventory()), \
@@ -281,7 +281,7 @@ class CertificateTests(unittest.TestCase):
             if "secret" in arguments:
                 return json.dumps({"metadata": {"labels": {"app.kubernetes.io/managed-by": "external-manager"}}, "data": {}})
             raise AssertionError(arguments)
-        args = SimpleNamespace(config="public.yaml", environment="int", host_label="devapp", target_kubeconfig="/scoped",
+        args = SimpleNamespace(config="public.yaml", environment="int", host_label="swirl-demo-app", target_kubeconfig="/scoped",
                                platform_kubeconfig="/central", certificate_only=True, check=False)
         with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "fixture"}), patch.object(dns, "HTTP", return_value=API()), \
                 patch.object(dns, "load_inventory", return_value=inventory), patch.object(dns, "run", side_effect=kubectl), \
@@ -295,22 +295,22 @@ class CertificateTests(unittest.TestCase):
 
     def test_local_hostname_reuse_requires_self_referencing_same_application_owner(self):
         target = {"namespace": "apps-prod", "environment": "prod"}
-        for namespace, owner, valid in (("apps", "devapp", True), ("apps-prod", "devapp-prod", True),
-                                        ("apps", "swirl-website", False), ("apps-uat", "devapp-uat", False),
-                                        ("apps", "devapp-prod", False), ("apps-prod", "", False)):
+        for namespace, owner, valid in (("apps", "swirl-demo-app", True), ("apps-prod", "swirl-demo-app-prod", True),
+                                        ("apps", "swirl-website", False), ("apps-uat", "swirl-demo-app-uat", False),
+                                        ("apps", "swirl-demo-app-prod", False), ("apps-prod", "", False)):
             metadata = {"name": "existing", "namespace": namespace, "annotations": {
                 "argocd.argoproj.io/tracking-id": f"{owner}:networking.k8s.io/Ingress:{namespace}/existing"}}
-            ingress = {"metadata": metadata, "spec": {"rules": [{"host": "devapp.example.com"}]}}
+            ingress = {"metadata": metadata, "spec": {"rules": [{"host": "demo.example.com"}]}}
             with self.subTest(namespace=namespace, owner=owner), patch.object(dns, "run", return_value=json.dumps({"items": [ingress]})):
                 if valid:
-                    dns.verify_hostname_owner(["kubectl"], target, "devapp.example.com", "devapp")
+                    dns.verify_hostname_owner(["kubectl"], target, "demo.example.com", "swirl-demo-app")
                 else:
                     with self.assertRaisesRegex(ServiceError, "unverified local Ingress"):
-                        dns.verify_hostname_owner(["kubectl"], target, "devapp.example.com", "devapp")
-            metadata["annotations"]["argocd.argoproj.io/tracking-id"] = "devapp:networking.k8s.io/Ingress:apps/copied-from-another-resource"
+                        dns.verify_hostname_owner(["kubectl"], target, "demo.example.com", "swirl-demo-app")
+            metadata["annotations"]["argocd.argoproj.io/tracking-id"] = "swirl-demo-app:networking.k8s.io/Ingress:apps/copied-from-another-resource"
             with patch.object(dns, "run", return_value=json.dumps({"items": [ingress]})):
                 with self.assertRaisesRegex(ServiceError, "unverified local Ingress"):
-                    dns.verify_hostname_owner(["kubectl"], target, "devapp.example.com", "devapp")
+                    dns.verify_hostname_owner(["kubectl"], target, "demo.example.com", "swirl-demo-app")
 
     def test_existing_swirl_website_apex_blocks_dns_even_when_address_and_empty_comment_would_match(self):
         inventory = local_inventory("suffix")
@@ -328,7 +328,7 @@ class CertificateTests(unittest.TestCase):
                     "argocd.argoproj.io/tracking-id": "swirl-website:networking.k8s.io/Ingress:apps/swirl-website"}},
                     "spec": {"rules": [{"host": "example.com"}]}}]})
             raise AssertionError(arguments)
-        args = SimpleNamespace(config="public.yaml", environment="prod", host_label="@", application_name="devapp",
+        args = SimpleNamespace(config="public.yaml", environment="prod", host_label="@", application_name="swirl-demo-app",
                                target_kubeconfig="/scoped", platform_kubeconfig="/central", certificate_only=False, check=False)
         with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "fixture"}), patch.object(dns, "HTTP") as provider, \
                 patch.object(dns, "load_inventory", return_value=inventory), patch.object(dns, "run", side_effect=kubectl):
@@ -337,8 +337,8 @@ class CertificateTests(unittest.TestCase):
         provider.assert_not_called()
 
     def test_parent_wildcard_does_not_cover_nested_application_hostname(self):
-        self.assertFalse(dns.covers("*.example.com","devapp.int.example.com"))
-        self.assertTrue(dns.covers("*.int.example.com","devapp.int.example.com"))
+        self.assertFalse(dns.covers("*.example.com","demo.int.example.com"))
+        self.assertTrue(dns.covers("*.int.example.com","demo.int.example.com"))
         self.assertFalse(dns.covers("*.int.example.com","int.example.com"))
     def test_edge_certificate_checks_paginate_and_ignore_pending_packs(self):
         class API:
@@ -346,14 +346,14 @@ class CertificateTests(unittest.TestCase):
                 page=2 if "page=2" in path else 1
                 return {"success":True,"result_info":{"total_pages":2},"result":[
                     {"status":"pending_validation" if page==1 else "active","hosts":["*.int.example.com"]}]}
-        dns.edge_ready(API(),"zone","devapp.int.example.com")
-        with self.assertRaises(ServiceError): dns.edge_ready(API(),"zone","devapp.uat.example.com")
+        dns.edge_ready(API(),"zone","demo.int.example.com")
+        with self.assertRaises(ServiceError): dns.edge_ready(API(),"zone","demo.uat.example.com")
 
 
 class DeliveryBoundaryTests(unittest.TestCase):
     def manager(self, targets=None):
         platform = SimpleNamespace(api=object(), kubectl=lambda *_args, **_kwargs: None)
-        env = SimpleNamespace(onboarding=platform, context=CONTEXT, name="devapp",
+        env = SimpleNamespace(onboarding=platform, context=CONTEXT, name="swirl-demo-app",
                               targets=targets or {}, contract=CONTRACT)
         return ApplicationDelivery(env)
 
@@ -371,7 +371,7 @@ class DeliveryBoundaryTests(unittest.TestCase):
         documents = manager.permissions()
         role = next(item for item in documents if item["kind"] == "Role" and item["metadata"]["name"].endswith("-int"))
         rule = next(rule for rule in role["rules"] if rule["resources"] == ["applications"])
-        self.assertEqual(rule["resourceNames"], ["devapp-int"])
+        self.assertEqual(rule["resourceNames"], ["swirl-demo-app-int"])
         self.assertEqual(set(rule["verbs"]), {"get", "patch", "update"})
         policies = [item for item in documents if item["kind"] == "ValidatingAdmissionPolicy"]
         policy = next(item for item in policies if item["metadata"]["name"].endswith("-int"))

@@ -4,7 +4,7 @@ Applications opt into `add-repos.sh` by committing `infra/onboarding.json`.
 This reference is for application authors; the
 [operator guide](repository-onboarding.md) covers setup credentials and reruns.
 Contracts declare supported platform operations without running repository
-scripts or playbooks. DevApp uses version 2 for delivery to local or remote environment namespaces;
+scripts or playbooks. Swirl Demo App uses version 2 for delivery to local or remote environment namespaces;
 version 1 remains compatible with existing applications in `apps`. Follow the
 [namespace and discovery contract](../operations.md#namespace-and-discovery).
 
@@ -30,7 +30,7 @@ Version 2 uses the common fields below and adds this declaration:
 }
 ```
 
-This is the current DevApp service contract; other applications keep version 1
+This is the current Swirl Demo App service contract; other applications keep version 1
 until their delivery and runtime support are explicitly migrated. Version 2
 does not accept arbitrary bootstrap resources or administrator Vault paths.
 The template selects `infra/k8s` or `infra/overlays/ha`; the latter supplies the
@@ -66,7 +66,7 @@ shared Keycloak realm, with exact environment callbacks and matching JWT audienc
 ## Shared application data
 
 There is one shared PostgreSQL service, with separate logical databases and
-restricted logins such as `devapp_int`, `devapp_uat` and `devapp_prod`. Redis is
+restricted logins such as `swirl_demo_app_int`, `swirl_demo_app_uat` and `swirl_demo_app_prod`. Redis is
 one shared cache with environment-prefixed keys and ACL users; Kafka is one
 shared cluster with environment-prefixed topics/groups and SCRAM credentials.
 No data service is installed on an application target.
@@ -119,10 +119,10 @@ the enabled data authentication settings and reject an implicit downgrade. The g
 and the expected Kafka remote listeners on every broker.
 
 Onboarding creates fresh logical databases automatically. Existing production
-`devappdb` is never dropped, emptied or silently re-owned. To retain it, first
+`swirl_demo_app_db` is never dropped, emptied or silently re-owned. To retain it, first
 perform a reviewed ownership migration to the dedicated application role and
-store that role's matching credentials at `apps/devapp/prod/database`. Then set
-`"databaseName": "devappdb"` in the production `settings.json` and rerun onboarding.
+store that role's matching credentials at `apps/swirl-demo-app/prod/database`. Then set
+`"databaseName": "swirl_demo_app_db"` in the production `settings.json` and rerun onboarding.
 The helper's `--adopt-existing-database` check refuses missing ownership or
 credentials. This explicit override keeps CI pointed at the adopted database;
 other targets continue using their separate databases.

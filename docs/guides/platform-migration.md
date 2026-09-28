@@ -2,7 +2,7 @@
 
 Chart 2 moves routing from retired ingress-nginx to native Traefik Ingress and
 replaces privately rebuilt platform images with pinned public vendor images.
-This is a maintenance operation spanning `swirl-cloud`, DevApp, Indezy, Thoughty
+This is a maintenance operation spanning `swirl-cloud`, Swirl Demo App, Indezy, Thoughty
 and Swirl Website. It is separate from changing topology or activating database HA.
 New installations do not need this procedure.
 

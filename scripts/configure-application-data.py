@@ -312,7 +312,7 @@ def provision_kafka(api, spec):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "--inventory", dest="config", required=True)
-    parser.add_argument("--application", default="devapp")
+    parser.add_argument("--application", default="swirl-demo-app")
     parser.add_argument("--environment", choices=("int", "uat", "prod"))
     parser.add_argument("--adopt-existing-database")
     preparation = parser.add_mutually_exclusive_group()

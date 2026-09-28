@@ -454,7 +454,7 @@ def tls_secret(target, context, cert, key):
     certificate = Path(cert).read_bytes()
     private_key = Path(key).read_bytes()
     run(["openssl", "x509", "-in", cert, "-noout", "-checkend", "86400"])
-    for host in (context["domain"], application_hostname(context, "devapp")):
+    for host in (context["domain"], application_hostname(context, "demo")):
         run(["openssl", "x509", "-in", cert, "-noout", "-checkhost", host])
     if run(["openssl", "x509", "-in", cert, "-pubkey", "-noout"]) != run(["openssl", "pkey", "-in", key, "-pubout"]):
         raise ValueError("Ingress certificate and private key do not match")
@@ -758,7 +758,7 @@ def main():
     trust = (ROOT / "config/cloudflare-origin-ca.pem").read_text()
     if args.tls_cert:
         trust += "\n" + Path(args.tls_cert).read_text()
-    probe(platform, "infra", check, {"mode": "ingress", "address": context["ingressAddress"], "hostname": application_hostname(context, "devapp")},
+    probe(platform, "infra", check, {"mode": "ingress", "address": context["ingressAddress"], "hostname": application_hostname(context, "demo")},
           secret={"ca.crt": trust})
     platform.call("patch", "configmap", "argocd-cm", "-n", "infra", "--type=merge", "-p", json.dumps({"data": {"resource.respectRBAC": "normal"}}))
     platform.apply(argo_project(context, inventory["platform"]["domain"], inventory["platform"]["internalDomain"]))

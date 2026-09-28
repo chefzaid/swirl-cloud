@@ -177,7 +177,7 @@ for private SSH and API access.
 
 ## Specialized Guides
 
-These procedures have no DevApp counterpart and live under [`guides/`](guides/):
+These procedures have no Swirl Demo App counterpart and live under [`guides/`](guides/):
 
 - [Node enrollment and private networking](guides/node-enrollment.md)
 - [High availability](guides/high-availability.md)

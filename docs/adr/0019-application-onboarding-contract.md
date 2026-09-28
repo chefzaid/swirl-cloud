@@ -35,6 +35,6 @@ revision checks prevent reporting success for a stale or unrelated deployment.
 ## Consequences
 
 Onboarding can leave commits, credentials, DNS or paused Applications behind after
-a failure; there is no automatic rollback. Only DevApp uses version 2; other
+a failure; there is no automatic rollback. Only Swirl Demo App uses version 2; other
 applications remain on version 1 in `apps`. Issues, merge requests, releases and
 LFS objects are not synchronized.

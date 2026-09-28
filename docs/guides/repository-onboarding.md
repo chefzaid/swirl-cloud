@@ -50,7 +50,7 @@ onboarding does not start application workloads ahead of it.
 
 ## Environment deployment
 
-DevApp uses contract version 2. First [register the local or remote environments](../deployment.md#application-deployment-clusters)
+Swirl Demo App uses contract version 2. First [register the local or remote environments](../deployment.md#application-deployment-clusters)
 and enable [shared data access](application-onboarding.md#shared-application-data).
 Run `add-repos.sh` once on the central platform to import the one repository.
 Version 2 needs Cloudflare Zone Read, DNS Edit and SSL and Certificates Edit
@@ -63,8 +63,8 @@ Application permissions. The default branch must be protected; the project no
 longer uses the shared instance runner. See [delivery permissions](../deployment.md#application-delivery).
 
 `APP_SUBDOMAIN` is one shared app label. With `platform.hostnameStyle: suffix`,
-`devapp` produces `devapp-int.example.com`, `devapp-uat.example.com` and
-`devapp.example.com`. The [installation guide](../deployment.md#application-deployment-clusters)
+`demo` produces `demo-int.example.com`, `demo-uat.example.com` and
+`demo.example.com`. The [installation guide](../deployment.md#application-deployment-clusters)
 also covers nested hostnames and their certificate requirements.
 Onboarding applies that label to all registered environments. It defaults the
 initial deployment to `int`; export `ONBOARDING_DEPLOYMENT_ENVIRONMENT=uat` or
