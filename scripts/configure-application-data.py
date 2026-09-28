@@ -75,10 +75,11 @@ def credentials(api, path, expected):
 def redis_acl_user(username, password, key_prefix):
     # Cache clears need KEYS for the selected prefix. ACL key rules also check
     # each DEL/GET/SET; KEYS/SCAN can still enumerate other prefixes' names.
-    # Administrative/all-database commands are unavailable.
+    # INFO serves client health checks. Administrative/all-database commands
+    # are unavailable.
     return (f"user {username} on #{hashlib.sha256(password.encode()).hexdigest()} "
             f"~{key_prefix}* resetchannels -@all +get +mget +set +del +unlink +exists "
-            "+expire +pexpire +ttl +pttl +ping +hello +select +keys +scan +client|setinfo +client|setname")
+            "+expire +pexpire +ttl +pttl +ping +info +hello +select +keys +scan +client|setinfo +client|setname")
 
 
 def redis_secret(admin, current=None, user_line=None):

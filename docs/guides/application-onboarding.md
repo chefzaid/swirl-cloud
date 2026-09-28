@@ -74,7 +74,8 @@ No data service is installed on an application target.
 Redis ACLs restrict value access and writes to each environment's key prefix.
 The `KEYS`/`SCAN` commands needed for cache eviction can still list names from
 other environments in the shared cache; key names must not contain secrets or
-personal data. This is value isolation, not complete metadata isolation.
+personal data. `INFO` is allowed for client health checks and exposes server
+statistics. This is value isolation, not complete metadata isolation.
 
 Environment data isolation requires authenticated Redis and Kafka. For an existing
 platform with anonymous Redis clients, first prepare a compatibility credential
