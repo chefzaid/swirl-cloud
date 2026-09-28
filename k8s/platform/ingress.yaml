@@ -181,6 +181,33 @@ spec:
                 port:
                   number: 3000
 
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dbgate-stream-ingress
+  namespace: infra
+  annotations:
+    # DBGate's server-sent event stream must not pass through response buffering.
+    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [dbgate.__PUBLIC_DOMAIN__]
+      secretName: __TLS_SECRET_NAME__
+  rules:
+    - host: dbgate.__PUBLIC_DOMAIN__
+      http:
+        paths:
+          - path: /stream
+            pathType: Exact
+            backend:
+              service:
+                name: dbgate
+                port:
+                  number: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
