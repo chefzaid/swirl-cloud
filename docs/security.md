@@ -156,7 +156,8 @@ Use Vault's authenticated UI to read those fields. During an SSO outage, reach
 Vault locally with `kubectl port-forward -n infra service/vault 8200:8200` and
 open `http://127.0.0.1:8200/ui`. Its Token login accepts the root-only recovery
 token stored at `/var/lib/swirl-cloud/vault-bootstrap-token`. Keep it out of
-command arguments and logs. Argo CD's local `admin` is disabled; DBGate, Kafka UI,
+command arguments and logs. Argo CD's local `admin` is disabled. DBGate signs in
+through its own Keycloak client and admits only `platform-admins`; Kafka UI,
 Longhorn and Homepage rely on their authentication boundary.
 
 ## Rotate local administrator passwords

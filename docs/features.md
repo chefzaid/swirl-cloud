@@ -99,7 +99,7 @@ the pieces fit together.
 ## Administration And Corporate Tools
 
 - Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery
-- Portainer, DBGate and Kafbat UI behind SSO
+- Portainer, DBGate and Kafbat UI behind SSO; DBGate also signs in with Keycloak (`platform-admins`)
 - Descheduler for manual rebalancing
 - Odoo ERP with SSO and a persistent dark mode
 

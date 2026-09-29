@@ -40,6 +40,8 @@ spec:
       remoteRef: {key: infra/keycloak, property: portainer_client_secret}
     - secretKey: ODOO_CLIENT_SECRET
       remoteRef: {key: infra/keycloak, property: odoo_client_secret}
+    - secretKey: DBGATE_CLIENT_SECRET
+      remoteRef: {key: infra/keycloak, property: dbgate_client_secret}
 
 ---
 apiVersion: v1
@@ -400,6 +402,9 @@ data:
     ensure_client kafka-ui false "$KAFKA_UI_CLIENT_SECRET" \
       '["https://kafka.__PUBLIC_DOMAIN__/login/oauth2/code/keycloak"]' \
       '["https://kafka.__PUBLIC_DOMAIN__"]' 'https://kafka.__PUBLIC_DOMAIN__'
+    ensure_client dbgate false "$DBGATE_CLIENT_SECRET" \
+      '["https://dbgate.__PUBLIC_DOMAIN__/*"]' \
+      '["https://dbgate.__PUBLIC_DOMAIN__"]' 'https://dbgate.__PUBLIC_DOMAIN__'
     ensure_client portainer false "$PORTAINER_CLIENT_SECRET" \
       '["https://portainer.__PUBLIC_DOMAIN__"]' \
       '["https://portainer.__PUBLIC_DOMAIN__"]' 'https://portainer.__PUBLIC_DOMAIN__'

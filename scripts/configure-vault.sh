@@ -453,6 +453,7 @@ declare -A keycloak_sso_defaults=(
   [kafka_ui_client_secret]="$(generate_secret)"
   [portainer_client_secret]="$(generate_secret)"
   [odoo_client_secret]="$(generate_secret)"
+  [dbgate_client_secret]="$(generate_secret)"
 )
 for keycloak_sso_field in "${!keycloak_sso_defaults[@]}"; do
   if ! jq -e --arg field "$keycloak_sso_field" '.data.data[$field] | strings | length > 0' \

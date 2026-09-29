@@ -64,6 +64,29 @@ spec:
           env:
             - name: WORKSPACE_DIR
               value: /home/node/.dbgate
+            # DBGate signs its sessions with a per-process key; Keycloak login
+            # lets the browser re-authenticate silently after any restart.
+            - name: OAUTH_AUTH
+              value: "https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__/protocol/openid-connect/auth"
+            - name: OAUTH_TOKEN
+              value: "http://keycloak.__INTERNAL_DNS_ZONE__:8080/auth/realms/__KEYCLOAK_REALM__/protocol/openid-connect/token"
+            - name: OAUTH_LOGOUT
+              value: "https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__/protocol/openid-connect/logout"
+            - name: OAUTH_CLIENT_ID
+              value: dbgate
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-sso-credentials
+                  key: DBGATE_CLIENT_SECRET
+            - name: OAUTH_SCOPE
+              value: "openid profile email"
+            - name: OAUTH_LOGIN_FIELD
+              value: preferred_username
+            - name: OAUTH_GROUP_FIELD
+              value: groups
+            - name: OAUTH_ALLOWED_GROUPS
+              value: platform-admins
             - name: CONNECTIONS
               value: "postgres,mongodb,redis"
             - name: LABEL_postgres
@@ -132,25 +155,29 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
+          # Schema analysis can saturate the CPU; a restart would end every session.
           readinessProbe:
             httpGet:
-              path: /
+              path: /__health
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /
+              path: /__health
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: 400m
-              memory: 768Mi
+              cpu: "1"
+              memory: 1Gi
       volumes:
         - name: dbgate-data
           persistentVolumeClaim:
