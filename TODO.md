@@ -157,7 +157,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Workload hardening across platform manifests: non-root UIDs, `RuntimeDefault` seccomp, dropped capabilities, read-only root filesystems where supported, `automountServiceAccountToken: false` where no API access is needed, resource requests/limits.
 - [ ] Inventory PSA violations in `infra`, including host-access telemetry agents; move workloads needing host privileges to a narrowly controlled namespace or define explicit exceptions, then enforce `baseline`. Verify rollouts and recovery before enforcement.
 - [ ] Introduce default-deny ingress in `infra` with explicit service/port allowlists for platform dependencies, app data, CI, ingress, metrics and remote gateways. Current source has only selected service policies. Prove required traffic and denied cross-environment/admin access before rollout; stage egress restrictions separately with DNS/API/external dependencies accounted for.
-- [ ] Registered environment namespaces (`apps-int`/`uat`/`prod`) do not carry the `security.<domain>/deny-hostpath` label. PSA baseline already blocks hostPath, but the extra guard is inconsistent with `apps`.
+- [x] Registered environment namespaces carry the `security.<domain>/deny-hostpath` label like `apps` and `corp` (prod shares `apps`). *(live)*
 
 ### 7. Ingress, TLS and edge (Traefik + Cloudflare)
 
