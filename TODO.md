@@ -123,7 +123,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] Longhorn host prerequisites: open-iscsi, NFS client, multipath blacklist (`config/host/multipath-longhorn.conf`).
 - [x] Workers and internet-only tools removed where not applicable (no Fail2ban/CrowdSec/persistent Lynis on workers).
 - [ ] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console.
-- [ ] Recheck and remove the duplicate distro `lynis.timer` seen in the audit; keep one managed schedule with last-success monitoring (§20).
+- [x] The duplicate distro `lynis.timer` is masked by `configure-lynis-schedule.sh`; `swirl-cloud-lynis.timer` is the only audit schedule. *(live)*
+- [ ] Monitor the last successful managed Lynis run and alert when the monthly audit is missing or failed (§20).
 - [ ] Manage unattended security updates, pending-reboot reporting and maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).
 - [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §20; assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
