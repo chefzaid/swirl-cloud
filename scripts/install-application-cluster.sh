@@ -65,7 +65,6 @@ sys.path.insert(0, sys.argv[1] + "/scripts")
 from lib.deployment_environments import environment_context, load_inventory
 inventory = load_inventory(sys.argv[2])
 target = environment_context(inventory, sys.argv[3])
-target["platformDomain"] = inventory["platform"]["domain"]
 spec = importlib.util.spec_from_file_location('registration', sys.argv[1] + '/scripts/configure-deployment-environments.py')
 registration = importlib.util.module_from_spec(spec); spec.loader.exec_module(registration)
 Path(sys.argv[4]).write_text(registration.node_firewall(target["podCIDR"]))

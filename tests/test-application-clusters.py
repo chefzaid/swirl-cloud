@@ -58,6 +58,8 @@ class ApplicationClusterSafety(unittest.TestCase):
         context = environment_context(inventory, "int")
         resources = registration.namespace_foundation(context)
         self.assertEqual([r["metadata"]["name"] for r in resources if r["kind"] == "Namespace"], ["apps-int"])
+        namespace = next(r for r in resources if r["kind"] == "Namespace")
+        self.assertEqual(namespace["metadata"]["labels"]["security." + inventory["platform"]["domain"] + "/deny-hostpath"], "true")
         self.assertFalse(any(r["metadata"].get("namespace") == "infra" for r in resources))
         self.assertTrue(any(r["kind"] == "ResourceQuota" for r in resources))
         self.assertTrue(any(r["kind"] == "LimitRange" for r in resources))

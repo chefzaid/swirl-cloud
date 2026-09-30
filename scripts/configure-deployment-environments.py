@@ -124,7 +124,9 @@ def namespace_foundation(context):
         "pod-security.kubernetes.io/enforce": "baseline",
         "pod-security.kubernetes.io/enforce-version": "v1.36",
         "pod-security.kubernetes.io/warn": "restricted",
-        "pod-security.kubernetes.io/audit": "restricted"})
+        "pod-security.kubernetes.io/audit": "restricted",
+        # Same extra hostPath guard as the platform's apps and corp namespaces.
+        "security." + context["platformDomain"] + "/deny-hostpath": "true"})
     quota = {"requests.cpu": "4", "limits.cpu": "8", "requests.memory": "8Gi", "limits.memory": "16Gi",
              "pods": "40", "persistentvolumeclaims": "10", "requests.storage": "50Gi", "services": "20"}
     quota.update(context.get("resourceQuota", {}))
@@ -657,7 +659,6 @@ def main():
     args = parser.parse_args()
     inventory = load_inventory(args.config)
     context = environment_context(inventory, args.environment)
-    context["platformDomain"] = inventory["platform"]["domain"]
     services = effective_services(inventory, args.environment)
     local = context["mode"] == "local"
     if not local and not args.target_kubeconfig:

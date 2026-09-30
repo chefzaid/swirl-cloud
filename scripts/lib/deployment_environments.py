@@ -307,7 +307,8 @@ def environment_context(inventory, name):
     return {**inventory["environments"][name], "environment": name, "tier": ENVIRONMENTS[name],
             "project": "applications-" + name, "vaultMount": "kubernetes-" + name,
             "centralTLS": uses_central_tls(inventory["environments"][name]),
-            "sharedNamespace": shared_namespace(inventory["environments"][name])}
+            "sharedNamespace": shared_namespace(inventory["environments"][name]),
+            "platformDomain": inventory["platform"]["domain"]}
 
 
 def inventory_json(inventory):
