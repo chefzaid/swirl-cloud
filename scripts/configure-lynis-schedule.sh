@@ -111,5 +111,10 @@ WantedBy=timers.target
 TIMER
 
 systemctl daemon-reload
+# The distro's daily timer rewrites the canonical report that Filebeat follows;
+# mask it so the monthly schedule above is the only audit run.
+if systemctl cat lynis.timer >/dev/null 2>&1; then
+  systemctl mask --now lynis.timer >/dev/null
+fi
 systemctl enable --now swirl-cloud-lynis.timer >/dev/null
 echo "Lynis timer configured for the 15th of every month at 03:00 local time."

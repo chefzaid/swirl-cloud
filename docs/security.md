@@ -64,7 +64,8 @@ script owns ban periods, authentication-log retention and rules. Follow
 
 ## Host audits
 
-Control planes run `swirl-cloud-lynis.timer`. Check its next run and inspect the
+Control planes run `swirl-cloud-lynis.timer` monthly; the distro's daily
+`lynis.timer` is masked so it cannot overwrite the shared report. Check its next run and inspect the
 root-only reports under `/var/log/lynis-reports`; the latest report is
 `/var/log/lynis-report.dat`. Schedule and archive retention are maintained in
 [configure-lynis-schedule.sh](../scripts/configure-lynis-schedule.sh).
