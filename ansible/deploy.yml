@@ -878,7 +878,7 @@
       changed_when: "'created' in platform_apply.stdout or 'configured' in platform_apply.stdout"
       when: platform_services_enabled
 
-    - name: Reconcile system security image overrides after registry credentials
+    - name: Reconcile hardened system controller templates
       ansible.builtin.command: "{{ repository_root }}/scripts/reconcile-system-hardening.sh"
       when: platform_services_enabled
 
