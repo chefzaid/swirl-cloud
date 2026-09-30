@@ -71,7 +71,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Nine retained safety suites in `tests/` (K3s backups, PostgreSQL HA, Kafka HA, Vault unseal, Vault HA, node fencing, application clusters, application data, environment onboarding).
 - [x] Documentation follows the shared application-repository layout ([ADR 0001](docs/adr/0001-documentation-structure.md)): `features`, `architecture` (overview + ADR index), `data-model`, `development`, `testing`, `code-quality`, `deployment`, `operations`, `security`, `dns`, plus eight procedures under `docs/guides/`; Mermaid topology and delivery diagrams.
 - [x] 24 ADRs in `docs/adr/` reconstructed from the Git history, including three superseded decisions (ingress-nginx, Jenkins/Nexus, private rebuilt images).
-- [ ] Rename the Ansible task "Reconcile system security image overrides after registry credentials" in `ansible/deploy.yml`; private image overrides were retired in Chart 2.
+- [x] The Ansible hardening step is named "Reconcile hardened system controller templates"; private image overrides were retired in Chart 2.
 - [ ] Reconcile the Elasticsearch ILM policy name `swirl-cloud-logs-7d` with its actual delete phase (`min_age: 1d`) and the retention decision in §26; migrate existing index/template references without dropping retained logs.
 
 ### 2. Installer (`install-control-plane.sh`)
