@@ -1383,7 +1383,10 @@ if [[ "$CONTROL_PLANE_SCHEDULABLE" == "true" ]]; then
 else
     echo "  Control plane: controller-only (NoSchedule)"
 fi
-echo "  Longhorn replicas: $((PLANNED_WORKER_COUNT > 0 ? PLANNED_WORKER_COUNT : 1))"
+# Report the reconciled policy, which accounts for HA mode, not a local estimate.
+longhorn_replicas="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found \
+    -o jsonpath='{.data.longhornReplicaCount}' 2>/dev/null || true)"
+echo "  Longhorn replicas: ${longhorn_replicas:-not recorded in infra/swirl-cloud-topology}"
 echo ""
 echo "Installed versions:"
 command -v java >/dev/null 2>&1 && echo "  Java: $(java -version 2>&1 | head -1)"
