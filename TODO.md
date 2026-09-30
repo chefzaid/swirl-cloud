@@ -147,7 +147,7 @@ not separate implementations. Close operational items only with a dated result
 
 ### 6. Kubernetes security baseline and admission
 
-- [x] Namespaces: `infra`, `apps`, `corp`, `gitlab-runners`, `longhorn-system`, `kube-system`, plus registered `apps-int`/`apps-uat`/`apps-prod`. *(live)*
+- [x] Namespaces: `infra`, `apps`, `corp`, `gitlab-runners`, `longhorn-system`, `kube-system`, plus registered `apps-int`/`apps-uat`; local `prod` shares `apps`. *(live)*
 - [x] Pod Security Admission: `apps`, `corp`, `gitlab-runners` and environment namespaces enforce `baseline` and audit/warn `restricted` (v1.36).
 - [x] `ValidatingAdmissionPolicy deny-hostpath-on-isolated-namespaces` bound by the `security.<domain>/deny-hostpath` label.
 - [x] Cluster-wide `deny-gitrepo-volumes` (CVE-2025-1767).
@@ -495,7 +495,7 @@ sizes below are starting points to validate, not automatic allocations.
 - [ ] Elasticsearch heap and volume (10 Gi → 50 Gi+); container log retention from about 3 days to 7–14 days; keep Lynis at 365 days.
 - [ ] Prometheus retention from 15 d / 1 500 MB to about 30 d / 20 GB; GitLab embedded Prometheus from 1 d to 7 d.
 - [ ] Keycloak, SonarQube, Argo CD controller (`GOMEMLIMIT` with its limit), repo server, Trivy scan concurrency (2 → 4), Grafana.
-- [ ] Raise `apps-int`/`apps-uat`/`apps-prod` ResourceQuotas.
+- [ ] Raise `apps-int`/`apps-uat` ResourceQuotas.
 - [ ] Keep maintenance headroom on the node root filesystem: alert before the kubelet image-GC (85 %) and ephemeral-storage eviction thresholds, and require about 30 GB free before maintenance. On 2026-09-28 a GitLab backup, its host copy and pinned recovery images triggered pod evictions. Store recovery archives off the root filesystem (§16).
 - [ ] Review CI artifact expiry per application and keep registry retention with garbage collection (§12).
 

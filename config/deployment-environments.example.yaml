@@ -31,6 +31,6 @@ environments:
     podCIDR: 10.42.0.0/16
   prod:
     mode: local
-    namespace: apps-prod
+    namespace: apps
     ingressAddress: 203.0.113.10
     podCIDR: 10.42.0.0/16

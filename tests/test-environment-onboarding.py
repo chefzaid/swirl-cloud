@@ -128,7 +128,7 @@ class OnboardingTests(unittest.TestCase):
         for env in ("int", "uat", "prod"):
             with manager.target_kubeconfig(env) as path:
                 config = json.loads(Path(path).read_text())
-            self.assertEqual(config["contexts"][0]["context"]["namespace"], "apps-" + env)
+            self.assertEqual(config["contexts"][0]["context"]["namespace"], "apps" if env == "prod" else "apps-" + env)
             self.assertEqual(config["clusters"][0]["cluster"]["server"], "https://127.0.0.1:6443")
             self.assertEqual(config["users"][0]["user"], {"token": "fixture-token"})
         self.platform.registration_type = "cluster"
@@ -392,10 +392,10 @@ class DeliveryBoundaryTests(unittest.TestCase):
         self.assertIn('object.spec.destination.name == "in-cluster"', expression)
         self.assertIn('object.spec.destination.namespace == "apps-int"', expression)
         self.assertNotIn("apps-uat", expression)
-        self.assertNotIn("apps-prod", expression)
+        self.assertNotIn('"apps"', expression)
         release = next(item for item in policies if item["metadata"]["name"].endswith("-release"))
-        for env in ("int", "uat", "prod"):
-            self.assertIn('object.spec.destination.namespace == "apps-' + env + '"', release["spec"]["validations"][0]["expression"])
+        for env, namespace in (("int", "apps-int"), ("uat", "apps-uat"), ("prod", "apps")):
+            self.assertIn('object.spec.destination.namespace == "' + namespace + '"', release["spec"]["validations"][0]["expression"])
 
     def test_runners_have_fixed_accounts_and_no_shared_writable_cache(self):
         import tomllib

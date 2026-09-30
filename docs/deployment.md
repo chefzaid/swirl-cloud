@@ -350,15 +350,17 @@ networking; `mode: remote` requires a separate cluster and Tailscale connectivit
 | --- | --- | --- |
 | `int` | `apps-int` | `demo-int.example.com` |
 | `uat` | `apps-uat` | `demo-uat.example.com` |
-| `prod` | `apps-prod` | `demo.example.com` |
+| `prod` | `apps` | `demo.example.com` |
 
-Each local environment has a distinct namespace, restricted Argo project, Vault
-store, network rules and resource quota. In suffix mode, application ingress uses
+Local `int` and `uat` each get a dedicated namespace, restricted Argo project,
+Vault store, network rules and resource quota. Local `prod` runs in the shared
+`apps` namespace next to single-environment applications: it gets its restricted
+Argo project and Vault store, while quotas, network and admission rules there stay
+platform-owned and each application ships its own ingress NetworkPolicy. In suffix mode, application ingress uses
 the shared Traefik certificate kept in `infra`; branch workloads never receive
 its private key. Set `resourceQuota` in its inventory
 entry to fit available capacity. Environments on the same cluster share its
 outages, upgrades and underlying resources; quotas limit application consumption.
-The legacy `apps` namespace keeps existing deployments until an explicit cutover.
 
 `platform.hostnameStyle: suffix` produces the hostnames above and uses ordinary
 base-domain wildcard certificate coverage. `nested` produces

@@ -44,7 +44,7 @@ class ApplicationClusterSafety(unittest.TestCase):
         inventory = self.local_inventory()
         for env, target in inventory["environments"].items():
             self.assertEqual(target["server"], "https://kubernetes.default.svc")
-            self.assertEqual(target["namespace"], "apps-" + env)
+            self.assertEqual(target["namespace"], "apps" if env == "prod" else "apps-" + env)
             self.assertEqual(target["secretStoreName"], "vault-backend-" + env)
             registration.identity_guard(self.platform, self.platform, env, {"prod": self.platform}, mode="local")
         with self.assertRaises(ValueError):
@@ -106,8 +106,33 @@ class ApplicationClusterSafety(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_inventory(inventory)
 
+    def test_shared_prod_namespace_leaves_cotenant_boundaries_to_the_platform(self):
+        inventory = self.local_inventory()
+        context = environment_context(inventory, "prod")
+        self.assertTrue(context["sharedNamespace"])
+        self.assertEqual(registration.namespace_foundation(context), [{"apiVersion": "v1", "kind": "Namespace",
+            "metadata": {"name": "apps", "labels": {"swirl-cloud.io/application-environment": "prod"}}}])
+        project = registration.argo_project(context, "example.com")["spec"]
+        self.assertEqual(project["destinations"], [{"server": "https://kubernetes.default.svc", "namespace": "apps"}])
+        self.assertNotIn({"group": "networking.k8s.io", "kind": "NetworkPolicy"}, project["namespaceResourceBlacklist"])
+        self.assertIn({"group": "", "kind": "ResourceQuota"}, project["namespaceResourceBlacklist"])
+        role = next(r for r in registration.argo_rbac(context) if r["kind"] == "Role")
+        self.assertTrue(any("networkpolicies" in rule["resources"] for rule in role["rules"]))
+        store = next(r for r in registration.vault_foundation(context, effective_services(inventory, "prod")) if r["kind"] == "ClusterSecretStore")
+        self.assertEqual(store["spec"]["conditions"], [{"namespaces": ["apps"]}])
+        inventory["environments"]["prod"]["resourceQuota"] = {"pods": "4"}
+        with self.assertRaisesRegex(ValueError, "no environment quota"):
+            validate_inventory(inventory)
+        for env in ("int", "uat"):
+            inventory = self.local_inventory()
+            inventory["environments"][env]["namespace"] = "apps"
+            with self.assertRaisesRegex(ValueError, "Only local prod"):
+                validate_inventory(inventory)
+
     def test_environment_ingress_and_service_policies_fail_closed(self):
-        context = environment_context(self.local_inventory(), "prod")
+        inventory = self.local_inventory()
+        inventory["environments"]["prod"]["namespace"] = "apps-prod"
+        context = environment_context(validate_inventory(inventory), "prod")
         ingress = registration.ingress_boundary(context)
         self.assertEqual(ingress[0]["spec"]["failurePolicy"], "Fail")
         expression = ingress[0]["spec"]["validations"][0]["expression"]
@@ -156,6 +181,33 @@ class ApplicationClusterSafety(unittest.TestCase):
         self.assertFalse(any(r["kind"] == "Namespace" and r["metadata"]["name"] == "infra" for r in applied))
         self.assertFalse(any(r["kind"] == "ClusterSecretStore" and r["metadata"]["name"] == "vault-backend" for r in applied))
         self.assertTrue(any(r["kind"] == "RoleBinding" and r["metadata"]["name"] == "application-observability-reader" for r in applied))
+
+    def test_shared_prod_registration_applies_no_namespace_wide_policy(self):
+        inventory = self.local_inventory()
+        context = environment_context(inventory, "prod")
+        args = SimpleNamespace(environment="prod", config="inventory.yaml", tls_cert="existing.pem", tls_key="existing.key",
+            vault_ca=None, vault_token_file="private-token", rotate_argocd_token=False)
+        platform, target = Mock(), Mock()
+        platform.path = target.path = "/private/platform.yaml"
+        platform.get.return_value = None
+        def target_get(kind, name=None, namespace=None, **kwargs):
+            if kind == "nodes":
+                return {"items": [{"spec": {"podCIDRs": ["10.42.0.0/24"]}, "status": {"conditions": [{"type": "Ready", "status": "True"}]}}]}
+            if kind == "secret":
+                return {"data": {"token": "c2NvcGVkLXRva2Vu"}}
+            return {}
+        target.get.side_effect = target_get
+        identity = {**self.platform, "server": "https://127.0.0.1:6443", "caData": "Y2E="}
+        with patch.object(registration, "run"), patch.object(registration, "private_token_file", return_value="private"), \
+                patch.object(registration, "configure_vault"), patch.object(registration, "tls_secret"), \
+                patch.object(registration, "probe"), patch.object(registration, "publish_registration") as publish, \
+                patch.object(Path, "read_text", return_value="certificate"):
+            registration.register_local(args, inventory, context, platform, target, identity)
+            self.assertEqual(publish.call_args.args[4]["environments"]["prod"]["namespace"], "apps")
+        applied = [resource for call in target.apply.call_args_list for resource in (call.args[0] if isinstance(call.args[0], list) else [call.args[0]])]
+        kinds = {r["kind"] for r in applied}
+        self.assertTrue(kinds.isdisjoint({"ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding", "ResourceQuota", "LimitRange", "NetworkPolicy"}))
+        self.assertIn({"kind": "Role", "namespace": "apps"}, [{"kind": r["kind"], "namespace": r["metadata"].get("namespace")} for r in applied])
 
     def test_suffix_hostnames_preserve_one_wildcard_certificate_and_environment_boundaries(self):
         inventory = load_inventory(ROOT / "config/deployment-environments.example.yaml")

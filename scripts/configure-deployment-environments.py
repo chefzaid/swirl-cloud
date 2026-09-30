@@ -115,6 +115,9 @@ def identity_guard(platform, target, environment, registered, *, mode="remote"):
 
 def namespace_foundation(context):
     name = context["namespace"]
+    if context.get("sharedNamespace"):
+        # The platform owns apps and its co-tenants' boundaries; only mark it as prod.
+        return [{"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": name, "labels": {LABEL: context["environment"]}}}]
     namespace = object_("Namespace", name)
     namespace["metadata"]["labels"].update({LABEL: context["environment"],
         "swirl-cloud.io/application-workloads": "true",
@@ -222,7 +225,8 @@ def argo_rbac(context=None):
     context = context or {"namespace": "apps"}
     namespace = context["namespace"]
     name = "platform-argocd" + ("-" + context["environment"] if "environment" in context else "")
-    rules = [{**rule, "resources": [resource for resource in rule["resources"] if not (context.get("mode") == "local" and resource == "networkpolicies")],
+    isolated = context.get("mode") == "local" and not context.get("sharedNamespace")
+    rules = [{**rule, "resources": [resource for resource in rule["resources"] if not (isolated and resource == "networkpolicies")],
               "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]} for rule in RESOURCES]
     subject = [{"kind": "ServiceAccount", "name": name, "namespace": "infra"}]
     return [object_("ServiceAccount", name, namespace="infra", automountServiceAccountToken=False),
@@ -286,7 +290,9 @@ def argo_project(context, platform_domain, internal_domain=None):
             {"group": "external-secrets.io", "kind": "SecretStore"},
             {"group": "external-secrets.io", "kind": "PushSecret"},
             *[{"group": "traefik.io", "kind": kind} for kind in ("IngressRoute", "IngressRouteTCP", "IngressRouteUDP", "TLSStore", "TLSOption", "TraefikService")],
-            *([{ "group": "", "kind": kind} for kind in ("ResourceQuota", "LimitRange", "Endpoints")] + [{"group": "discovery.k8s.io", "kind": "EndpointSlice"}, {"group": "networking.k8s.io", "kind": "NetworkPolicy"}] if context.get("mode") == "local" else [])],
+            *([{ "group": "", "kind": kind} for kind in ("ResourceQuota", "LimitRange", "Endpoints")] + [{"group": "discovery.k8s.io", "kind": "EndpointSlice"}] if context.get("mode") == "local" else []),
+            # In the shared namespace each application ships its own ingress allowance, as its co-tenants do.
+            *([{"group": "networking.k8s.io", "kind": "NetworkPolicy"}] if context.get("mode") == "local" and not context.get("sharedNamespace") else [])],
         "orphanedResources": {"warn": True}})
 
 
@@ -576,9 +582,11 @@ def register_local(args, inventory, context, platform, target, identity):
         context["gatewayPorts"] = [broker["port"] for broker in services["kafka"].get("brokers", [])]
     target.apply(namespace_foundation(context))
     target.apply(argo_rbac(context))
-    target.apply(ingress_boundary(context))
-    target.apply(service_boundary(context))
-    target.apply(middleware_boundary(context))
+    if not context["sharedNamespace"]:
+        # Namespace-wide admission rules would also bind the shared namespace's other applications.
+        target.apply(ingress_boundary(context))
+        target.apply(service_boundary(context))
+        target.apply(middleware_boundary(context))
     if bool(args.tls_cert) != bool(args.tls_key):
         raise ValueError("Supply both --tls-cert and --tls-key")
     if args.tls_cert:

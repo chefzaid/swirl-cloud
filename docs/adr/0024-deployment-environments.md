@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-24
-- Amended: 2026-09-26
+- Amended: 2026-09-26, 2026-09-30
 
 ## Context
 
@@ -14,9 +14,12 @@ still be unable to read one another's data, credentials or deployment targets.
 
 - Register each environment as a target with
   [`configure-deployment-environments.py`](../../scripts/configure-deployment-environments.py):
-  `mode: local` creates `apps-<env>` on the platform cluster with a restricted
-  AppProject, a dedicated Vault store and auth mount, network policies and a
-  ResourceQuota; `mode: remote` registers a separate K3s cluster bootstrapped by
+  `mode: local` creates `apps-int` and `apps-uat` on the platform cluster with a
+  restricted AppProject, a dedicated Vault store and auth mount, network policies
+  and a ResourceQuota. Local `prod` uses the shared `apps` namespace with its own
+  AppProject, Vault store and auth mount; that namespace's network, quota and
+  admission rules stay platform-owned because other applications share it.
+  `mode: remote` registers a separate K3s cluster bootstrapped by
   `install-application-cluster.sh` and reached over Tailscale.
 - Publish only verified targets in `infra/deployment-environments`; CI reads that
   public inventory and rejects missing targets or changed bindings.
@@ -35,7 +38,9 @@ isolation without duplicating platform services.
 
 ## Consequences
 
-Local environments share the cluster's outages and capacity. Redis key names are
+Local environments share the cluster's outages and capacity. Local `prod` has no
+environment quota and shares its namespace, and so its ingress boundary, with the
+single-environment applications. Redis key names are
 visible across environments through `KEYS`/`SCAN`. Remote clusters lack central
 telemetry and support one control plane per target. Legacy `apps` workloads keep
 anonymous access until migrated.

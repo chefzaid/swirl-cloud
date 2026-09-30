@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import yaml
 
 ENVIRONMENTS = {"int": "testing", "uat": "staging", "prod": "production"}
+SHARED_NAMESPACE = "apps"
 LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z")
 DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\Z")
 
@@ -196,10 +197,14 @@ def validate_inventory(document, *, allow_partial=False):
             if value in seen and not (local and seen[value] == "local"):
                 raise InventoryError("Remote targets require distinct cluster names and API endpoints")
             seen[value] = mode
-        namespace = target.setdefault("namespace", "apps-" + environment if local else "apps")
+        namespace = target.setdefault("namespace", SHARED_NAMESPACE if environment == "prod" or not local else "apps-" + environment)
         if (not isinstance(namespace, str) or not LABEL.fullmatch(namespace) or namespace in {"default", "infra", "corp", "gitlab-runners"}
-                or namespace.startswith("kube-") or (local and namespace == "apps")):
-            raise InventoryError("Use a dedicated application namespace; platform and legacy namespaces are reserved")
+                or namespace.startswith("kube-")):
+            raise InventoryError("Use an application namespace; platform namespaces are reserved")
+        if local and namespace == SHARED_NAMESPACE and environment != "prod":
+            raise InventoryError("Only local prod runs in the shared apps namespace; int and uat need dedicated namespaces")
+        if shared_namespace(target) and "resourceQuota" in target:
+            raise InventoryError("The shared apps namespace has no environment quota; remove prod resourceQuota")
         destination = (target["server"], namespace)
         if destination in destinations:
             raise InventoryError("Environments sharing a cluster require distinct namespaces")
@@ -273,6 +278,11 @@ def load_inventory(path, *, allow_partial=False):
         raise InventoryError("Deployment inventory must be plain YAML or JSON data") from None
 
 
+def shared_namespace(target):
+    """Local prod shares the platform-owned apps namespace with single-environment applications."""
+    return target.get("mode", "remote") == "local" and target.get("namespace") == SHARED_NAMESPACE
+
+
 def uses_central_tls(target):
     return target.get("mode", "remote") == "local" and target.get("hostnameStyle", "nested") == "suffix"
 
@@ -296,7 +306,8 @@ def environment_context(inventory, name):
         raise InventoryError("The selected deployment environment is not registered")
     return {**inventory["environments"][name], "environment": name, "tier": ENVIRONMENTS[name],
             "project": "applications-" + name, "vaultMount": "kubernetes-" + name,
-            "centralTLS": uses_central_tls(inventory["environments"][name])}
+            "centralTLS": uses_central_tls(inventory["environments"][name]),
+            "sharedNamespace": shared_namespace(inventory["environments"][name])}
 
 
 def inventory_json(inventory):
