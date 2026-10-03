@@ -675,6 +675,90 @@ data:
             annotations:
               summary: Kubernetes Job failed
               description: '{{ $labels.namespace }}/{{ $labels.job_name }} has a failed execution.'
+      - name: swirl-cloud.platform
+        rules:
+          - alert: KubernetesNodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Kubernetes node is not Ready
+              description: 'Node {{ $labels.node }} has not reported Ready for five minutes.'
+          - alert: VaultSealed
+            expr: vault_core_unsealed == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: Vault is sealed
+              description: 'Vault pod {{ $labels.pod }} is sealed; secrets cannot be read until it is unsealed.'
+          # Vault refuses requests once no audit device can record them.
+          - alert: VaultAuditDeviceFailing
+            expr: increase(vault_audit_log_request_failure[10m]) > 0 or increase(vault_audit_log_response_failure[10m]) > 0
+            labels:
+              severity: critical
+            annotations:
+              summary: Vault audit device is failing
+              description: 'Vault pod {{ $labels.pod }} failed to write audit entries in the last ten minutes.'
+          # Longhorn exports one series per robustness state, set to 1 for the current state.
+          - alert: LonghornVolumeDegraded
+            expr: longhorn_volume_robustness{state="degraded"} == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Longhorn volume is degraded
+              description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) is missing healthy replicas or still rebuilding.'
+          - alert: LonghornVolumeFaulted
+            expr: longhorn_volume_robustness{state="faulted"} == 1
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: Longhorn volume is faulted
+              description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) has no usable replica.'
+          - alert: DatastoreDown
+            expr: pg_up == 0 or cnpg_collector_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Shared datastore is unavailable
+              description: '{{ $labels.job }} exporter on {{ $labels.pod }} cannot reach its datastore.'
+          - alert: ArgoCDApplicationUnhealthy
+            expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Argo CD application is unhealthy
+              description: 'Application {{ $labels.name }} has been {{ $labels.health_status }} for fifteen minutes.'
+          - alert: ArgoCDApplicationOutOfSync
+            expr: argocd_app_info{sync_status="OutOfSync"} == 1
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: Argo CD application is out of sync
+              description: 'Application {{ $labels.name }} has not matched its Git revision for thirty minutes.'
+          # Traefik is scraped by two jobs; group by certificate identity.
+          - alert: TLSCertificateExpiringSoon
+            expr: (min by (cn, sans) (traefik_tls_certs_not_after) - time()) < 14 * 86400
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: TLS certificate expires within 14 days
+              description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
+          - alert: TLSCertificateExpiryCritical
+            expr: (min by (cn, sans) (traefik_tls_certs_not_after) - time()) < 3 * 86400
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: TLS certificate expires within 3 days
+              description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
       - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown

@@ -96,7 +96,10 @@ placement alone cannot instrument an app or configure its scanner.
 ### Platform health
 
 Prometheus alerts cover capacity, workload health, jobs, storage and scrape
-failures. Alertmanager sends firing and resolved events to the infrastructure
+failures, plus platform state: node NotReady, Vault sealed or failing audit
+writes, degraded or faulted Longhorn volumes, unavailable datastores, unhealthy or
+out-of-sync Argo CD applications and TLS certificates expiring within 14 days
+(critical within 3). Alertmanager sends firing and resolved events to the infrastructure
 project's **Monitor > Alerts** page in GitLab. GitLab and runner metrics appear
 in Grafana's **GitLab Delivery** dashboard.
 
