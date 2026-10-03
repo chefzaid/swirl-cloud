@@ -190,7 +190,7 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Activate and restore-test off-node Longhorn backups (§16). The 2026-09-27 audit found no daily backup job or configured `default` BackupTarget; repeat that check before declaring coverage.
 - [ ] Update `configure-k3s-backups.sh` to configure and verify the current BackupTarget resource instead of gating on legacy `settings.longhorn.io/backup-target`; its current branch can skip volume backups while host offsite backup succeeds. Use the supported [Longhorn backup-target configuration](https://longhorn.io/docs/1.12.1/snapshots-and-backups/backup-and-restore/set-backup-target/), report partial coverage as a failure, and restore a newly created volume from the target.
 - [x] Longhorn manager metrics are scraped (job `longhorn`) through the `longhorn-manager-metrics` NetworkPolicy.
-- [ ] No alerts for degraded/faulted volumes or replica rebuilds.
+- [x] `LonghornVolumeDegraded` (missing replicas or rebuilding, 15 min) and `LonghornVolumeFaulted` alerts. *(live)*
 - [x] Snapshot deletion cleanup was recorded complete on 2026-09-28 in `9e736db`; retain that resolution as history. Current snapshot health was not rechecked in this source review.
 - [ ] One volume (`gitlab-runners/gitlab-runner-cache`) reports robustness `unknown` while detached — expected, but confirm it is still used after the move to ephemeral project-runner caches.
 
@@ -206,7 +206,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] HA overlay: three Raft voters on three control planes, per-pod audit PVCs, `OnDelete` updates, `configure-vault-ha.sh --verify`, guarded singleton migration with snapshot and archived controller.
 - [x] Local administrator password rotation (`rotate-local-admin-passwords.sh`) for PostgreSQL, MongoDB, GitLab, Grafana, Keycloak, Portainer, SonarQube and Elasticsearch, persisted in Vault.
 - [x] Vault telemetry is enabled (unauthenticated listener metrics) and scraped (job `vault`). Existing pods pick it up only after a restart.
-- [ ] No "Vault sealed" or "audit device failing" alert.
+- [x] `VaultSealed` and `VaultAuditDeviceFailing` alerts. *(live)*
 - [ ] The unseal key and the root/bootstrap token sit on the same host as the data, and both are copied into every local backup archive (see §16).
 - [ ] Vault HA has never been exercised (single node).
 
@@ -226,7 +226,7 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Generate and persist a Kafka cluster ID on new installations; reuse the recorded ID on reruns and migrations. Never replace the hard-coded ID on an existing data directory.
 - [ ] Decide whether Redis key-name visibility through `KEYS`/`SCAN` is acceptable for shared environments; document the boundary or use separate instances where metadata isolation is required.
 - [x] Datastore exporters: PostgreSQL, MongoDB and Redis sidecars (including shared Redis HA), CloudNativePG's built-in endpoint, and a Kafka exporter Deployment (jobs `postgres`, `mongodb`, `redis`, `kafka`).
-- [ ] No datastore health alerts.
+- [x] `DatastoreDown` alerts when the PostgreSQL (including CloudNativePG), MongoDB, Redis or Kafka exporter cannot reach its datastore. *(live)*
 - [ ] PostgreSQL/Kafka HA migrations have only been tested offline and against an isolated SQL canary; no three-host rehearsal.
 
 ### 11. Identity and SSO (Keycloak + OAuth2 Proxy)
@@ -287,7 +287,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] Trivy Operator 0.34.0 with built-in Trivy server (offline DB, 5 Gi), scans of ReplicaSets/StatefulSets/DaemonSets/CronJobs/standalone pods, config/RBAC/exposed-secret/infra reports, CIS 1.23, NSA 1.0, PSS baseline/restricted compliance every 6 h, detailed metrics, Grafana "Trivy Security Reports".
 - [x] SonarQube 26.8 Community with dark theme, SSO, scanner `/api` path, GitLab ALM binding; `sonar-apps-discovery` CronJob (every 15 min) provisions projects, private visibility, protected masked `SONAR_TOKEN`, 24 h freshness, one pipeline per pass, 6 h retry back-off.
 - [ ] Alerts go only to GitLab's alert list; there is no email, chat or paging receiver.
-- [ ] Missing alerts: node NotReady, K3s/Vault/Longhorn backup failure (`swirl-cloud-k3s-backup.service` result), certificate expiry, Vault sealed, Longhorn volume degraded, Elasticsearch health, ExternalSecret not Ready, Argo CD app degraded, Trivy critical findings, CrowdSec/Fail2ban activity.
+- [x] Platform alerts: node NotReady, Vault sealed/audit failure, Longhorn degraded/faulted, datastore down, Argo CD application unhealthy or out of sync for 30 min, and TLS certificate expiry (14 days warning, 3 days critical). *(live)*
+- [ ] Missing alerts that need a new metrics source: K3s/Vault/Longhorn backup failure (`swirl-cloud-k3s-backup.service` result), Elasticsearch health and ExternalSecret not Ready (both unscraped, see below), Trivy critical findings (needs an agreed baseline so known findings do not fire permanently) and CrowdSec/Fail2ban activity.
 - [x] Scraped: Traefik, Vault, Argo CD, Longhorn, PostgreSQL, MongoDB, Redis and Kafka.
 - [ ] Not scraped: cloudflared, Elasticsearch, External Secrets.
 - [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
