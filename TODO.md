@@ -418,7 +418,7 @@ and availability of a compatible upstream image must be checked separately.
 - [ ] MongoDB tools, Node helper, Homepage and DBGate — distinguish reachable runtime vulnerabilities from bundled build/tooling packages, then select upstream fixes or record time-bounded exceptions.
 - [ ] PostgreSQL/DBGate Debian-library findings — check distro security status/backports and affected functionality; document accepted findings with evidence instead of assuming all Perl, XML, SQLite or zlib reports are harmless.
 - [ ] Triage the historical GitLab exposed-secret findings; distinguish fixtures from usable credentials, rotate any real credentials, and narrowly scope exceptions with evidence and expiry.
-- [ ] Expire stale reports for retired owners (for example `swirlit/swirl-cloud/security/gitlab`).
+- [x] No stale reports for retired owners remain: all Trivy Operator reports carry owner references and Kubernetes garbage-collects them with their workloads; none reference the retired `security/` images. *(live, 2026-10-03)*
 - [ ] Scan platform artifacts too: the vendored charts in `k8s/charts/`, the CI Alpine image and pinned GitHub Actions, as a non-blocking CI report.
 - [ ] Hand application image findings to the owning repositories.
 
