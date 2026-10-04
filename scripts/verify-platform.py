@@ -229,6 +229,19 @@ def check_disk(report):
                "(maintenance needs about 30 GiB; kubelet image GC starts at 85 %)")
 
 
+def check_audit(report):
+    if subprocess.run(["systemctl", "cat", "k3s.service"], capture_output=True).returncode:
+        return
+    result = subprocess.run([str(ROOT / "scripts/configure-k3s-audit.sh"), "--check"], capture_output=True, text=True,
+                            stdin=subprocess.DEVNULL, timeout=30)
+    state = result.stdout.strip()
+    report.add(PASS if state == "active" else WARN, "API audit log", {
+        "active": "Kubernetes API audit events are being written",
+        "pending-restart": "configured; starts at the next K3s restart (./install.sh > Maintenance)",
+        "configured": "configured but not writing; check: sudo journalctl -u k3s",
+        "missing": "not configured; rerun the installer or scripts/configure-k3s-audit.sh"}.get(state, "unknown (needs passwordless sudo)"))
+
+
 def check_backup(report, max_age_hours):
     if BACKUP_METRICS.exists():
         text = BACKUP_METRICS.read_text()
@@ -268,6 +281,7 @@ def main():
         except (RuntimeError, subprocess.SubprocessError, KeyError, ValueError) as error:
             report.add(FAIL, check.__name__.removeprefix("check_").replace("_", " ").title(), f"check failed: {error}")
     check_disk(report)
+    check_audit(report)
     check_backup(report, args.backup_max_age_hours)
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,

@@ -380,6 +380,7 @@ def maintenance(dialog, values):
             choice = dialog.menu("Maintenance", [
                 ("backup", "Run the recovery backup now"),
                 ("unseal", "Unseal Vault now"),
+                ("audit-log", "Apply Kubernetes API audit logging now (restarts K3s)"),
                 ("rotate", "Rotate local infrastructure administrator passwords"),
                 ("audit", "Audit cluster hosts with Lynis"),
                 ("dry-run", "Validate rendered profiles against the API server"),
@@ -394,6 +395,11 @@ def maintenance(dialog, values):
                 continue
             code, _ = run_logged(f"Start {unit}", ["sudo", "systemctl", "start", unit])
             dialog.message(f"{unit} finished with exit code {code}.\n\n{journal(unit)}")
+        elif choice == "audit-log":
+            if dialog.yes_no("Install the API audit policy and restart K3s if needed?\n\nThe Kubernetes API is "
+                             "unavailable for about a minute; running workloads keep running. Prefer a maintenance "
+                             "window on single-server clusters.", False, "Restart K3s", "Cancel"):
+                run_logged("API audit logging", [str(ROOT / "scripts/configure-k3s-audit.sh"), "--restart"])
         elif choice == "rotate":
             if not dialog.yes_no("Rotate the local administrator passwords of PostgreSQL, MongoDB, Grafana, "
                                  "Keycloak, GitLab, SonarQube and the other local superusers, and store them in "

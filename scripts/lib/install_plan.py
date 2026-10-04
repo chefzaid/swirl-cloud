@@ -131,6 +131,16 @@ def plan(root, values, state_dir):
         detail = f"{len(status) - len(missing)}/{len(status)} ready" + (": not ready " + ", ".join(missing) if missing and state == FAILED else "")
         rows.append((name, state, detail, "reconcile" if component is None or selected(values, component) else "skip"))
 
+    if k3s:
+        code, output = run(str(Path(root) / "scripts/configure-k3s-audit.sh"), "--check")
+        audit = output.strip() or "unknown"
+        rows.append(("API audit logging", {"active": INSTALLED, "missing": MISSING}.get(audit, DRIFT),
+                     {"active": "writing /var/lib/rancher/k3s/server/logs/audit.log",
+                      "pending-restart": "configured; starts at the next K3s restart",
+                      "configured": "configured; not writing yet",
+                      "missing": "not configured"}.get(audit, "state unknown (needs passwordless sudo to read)"),
+                     "configure (restart from Maintenance)" if audit != "active" else "keep"))
+
     exposure = values.get("SERVER_EXPOSURE") or "internet"
     cloudflare = flag(values, "CONFIGURE_CLOUDFLARE", "true" if exposure == "internet" else "false")
     rows.append(("Cloudflare DNS, TLS, Access", INSTALLED if cloudflare else SKIPPED,

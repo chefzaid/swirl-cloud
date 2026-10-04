@@ -129,6 +129,28 @@ same test still appear. Change the policy in
 [configure-node-security.sh](../scripts/configure-node-security.sh), never by
 editing the profile on a host.
 
+## Kubernetes API audit log
+
+[`configure-k3s-audit.sh`](../scripts/configure-k3s-audit.sh) installs the
+[audit policy](../config/host/k3s-audit-policy.yaml) and the K3s drop-in
+`/etc/rancher/k3s/config.yaml.d/40-swirl-cloud-api-audit.yaml`. Each K3s server
+then writes `/var/lib/rancher/k3s/server/logs/audit.log` (root only, rotated at
+100 MB, 10 files, 30 days). Events record who changed which object and every read
+of Secrets, ConfigMaps and service-account tokens, at `Metadata` level only:
+request and response bodies, and therefore secret values, are never logged.
+Health probes, leases, events, node reads and routine service-account reads are
+dropped.
+
+The installer configures it before installing K3s, so new servers audit from the
+start. On an existing server the drop-in takes effect at the next K3s restart; to
+apply it now, use **Maintenance → Apply Kubernetes API audit logging** in
+`./install.sh` or run `scripts/configure-k3s-audit.sh --restart`. The API is
+unavailable for about a minute while K3s restarts; running workloads continue.
+`./install.sh --status` and the rerun plan report whether auditing is active.
+Search the log with `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
+Additional control planes are not configured yet, and the log stays on the host;
+shipping it to Elasticsearch is a follow-up.
+
 ## Vulnerability triage
 
 Trivy Operator keeps one report per running image digest. List critical findings

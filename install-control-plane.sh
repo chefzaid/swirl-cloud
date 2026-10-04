@@ -1114,6 +1114,9 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
         "$K3S_HA_SCRIPT"
     fi
 
+    step "Configuring Kubernetes API audit logging..."
+    "$SCRIPT_DIR/scripts/configure-k3s-audit.sh"
+
     if [[ "$INSTALL_K3S" == "true" ]]; then
         info "Installing K3s with bundled ingress disabled; the shared Helm release owns Traefik..."
         download_installer https://get.k3s.io k3s-install.sh k3s_installer

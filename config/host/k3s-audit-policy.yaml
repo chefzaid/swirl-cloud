@@ -1,0 +1,37 @@
+# Kubernetes API audit policy installed by scripts/configure-k3s-audit.sh.
+# Records who did what to which object, never request or response bodies, so
+# Secret values, tokens and ConfigMap data stay out of the audit log.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  # High-volume, low-value traffic.
+  - level: None
+    nonResourceURLs: ["/healthz*", "/livez*", "/readyz*", "/version", "/metrics", "/openapi*"]
+  - level: None
+    resources:
+      - group: coordination.k8s.io
+        resources: ["leases"]
+      - group: ""
+        resources: ["events"]
+      - group: events.k8s.io
+        resources: ["events"]
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    users: ["system:kube-proxy", "system:kube-scheduler", "system:kube-controller-manager", "system:apiserver"]
+    verbs: ["get", "list", "watch"]
+  # Reads of credentials are always recorded (metadata only).
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps", "serviceaccounts/token"]
+      - group: authentication.k8s.io
+        resources: ["tokenreviews"]
+  # Other controller reads are routine; record every change and every human read.
+  - level: None
+    userGroups: ["system:serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  - level: Metadata

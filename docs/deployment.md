@@ -703,6 +703,7 @@ nonzero exit when a check fails. Run the same read-only report at any time:
 | Longhorn | a volume is `faulted` | a volume is `degraded` |
 | TLS secrets | a certificate in `infra`, `apps` or `corp` has expired | it expires within 30 days |
 | Public endpoints | an Ingress host answers 5xx or fails TLS | DNS does not resolve yet or the request times out |
+| API audit log | | auditing is configured but not yet active, or not configured |
 | Disk headroom | the K3s filesystem is 85 % used (kubelet image GC) | less than 30 GiB is free for maintenance |
 | Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric has been written yet |
 
