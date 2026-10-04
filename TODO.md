@@ -95,9 +95,9 @@ not separate implementations. Close operational items only with a dated result
 - [x] Final summary reports Longhorn replicas from `infra/swirl-cloud-topology`, so HA mode's three replicas show correctly.
 - [x] Final summary points Argo CD to Keycloak SSO (local `admin` is disabled) instead of `argocd-initial-admin-secret`.
 - [x] Final summary points GitLab to Keycloak SSO (linked to `root`) instead of `/etc/gitlab/initial_root_password`, and to Vault `secret/infra/gitlab:root_password`. Only `rotate-local-admin-passwords.sh` writes that field; a fresh install stores no local root password.
-- [ ] Separate runtime/bootstrap prerequisites from developer and validation tools. Remove unconditional Java 21, Maven, Docker and the `MAVEN_OPTS` shell-profile edit; retain Node only where repository validation needs it. Make developer tooling opt-in and keep fresh-host installation and validation documented (§23).
+- [x] System prerequisites are runtime and validation tools only (Ansible, storage clients, `jq`, `git`, Node.js from the distro for the validator's `node --check`, ShellCheck, SQLite). Java 21, Maven and Docker install only with `INSTALL_DEVELOPER_TOOLS=true`; the `MAVEN_OPTS` profile edit is gone. Existing hosts keep their packages.
 - [x] Helm is installed from the release pinned in `config/platform.env` (`DEFAULT_HELM_VERSION`, v3.22.0) after SHA-256 verification; the mutable `get-helm-3` script is no longer executed. *(validated with v3.22.0, 2026-10-04)*
-- [ ] Remove the NodeSource setup step with the developer bundle, or pin and verify it if retained.
+- [x] The NodeSource setup script is no longer executed; the distro `nodejs` package is used.
 
 ### 3. Ansible
 
