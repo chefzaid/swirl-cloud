@@ -11,6 +11,7 @@ fi
 source "$NETWORK_LIBRARY"
 
 APPLY=false
+HOST_BASELINE_ONLY=false
 RECONCILE_CONTROL_PLANE_SSH=false
 SERVER_EXPOSURE="${SERVER_EXPOSURE:-internet}"
 NODE_ROLE="${NODE_ROLE:-control-plane}"
@@ -32,11 +33,13 @@ usage() {
   echo "  --private-control-plane: private join-server policy, no public ingress"
   echo "  --control-plane-ssh-ips CSV: verified control-plane private IPs allowed to administer this node"
   echo "  --reconcile-control-plane-ssh: update only managed private SSH rules (requires --apply)"
+  echo "  --host-baseline: apply only the firewall-independent host baseline"
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply) APPLY=true ;;
+    --host-baseline) HOST_BASELINE_ONLY=true ;;
     --reconcile-control-plane-ssh) RECONCILE_CONTROL_PLANE_SSH=true ;;
     --control-plane-ssh-ips) shift; [[ $# -gt 0 ]] || { usage; exit 1; }; CONTROL_PLANE_SSH_IPS="$1" ;;
     --control-plane-ssh-ips=*) CONTROL_PLANE_SSH_IPS="${1#*=}" ;;
@@ -960,6 +963,24 @@ EOF
   sudo systemctl reload ssh
 }
 
+configure_login_banner() {
+  local path
+  for path in /etc/issue /etc/issue.net; do
+    backup_file_if_exists "$path"
+    write_root_file "$path" 0644 <<'EOF'
+Authorized access only. Activity on this system is monitored and recorded.
+Disconnect immediately if you are not an authorized user.
+EOF
+  done
+}
+
+# Role- and exposure-independent controls that never touch the firewall, SSH
+# daemon or Kubernetes networking, so they can be reconciled on a live host.
+configure_host_baseline() {
+  configure_login_banner
+  info "Host baseline applied."
+}
+
 disable_unused_rpcbind() {
   # NFSv4 clients do not require rpcbind. Keep it only when this node is
   # actively using an older NFS mount; otherwise close the unused listener.
@@ -1123,6 +1144,11 @@ NODE_ROLE="$(normalize_node_role "$NODE_ROLE")" || err "node role must be 'contr
 [[ "$HARDENED_SSH_PORT" =~ ^[0-9]+$ && "$HARDENED_SSH_PORT" -ge 1 && "$HARDENED_SSH_PORT" -le 65535 ]] || \
   err "SSH port must be an integer from 1 to 65535"
 
+if [[ "$HOST_BASELINE_ONLY" == "true" ]]; then
+  configure_host_baseline
+  exit 0
+fi
+
 if [[ "$APPLY" != "true" ]]; then
   info "Audit mode (no changes). Run with --apply to enforce rules."
   show_status
@@ -1169,6 +1195,7 @@ if (( current_map_count < 1048576 )); then
 fi
 printf 'vm.max_map_count=%s\n' "$current_map_count" | write_root_file /etc/sysctl.d/99-swirl-cloud-search.conf
 sudo sysctl -p /etc/sysctl.d/99-swirl-cloud-search.conf >/dev/null
+configure_host_baseline
 
 configure_tailscale_firewall_integration
 validate_worker_private_ssh_before_firewall

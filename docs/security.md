@@ -62,6 +62,15 @@ CrowdSec also detects slow brute-force and user-enumeration patterns. The shared
 script owns ban periods, authentication-log retention and rules. Follow
 [the private SSH preflight](guides/node-enrollment.md#private-node-network) before applying a node's firewall.
 
+Every node also receives a host baseline that never touches the firewall, SSH
+daemon or Kubernetes networking: a legal login banner in `/etc/issue` and
+`/etc/issue.net`. A full `--apply` includes it; to reconcile only the baseline
+on a live host without resetting UFW, run:
+
+```bash
+./scripts/configure-node-security.sh --host-baseline
+```
+
 ## Host audits
 
 Control planes run `swirl-cloud-lynis.timer` monthly; the distro's daily
