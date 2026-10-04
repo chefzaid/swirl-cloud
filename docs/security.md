@@ -73,6 +73,9 @@ Kernel settings in `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restrict kernel
 pointers, `dmesg`, unprivileged BPF, FIFO/regular-file creation in sticky
 directories and ICMP redirects. Forwarding, reverse-path filtering, module
 loading and SysRq stay at the values Kubernetes and console recovery need.
+The unused DCCP, RDS, SCTP and TIPC protocol modules cannot be loaded; a
+Service that needs SCTP must remove that entry first. USB storage remains
+available for remote-console recovery media.
 SSH session options (`ClientAliveInterval 300`, `ClientAliveCountMax 2`,
 `TCPKeepAlive no`, `MaxSessions 4`, `LogLevel VERBOSE`) are validated with
 `sshd -t` before a reload, which keeps existing sessions open. A full `--apply` includes it; to reconcile only the baseline

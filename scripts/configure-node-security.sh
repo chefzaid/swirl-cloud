@@ -1020,6 +1020,22 @@ EOF
   sudo sysctl -q -p /etc/sysctl.d/90-swirl-cloud-hardening.conf
 }
 
+# Lynis NETW-3200: rare protocols no platform workload or Service uses. USB
+# storage stays available because remote consoles attach recovery media as USB.
+configure_unused_protocol_modules() {
+  write_root_file /etc/modprobe.d/swirl-cloud-unused-protocols.conf <<'EOF'
+# Managed by scripts/configure-node-security.sh
+blacklist dccp
+install dccp /bin/false
+blacklist rds
+install rds /bin/false
+blacklist sctp
+install sctp /bin/false
+blacklist tipc
+install tipc /bin/false
+EOF
+}
+
 # Lynis SSH-7408 session options for every node. Client-alive probes detect dead
 # sessions instead of TCP keepalives; a reload keeps existing sessions open.
 configure_ssh_session_limits() {
@@ -1056,6 +1072,7 @@ configure_host_baseline() {
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_kernel_hardening
+  configure_unused_protocol_modules
   configure_ssh_session_limits
   info "Host baseline applied."
 }
