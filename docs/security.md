@@ -129,6 +129,39 @@ same test still appear. Change the policy in
 [configure-node-security.sh](../scripts/configure-node-security.sh), never by
 editing the profile on a host.
 
+## Vulnerability triage
+
+Trivy Operator keeps one report per running image digest. List critical findings
+by image, deduplicated across workloads:
+
+```bash
+kubectl get vulnerabilityreports -A -o json | jq -r '
+  [.items[] | {image: (.report.artifact.repository + ":" + (.report.artifact.tag // "")),
+    digest: .report.artifact.digest, crit: .report.summary.criticalCount}]
+  | unique_by(.digest) | sort_by(-.crit) | .[] | select(.crit > 0) | "\(.crit) \(.image)"'
+```
+
+To check a candidate image before an upgrade, scan it against the in-cluster
+Trivy server from a short-lived pod (`trivy image --server
+http://trivy-service.infra:4954 --severity CRITICAL <image>`), with small resource
+requests so it can schedule on a busy node.
+
+Triage of 2026-10-04 (critical findings only). Each exception expires on
+2026-11-04 and must be rechecked then. Reachability is assessed from the
+advisory scope and how the platform runs the component; it was not exploit-tested.
+
+| Image | Critical findings | Status |
+| --- | --- | --- |
+| Keycloak 26.7.4 | Netty SNI routing, FreeMarker path traversal, Bouncy Castle | Fixed upstream: 26.7.5 scans with no critical findings. Upgrade. |
+| Homepage v2.4.0 | Next.js `next/og` RCE, node-tar | Latest release; no fix yet. Behind Cloudflare Access and Keycloak. Exception. |
+| Argo CD v3.5.3 | Go `crypto/tls` (CVE-2025-68121) | Latest 3.5 patch; no fix yet. Exception. |
+| Elasticsearch, Kibana, Logstash 9.5.4 | Netty SNI routing; `piscina`; Bouncy Castle | Latest 9.5 patch. Netty SNI does not apply to the plain-HTTP in-cluster listeners. Exception. |
+| Kafka UI v1.5.0 | Netty SNI routing | Latest release; plain HTTP behind Traefik. Exception. |
+| GitLab CE 19.4.1 | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck the next 19.4 patch. |
+| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Tracked in TODO §21 with the Longhorn compatibility matrix. |
+| MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
+| PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. Moving PostgreSQL to a newer Debian base changes glibc collation and needs a reindex plan. Exception. |
+
 ## Administrator sign-in
 
 Normal browser access uses the administrator login selected during installation.
