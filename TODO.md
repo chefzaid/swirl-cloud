@@ -182,7 +182,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Application DNS ownership: apps declare hosts; onboarding publishes A records (direct) or tunnel CNAMEs (HA) and refuses conflicts.
 - [ ] HA tunnel ingress has never been activated or failover-tested (`swirl-cloud-public-ingress` does not exist live).
 - [x] Traefik metrics are scraped (job `traefik`, port 9100).
-- [ ] No ingress error-rate or latency dashboards.
+- [x] Grafana **Ingress Traffic** dashboard (request rate, 5xx ratio, p95 latency per service, status classes, open connections) and `IngressServiceErrorRateHigh` (> 5 % 5xx for 15 minutes with steady traffic). *(live, 2026-10-04: queries and rule healthy)*
 - [ ] No HSTS or security-header middleware at the origin; header policy relies entirely on Cloudflare and each app.
 - [ ] Traefik access logs are not enabled for security analysis (see §4).
 
