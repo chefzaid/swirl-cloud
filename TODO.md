@@ -520,7 +520,7 @@ sizes below are starting points to validate, not automatic allocations.
 - [ ] GitLab Runner: raise `concurrent` from 1 (for example 4–6) and per-job limits (CPU 2 → 4, memory 3 Gi → 6–8 Gi, ephemeral storage 4 Gi → 20 Gi); resize the cache.
 - [ ] PostgreSQL PVC 2 Gi → 20 Gi+ with tuned `shared_buffers` and `work_mem`; MongoDB and Kafka volumes accordingly.
 - [ ] Elasticsearch heap and volume (10 Gi → 50 Gi+); container log retention from about 3 days to 7–14 days; keep Lynis at 365 days.
-- [ ] Prometheus retention from 15 d / 1 500 MB to about 30 d / 20 GB; GitLab embedded Prometheus from 1 d to 7 d.
+- [ ] Prometheus retention from 15 d / 1 500 MB to about 30 d / 20 GB; GitLab embedded Prometheus from 1 d to 7 d. Measured 2026-10-04: the size cap leaves only about 12 h of history (oldest sample ~18:00 UTC the same day), which limits trend and baseline alerts; this node's 48 GiB free (30 GiB maintenance floor) cannot absorb 20 GB, so it waits for the new servers.
 - [ ] Keycloak, SonarQube, Argo CD controller (`GOMEMLIMIT` with its limit), repo server, Trivy scan concurrency (2 → 4), Grafana.
 - [ ] Raise `apps-int`/`apps-uat` ResourceQuotas.
 - [ ] Keep maintenance headroom on the node root filesystem (alert `NodeMaintenanceHeadroomLow` below 30 GiB and a `--status` disk check added 2026-10-04; archives still on the root filesystem): alert before the kubelet image-GC (85 %) and ephemeral-storage eviction thresholds, and require about 30 GB free before maintenance. On 2026-09-28 a GitLab backup, its host copy and pinned recovery images triggered pod evictions. Store recovery archives off the root filesystem (§16).
