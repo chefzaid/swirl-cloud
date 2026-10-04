@@ -387,7 +387,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [ ] **USB-1000:** `usb-storage` stays enabled because remote consoles attach recovery media as USB. Blacklist it only on hosts whose console recovery is proven not to need it, and record that as an accepted Lynis finding (§20 profile).
 - [x] **PKGS-7346:** the host baseline purges configuration left by removed kernel packages (30 on this host); the remaining `keyboxd`, `libpython3.12-minimal` and `pollinate` leftovers were purged once by hand. No `rc` packages remain. *(live, 2026-10-04)*
 - [x] **KRNL-6000:** `/etc/sysctl.d/90-swirl-cloud-hardening.conf` sets `kptr_restrict=2`, `dmesg_restrict=1`, `unprivileged_bpf_disabled=1`, `bpf_jit_harden=2`, `fs.protected_*` and `send_redirects=0`; pod DNS/egress/API smoke test passed. Kept by design: `ip_forward`, `rp_filter=2`, `modules_disabled`, `sysrq` (console recovery), `suid_dumpable` (apport) and `log_martians` (each new pod sandbox logs a benign martian). *(live, 2026-10-04)*
-- [ ] **FILE-7524:** tighten the file permissions Lynis lists.
+- [x] **FILE-7524:** `/etc/crontab` and `/etc/ssh/sshd_config` are `0600`, the `/etc/cron.*` directories `0700`, with `dpkg-statoverride` keeping packaged paths restricted across upgrades. Lynis FILE-7524 passes. *(live, 2026-10-04)*
 - [ ] **ACCT-9622/9628:** process accounting and `auditd` with a small rule set (overlaps §4).
 - [ ] **FINT-4350:** AIDE with `/var/lib/rancher`, `/var/lib/longhorn` and container paths excluded, weekly, report-only.
 - [ ] **HRDN-7230:** weekly `rkhunter` or `chkrootkit` scan, report-only, shipped to Kibana (overlaps §4).
