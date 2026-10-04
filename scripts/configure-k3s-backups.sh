@@ -74,7 +74,7 @@ fi
 
 if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \
    kubectl get namespace longhorn-system >/dev/null 2>&1 && \
-   kubectl get settings.longhorn.io backup-target -n longhorn-system >/dev/null 2>&1; then
+   kubectl get backuptargets.longhorn.io default -n longhorn-system >/dev/null 2>&1; then
   jq -n \
     --arg access "$BACKUP_S3_ACCESS_KEY" \
     --arg secret "$BACKUP_S3_SECRET_KEY" \
@@ -82,10 +82,23 @@ if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \
     '{apiVersion:"v1",kind:"Secret",metadata:{name:"swirl-cloud-longhorn-backup",namespace:"longhorn-system"},type:"Opaque",stringData:{AWS_ACCESS_KEY_ID:$access,AWS_SECRET_ACCESS_KEY:$secret,AWS_ENDPOINTS:$endpoint,VIRTUAL_HOSTED_STYLE:"false"}}' \
     | kubectl apply -f - >/dev/null
   backup_target="s3://$BACKUP_S3_BUCKET@$BACKUP_S3_REGION/longhorn"
-  kubectl patch settings.longhorn.io backup-target -n longhorn-system --type=merge \
-    -p "$(jq -cn --arg value "$backup_target" '{value:$value}')" >/dev/null
-  kubectl patch settings.longhorn.io backup-target-credential-secret -n longhorn-system --type=merge \
-    -p '{"value":"swirl-cloud-longhorn-backup"}' >/dev/null
+  # Longhorn configures backups through the default BackupTarget resource; the
+  # former backup-target settings no longer exist in the pinned release.
+  kubectl patch backuptargets.longhorn.io default -n longhorn-system --type=merge \
+    -p "$(jq -cn --arg url "$backup_target" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{spec:{backupTargetURL:$url,credentialSecret:"swirl-cloud-longhorn-backup",syncRequestedAt:$now}}')" >/dev/null
+  backup_target_available=false
+  for _ in {1..30}; do
+    if [[ "$(kubectl get backuptargets.longhorn.io default -n longhorn-system -o jsonpath='{.status.available}')" == true ]]; then
+      backup_target_available=true
+      break
+    fi
+    sleep 10
+  done
+  if [[ "$backup_target_available" != true ]]; then
+    echo "Longhorn cannot reach backup target $backup_target; check the bucket, endpoint and credentials." >&2
+    exit 1
+  fi
   kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob

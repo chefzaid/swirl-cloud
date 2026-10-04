@@ -384,8 +384,9 @@ sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 ```
 
 When configured, restic encrypts and uploads archives to S3-compatible storage.
-Longhorn backs up enrolled volumes to the same private bucket, and the host
-backup enrolls newly created volumes. Credentials are stored root-only in
+Longhorn backs up enrolled volumes to the same private bucket through its
+`default` BackupTarget, which the configurator points at the bucket and waits to
+report available; the host backup enrolls newly created volumes. Credentials are stored root-only in
 `/etc/swirl-cloud/backup.env` and the Longhorn credential Secret. Keep the recovery
 password available off-host; local archives cannot survive loss of the host.
 
