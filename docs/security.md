@@ -134,7 +134,7 @@ editing the profile on a host.
 [`configure-k3s-audit.sh`](../scripts/configure-k3s-audit.sh) installs the
 [audit policy](../config/host/k3s-audit-policy.yaml) and the K3s drop-in
 `/etc/rancher/k3s/config.yaml.d/40-swirl-cloud-api-audit.yaml`. Each K3s server
-then writes `/var/lib/rancher/k3s/server/logs/audit.log` (root only, rotated at
+then writes `/var/log/kubernetes/audit/audit.log` (root only, rotated at
 100 MB, 10 files, 30 days). Events record who changed which object and every read
 of Secrets, ConfigMaps and service-account tokens, at `Metadata` level only:
 request and response bodies, and therefore secret values, are never logged.
@@ -148,7 +148,11 @@ apply it now, use **Maintenance → Apply Kubernetes API audit logging** in
 unavailable for about a minute while K3s restarts; running workloads continue.
 `./install.sh --status` and the rerun plan report whether auditing is active.
 Search the log with `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
-The log stays on each server; shipping it to Elasticsearch is a follow-up.
+Fluent Bit ships the log from every control plane to Elasticsearch indices
+`kubernetes-audit-*` (fields such as `verb`, `user.username`, `objectRef.*`,
+`responseStatus.code`, `sourceIPs` and `node`), which the `swirl-cloud-audit-30d`
+lifecycle policy deletes after 30 days. In Kibana, create a data view for
+`kubernetes-audit-*` and filter on `objectRef.resource : secrets`.
 
 ## Vulnerability triage
 

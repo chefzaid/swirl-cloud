@@ -83,10 +83,32 @@ data:
         Mem_Buf_Limit             10MB
         storage.type              filesystem
 
+    # Kubernetes API audit log, written only on control planes by
+    # scripts/configure-k3s-audit.sh (metadata only, no request bodies).
+    [INPUT]
+        Name                      tail
+        Alias                     kubernetes_audit
+        Path                      /var/log/kubernetes/audit/audit.log
+        Parser                    json
+        Tag                       k8s.audit
+        DB                        /var/lib/fluent-bit/tail-audit.db
+        DB.Sync                   Normal
+        Mem_Buf_Limit             10MB
+        Skip_Long_Lines           On
+        Refresh_Interval          10
+        Rotate_Wait               30
+        storage.type              filesystem
+
     [FILTER]
         Name                      modify
         Match                     host.journal
         Add                       log_source host-journal
+
+    [FILTER]
+        Name                      modify
+        Match                     k8s.audit
+        Add                       log_source kubernetes-audit
+        Add                       node ${NODE_NAME}
 
     [FILTER]
         Name                      kubernetes
@@ -139,6 +161,24 @@ data:
         HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
         Logstash_Format           On
         Logstash_Prefix           kubernetes-logs-host
+        Logstash_DateFormat       %Y.%m.%d
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+
+    [OUTPUT]
+        Name                      es
+        Match                     k8s.audit
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           kubernetes-audit
         Logstash_DateFormat       %Y.%m.%d
         Suppress_Type_Name        On
         Generate_ID               On
@@ -251,6 +291,49 @@ data:
 
       return 2, timestamp, record
     end
+  audit-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["kubernetes-audit-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "10s",
+        "index.lifecycle.name": "swirl-cloud-audit-30d"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "requestReceivedTimestamp": {"type": "date"},
+          "stageTimestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "node": {"type": "keyword"},
+          "auditID": {"type": "keyword"},
+          "level": {"type": "keyword"},
+          "stage": {"type": "keyword"},
+          "verb": {"type": "keyword"},
+          "requestURI": {"type": "keyword", "ignore_above": 1024},
+          "sourceIPs": {"type": "keyword"},
+          "userAgent": {"type": "keyword", "ignore_above": 512},
+          "user": {"properties": {"username": {"type": "keyword"}, "groups": {"type": "keyword"}}},
+          "impersonatedUser": {"properties": {"username": {"type": "keyword"}}},
+          "objectRef": {"properties": {
+            "resource": {"type": "keyword"}, "subresource": {"type": "keyword"}, "namespace": {"type": "keyword"},
+            "name": {"type": "keyword"}, "apiGroup": {"type": "keyword"}, "apiVersion": {"type": "keyword"}}},
+          "responseStatus": {"properties": {"code": {"type": "integer"}, "reason": {"type": "keyword"}}}
+        }
+      }
+    }
+  audit-ilm-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {"min_age": "0ms", "actions": {"set_priority": {"priority": 50}}},
+          "delete": {"min_age": "30d", "actions": {"delete": {}}}
+        }
+      }
+    }
   ilm-policy.json: |
     {
       "policy": {
@@ -329,6 +412,14 @@ spec:
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-logs-host >/dev/null
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
+                --data-binary @/config/audit-ilm-policy.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-audit-30d >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/audit-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-audit >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
                 --data-binary '{"index.lifecycle.name":"swirl-cloud-logs-7d"}' \
                 'http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/kubernetes-logs-*,app-logs-*/_settings?allow_no_indices=true&ignore_unavailable=true' >/dev/null
           securityContext:
@@ -353,6 +444,11 @@ spec:
       containers:
         - name: fluent-bit
           image: cr.fluentbit.io/fluent/fluent-bit:5.1.2@sha256:d792375ca8e53be72fc25716c28f291f32c6fc6f4f31d12d0d14bc78cefe9226
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           envFrom:
             - secretRef:
                 name: fluent-bit-elasticsearch-credentials
@@ -402,6 +498,9 @@ spec:
             - name: journal
               mountPath: /var/log/journal
               readOnly: true
+            - name: kubernetes-audit
+              mountPath: /var/log/kubernetes/audit
+              readOnly: true
             - name: state
               mountPath: /var/lib/fluent-bit
       terminationGracePeriodSeconds: 30
@@ -419,6 +518,10 @@ spec:
           hostPath:
             path: /var/log/journal
             type: Directory
+        - name: kubernetes-audit
+          hostPath:
+            path: /var/log/kubernetes/audit
+            type: DirectoryOrCreate
         - name: state
           hostPath:
             path: /var/lib/fluent-bit

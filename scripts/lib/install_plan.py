@@ -135,7 +135,7 @@ def plan(root, values, state_dir):
         code, output = run(str(Path(root) / "scripts/configure-k3s-audit.sh"), "--check")
         audit = output.strip() or "unknown"
         rows.append(("API audit logging", {"active": INSTALLED, "missing": MISSING}.get(audit, DRIFT),
-                     {"active": "writing /var/lib/rancher/k3s/server/logs/audit.log",
+                     {"active": "writing /var/log/kubernetes/audit/audit.log",
                       "pending-restart": "configured; starts at the next K3s restart",
                       "configured": "configured; not writing yet",
                       "missing": "not configured"}.get(audit, "state unknown (needs passwordless sudo to read)"),

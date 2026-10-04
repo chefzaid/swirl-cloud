@@ -9,7 +9,7 @@ CONFIG_ROOT=/etc/rancher/k3s
 POLICY_SOURCE="$SCRIPT_DIR/../config/host/k3s-audit-policy.yaml"
 POLICY_PATH="$CONFIG_ROOT/audit-policy.yaml"
 DROPIN_PATH="$CONFIG_ROOT/config.yaml.d/40-swirl-cloud-api-audit.yaml"
-LOG_PATH=/var/lib/rancher/k3s/server/logs/audit.log
+LOG_PATH=/var/log/kubernetes/audit/audit.log
 error() { echo "[ERROR] $*" >&2; exit 1; }
 info() { echo "[INFO]  $*"; }
 
