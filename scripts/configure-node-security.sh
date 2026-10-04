@@ -1093,6 +1093,10 @@ skip-test=BOOT-5122
 skip-test=FILE-6310
 # USB-1000: remote consoles attach recovery media as USB storage.
 skip-test=USB-1000
+# LOGG-2154: Fluent Bit forwards the journal to Elasticsearch; Lynis only detects
+# syslog-daemon forwarding. An off-host copy needs the Elasticsearch snapshot
+# repository (TODO §14/§16).
+skip-test=LOGG-2154
 # SSH-7408: port 22 is kept for tooling; MaxSessions 4 leaves room for automation.
 skip-test=SSH-7408:port
 skip-test=SSH-7408:maxsessions
