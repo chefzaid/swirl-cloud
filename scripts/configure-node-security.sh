@@ -1151,12 +1151,17 @@ configure_reboot_required_metrics() {
 # Managed by scripts/configure-node-security.sh
 set -euo pipefail
 metrics_dir=/var/lib/node_exporter/textfile_collector
+metrics_file="$metrics_dir/swirl_cloud_reboot.prom"
 flag=/var/run/reboot-required
 required=0
 since=0
 if [[ -e "$flag" ]]; then
   required=1
-  since="$(stat -c %Y "$flag")"
+  # Later updates rewrite the flag; keep the first time this reboot was seen.
+  if [[ -r "$metrics_file" ]]; then
+    since="$(awk '$1 == "swirl_cloud_reboot_required_since_timestamp_seconds" {print $2}' "$metrics_file")"
+  fi
+  [[ "$since" =~ ^[1-9][0-9]*$ ]] || since="$(stat -c %Y "$flag")"
 fi
 temporary="$(mktemp "$metrics_dir/.swirl_cloud_reboot.XXXXXX")"
 {
@@ -1168,7 +1173,7 @@ temporary="$(mktemp "$metrics_dir/.swirl_cloud_reboot.XXXXXX")"
   printf 'swirl_cloud_reboot_required_since_timestamp_seconds %s\n' "$since"
 } > "$temporary"
 chmod 0644 "$temporary"
-mv -f "$temporary" "$metrics_dir/swirl_cloud_reboot.prom"
+mv -f "$temporary" "$metrics_file"
 EOF
   write_root_file /etc/systemd/system/swirl-cloud-reboot-metrics.service <<'EOF'
 [Unit]
