@@ -165,6 +165,13 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
     ' > "$staging_dir/application-data/mongodb.archive.gz"
     unset mongodb_username mongodb_password
   fi
+
+  # Odoo attachments live outside PostgreSQL. Copying them after the database
+  # dump keeps every file that the dump references; sessions are ephemeral.
+  if kubectl get deployment odoo -n corp >/dev/null 2>&1; then
+    kubectl exec -n corp deployment/odoo -c odoo -- tar -C /var/lib/odoo -czf - filestore \
+      > "$staging_dir/application-data/odoo-filestore.tar.gz"
+  fi
 fi
 
 cat > "$staging_dir/RESTORE.txt" <<EOF
@@ -174,8 +181,9 @@ Datastore: $DATASTORE
 
 This archive contains credentials and encryption keys. Keep it root-only and
 is uploaded through an encrypted restic repository when off-node storage is
-configured. It also contains a Vault Raft snapshot and logical PostgreSQL and
-MongoDB dumps when those services were present. Longhorn recurring backups hold
+configured. It also contains a Vault Raft snapshot, logical PostgreSQL and
+MongoDB dumps and the Odoo filestore (application-data/odoo-filestore.tar.gz;
+restore it into /var/lib/odoo after the database) when those services were present. Longhorn recurring backups hold
 the remaining PVC data. Restore with the same K3s minor version. Restore the
 server token, encryption files, and K3s configuration (including config.yaml.d)
 before starting the restored server. Review node-specific private addresses,
