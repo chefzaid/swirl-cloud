@@ -127,7 +127,8 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console.
 - [x] The duplicate distro `lynis.timer` is masked by `configure-lynis-schedule.sh`; `swirl-cloud-lynis.timer` is the only audit schedule. *(live)*
 - [x] The managed Lynis run exports `swirl_cloud_lynis_*` metrics through node-exporter's textfile collector; `LynisAuditFailed` and `LynisAuditMissing` (no success for 35 days) alert through Alertmanager. *(live: metrics scraped, rules healthy, 2026-10-04)*
-- [ ] Manage unattended security updates, pending-reboot reporting and maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).
+- [x] Unattended security updates run with the distro defaults (security origins, no automatic reboot). Every node exports `swirl_cloud_reboot_required` through node-exporter; `NodeRebootRequired` alerts after seven days pending. *(live, 2026-10-04: pending since 2026-10-03 for kernel 7.0.0-38)*
+- [ ] Define maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).
 - [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §20; assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
 - [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config).
