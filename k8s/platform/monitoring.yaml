@@ -812,6 +812,18 @@ data:
             annotations:
               summary: Longhorn volume is degraded
               description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) is missing healthy replicas or still rebuilding.'
+          - alert: LonghornVolumeBackupStale
+            # Silent until off-node volume backups are active (the target holds
+            # at least one backup); then every volume must stay within 36 hours.
+            expr: |
+              (time() - longhorn_volume_last_backup_at > 36 * 3600)
+              and on() (sum(longhorn_backup_target_backup_volume_count) > 0)
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: Longhorn volume backup is overdue
+              description: 'Volume for {{ $labels.pvc }} has no off-node backup from the last 36 hours; check the daily recurring job and the backup target.'
           - alert: LonghornVolumeFaulted
             expr: longhorn_volume_robustness{state="faulted"} == 1
             for: 2m
