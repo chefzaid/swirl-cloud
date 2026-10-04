@@ -75,7 +75,9 @@ directories and ICMP redirects. Forwarding, reverse-path filtering, module
 loading and SysRq stay at the values Kubernetes and console recovery need.
 The unused DCCP, RDS, SCTP and TIPC protocol modules cannot be loaded; a
 Service that needs SCTP must remove that entry first. USB storage remains
-available for remote-console recovery media.
+available for remote-console recovery media. `/etc/crontab`, the `/etc/cron.*`
+directories and `/etc/ssh/sshd_config` are root-only; packaged paths keep that
+mode across upgrades through `dpkg-statoverride`.
 SSH session options (`ClientAliveInterval 300`, `ClientAliveCountMax 2`,
 `TCPKeepAlive no`, `MaxSessions 4`, `LogLevel VERBOSE`) are validated with
 `sshd -t` before a reload, which keeps existing sessions open. A full `--apply` includes it; to reconcile only the baseline

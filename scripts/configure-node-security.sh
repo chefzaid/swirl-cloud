@@ -1036,6 +1036,34 @@ install tipc /bin/false
 EOF
 }
 
+# Lynis FILE-7524: root-only scheduler and SSH daemon configuration. Packaged
+# paths get a dpkg statoverride so package upgrades keep the restricted mode.
+configure_restricted_file_modes() {
+  local mode path current owner group current_mode
+  while read -r mode path; do
+    sudo test -e "$path" || continue
+    if dpkg -S "$path" >/dev/null 2>&1; then
+      current="$(sudo dpkg-statoverride --list "$path" || true)"
+      read -r owner group current_mode _ <<< "$current"
+      if [[ "$owner" != root || "$group" != root || -z "$current_mode" ]] || \
+          (( 8#$current_mode != 8#$mode )); then
+        [[ -z "$current" ]] || sudo dpkg-statoverride --remove "$path" >/dev/null
+        sudo dpkg-statoverride --update --add root root "$mode" "$path"
+      fi
+    fi
+    sudo chown root:root "$path"
+    sudo chmod "$mode" "$path"
+  done <<'EOF'
+0600 /etc/crontab
+0600 /etc/ssh/sshd_config
+0700 /etc/cron.d
+0700 /etc/cron.hourly
+0700 /etc/cron.daily
+0700 /etc/cron.weekly
+0700 /etc/cron.monthly
+EOF
+}
+
 # Lynis SSH-7408 session options for every node. Client-alive probes detect dead
 # sessions instead of TCP keepalives; a reload keeps existing sessions open.
 configure_ssh_session_limits() {
@@ -1073,6 +1101,7 @@ configure_host_baseline() {
   purge_residual_kernel_packages
   configure_kernel_hardening
   configure_unused_protocol_modules
+  configure_restricted_file_modes
   configure_ssh_session_limits
   info "Host baseline applied."
 }
