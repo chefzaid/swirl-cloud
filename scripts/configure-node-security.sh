@@ -941,8 +941,36 @@ configure_ufw() {
     sudo ufw allow in on flannel.1 >/dev/null
   fi
 
-  sudo ufw --force enable >/dev/null
+  enable_ufw_verified
   configure_worker_forwarding_guard "${untrusted_interfaces[@]}"
+}
+
+# `ufw --force reset` can leave IPv4 chains loaded under iptables-nft. ufw-init
+# then treats the firewall as started from the IPv4 chain alone, never loads the
+# IPv6 user rules, and `ufw enable` fails, leaving UFW disabled (seen on
+# 2026-10-04). Retry with a full reload, verify both families, and fail closed.
+enable_ufw_verified() {
+  if ! sudo ufw --force enable >/dev/null 2>&1; then
+    warn "ufw enable failed; reloading every UFW rule file"
+    sudo sed -i 's/^ENABLED=.*/ENABLED=yes/' /etc/ufw/ufw.conf
+    sudo /lib/ufw/ufw-init force-reload >/dev/null
+  fi
+  if sudo ufw status 2>/dev/null | grep -qx 'Status: active' &&
+      sudo iptables -S INPUT | grep -qx -- '-P INPUT DROP' &&
+      { [[ "$(sudo sed -n 's/^IPV6=//p' /etc/default/ufw)" != yes ]] || sudo ip6tables -S INPUT | grep -qx -- '-P INPUT DROP'; }; then
+    return 0
+  fi
+  # Keep the host closed except SSH and cluster interfaces while an operator investigates.
+  local interface
+  for interface in cni0 flannel.1 tailscale0; do
+    ip link show "$interface" >/dev/null 2>&1 && sudo iptables -I INPUT 1 -i "$interface" -j ACCEPT
+  done
+  sudo iptables -I INPUT 1 -p tcp --dport "$HARDENED_SSH_PORT" -j ACCEPT
+  sudo iptables -I INPUT 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  sudo iptables -I INPUT 1 -i lo -j ACCEPT
+  sudo iptables -P INPUT DROP
+  sudo ip6tables -P INPUT DROP 2>/dev/null || true
+  err "UFW could not be enabled; INPUT now drops everything except SSH, loopback, cluster interfaces and established traffic. Check: sudo ufw status verbose"
 }
 
 configure_sshd() {
@@ -1600,6 +1628,15 @@ up() { systemctl is-active --quiet "$1" && echo 1 || echo 0; }
     jq -r '[.[]? | .decisions[]? | .scenario // "unknown"] | group_by(.) | .[] |
       "swirl_cloud_crowdsec_decisions{scenario=\"\(.[0] | gsub("[^A-Za-z0-9_./-]"; "_"))\"} \(length)"' <<< "${decisions:-[]}"
   fi
+  # UFW active and both INPUT policies dropping; a failed reload once left it off.
+  firewall=0
+  if ufw status 2>/dev/null | grep -qx 'Status: active' && iptables -S INPUT | grep -qx -- '-P INPUT DROP' &&
+      { ! grep -qx 'IPV6=yes' /etc/default/ufw || ip6tables -S INPUT | grep -qx -- '-P INPUT DROP'; }; then
+    firewall=1
+  fi
+  printf '# HELP swirl_cloud_host_firewall_active Whether UFW is active with default-deny INPUT for IPv4 and IPv6.\n'
+  printf '# TYPE swirl_cloud_host_firewall_active gauge\n'
+  printf 'swirl_cloud_host_firewall_active %s\n' "$firewall"
   printf '# HELP swirl_cloud_intrusion_metrics_timestamp_seconds When these metrics were written.\n'
   printf '# TYPE swirl_cloud_intrusion_metrics_timestamp_seconds gauge\n'
   printf 'swirl_cloud_intrusion_metrics_timestamp_seconds %s\n' "$(date +%s)"

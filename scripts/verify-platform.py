@@ -51,6 +51,7 @@ HINTS = {
     "Public endpoints": lambda d: f"curl -sSI https://{first_name(d)}/ ; kubectl get ingress -A | grep {first_name(d)}",
     "Disk headroom": lambda d: "sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail; move old archives "
                                "off the host (pinned recovery images must stay); see docs/operations.md#storage-and-retention",
+    "Host firewall": lambda d: "sudo ufw status verbose; rerun scripts/configure-node-security.sh --apply (it verifies UFW)",
     "API audit log": lambda d: "./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)",
     "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
 }
@@ -260,6 +261,19 @@ def check_disk(report):
                "(maintenance needs about 30 GiB; kubelet image GC starts at 85 %)")
 
 
+def check_firewall(report):
+    status = subprocess.run(["sudo", "-n", "ufw", "status"], capture_output=True, text=True, timeout=30,
+                            stdin=subprocess.DEVNULL)
+    if status.returncode and "password" in status.stderr:
+        report.add(WARN, "Host firewall", "unknown (needs passwordless sudo to read UFW)")
+        return
+    policies = [subprocess.run(["sudo", "-n", tool, "-S", "INPUT"], capture_output=True, text=True, timeout=30,
+                               stdin=subprocess.DEVNULL).stdout for tool in ("iptables", "ip6tables")]
+    active = "Status: active" in status.stdout and all("-P INPUT DROP" in policy for policy in policies)
+    report.add(PASS if active else FAIL, "Host firewall", "UFW active, IPv4 and IPv6 INPUT default-deny" if active else
+               "UFW is inactive or INPUT is not default-deny")
+
+
 def check_audit(report):
     if subprocess.run(["systemctl", "cat", "k3s.service"], capture_output=True).returncode:
         return
@@ -312,6 +326,7 @@ def main():
         except (RuntimeError, subprocess.SubprocessError, KeyError, ValueError) as error:
             report.add(FAIL, check.__name__.removeprefix("check_").replace("_", " ").title(), f"check failed: {error}")
     check_disk(report)
+    check_firewall(report)
     check_audit(report)
     check_backup(report, args.backup_max_age_hours)
     if args.api_dry_run:

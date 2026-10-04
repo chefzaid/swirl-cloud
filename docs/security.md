@@ -60,6 +60,12 @@ On internet-facing control planes, `swirl-cloud-intrusion-metrics.timer` writes
 Fail2ban and CrowdSec activity for node-exporter every five minutes: service
 state, current and total bans and failed attempts per jail, and active CrowdSec
 decisions per scenario (counts only; banned addresses stay on the host).
+It also exports `swirl_cloud_host_firewall_active`: UFW active and both IPv4 and
+IPv6 `INPUT` policies default-deny. `HostFirewallDisabled` (critical) fires when
+it is 0, and `./install.sh --status` checks the same. The hardening script
+verifies UFW after enabling it, falls back to `ufw-init force-reload`, and if
+UFW still cannot start it drops all inbound traffic except SSH, loopback,
+established connections and cluster interfaces before failing.
 Prometheus raises `HostIntrusionPreventionDown` (critical) when a service stops,
 `HostIntrusionMetricsStale` when the export stops, and `HostBruteForceWave` for
 more than 50 new bans an hour or 200 active decisions.

@@ -958,6 +958,14 @@ data:
             annotations:
               summary: New critical vulnerabilities in a running image
               description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
+          - alert: HostFirewallDisabled
+            expr: swirl_cloud_host_firewall_active == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Host firewall is not enforcing
+              description: 'UFW is inactive or INPUT is not default-deny on {{ $labels.instance }}; every listening port may be reachable. Check: sudo ufw status verbose, then rerun scripts/configure-node-security.sh.'
           - alert: HostIntrusionPreventionDown
             expr: swirl_cloud_intrusion_service_up == 0
             for: 15m
