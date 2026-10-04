@@ -54,6 +54,10 @@ data:
         Name                      tail
         Alias                     kubernetes_containers
         Path                      /var/log/containers/*.log
+        # Trivy scan pods print compressed report payloads that the operator
+        # already stores as report resources; they are deleted before their
+        # metadata can be read and only add noise to the log index.
+        Exclude_Path              /var/log/containers/scan-vulnerabilityreport-*_infra_*.log
         multiline.parser          cri, docker
         Tag                       kube.*
         DB                        /var/lib/fluent-bit/tail-containers.db
@@ -287,7 +291,7 @@ spec:
         app: fluent-bit
       annotations:
         swirl-cloud.io/logging-agent: pending
-        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "7"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "8"
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
