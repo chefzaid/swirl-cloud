@@ -164,6 +164,10 @@ lifecycle policy deletes after 30 days. In Kibana, create a data view for
 
 ## Vulnerability triage
 
+Prometheus raises `TrivyNewCriticalVulnerability` when a running image gains
+critical findings over its recent maximum, or a newly deployed image has any;
+findings already triaged below do not keep alerting.
+
 Trivy Operator keeps one report per running image digest. List critical findings
 by image, deduplicated across workloads:
 

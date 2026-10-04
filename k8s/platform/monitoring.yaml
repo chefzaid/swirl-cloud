@@ -940,6 +940,24 @@ data:
             annotations:
               summary: Monthly Lynis audit is overdue
               description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
+          # Known findings are triaged in docs/security.md; alert only when an
+          # image gains critical findings over its own recent maximum, or a new
+          # image arrives with some. The 6 h baseline fits the current size-bound
+          # retention; widen it with the retention increase in TODO §26.
+          - alert: TrivyNewCriticalVulnerability
+            expr: |
+              max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+              unless on (exported_namespace, image_repository)
+              (
+                max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})
+                <= max_over_time(max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})[6h:15m] offset 1h)
+              )
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: New critical vulnerabilities in a running image
+              description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
           - alert: HostIntrusionPreventionDown
             expr: swirl_cloud_intrusion_service_up == 0
             for: 15m
