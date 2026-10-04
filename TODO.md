@@ -437,7 +437,7 @@ and availability of a compatible upstream image must be checked separately.
 - [ ] PostgreSQL/DBGate Debian-library findings — check distro security status/backports and affected functionality; document accepted findings with evidence instead of assuming all Perl, XML, SQLite or zlib reports are harmless.
 - [ ] Triage the historical GitLab exposed-secret findings; distinguish fixtures from usable credentials, rotate any real credentials, and narrowly scope exceptions with evidence and expiry.
 - [x] No stale reports for retired owners remain: all Trivy Operator reports carry owner references and Kubernetes garbage-collects them with their workloads; none reference the retired `security/` images. *(live, 2026-10-03)*
-- [ ] Scan platform artifacts too: the vendored charts in `k8s/charts/`, the CI Alpine image and pinned GitHub Actions, as a non-blocking CI report.
+- [x] Non-blocking CI job `report:platform-artifacts` scans the vendored chart archives (embedded misconfiguration checks against chart defaults; the rendered manifests are audited live by Trivy Operator) and the pinned CI Alpine image through the in-cluster Trivy server; reports are kept 30 days as job artifacts. The GitHub workflow uses no third-party actions. *(pipeline 2026-10-04 passed)*
 - [ ] Hand application image findings to the owning repositories.
 
 ### 22. Odoo API for applications (CRM leads and Live Chat)
