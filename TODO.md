@@ -249,7 +249,8 @@ not separate implementations. Close operational items only with a dated result
 - [ ] No second factor: realm has no required OTP/WebAuthn action for `platform-admins`, although one identity administers every service. Enforce MFA for the admin group.
 - [ ] Odoo's client uses the OAuth2 implicit flow (Odoo 19 `auth_oauth` limitation); replace with an authorization-code add-on when available.
 - [ ] Keycloak has `resetPasswordAllowed: true` but no SMTP server anywhere in the platform, so password-reset and verification emails cannot be sent (see §19).
-- [ ] Keycloak runs one replica outside HA; Keycloak metrics are exposed but no dashboard/alert uses them.
+- [x] Keycloak metrics are scraped (`kubernetes-pods`); `KeycloakPasswordFailuresHigh` alerts on more than 20 rejected passwords per realm in 15 minutes. *(live, 2026-10-04)*
+- [ ] Keycloak runs one replica outside HA (§15).
 
 ### 12. Source, CI and registry (GitLab + Runner)
 
