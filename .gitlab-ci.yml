@@ -168,3 +168,29 @@ verify:registry-write:
         jq -e --arg digest "$config_digest" '.config.digest == $digest and (.layers | length) == 0' >/dev/null
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Non-blocking supply-chain report for artifacts the platform ships besides its
+# running images: vendored chart archives (embedded misconfiguration checks, no
+# download) and the CI image, scanned through the in-cluster Trivy server.
+report:platform-artifacts:
+  stage: verify
+  needs: []
+  allow_failure: true
+  image:
+    name: "docker.io/aquasec/trivy:0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
+    entrypoint: [""]
+  variables:
+    TRIVY_CACHE_DIR: $CI_PROJECT_DIR/.cache/trivy
+    TRIVY_DISABLE_VEX_NOTICE: "true"
+  script:
+    - mkdir -p reports
+    - trivy config --skip-check-update --exit-code 0 --severity CRITICAL,HIGH --output reports/vendored-charts.txt k8s/charts
+    - trivy image --server http://trivy-service.infra:4954 --scanners vuln --exit-code 0 --severity CRITICAL,HIGH --output reports/ci-image.txt "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+    - cat reports/vendored-charts.txt reports/ci-image.txt
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - reports/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
