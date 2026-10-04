@@ -243,6 +243,52 @@ INPUTS = (
 BY_NAME = {item.name: item for item in INPUTS}
 assert len(BY_NAME) == len(INPUTS) and set(item.section for item in INPUTS) <= set(SECTIONS)
 
+# Any secret may instead name a protected file holding it (NAME_FILE=/path), so
+# the input file itself can stay free of inline credentials. The file is read
+# only when the engine imports the inputs; it works before Vault exists.
+FILE_SUFFIX = "_FILE"
+SECRET_FILES = {item.name + FILE_SUFFIX: item for item in INPUTS if item.secret}
+MAX_SECRET_FILE = 64 * 1024
+
+
+def read_secret_file(path):
+    """Return (value, problem); the value is the file's single line."""
+    path = Path(path).expanduser()
+    try:
+        info = path.stat()
+        if not stat.S_ISREG(info.st_mode):
+            return None, "must name a regular file"
+        if info.st_mode & 0o077:
+            return None, "file must not be accessible by group or others (chmod 600)"
+        if info.st_uid not in (os.getuid(), 0):
+            return None, "file must be owned by the installing user or root"
+        if info.st_size > MAX_SECRET_FILE:
+            return None, "file is too large for a single secret"
+        value = path.read_text().removesuffix("\n").removesuffix("\r")
+    except (OSError, UnicodeError):
+        return None, "file cannot be read"
+    if not value or "\n" in value or any(ord(c) < 32 for c in value):
+        return None, "file must contain exactly one non-empty line"
+    return value, None
+
+
+def resolve(values):
+    """Replace NAME_FILE references with their contents; return (values, problems)."""
+    resolved, problems = dict(values), []
+    for reference, item in SECRET_FILES.items():
+        path = resolved.pop(reference, "")
+        if not path:
+            continue
+        if values.get(item.name):
+            problems.append(f"{item.name}: set either the value or {reference}, not both")
+            continue
+        value, problem = read_secret_file(path)
+        if problem:
+            problems.append(f"{reference}: {problem}")
+        else:
+            resolved[item.name] = value
+    return resolved, problems
+
 
 class InputError(ValueError):
     """A list of operator-facing problems; never includes secret values."""
@@ -274,7 +320,8 @@ def check_value(item, value):
 
 def validate(values):
     """Return every problem in a parsed value mapping; an empty list means valid."""
-    problems = []
+    referenced = {item.name for reference, item in SECRET_FILES.items() if values.get(reference)}
+    values, problems = resolve(values)
     for name in values:
         if name != VERSION_KEY and name not in BY_NAME:
             problems.append(f"{name}: unknown input (version pins belong to config/platform.env)")
@@ -284,7 +331,7 @@ def validate(values):
         value = values.get(item.name, "")
         if value and (error := check_value(item, value)):
             problems.append(f"{item.name}: {error}")
-        elif not value and applies(item, values) and item.required and item.required(values):
+        elif not value and item.name not in referenced and applies(item, values) and item.required and item.required(values):
             problems.append(f"{item.name}: required — {item.prompt}")
     counts = {name: int(values[name]) for name in ("CONTROL_PLANE_COUNT", "CLUSTER_NODE_COUNT")
               if re.fullmatch(r"[0-9]{1,9}", values.get(name, ""))}
@@ -348,11 +395,15 @@ def render(values):
              f'{VERSION_KEY}="{SCHEMA_VERSION}"']
     for section in SECTIONS:
         items = [item for item in INPUTS if item.section == section and values.get(item.name, "") != ""]
-        if items:
+        if items or any(values.get(name) for name, item in SECRET_FILES.items() if item.section == section):
             lines.append(f"\n# {section}")
             for item in items:
                 escaped = values[item.name].replace("\\", "\\\\").replace('"', '\\"')
                 lines.append(f'{item.name}="{escaped}"')
+        references = [name for name, item in SECRET_FILES.items() if item.section == section and values.get(name)]
+        for name in references:
+            escaped = values[name].replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'{name}="{escaped}"')
     return "\n".join(lines) + "\n"
 
 

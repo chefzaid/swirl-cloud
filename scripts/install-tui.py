@@ -19,8 +19,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/lib"))
-from install_inputs import (INPUTS, SCHEMA_VERSION, SECTIONS, TRUE, VERSION_KEY, InputError,  # noqa: E402
-                            applies, check_value, parse, read, validate, write)
+from install_inputs import (FILE_SUFFIX, INPUTS, SCHEMA_VERSION, SECTIONS, TRUE, VERSION_KEY, InputError,  # noqa: E402
+                            applies, check_value, parse, read, read_secret_file, resolve, validate, write)
 from tui_checks import FAIL, credential_checks, host_checks, render, unit_exists  # noqa: E402
 from tui_dialog import Cancelled, Dialog  # noqa: E402
 from install_plan import plan, render as render_plan  # noqa: E402
@@ -113,18 +113,33 @@ def ask(dialog, item, values):
         elif item.kind == "choice":
             value = dialog.menu(describe(item), [(choice, "") for choice in item.choices], current or item.default or None)
         elif item.secret:
+            reference = values.get(item.name + FILE_SUFFIX, "")
+            options = [("enter", "Type the value")]
             if item.name.endswith("PASSWORD"):
-                options = [("enter", "Type a password"), ("generate", "Generate a strong password")]
-                choice = dialog.menu(describe(item), options + ([("keep", "Keep the current value")] if current else []),
-                                     "keep" if current else "enter")
-                if choice == "keep":
-                    return
-                if choice == "generate":
-                    value = generate_password()
-                    dialog.private(f"{item.prompt}:\n\n    {value}\n\nRecord it in your password manager now. "
-                                   "It is saved in the input file and not shown again.")
-                    values[item.name] = value
-                    return
+                options.append(("generate", "Generate a strong password"))
+            options.append(("file", "Read it from a protected file (keeps it out of the input file)"))
+            if current or reference:
+                options.append(("keep", "Keep the current " + ("file: " + reference if reference else "value")))
+            choice = dialog.menu(describe(item), options, "keep" if current or reference else "enter")
+            if choice == "keep":
+                return
+            if choice == "file":
+                path = dialog.text(f"Path of the file holding {item.prompt}.\n\nOne line, owned by you, mode 600.", reference)
+                value, problem = read_secret_file(path) if path else (None, "a path is required")
+                error = problem or (check_value(item, value) and "its content " + check_value(item, value))
+                if error:
+                    dialog.message(f"{path}: {error}.", 8)
+                    continue
+                values.pop(item.name, None)
+                values[item.name + FILE_SUFFIX] = path
+                return
+            if choice == "generate":
+                value = generate_password()
+                dialog.private(f"{item.prompt}:\n\n    {value}\n\nRecord it in your password manager now. "
+                               "It is saved in the input file and not shown again.")
+                values.pop(item.name + FILE_SUFFIX, None)
+                values[item.name] = value
+                return
             keep = "\n\nLeave empty to keep the current value." if current else ""
             value = dialog.password(describe(item) + keep)
             if not value and current:
@@ -141,6 +156,7 @@ def ask(dialog, item, values):
             continue
         if value:
             values[item.name] = value
+            values.pop(item.name + FILE_SUFFIX, None)
         else:
             values.pop(item.name, None)
         return
@@ -201,15 +217,44 @@ def review(values):
     lines = []
     for section in SECTIONS:
         entries = [(item, values[item.name]) for item in INPUTS if item.section == section and values.get(item.name)]
-        if entries:
+        if entries or any(values.get(i.name + FILE_SUFFIX) for i in INPUTS if i.section == section and i.secret):
             lines.append(f"[{section}]")
             lines += [f"  {item.name} = {'(set)' if item.secret else value}" for item, value in entries]
+            lines += [f"  {item.name} = (file {values[item.name + FILE_SUFFIX]})" for item in INPUTS
+                      if item.section == section and item.secret and values.get(item.name + FILE_SUFFIX)]
     problems = problems_of(values)
     lines += ["", "Problems:" if problems else "No problems found."] + [f"  - {p}" for p in problems]
     return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- actions
+
+class Redactor:
+    """Replace known secret values in log output, even when split across chunks."""
+
+    def __init__(self, secrets):
+        self.secrets = sorted({s for s in secrets if len(s) >= 6}, key=len, reverse=True)
+        self.keep = max((len(s) for s in self.secrets), default=1) - 1
+        self.pending = ""
+
+    def feed(self, text, final=False):
+        text = self.pending + text
+        for secret in self.secrets:
+            text = text.replace(secret, "[redacted]")
+        if final or not self.keep:
+            self.pending = ""
+            return text
+        self.pending, text = text[-self.keep:], text[:-self.keep]
+        return text
+
+
+def secret_values(values):
+    resolved, _ = resolve(values)
+    return [resolved[item.name] for item in INPUTS if item.secret and resolved.get(item.name)]
+
+
+REDACT = []
+
 
 def run_logged(title, command, env=None, stdin_data=None):
     """Run a command on the terminal; its output is also saved to a private log.
@@ -222,6 +267,7 @@ def run_logged(title, command, env=None, stdin_data=None):
     descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     subprocess.run(["clear"])
     print(f"== {title} ==\nLog: {log_path}\n", flush=True)
+    redactor = Redactor(REDACT + ([stdin_data.strip()] if stdin_data else []))
     with os.fdopen(descriptor, "wb") as log:
         process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    stdin=subprocess.PIPE if stdin_data is not None else None,
@@ -232,7 +278,8 @@ def run_logged(title, command, env=None, stdin_data=None):
         while chunk := os.read(process.stdout.fileno(), 4096):
             sys.stdout.buffer.write(chunk)
             sys.stdout.flush()
-            log.write(ANSI.sub("", chunk.decode(errors="replace")).encode())
+            log.write(redactor.feed(ANSI.sub("", chunk.decode(errors="replace"))).encode())
+        log.write(redactor.feed("", final=True).encode())
         code = process.wait()
     record = {"title": title, "code": code, "log": str(log_path), "finished": f"{datetime.now():%Y-%m-%d %H:%M}"}
     (STATE / "last-run.json").write_text(json.dumps(record))
@@ -441,6 +488,7 @@ def main():
     if ROOT in output.parents:
         raise SystemExit("Keep the input file outside the repository checkout; it contains credentials.")
     values, origin = load_values(output)
+    REDACT[:] = secret_values(values)
     dialog = Dialog(f"Swirl Cloud setup  |  {output}")
     default = "status" if unit_exists("k3s.service") and output.exists() else "overview"
     while True:
@@ -449,6 +497,7 @@ def main():
         except Cancelled:
             choice = "quit"
         default = choice
+        REDACT[:] = secret_values(values)
         try:
             if choice == "overview":
                 dialog.message(overview(values, origin, output))

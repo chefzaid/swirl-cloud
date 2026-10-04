@@ -98,7 +98,13 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Maintenance | Run the recovery backup or Vault unseal now (with their journal), [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
 
 Password fields can generate a strong password; it is shown once from a private
-file, never as a command argument. On a host that already runs the platform,
+file, never as a command argument. Any secret can instead be read from a
+protected file: choose **Read it from a protected file**, or write
+`NAME_FILE=/path` (for example `CLOUDFLARE_API_TOKEN_FILE=/secure/cloudflare`)
+instead of `NAME=value`. The file holds one line, belongs to you or root and has
+mode `600`; the engine reads it when it imports the inputs, so the input file
+itself carries no credentials and Vault is not needed during bootstrap or
+recovery. Hub run logs replace every entered secret with `[redacted]`. On a host that already runs the platform,
 the hub loads the installed identity as defaults. Rerunning it loads the saved
 file, so earlier answers become defaults and an empty secret keeps the stored
 value. Unattended reruns use the same file:

@@ -128,7 +128,7 @@ class InstallInputs(unittest.TestCase):
 
     def express_answers(self, token, password_answers):
         return ([[0, "express"], [0, "Example Co"], [0, "example.com"], [0, VALID["GITOPS_REPOSITORY_URL"]], [1, ""],
-                 [0, "internet"], [1, ""], [1, ""], [0, token], [0, token], [0, "admin@example.com"],
+                 [0, "internet"], [1, ""], [1, ""], [0, "enter"], [0, token], [0, token], [0, "admin@example.com"],
                  [0, "platform-admin"]] + password_answers + [[0, "save"], [1, ""]])
 
     def test_tui_never_passes_secrets_as_process_arguments(self):
@@ -164,6 +164,55 @@ class InstallInputs(unittest.TestCase):
         self.assertNotIn(PASSWORD, log.read_text())
         self.assertEqual(0o600, stat.S_IMODE(log.stat().st_mode))
         self.assertEqual(0, json.loads((self.dir / "state/last-run.json").read_text())["code"])
+
+    def test_hub_can_reference_a_secret_file_instead_of_storing_the_secret(self):
+        secret = self.dir / "admin.password"
+        secret.write_text(PASSWORD + "\n")
+        secret.chmod(0o600)
+        token = "cfut_" + "u" * 30
+        saved, arguments, _ = self.run_tui(self.express_answers(token, [[0, "file"], [0, str(secret)]]))
+        self.assertEqual(str(secret), saved["KEYCLOAK_SSO_BOOTSTRAP_PASSWORD_FILE"])
+        self.assertNotIn("KEYCLOAK_SSO_BOOTSTRAP_PASSWORD", saved)
+        self.assertNotIn(PASSWORD, (self.dir / "out/install.env").read_text())
+
+    def test_secret_file_references_keep_credentials_out_of_the_input_file(self):
+        secret = self.dir / "admin.password"
+        secret.write_text(PASSWORD + "\n")
+        secret.chmod(0o600)
+        values = {k: v for k, v in VALID.items() if k != "KEYCLOAK_SSO_BOOTSTRAP_PASSWORD"}
+        path = self.dir / "install.env"
+        install_inputs.write(path, {**values, "KEYCLOAK_SSO_BOOTSTRAP_PASSWORD_FILE": str(secret)})
+        self.assertNotIn(PASSWORD, path.read_text())
+        script = ('source scripts/lib/install-env.sh; install_env_import "$1"; '
+                  'printf "%s" "${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD-<unset>}"')
+        imported = subprocess.run(["bash", "-c", script, "import", str(path)], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(PASSWORD, imported.stdout)
+        result = subprocess.run([str(ROOT / "install-control-plane.sh"), "--env-file", str(path), "--validate-only"],
+                                cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        secret.chmod(0o640)
+        problems = install_inputs.validate({**values, "KEYCLOAK_SSO_BOOTSTRAP_PASSWORD_FILE": str(secret),
+                                            install_inputs.VERSION_KEY: "1"})
+        self.assertEqual(["KEYCLOAK_SSO_BOOTSTRAP_PASSWORD_FILE: file must not be accessible by group or others (chmod 600)"],
+                         problems)
+        both = install_inputs.validate({**VALID, "KEYCLOAK_SSO_BOOTSTRAP_PASSWORD_FILE": str(secret),
+                                        install_inputs.VERSION_KEY: "1"})
+        self.assertTrue(any("not both" in problem for problem in both))
+
+    def test_run_logs_redact_secrets_split_across_output_chunks(self):
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("install_tui", ROOT / "scripts/install-tui.py")
+        hub = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hub)
+        redactor = hub.Redactor([PASSWORD])
+        text = "".join(redactor.feed(part) for part in ("before Str0ng!Pa", "ssw0rd#1 after")) + redactor.feed("", final=True)
+        self.assertEqual("before [redacted] after", text)
+        writer = [sys.executable, "-c", f"import sys; [sys.stdout.write(c) or sys.stdout.flush() for c in {PASSWORD!r} * 2]"]
+        with patch.object(hub, "STATE", self.dir / "state"), patch.object(hub, "REDACT", [PASSWORD]), \
+                patch("builtins.input"), patch.object(hub.subprocess, "run"), patch("sys.stdout"):
+            _, log = hub.run_logged("Echo", writer)
+        self.assertEqual("[redacted][redacted]", log.read_text())
 
 
 if __name__ == "__main__":

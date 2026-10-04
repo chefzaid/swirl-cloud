@@ -56,7 +56,9 @@ need a package before the installer can install packages.
 ## Consequences
 
 - New installer inputs must be added to the schema; the file rejects unknown keys.
-- The file holds credentials. Secret resolution from protected files, stdin or
-  Vault references, with redaction, remains a separate decision (TODO §23).
+- Inline values put credentials in the file. `NAME_FILE=/path` references to
+  protected one-line files avoid that and work before Vault exists; the hub
+  redacts entered secrets from its run logs. Vault references and stdin input
+  remain open (TODO §23).
 - Interactive-only steps outside the installer's own inputs still need a person:
   registrar nameserver delegation in `configure-cloudflare.sh` fails without a TTY.
