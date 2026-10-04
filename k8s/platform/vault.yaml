@@ -64,6 +64,10 @@ apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: vault-backend
+  annotations:
+    # Before every ExternalSecret (wave -3), so a namespace added to the
+    # conditions is admitted before its secrets are synchronized.
+    argocd.argoproj.io/sync-wave: "-4"
 spec:
   # Environment namespaces use their own restricted stores. The legacy store
   # can read platform credentials and must never be available to branch apps.
