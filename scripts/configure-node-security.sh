@@ -999,6 +999,18 @@ purge_residual_kernel_packages() {
   fi
 }
 
+# Lynis AUTH-9262. pam_pwquality only applies when a password is changed; it
+# never affects existing passwords, key-based login or service accounts.
+configure_password_quality() {
+  ensure_packages libpam-pwquality
+  write_root_file /etc/security/pwquality.conf.d/90-swirl-cloud.conf <<'EOF'
+# Managed by scripts/configure-node-security.sh
+minlen = 12
+dictcheck = 1
+usercheck = 1
+EOF
+}
+
 # Lynis KRNL-6000, limited to values that Kubernetes does not depend on.
 # Deliberately unchanged: ip_forward and rp_filter (pod routing), modules_disabled
 # (CNI, iSCSI and Longhorn load modules), sysrq (console recovery), suid_dumpable
@@ -1099,6 +1111,7 @@ configure_host_baseline() {
   configure_login_banner
   configure_package_audit_tools
   purge_residual_kernel_packages
+  configure_password_quality
   configure_kernel_hardening
   configure_unused_protocol_modules
   configure_restricted_file_modes

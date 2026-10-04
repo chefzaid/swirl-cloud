@@ -66,7 +66,9 @@ Every node also receives a host baseline that never touches the firewall or
 Kubernetes networking: a legal login banner in `/etc/issue` and
 `/etc/issue.net`, and the package audit tools `libpam-tmpdir`, `debsums`,
 `apt-show-versions` and `apt-listchanges` (text frontend, so APT never waits in
-a pager). debsums verifies package checksums weekly and logs mismatches to the
+a pager). New passwords must pass `pam_pwquality` (at least 12 characters,
+dictionary and user-name checks); existing passwords and key login are
+unaffected. debsums verifies package checksums weekly and logs mismatches to the
 system journal under the `debsums` tag. Configuration left behind by removed
 kernel packages is purged; other removed packages keep their configuration.
 Kernel settings in `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restrict kernel
