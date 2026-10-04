@@ -301,7 +301,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Kibana's **Lynis Findings** search queried application-log fields and matched nothing; it now selects `lynis.finding_type : *` (1 368 findings). *(live, 2026-10-04)*
 - [x] Platform alerts: node NotReady, Vault sealed/audit failure, Longhorn degraded/faulted, datastore down, Argo CD application unhealthy or out of sync for 30 min, and TLS certificate expiry (14 days warning, 3 days critical). *(live)*
 - [x] `swirl-cloud-k3s-backup.service` (K3s, Vault and application archives) and `swirl-cloud-vault-unseal.service` record each run through an `ExecStopPost` drop-in; `HostMaintenanceServiceFailed`, `K3sRecoveryBackupMissing` (36 h) and `VaultUnsealTimerStopped` alert on them. *(live: unseal metrics and failure path verified, rules healthy, 2026-10-04)*
-- [ ] Confirm `swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service"}` after the next scheduled backup (02:27 UTC); no extra run was forced because local archive retention is count-based.
+- [ ] After the next scheduled backup (~02:20 UTC), confirm `swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service"}` and that the archive contains `application-data/odoo-filestore.tar.gz`. No extra run was forced because local archive retention is count-based.
 - [x] External Secrets is scraped (job `external-secrets`); `ExternalSecretNotReady` fires after 15 minutes. *(live, 2026-10-04: pending immediately for the two orphaned `platform-registry-auth` ExternalSecrets below)*
 - [ ] Remove the orphaned `platform-registry-auth` ExternalSecrets in `kube-system` and `longhorn-system`, and the `imagePullSecrets` references to that Secret on CoreDNS, metrics-server, local-path-provisioner, the Longhorn CSI sidecars and the Longhorn UI. They were dropped from Git in the upstream-image migration (`ef35d1c`) but never pruned, and have failed since 2026-09-24 because `vault-backend` refuses those namespaces. All images are public upstream images; confirm and approve before deleting live resources.
 - [x] Elasticsearch is scraped through `elasticsearch-exporter` with the monitor-only `metrics_monitor` user (Vault `infra/elasticsearch`; document reads are denied); `ElasticsearchUnreachable`, `ElasticsearchClusterRed` and `ElasticsearchClusterYellow` alert on it. *(live, 2026-10-04: green, rules healthy)*
@@ -348,7 +348,7 @@ current totals or three additional remediation projects.
 - [x] Keycloak SSO through the bundled `auth_oauth` module plus a managed `odoo-keycloak-sso` add-on; vendored OCA `web_dark_mode` 19.0.1.0.0 (AGPL, provenance), enabled once for the administrator.
 - [x] Migrated from `infra` to `corp` with documented volume migration (`0e16c84`).
 - [ ] No outgoing mail server configured, so Odoo cannot send quotes, invoices or password resets.
-- [ ] Odoo filestore has no off-host backup (database is covered by `pg_dumpall`).
+- [x] The nightly recovery archive includes the Odoo filestore (`application-data/odoo-filestore.tar.gz`, taken after `pg_dumpall` so every referenced attachment is present; 21 MB today). It leaves the host with the archive once the §16 off-node target exists. *(installed 2026-10-04; first archive with it on 2026-10-05)*
 
 ### 18. Administration UIs and developer portal
 
