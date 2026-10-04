@@ -448,6 +448,48 @@ Follow the archive's datastore-specific `RESTORE.txt` and the
 recovery restores the first server with its original token before other servers
 rejoin. Verify application data as well as Kubernetes readiness after a restore.
 
+### Operator recovery checklist
+
+These steps need a person; automation cannot keep a copy that survives the host.
+Do them after the first installation and repeat the kit export whenever the
+Vault, K3s or backup credentials change.
+
+1. Export the [recovery kit](security.md#recovery-kit) on the control plane that
+   holds the Vault keys, choosing a passphrase of at least 16 characters:
+   `scripts/export-recovery-kit.sh --separate-archives` (or `./install.sh` →
+   Maintenance → Export the encrypted recovery kit).
+2. Move the kit file and its passphrase off the host, into separate places (for
+   example the kit on an encrypted USB key or cloud drive, the passphrase in a
+   password manager). Delete the copy left in your home directory.
+3. From the stored copy, run `scripts/export-recovery-kit.sh --verify FILE`; it
+   must report that the kit matches every current key file.
+4. Check `./install.sh --status` the next morning: the nightly backup must be
+   `PASS`, and the archive's `RESTORE.txt` names the kit when it omits the Vault keys.
+
+### Restore after losing the host
+
+1. Prepare a replacement host with the same Ubuntu and K3s minor version, and
+   clone this repository at the revision the platform ran.
+2. Decrypt the recovery kit:
+   `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in KIT -out kit.tar && tar -xf kit.tar`.
+3. Obtain the latest archive: from `/var/backups/swirl-cloud/k3s` if the disk
+   survived, otherwise from the off-node restic repository using the
+   `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` values in the kit's `backup.env`
+   (`restic snapshots --tag swirl-cloud-k3s`, then `restic restore`). Check the
+   archive against its `.sha256` file.
+4. Restore K3s exactly as the archive's `RESTORE.txt` describes, with the server
+   token and encryption files from the archive (or the kit when the archive is
+   older than the keys).
+5. Place `vault-unseal-key` and `vault-bootstrap-token` from the kit in
+   `/var/lib/swirl-cloud` (owner root, mode `600`), then restore or start Vault
+   and unseal it (`sudo systemctl start swirl-cloud-vault-unseal.service`).
+6. Restore PostgreSQL, MongoDB and the Odoo filestore from the archive's
+   `application-data/`, then volumes from Longhorn backups where enabled.
+7. Run `./install.sh --status` and fix every `FAIL`, then re-export a recovery
+   kit from the rebuilt host.
+
+This path has not been rehearsed end to end yet (TODO §16).
+
 ## Workload rebalancing
 
 The Descheduler can be triggered manually:

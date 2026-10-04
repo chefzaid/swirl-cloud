@@ -705,6 +705,17 @@ configured value and observe restarts, working memory, garbage collection, CPU
 and reconciliation duration across startup and normal cycles. If memory pressure
 persists, inspect the live heap/cache and adjust both budgets within node capacity.
 
+## After installation
+
+Two steps need a person and cannot be automated from the cluster:
+
+- Export the encrypted recovery kit and store it and its passphrase off the
+  host, then verify it; follow the [operator recovery checklist](operations.md#operator-recovery-checklist).
+  Without it, losing the host also loses the Vault keys and the off-node backup
+  password.
+- Open `./install.sh` in a terminal once and check that its screens render and
+  navigate on your terminal.
+
 ## Verify the result
 
 The installer waits for selected components, then runs

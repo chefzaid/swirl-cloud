@@ -117,7 +117,11 @@ These behaviors cannot be established by rendering or unit-style tests:
 
 ## Known Verification Gaps
 
-- No automated restore drill verifies offsite archives or `restic check`.
+- No automated restore drill verifies offsite archives or `restic check`, and the
+  [restore after losing the host](operations.md#restore-after-losing-the-host)
+  procedure has not been rehearsed.
+- The setup hub has been exercised only with scripted dialog answers, not in a
+  real terminal.
 - HA profiles, Tunnel ingress and fencing have not been exercised on three
   independent hosts.
 - Image upgrades rely on manual runtime and recovery checks described in

@@ -315,7 +315,9 @@ then confirm it with `scripts/export-recovery-kit.sh --verify FILE`, which fails
 when any key changed since the export. With `--separate-archives`, nightly
 archives omit the Vault keys while they still match the kit and say so in
 `RESTORE.txt`; a rotated key is archived again with a warning until you export a
-new kit. Export a new kit after rotating Vault, K3s or backup credentials.
+new kit. Export a new kit after rotating Vault, K3s or backup credentials. The
+[operator recovery checklist](operations.md#operator-recovery-checklist) and
+[restore procedure](operations.md#restore-after-losing-the-host) use the kit.
 
 ## Rotate local administrator passwords
 
