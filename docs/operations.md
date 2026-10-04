@@ -125,7 +125,12 @@ fires on a non-zero exit and `LynisAuditMissing` when no run has succeeded for
 35 days. Monitoring starts with a control plane's first managed run.
 Unattended upgrades install security updates without rebooting; every node
 exports `swirl_cloud_reboot_required` every 15 minutes, and
-`NodeRebootRequired` fires once a reboot has been pending for seven days. See
+`NodeRebootRequired` fires once a reboot has been pending for seven days.
+`swirl-cloud-k3s-backup.service` and `swirl-cloud-vault-unseal.service` record
+each run's result through an `ExecStopPost` drop-in:
+`HostMaintenanceServiceFailed` fires after 15 minutes in a failed state,
+`K3sRecoveryBackupMissing` after 36 hours without a successful backup and
+`VaultUnsealTimerStopped` after 15 minutes without an unseal check. See
 [storage and retention](#storage-and-retention) for retention settings.
 
 Trivy Operator scans across namespaces and maintains image/SBOM, configuration,

@@ -791,6 +791,28 @@ data:
             annotations:
               summary: Node reboot has been pending for over a week
               description: 'Installed updates on {{ $labels.node }} have required a reboot for more than seven days; schedule a maintenance window.'
+          - alert: HostMaintenanceServiceFailed
+            expr: swirl_cloud_systemd_unit_last_run_success == 0
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: Host maintenance service failed
+              description: 'The last run of {{ $labels.unit }} on {{ $labels.node }} failed; inspect journalctl -u {{ $labels.unit }}.'
+          - alert: K3sRecoveryBackupMissing
+            expr: time() - swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service"} > 36 * 3600
+            labels:
+              severity: critical
+            annotations:
+              summary: Daily K3s recovery backup is overdue
+              description: 'No successful swirl-cloud-k3s-backup.service run on {{ $labels.node }} for more than 36 hours; check swirl-cloud-k3s-backup.timer.'
+          - alert: VaultUnsealTimerStopped
+            expr: time() - swirl_cloud_systemd_unit_last_run_timestamp_seconds{unit="swirl-cloud-vault-unseal.service"} > 15 * 60
+            labels:
+              severity: warning
+            annotations:
+              summary: Vault unseal timer is not running
+              description: 'swirl-cloud-vault-unseal.service has not run on {{ $labels.node }} for 15 minutes; Vault would stay sealed after a restart.'
       - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown

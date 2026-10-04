@@ -1312,6 +1312,56 @@ EOF
   sudo systemctl enable --now swirl-cloud-rkhunter.timer >/dev/null
 }
 
+# Record the result of host maintenance services for Prometheus. Drop-ins are
+# written even before a unit exists, so installation order does not matter;
+# the collector path is optional so a missing directory never blocks a unit.
+configure_host_unit_metrics() {
+  local unit
+  write_root_file /usr/local/sbin/swirl-cloud-unit-metrics 0755 <<'EOF'
+#!/bin/bash
+# Managed by scripts/configure-node-security.sh
+# Called from ExecStopPost; systemd provides SERVICE_RESULT for the run.
+set -euo pipefail
+unit="$1"
+[[ "$unit" =~ ^[A-Za-z0-9@._-]+$ ]] || exit 1
+metrics_dir=/var/lib/node_exporter/textfile_collector
+metrics_file="$metrics_dir/swirl_cloud_unit_${unit//[^A-Za-z0-9]/_}.prom"
+now="$(date +%s)"
+success=0
+last_success=""
+[[ "${SERVICE_RESULT:-}" != success ]] || success=1
+if [[ -r "$metrics_file" ]]; then
+  last_success="$(awk '$1 ~ /^swirl_cloud_systemd_unit_last_success_timestamp_seconds/ {print $2}' "$metrics_file")"
+fi
+(( success == 0 )) || last_success="$now"
+temporary="$(mktemp "$metrics_dir/.swirl_cloud_unit.XXXXXX")"
+{
+  printf '# HELP swirl_cloud_systemd_unit_last_run_timestamp_seconds Last run of a host maintenance service.\n'
+  printf '# TYPE swirl_cloud_systemd_unit_last_run_timestamp_seconds gauge\n'
+  printf 'swirl_cloud_systemd_unit_last_run_timestamp_seconds{unit="%s"} %s\n' "$unit" "$now"
+  printf '# HELP swirl_cloud_systemd_unit_last_run_success Whether the last run succeeded.\n'
+  printf '# TYPE swirl_cloud_systemd_unit_last_run_success gauge\n'
+  printf 'swirl_cloud_systemd_unit_last_run_success{unit="%s"} %s\n' "$unit" "$success"
+  if [[ -n "$last_success" ]]; then
+    printf '# HELP swirl_cloud_systemd_unit_last_success_timestamp_seconds Last successful run.\n'
+    printf '# TYPE swirl_cloud_systemd_unit_last_success_timestamp_seconds gauge\n'
+    printf 'swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="%s"} %s\n' "$unit" "$last_success"
+  fi
+} > "$temporary"
+chmod 0644 "$temporary"
+mv -f "$temporary" "$metrics_file"
+EOF
+  for unit in swirl-cloud-k3s-backup.service swirl-cloud-vault-unseal.service; do
+    write_root_file "/etc/systemd/system/$unit.d/50-swirl-cloud-metrics.conf" <<'EOF'
+# Managed by scripts/configure-node-security.sh
+[Service]
+ReadWritePaths=-/var/lib/node_exporter/textfile_collector
+ExecStopPost=-/usr/local/sbin/swirl-cloud-unit-metrics %n
+EOF
+  done
+  sudo systemctl daemon-reload
+}
+
 # Role- and exposure-independent controls that never touch the firewall or
 # Kubernetes networking, so they can be reconciled on a live host. SSH changes
 # are limited to validated session options.
@@ -1319,6 +1369,7 @@ configure_host_baseline() {
   configure_login_banner
   configure_metrics_textfile_directory
   configure_reboot_required_metrics
+  configure_host_unit_metrics
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_password_quality
