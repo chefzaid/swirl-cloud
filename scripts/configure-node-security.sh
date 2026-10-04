@@ -1355,15 +1355,67 @@ temporary="$(mktemp "$metrics_dir/.swirl_cloud_unit.XXXXXX")"
 chmod 0644 "$temporary"
 mv -f "$temporary" "$metrics_file"
 EOF
-  for unit in swirl-cloud-k3s-backup.service swirl-cloud-vault-unseal.service; do
+  # "+" runs the hook with full privileges, also for units with their own user.
+  for unit in swirl-cloud-k3s-backup.service swirl-cloud-vault-unseal.service dailyaidecheck.service; do
     write_root_file "/etc/systemd/system/$unit.d/50-swirl-cloud-metrics.conf" <<'EOF'
 # Managed by scripts/configure-node-security.sh
 [Service]
 ReadWritePaths=-/var/lib/node_exporter/textfile_collector
-ExecStopPost=-/usr/local/sbin/swirl-cloud-unit-metrics %n
+ExecStopPost=-+/usr/local/sbin/swirl-cloud-unit-metrics %n
 EOF
   done
   sudo systemctl daemon-reload
+}
+
+# Lynis FINT-4350: weekly, report-only AIDE check through the packaged
+# dailyaidecheck units. Cluster, storage, container, log and backup paths churn
+# constantly and are excluded; in home directories only ~/.ssh and login shell
+# files are monitored. Package installs and
+# updates are filtered out, and each remaining change is reported once to the
+# journal (there is no mailer). The first database build runs asynchronously.
+configure_file_integrity() {
+  if ! dpkg -s aide-common >/dev/null 2>&1; then
+    apt_update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends aide aide-common >/dev/null
+  fi
+  write_root_file /etc/aide/aide.conf.d/98_swirl-cloud <<'EOF'
+# Managed by scripts/configure-node-security.sh
+!/var/lib/(rancher|longhorn|kubelet|containerd|docker|cni|fluent-bit|node_exporter)(/|$)
+!/var/lib/swirl-cloud/filebeat-lynis(/|$)
+!/var/log/(pods|containers|audit|account|lynis-reports|journal)(/|$)
+!/var/backups/swirl-cloud(/|$)
+!/run/(k3s|containerd)(/|$)
+!/(var/)?tmp/.
+# Home directories: only ~/.ssh and login shell files are monitored.
+!/home/[^/]+/(?!\.ssh(/|$)|\.(bashrc|profile|bash_profile|bash_logout)$)
+EOF
+  write_root_file /usr/local/sbin/swirl-cloud-aide-report 0755 <<'EOF'
+#!/bin/sh
+# Managed by scripts/configure-node-security.sh
+# dailyaidecheck's MAILCMD: ignore the mail arguments and log the report.
+exec systemd-cat -t aide-report
+EOF
+  sudo sed -i -E 's/^COPYNEWDB=.*/COPYNEWDB=yes/; s/^FILTERUPDATES=.*/FILTERUPDATES=yes/; s/^FILTERINSTALLATIONS=.*/FILTERINSTALLATIONS=yes/' /etc/default/aide
+  if sudo grep -q '^MAILCMD=' /etc/default/aide; then
+    sudo sed -i -E 's#^MAILCMD=.*#MAILCMD=/usr/local/sbin/swirl-cloud-aide-report#' /etc/default/aide
+  else
+    printf 'MAILCMD=/usr/local/sbin/swirl-cloud-aide-report\n' | sudo tee -a /etc/default/aide >/dev/null
+  fi
+  write_root_file /etc/systemd/system/dailyaidecheck.timer.d/50-swirl-cloud-weekly.conf <<'EOF'
+# Managed by scripts/configure-node-security.sh
+[Timer]
+OnCalendar=
+OnCalendar=Sun *-*-* 02:50:00
+RandomizedDelaySec=1h
+EOF
+  sudo aide --config=/etc/aide/aide.conf --config-check >/dev/null || err "AIDE rejected its managed configuration"
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now dailyaidecheck.timer >/dev/null
+  if ! sudo test -s /var/lib/aide/aide.db && ! systemctl is-active --quiet swirl-cloud-aide-init.service; then
+    info "Building the initial AIDE database in the background (swirl-cloud-aide-init.service)."
+    sudo systemd-run --quiet --unit=swirl-cloud-aide-init --property=Nice=10 \
+      --property=IOSchedulingClass=idle /usr/sbin/aideinit --yes --force
+  fi
 }
 
 # Role- and exposure-independent controls that never touch the firewall or
@@ -1380,6 +1432,7 @@ configure_host_baseline() {
   configure_kernel_hardening
   configure_host_audit
   configure_rootkit_scan
+  configure_file_integrity
   configure_unused_protocol_modules
   configure_restricted_file_modes
   configure_lynis_accepted_findings
