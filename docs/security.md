@@ -152,7 +152,7 @@ advisory scope and how the platform runs the component; it was not exploit-teste
 
 | Image | Critical findings | Status |
 | --- | --- | --- |
-| Keycloak 26.7.4 | Netty SNI routing, FreeMarker path traversal, Bouncy Castle | Fixed upstream: 26.7.5 scans with no critical findings. Upgrade. |
+| Keycloak 26.7.4 | Netty SNI routing, FreeMarker path traversal, Bouncy Castle | Resolved: upgraded to 26.7.5 (0 critical, 7 high). |
 | Homepage v2.4.0 | Next.js `next/og` RCE, node-tar | Latest release; no fix yet. Behind Cloudflare Access and Keycloak. Exception. |
 | Argo CD v3.5.3 | Go `crypto/tls` (CVE-2025-68121) | Latest 3.5 patch; no fix yet. Exception. |
 | Elasticsearch, Kibana, Logstash 9.5.4 | Netty SNI routing; `piscina`; Bouncy Castle | Latest 9.5 patch. Netty SNI does not apply to the plain-HTTP in-cluster listeners. Exception. |
