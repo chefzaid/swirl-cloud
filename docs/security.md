@@ -110,6 +110,13 @@ Use `--targets user@host,user@host` for explicit targets or `--help` for automat
 Filebeat ships control-plane findings to Kibana's **Lynis Security Audits**
 dashboard; audit retention is separate from ordinary logs.
 
+Accepted findings live in `/etc/lynis/custom.prf`, written by the host
+baseline with an owner, a review date and a rationale per entry. Entries skip a
+single check or value (for example `KRNL-6000:kernel.sysrq`), so new gaps in the
+same test still appear. Change the policy in
+[configure-node-security.sh](../scripts/configure-node-security.sh), never by
+editing the profile on a host.
+
 ## Administrator sign-in
 
 Normal browser access uses the administrator login selected during installation.

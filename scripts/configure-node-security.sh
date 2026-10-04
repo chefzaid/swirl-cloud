@@ -1076,6 +1076,39 @@ configure_restricted_file_modes() {
 EOF
 }
 
+# Accepted Lynis findings. Each entry skips only the named check or value, so a
+# new gap in the same test is still reported. Review every entry by its date.
+configure_lynis_accepted_findings() {
+  write_root_file /etc/lynis/custom.prf <<'EOF'
+# Managed by scripts/configure-node-security.sh
+# Accepted Lynis findings. Owner: platform administrators. Review by 2027-04-04.
+# AUTH-9230: yescrypt hashing is stronger than the SHA-512 rounds this test reads.
+skip-test=AUTH-9230
+# AUTH-9328: UMASK 027 would make sudo/cron files and workspace sources group-only,
+# breaking image COPY for non-root containers; user-private groups isolate users.
+skip-test=AUTH-9328
+# BOOT-5122: a GRUB password blocks remote console recovery.
+skip-test=BOOT-5122
+# FILE-6310: separate /home and /var partitions require reinstalling the host.
+skip-test=FILE-6310
+# USB-1000: remote consoles attach recovery media as USB storage.
+skip-test=USB-1000
+# SSH-7408: port 22 is kept for tooling; MaxSessions 4 leaves room for automation.
+skip-test=SSH-7408:port
+skip-test=SSH-7408:maxsessions
+# KRNL-6000: Kubernetes routes pods (forwarding, loose rp_filter) and loads CNI,
+# iSCSI and Longhorn modules; SysRq stays for console recovery; apport owns
+# suid_dumpable; every new pod sandbox logs a benign martian.
+skip-test=KRNL-6000:net.ipv4.conf.all.forwarding
+skip-test=KRNL-6000:net.ipv4.conf.all.rp_filter
+skip-test=KRNL-6000:kernel.modules_disabled
+skip-test=KRNL-6000:kernel.sysrq
+skip-test=KRNL-6000:fs.suid_dumpable
+skip-test=KRNL-6000:net.ipv4.conf.all.log_martians
+skip-test=KRNL-6000:net.ipv4.conf.default.log_martians
+EOF
+}
+
 # Lynis SSH-7408 session options for every node. Client-alive probes detect dead
 # sessions instead of TCP keepalives; a reload keeps existing sessions open.
 configure_ssh_session_limits() {
@@ -1115,6 +1148,7 @@ configure_host_baseline() {
   configure_kernel_hardening
   configure_unused_protocol_modules
   configure_restricted_file_modes
+  configure_lynis_accepted_findings
   configure_ssh_session_limits
   info "Host baseline applied."
 }
