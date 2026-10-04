@@ -133,7 +133,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Report-only integrity and malware checks (AIDE, rkhunter) run weekly (§20). *(live, 2026-10-04)*
 - [ ] Assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
-- [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config). *Progress 2026-10-04:* `scripts/configure-k3s-audit.sh` with a metadata-only policy (validated on a disposable K3s v1.36.4: Secret reads and writes recorded, values absent); the installer applies it before installing K3s. Remaining: apply on `swirlit-node-01` in a maintenance restart (hub Maintenance menu), enroll it on added control planes, and ship the log to Elasticsearch.
+- [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config). *Progress 2026-10-04:* `scripts/configure-k3s-audit.sh` with a metadata-only policy (validated on a disposable K3s v1.36.4: Secret reads and writes recorded, values absent); the installer and control-plane enrollment apply it before K3s starts. Remaining: apply on `swirlit-node-01` in a maintenance restart (hub Maintenance menu) and ship the log to Elasticsearch.
 
 ### 5. Private node networking and enrollment
 

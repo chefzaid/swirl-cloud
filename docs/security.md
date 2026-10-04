@@ -141,15 +141,14 @@ request and response bodies, and therefore secret values, are never logged.
 Health probes, leases, events, node reads and routine service-account reads are
 dropped.
 
-The installer configures it before installing K3s, so new servers audit from the
-start. On an existing server the drop-in takes effect at the next K3s restart; to
+The installer, and node enrollment for every new control plane, configure it
+before K3s starts, so new servers audit from the start. On an existing server the drop-in takes effect at the next K3s restart; to
 apply it now, use **Maintenance → Apply Kubernetes API audit logging** in
 `./install.sh` or run `scripts/configure-k3s-audit.sh --restart`. The API is
 unavailable for about a minute while K3s restarts; running workloads continue.
 `./install.sh --status` and the rerun plan report whether auditing is active.
 Search the log with `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
-Additional control planes are not configured yet, and the log stays on the host;
-shipping it to Elasticsearch is a follow-up.
+The log stays on each server; shipping it to Elasticsearch is a follow-up.
 
 ## Vulnerability triage
 
