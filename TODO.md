@@ -441,7 +441,7 @@ and availability of a compatible upstream image must be checked separately.
 - [ ] Triage the historical GitLab exposed-secret findings; distinguish fixtures from usable credentials, rotate any real credentials, and narrowly scope exceptions with evidence and expiry.
 - [x] No stale reports for retired owners remain: all Trivy Operator reports carry owner references and Kubernetes garbage-collects them with their workloads; none reference the retired `security/` images. *(live, 2026-10-03)*
 - [x] Non-blocking CI job `report:platform-artifacts` scans the vendored chart archives (embedded misconfiguration checks against chart defaults; the rendered manifests are audited live by Trivy Operator) and the pinned CI Alpine image through the in-cluster Trivy server; reports are kept 30 days as job artifacts. The GitHub workflow uses no third-party actions. *(pipeline 2026-10-04 passed)*
-- [ ] Hand application image findings to the owning repositories.
+- [ ] Hand application image findings to the owning repositories (2026-10-04 scan): TravelMapster `1.8.1` has 4 critical Debian bookworm findings (Perl, zlib minizip, the same accepted classes as PostgreSQL); `postgres:18.6-bookworm` is used by Thoughty's `postgres-backup` CronJob and Indezy's `wait-for-db` init container. No other application image has critical findings. Not yet recorded in those repositories; TravelMapster's checkout has an unpushed local commit, so it was left untouched.
 
 ### 22. Odoo API for applications (CRM leads and Live Chat)
 
