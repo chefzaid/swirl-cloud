@@ -82,7 +82,14 @@ directories and `/etc/ssh/sshd_config` are root-only; packaged paths keep that
 mode across upgrades through `dpkg-statoverride`.
 SSH session options (`ClientAliveInterval 300`, `ClientAliveCountMax 2`,
 `TCPKeepAlive no`, `MaxSessions 4`, `LogLevel VERBOSE`) are validated with
-`sshd -t` before a reload, which keeps existing sessions open. A full `--apply` includes it; to reconcile only the baseline
+`sshd -t` before a reload, which keeps existing sessions open.
+`auditd` records changes to accounts, sudoers, SSH, cron, systemd units, K3s
+and Swirl Cloud configuration, UFW and the time zone, plus kernel module loads
+(`ausearch -k identity`, `-k k3s-config`, and so on). Process execution is not
+audited; `acct` keeps 14 days of per-process accounting (`lastcomm`, `sa`).
+Audit logs rotate at 8 × 32 MB, BPF program-load records from container
+start-up are excluded, and a full audit disk suspends auditing instead of
+halting the node. A full `--apply` includes it; to reconcile only the baseline
 on a live host without resetting UFW, run:
 
 ```bash

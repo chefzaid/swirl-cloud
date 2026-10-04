@@ -1199,6 +1199,44 @@ EOF
   sudo systemctl start swirl-cloud-reboot-metrics.service
 }
 
+# Lynis ACCT-9622/9628: process accounting and a small, watch-based audit rule
+# set. Execve and time syscalls are not audited: CI pods and chrony would flood
+# the log. Rules stay mutable (no -e 2) so reconciliation never needs a reboot;
+# a full audit disk suspends auditing instead of halting the node.
+configure_host_audit() {
+  ensure_packages auditd acct
+  write_root_file /etc/audit/rules.d/50-swirl-cloud.rules 0640 <<'EOF'
+## Managed by scripts/configure-node-security.sh
+## containerd/runc load a BPF device filter per container; skip those records.
+-a never,exclude -F msgtype=BPF
+## Ubuntu 26.04's who AppArmor profile denies the Rust coreutils binary reading
+## /etc/passwd; SSH clients that poll who each second flood the log otherwise.
+-a never,exclude -F exe=/usr/lib/cargo/bin/coreutils/who
+-a always,exit -F path=/etc/passwd -F perm=wa -k identity
+-a always,exit -F path=/etc/group -F perm=wa -k identity
+-a always,exit -F path=/etc/shadow -F perm=wa -k identity
+-a always,exit -F path=/etc/gshadow -F perm=wa -k identity
+-a always,exit -F path=/etc/sudoers -F perm=wa -k privilege
+-a always,exit -F dir=/etc/sudoers.d -F perm=wa -k privilege
+-a always,exit -F path=/etc/ssh/sshd_config -F perm=wa -k sshd
+-a always,exit -F dir=/etc/ssh/sshd_config.d -F perm=wa -k sshd
+-a always,exit -F path=/etc/crontab -F perm=wa -k cron
+-a always,exit -F dir=/etc/cron.d -F perm=wa -k cron
+-a always,exit -F dir=/var/spool/cron -F perm=wa -k cron
+-a always,exit -F dir=/etc/systemd/system -F perm=wa -k systemd
+-a always,exit -F dir=/etc/rancher -F perm=wa -k k3s-config
+-a always,exit -F dir=/etc/swirl-cloud -F perm=wa -k swirl-cloud
+-a always,exit -F dir=/etc/ufw -F perm=wa -k firewall
+-a always,exit -F path=/etc/localtime -F perm=wa -k time-change
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules
+EOF
+  sudo sed -i -E 's/^max_log_file[[:space:]]*=.*/max_log_file = 32/; s/^num_logs[[:space:]]*=.*/num_logs = 8/' /etc/audit/auditd.conf
+  # Container churn writes roughly 250 MB of raw accounting a day; keep two weeks.
+  sudo sed -i -E 's/^([[:space:]]*)rotate [0-9]+$/\1rotate 14/' /etc/logrotate.d/acct
+  sudo augenrules --load >/dev/null
+  sudo systemctl enable --now auditd acct >/dev/null 2>&1
+}
+
 # Role- and exposure-independent controls that never touch the firewall or
 # Kubernetes networking, so they can be reconciled on a live host. SSH changes
 # are limited to validated session options.
@@ -1210,6 +1248,7 @@ configure_host_baseline() {
   purge_residual_kernel_packages
   configure_password_quality
   configure_kernel_hardening
+  configure_host_audit
   configure_unused_protocol_modules
   configure_restricted_file_modes
   configure_lynis_accepted_findings
