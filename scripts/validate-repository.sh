@@ -60,10 +60,34 @@ printf '[PASS] Nine deployment and recovery safety suites\n'
 if [[ "$LIVE" == true ]]; then
     command -v kubectl >/dev/null || { printf 'kubectl is required for --live.\n' >&2; exit 1; }
     kubectl cluster-info >/dev/null
+    live_namespaces="$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')"
+    live_api_versions="$(kubectl api-versions | tr '\n' ' ')"
+    skipped_total=0
     for manifest in "$WORK"/rendered/*.yaml; do
-        kubectl apply --dry-run=server -f "$manifest" >/dev/null
+        # A dry-run cannot validate what this cluster cannot hold yet: objects in
+        # a namespace the profile declares, or in cnpg-system, and CloudNativePG
+        # resources before HA activation installs that operator and its CRDs.
+        # Those objects are counted, not validated; any other missing namespace
+        # or API still fails.
+        skipped="$(python3 - "$manifest" "$manifest.live" "$live_namespaces" "$live_api_versions" <<'PY'
+import sys, yaml
+source, target = sys.argv[1], sys.argv[2]
+live, served = set(sys.argv[3].split()), set(sys.argv[4].split())
+documents = [d for d in yaml.safe_load_all(open(source)) if d]
+declared = {d["metadata"]["name"] for d in documents if d.get("kind") == "Namespace"}
+pending = (declared | {"cnpg-system"}) - live
+activation_groups = {"postgresql.cnpg.io"}
+kept = [d for d in documents
+        if d.get("metadata", {}).get("namespace") not in pending
+        and not (d.get("apiVersion", "").split("/")[0] in activation_groups and d.get("apiVersion") not in served)]
+yaml.safe_dump_all(kept, open(target, "w"), sort_keys=False)
+print(len(documents) - len(kept))
+PY
+)"
+        kubectl apply --dry-run=server -f "$manifest.live" >/dev/null
+        skipped_total=$((skipped_total + skipped))
     done
-    printf '[PASS] Kubernetes server-side dry-runs\n'
+    printf '[PASS] Kubernetes server-side dry-runs (%d objects that need namespaces or CloudNativePG APIs this cluster does not have yet were not validated)\n' "$skipped_total"
 fi
 
 git diff --check
