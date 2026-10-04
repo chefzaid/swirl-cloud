@@ -24,8 +24,8 @@ Known gaps are tracked as open items in [TODO.md](../TODO.md).
 - Public traffic reaches Traefik only through Cloudflare. Direct mode trusts
   Cloudflare ranges; HA Tunnel mode trusts only the loopback connector.
 - Administrative hosts require Cloudflare Access and a Keycloak session.
-- Private node traffic stays on vRack or Tailscale; workers accept SSH only from
-  control planes.
+- Private node traffic stays on vRack, Tailscale or a trusted LAN; workers
+  accept SSH only from control planes.
 - Application namespaces receive only their own scoped Vault paths, data
   credentials and runners; they never receive platform administrator secrets.
 - Control-plane root access includes Vault recovery authority.

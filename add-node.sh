@@ -29,8 +29,8 @@ and uses the existing server token, exact K3s version, and scheduling policy.
 Common remote selectors (the role determines which nodes are added):
   --count N                 Number of new nodes to prompt for
   --hosts CSV               Tailscale bootstrap SSH hosts
-  --ips CSV                 Preconfigured OVHcloud vRack addresses
-  --transport vrack|tailscale
+  --ips CSV                 Preconfigured vRack or LAN addresses
+  --transport vrack|tailscale|lan
   --non-interactive         Require explicit inputs; --yes is an alias
 
 Examples:

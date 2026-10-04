@@ -29,6 +29,7 @@ For service redundancy beyond node membership, follow the
 | --- | --- | --- |
 | OVHcloud vRack | Every node is an eligible OVHcloud Dedicated Server | Activated vRack, attached interfaces, unused RFC1918 subnet and unique node addresses |
 | Tailscale | Nodes span providers, locations or unrelated LANs | Tailnet and a temporary personal API access token |
+| Local LAN | Every node is on one on-premises or home-lab network | Fixed RFC1918 address per node and a trusted node CIDR |
 
 The [installer](../deployment.md#installation-prerequisites) and [node assistant](../../add-node.sh) share
 the account wizard and transport setup. They validate the account, prepare the
@@ -100,6 +101,35 @@ To provision just the mesh, run `./scripts/configure-tailscale.sh --fleet`.
 For K3s membership, use `./add-node.sh` so installation and security are also
 reconciled.
 
+### Local LAN
+
+Use this when every node sits on the same switch, VLAN or router and already
+has a fixed RFC1918 address (static or DHCP reservation). No provider API,
+overlay or host network change is involved: K3s binds to the interface that
+owns each address, which may be the only NIC and the default route behind a
+NAT router.
+
+```bash
+export K3S_NODE_TRANSPORT=lan
+export K3S_PRIVATE_ADDRESS=192.168.10.10
+export K3S_NODE_NETWORK_CIDR=192.168.10.0/24
+export K3S_CONTROL_PLANE_IPS=192.168.10.11,192.168.10.12
+export K3S_WORKER_IPS=192.168.10.20
+export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
+```
+
+Interactively, the installer proposes the default-route address and its
+connected subnet. Every address in `K3S_NODE_NETWORK_CIDR` can reach the K3s
+API, etcd, kubelet and Longhorn ports, so prefer a dedicated node VLAN or a
+narrow range that excludes personal and IoT devices. Private nodes accept SSH
+only from control planes; administer them with a jump through a control plane
+(`ssh -J admin@192.168.10.10 admin@192.168.10.20`).
+
+A public default route never carries vRack or LAN node traffic: the
+default-route interface is accepted only when its source address is RFC1918.
+For internet exposure from a NAT'd LAN, see
+[Cloudflare origin behind NAT](../dns.md#origin-behind-nat).
+
 ## Role-specific installation
 
 | Setting | Additional control plane | Worker |
@@ -168,6 +198,8 @@ For unattended enrollment, supply the role, mode, transport and targets:
   --control-plane-schedulable preserve --non-interactive
 ```
 
+For a LAN, use `--transport lan` with the same `--ips` form and the LAN
+`--server-url` and `--node-network-cidr`.
 For Tailscale, use `--transport tailscale` and replace `--ips` with
 `--hosts admin@host-02,admin@host-03`. Supply the existing cluster's
 [Tailscale inputs](#tailscale); the assistant discovers private

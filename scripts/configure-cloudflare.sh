@@ -1051,6 +1051,9 @@ if [[ -z "$ORIGIN_IP" ]]; then
 fi
 if [[ "$INGRESS_MODE" == direct || "$PUBLISH_NODE_DNS" == true ]]; then
     valid_ipv4 "$ORIGIN_IP" || error "Could not discover a public IPv4; use --origin-ip or disable node DNS publication in tunnel mode."
+    # A LAN/NAT host's ServiceLB address is private and unreachable from Cloudflare.
+    ! trusted_private_ipv4 "$ORIGIN_IP" || \
+        error "Ingress address $ORIGIN_IP is private. Behind a NAT router, forward TCP 80/443 to it and set --origin-ip (CLOUDFLARE_ORIGIN_IP) to the router's public IPv4."
 fi
 if [[ "$INGRESS_MODE" == direct ]]; then
     DNS_RECORD_CONTENT="$ORIGIN_IP"

@@ -443,9 +443,9 @@
     - name: Validate private transport inputs
       ansible.builtin.assert:
         that:
-          - private_transport_mode in ['vrack', 'tailscale']
-          - private_transport_mode != 'vrack' or trusted_node_cidr | length > 0
-          - private_transport_mode != 'vrack' or control_plane_private_address | length > 0
+          - private_transport_mode in ['vrack', 'tailscale', 'lan']
+          - private_transport_mode == 'tailscale' or trusted_node_cidr | length > 0
+          - private_transport_mode == 'tailscale' or control_plane_private_address | length > 0
           - private_transport_mode != 'tailscale' or tailscale_api_token is match('^tskey-api-[A-Za-z0-9_-]+$')
           - not ovh_vrack_account_enabled or ovh_vrack_service_name | length > 0
           - not ovh_vrack_account_enabled or ovh_control_plane_service_name | length > 0
@@ -453,7 +453,7 @@
           - not ovh_vrack_account_enabled or ovh_application_secret | length > 0
           - not ovh_vrack_account_enabled or ovh_consumer_key | length > 0
         fail_msg: >-
-          Private transport reconciliation requires the same vRack/Tailscale
+          Private transport reconciliation requires the same vRack/Tailscale/LAN
           inputs as the non-interactive scripts. See README.md for the exact
           environment variables and account prerequisites.
       no_log: true
@@ -534,6 +534,25 @@
       ansible.builtin.set_fact:
         reconciled_private_interface: "{{ vrack_transport.stdout_lines | last }}"
       when: private_transport_enabled and private_transport_mode == 'vrack'
+
+    - name: Resolve the existing LAN interface before firewall changes
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - 'source "$1" && interface_owning_ip "$2"'
+          - resolve-lan-interface
+          - "{{ repository_root }}/scripts/lib/network.sh"
+          - "{{ control_plane_private_address }}"
+      register: lan_transport
+      changed_when: false
+      failed_when: lan_transport.rc != 0 or (lan_transport.stdout | trim | length) == 0
+      when: private_transport_enabled and private_transport_mode == 'lan'
+
+    - name: Record the LAN interface
+      ansible.builtin.set_fact:
+        reconciled_private_interface: "{{ lan_transport.stdout | trim }}"
+      when: private_transport_enabled and private_transport_mode == 'lan'
 
     - name: Reconcile K3s private networking before host firewall changes
       ansible.builtin.command:

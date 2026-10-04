@@ -123,14 +123,14 @@ Run on the existing bootstrap control plane:
 
 Control-plane options:
   --control-plane-count N   Number of additional control planes to enroll
-  --control-plane-ips CSV   Additional preconfigured vRack node addresses
+  --control-plane-ips CSV   Additional preconfigured vRack or LAN node addresses
   --control-plane-hosts CSV Additional Tailscale bootstrap SSH hosts
   --defer-topology          Let the main installer reconcile after workers join
   --expected-control-plane-count N
                             Optional final odd control-plane count (main installer sets it)
   --control-plane-schedulable true|false|preserve
                             Scheduling mode (default: inherit existing mode)
-  --transport MODE          vrack for OVHcloud-only, tailscale for hybrid nodes
+  --transport MODE          vrack (OVHcloud-only), tailscale (hybrid) or lan (existing LAN)
   --server-url URL          Any registered control plane's private IPv4 join endpoint
   --control-plane-ip IP    This host's private SSH source (detected by default)
   --node-network-cidr CIDR  Trusted RFC1918 subnet or Tailscale 100.64.0.0/10
@@ -175,8 +175,8 @@ Non-interactive worker selection:
     --identity-file ~/.ssh/id_ed25519
 
 Options:
-  --transport MODE          OVHcloud-only vrack, or hybrid/non-OVH tailscale
-  --worker-ips CSV          Preconfigured OVHcloud vRack worker addresses
+  --transport MODE          vrack (OVHcloud-only), tailscale (hybrid) or lan (existing LAN)
+  --worker-ips CSV          Preconfigured vRack or LAN worker addresses
   --worker-hosts CSV        Tailscale bootstrap SSH hosts/IPs (one or more)
   --worker-count COUNT      Number of workers to prompt for interactively
   --control-plane-schedulable true|false|preserve
@@ -207,9 +207,10 @@ OVHcloud vRack mode can attach server interfaces through the OVHcloud API,
 configure each private NIC over bootstrap SSH, prove private SSH, and only then
 apply UFW. Tailscale mode asks for temporary
 SSH bootstrap hosts, installs and tags Tailscale automatically, then switches
-all enrollment traffic to tailscale0. Public bootstrap interfaces receive no
-inbound UFW allowance after enrollment. SSH is allowed only from the exact
-Tailscale control-plane address.
+all enrollment traffic to tailscale0. LAN mode uses each server's existing
+fixed RFC1918 address directly and changes no host networking. Public bootstrap
+interfaces receive no inbound UFW allowance after enrollment. SSH is allowed
+only from the exact private control-plane address.
 The join token is never placed in command-line arguments or copied to disk.
 
 Token commands, if this script is not run on the control plane:
@@ -357,7 +358,7 @@ fi
 
 select_transport() {
     installer_select_node_transport NODE_TRANSPORT "$NODE_TRANSPORT" vrack "$NON_INTERACTIVE" || \
-        error "Set --transport to vrack or tailscale."
+        error "Set --transport to vrack, tailscale or lan."
 }
 
 detect_private_ip() {
@@ -398,6 +399,10 @@ if [[ "$NODE_TRANSPORT" == "tailscale" ]]; then
             --auth-key-expiry "$TAILSCALE_AUTH_KEY_EXPIRY_SECONDS" \
             --api-token-stdin)"
     NODE_NETWORK_CIDR="${NODE_NETWORK_CIDR:-100.64.0.0/10}"
+elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
+    transport_guide_lan "$NON_INTERACTIVE" || error "Local LAN prerequisites are incomplete."
+    default_ip="$(detect_private_ip || true)"
+    ! tailscale_ipv4 "$default_ip" || default_ip=""
 else
     if [[ "$OVH_VRACK_CONFIG_PREPARED" != "true" ]]; then
         transport_guide_vrack_account "$NON_INTERACTIVE" "$OVH_VRACK_CONFIGURATOR" || \
@@ -463,6 +468,11 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
     [[ -z "$IDENTITY_FILE" || -f "$IDENTITY_FILE" ]] || error "SSH identity file does not exist: $IDENTITY_FILE"
     if [[ "$NODE_TRANSPORT" == "vrack" ]]; then
         installer_prompt_value NODE_NETWORK_CIDR "Trusted vRack/private node CIDR (e.g. 10.0.0.0/24)" "$NODE_NETWORK_CIDR"
+    elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
+        if [[ -z "$NODE_NETWORK_CIDR" && -n "$default_ip" ]]; then
+            NODE_NETWORK_CIDR="$(connected_ipv4_cidr "$default_ip" || true)"
+        fi
+        installer_prompt_value NODE_NETWORK_CIDR "Trusted LAN node CIDR (every address in it reaches cluster ports)" "$NODE_NETWORK_CIDR"
     fi
     installer_prompt_value COMMON_LABELS "Labels for every new node, comma-separated (optional)" "$COMMON_LABELS"
     installer_prompt_value COMMON_TAINTS "Additional taints for every new node, comma-separated (optional)" "$COMMON_TAINTS"
@@ -482,7 +492,7 @@ else
     if [[ "$NODE_TRANSPORT" == "tailscale" ]]; then
         [[ -n "$WORKER_HOSTS" ]] || error "--${ENROLLMENT_ROLE}-hosts is required for non-interactive Tailscale enrollment."
     else
-        [[ -n "$WORKER_IPS" ]] || error "--${ENROLLMENT_ROLE}-ips is required for non-interactive vRack enrollment."
+        [[ -n "$WORKER_IPS" ]] || error "--${ENROLLMENT_ROLE}-ips is required for non-interactive $NODE_TRANSPORT enrollment."
     fi
 fi
 [[ -n "$SERVER_URL" ]] || error "Could not detect the control-plane address; provide --server-url."
@@ -494,7 +504,8 @@ if [[ "$NODE_TRANSPORT" == "tailscale" ]]; then
     tailscale_ipv4 "$SERVER_PRIVATE_IP" || error "Tailscale transport requires a control-plane address in 100.64.0.0/10."
     [[ "$NODE_NETWORK_CIDR" == "100.64.0.0/10" ]] || error "Tailscale transport uses K3S_NODE_NETWORK_CIDR=100.64.0.0/10."
 else
-    ! tailscale_ipv4 "$SERVER_PRIVATE_IP" || error "vRack transport requires an RFC1918 control-plane address, not Tailscale."
+    ! tailscale_ipv4 "$SERVER_PRIVATE_IP" || error "$NODE_TRANSPORT transport requires an RFC1918 control-plane address, not Tailscale."
+    [[ "$NODE_NETWORK_CIDR" != "100.64.0.0/10" ]] || error "$NODE_TRANSPORT transport requires an RFC1918 node CIDR."
 fi
 cidr_contains_ip "$NODE_NETWORK_CIDR" "$SERVER_PRIVATE_IP" || \
     error "Control-plane URL address $SERVER_PRIVATE_IP is outside $NODE_NETWORK_CIDR"
@@ -759,7 +770,7 @@ preflight_control_plane_count() {
                 existing_role="$(jq -r --arg name "$node_name" '.items[] | select(.metadata.name == $name) | if (.metadata.labels | has("node-role.kubernetes.io/control-plane") or has("node-role.kubernetes.io/master")) then "control-plane" else "worker" end' <<< "$nodes")"
             else
                 if ! trusted_private_ipv4 "$host" || tailscale_ipv4 "$host"; then
-                    error "Invalid vRack control-plane IP: $host"
+                    error "Invalid $NODE_TRANSPORT control-plane IP: $host"
                 fi
                 cidr_contains_ip "$NODE_NETWORK_CIDR" "$host" || error "$host is outside $NODE_NETWORK_CIDR."
                 [[ "$host" != "$CONTROL_PLANE_IP" ]] || error "The bootstrap control plane cannot enroll itself."
@@ -965,7 +976,7 @@ if [[ "$NON_INTERACTIVE" == "true" ]]; then
             node_name="$TAILSCALE_NODE_NAME"
         else
             if ! trusted_private_ipv4 "$host" || tailscale_ipv4 "$host"; then
-                error "vRack worker IP must be an RFC1918 IPv4 literal: $host"
+                error "$NODE_TRANSPORT $ENROLLMENT_ROLE IP must be an RFC1918 IPv4 literal: $host"
             fi
             cidr_contains_ip "$NODE_NETWORK_CIDR" "$host" || error "Worker IP $host is outside $NODE_NETWORK_CIDR"
             target="$(build_target "$host")"
@@ -1006,6 +1017,26 @@ else
             target="$TAILSCALE_TARGET"
             worker_host="$TAILSCALE_WORKER_IP"
             detected_name="$TAILSCALE_NODE_NAME"
+        elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
+            worker_ssh_user="$DEFAULT_WORKER_SSH_USER"
+            worker_ssh_port="$DEFAULT_WORKER_SSH_PORT"
+            worker_identity_file="$DEFAULT_WORKER_IDENTITY_FILE"
+            installer_prompt_value worker_host "Fixed LAN RFC1918 address of this $ENROLLMENT_ROLE"
+            if ! trusted_private_ipv4 "$worker_host" || tailscale_ipv4 "$worker_host"; then
+                error "LAN $ENROLLMENT_ROLE IP must be an RFC1918 IPv4 literal: $worker_host"
+            fi
+            cidr_contains_ip "$NODE_NETWORK_CIDR" "$worker_host" || error "$ENROLLMENT_ROLE IP $worker_host is outside $NODE_NETWORK_CIDR"
+            installer_prompt_value worker_ssh_user "SSH user for this server" "$worker_ssh_user"
+            installer_prompt_value worker_ssh_port "SSH port for this server" "$worker_ssh_port"
+            installer_prompt_value worker_identity_file "SSH private key for this server ('-' for agent/config)" "$worker_identity_file"
+            [[ "$worker_identity_file" != "-" ]] || worker_identity_file=""
+            SSH_USER="$worker_ssh_user"
+            SSH_PORT="$worker_ssh_port"
+            IDENTITY_FILE="$worker_identity_file"
+            configure_ssh_options
+            target="$(build_target "$worker_host")"
+            check_bootstrap_target "$target"
+            detected_name="$(remote_hostname "$target")"
         else
             worker_ssh_user="$DEFAULT_WORKER_SSH_USER"
             worker_ssh_port="$DEFAULT_WORKER_SSH_PORT"

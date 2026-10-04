@@ -491,13 +491,13 @@ select_node_transport() {
         elif [[ -n "${K3S_WORKER_IPS:-}${K3S_CONTROL_PLANE_IPS:-}" ]]; then
             requested_transport=vrack
         else
-            error "Set K3S_NODE_TRANSPORT=vrack|tailscale when adding nodes non-interactively."
+            error "Set K3S_NODE_TRANSPORT=vrack|tailscale|lan when adding nodes non-interactively."
         fi
     fi
 
     installer_select_node_transport selected_transport "$requested_transport" \
         "${DEFAULT_K3S_NODE_TRANSPORT:-vrack}" "$AUTO_APPROVE" || \
-        error "K3S_NODE_TRANSPORT must be vrack or tailscale."
+        error "K3S_NODE_TRANSPORT must be vrack, tailscale or lan."
     printf '%s\n' "$selected_transport"
 }
 
@@ -739,6 +739,38 @@ if [[ "$ADD_K3S_WORKERS" == "true" || "$ADD_K3S_CONTROL_PLANES" == "true" ]]; th
         export K3S_PRIVATE_ADDRESS K3S_PRIVATE_INTERFACE K3S_NODE_NETWORK_CIDR
         TAILSCALE_CONFIG_PREPARED=true
         export TAILSCALE_TAILNET TAILSCALE_MESH_NAME TAILSCALE_NODE_HOSTNAME TAILSCALE_AUTH_KEY_EXPIRY_SECONDS TAILSCALE_CONFIG_PREPARED
+    elif [[ "$K3S_NODE_TRANSPORT" == "lan" ]]; then
+        transport_guide_lan "$AUTO_APPROVE" || error "Local LAN prerequisites are incomplete."
+        if [[ -z "${K3S_PRIVATE_ADDRESS:-}" ]]; then
+            lan_default_address="$(ip -4 route get 1.1.1.1 2>/dev/null | \
+                awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+            default_route_is_private || lan_default_address=""
+            if [[ "$AUTO_APPROVE" == "true" ]]; then
+                K3S_PRIVATE_ADDRESS="$lan_default_address"
+            else
+                installer_prompt_value K3S_PRIVATE_ADDRESS "Control-plane LAN RFC1918 IPv4" "$lan_default_address"
+            fi
+        fi
+        if ! trusted_private_ipv4 "${K3S_PRIVATE_ADDRESS:-}" || tailscale_ipv4 "$K3S_PRIVATE_ADDRESS"; then
+            error "LAN transport requires this control plane's RFC1918 IPv4 address (K3S_PRIVATE_ADDRESS)."
+        fi
+        K3S_PRIVATE_INTERFACE="$(interface_owning_ip "$K3S_PRIVATE_ADDRESS")"
+        [[ -n "$K3S_PRIVATE_INTERFACE" ]] || \
+            error "$K3S_PRIVATE_ADDRESS is not configured on this host. Assign the fixed LAN address first; LAN transport does not change host networking."
+        [[ ! "$K3S_PRIVATE_INTERFACE" =~ ^(lo|docker|br-|cni|flannel|veth|tailscale) ]] || \
+            error "$K3S_PRIVATE_ADDRESS belongs to unsupported virtual interface $K3S_PRIVATE_INTERFACE."
+        if [[ -z "${K3S_NODE_NETWORK_CIDR:-}" ]]; then
+            [[ "$AUTO_APPROVE" != "true" ]] || error "K3S_NODE_NETWORK_CIDR is required with LAN nodes."
+            installer_prompt_value K3S_NODE_NETWORK_CIDR \
+                "Trusted LAN node CIDR (every address in it reaches cluster ports)" \
+                "$(connected_ipv4_cidr "$K3S_PRIVATE_ADDRESS" || true)"
+        fi
+        trusted_private_cidr "${K3S_NODE_NETWORK_CIDR:-}" && [[ "$K3S_NODE_NETWORK_CIDR" != "100.64.0.0/10" ]] || \
+            error "LAN transport requires an RFC1918 node CIDR: ${K3S_NODE_NETWORK_CIDR:-none}"
+        cidr_contains_ip "$K3S_NODE_NETWORK_CIDR" "$K3S_PRIVATE_ADDRESS" || \
+            error "$K3S_PRIVATE_ADDRESS is outside $K3S_NODE_NETWORK_CIDR."
+        info "Using LAN address $K3S_PRIVATE_ADDRESS on $K3S_PRIVATE_INTERFACE for cluster traffic."
+        export K3S_PRIVATE_ADDRESS K3S_PRIVATE_INTERFACE K3S_NODE_NETWORK_CIDR
     else
         [[ -x "$OVH_VRACK_SCRIPT" ]] || error "OVHcloud vRack configurator not found or not executable: $OVH_VRACK_SCRIPT"
         transport_guide_vrack_account "$AUTO_APPROVE" "$OVH_VRACK_SCRIPT" || \

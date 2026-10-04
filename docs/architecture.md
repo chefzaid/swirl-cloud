@@ -66,9 +66,9 @@ Exact versions and digests live in [`config/platform.env`](../config/platform.en
 ```mermaid
 flowchart TB
     accTitle: Default and HA ingress over the private node network
-    accDescr: Default public traffic enters the first control plane. Opt-in HA uses outbound Cloudflare Tunnel connectors beside ingress on each control plane. Control planes and workers communicate privately through vRack or Tailscale.
+    accDescr: Default public traffic enters the first control plane. Opt-in HA uses outbound Cloudflare Tunnel connectors beside ingress on each control plane. Control planes and workers communicate privately through vRack, Tailscale or a trusted LAN.
     Edge["Cloudflare<br/>Public hostnames and edge TLS"]
-    subgraph Private["Private node network: vRack or Tailscale"]
+    subgraph Private["Private node network: vRack, Tailscale or LAN"]
         First["First control plane<br/>K3s API and ingress<br/>HA: co-located Tunnel connector"]
         Servers["Additional control planes<br/>K3s API and embedded etcd<br/>HA: ingress and Tunnel per host"]
         Workers["Workers, when configured<br/>Workloads and Longhorn storage"]

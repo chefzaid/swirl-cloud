@@ -61,11 +61,12 @@ installer_prompt_yes_no() {
 
 installer_select_node_transport() {
   local variable_name="$1" current_value="${2:-}" default_value="${3:-vrack}"
-  local non_interactive="${4:-false}" answer="" selected=""
+  local non_interactive="${4:-false}" answer="" selected="" default_choice
 
   case "${current_value,,}" in
-    vrack|v-rack|ovh|lan|private-network) selected=vrack ;;
+    vrack|v-rack|ovh) selected=vrack ;;
     tailscale|tailnet|ts) selected=tailscale ;;
+    lan|local|private-network) selected=lan ;;
     '') ;;
     *) return 2 ;;
   esac
@@ -76,19 +77,22 @@ installer_select_node_transport() {
   [[ "$non_interactive" != "true" ]] || return 1
 
   case "${default_value,,}" in
-    tailscale|tailnet|ts) default_value=tailscale ;;
-    *) default_value=vrack ;;
+    tailscale|tailnet|ts) default_value=tailscale; default_choice=2 ;;
+    lan|local|private-network) default_value=lan; default_choice=3 ;;
+    *) default_value=vrack; default_choice=1 ;;
   esac
   printf '%s\n' \
     "Select the private node transport:" \
     "  1) OVHcloud vRack (OVHcloud-only)" \
-    "  2) Tailscale (hybrid cloud or non-OVHcloud providers)" >&2
+    "  2) Tailscale (hybrid cloud or non-OVHcloud providers)" \
+    "  3) Local LAN (nodes already share a private subnet; no provider API or overlay)" >&2
   while true; do
-    read -rp "Select 1 or 2 [$([[ "$default_value" == "vrack" ]] && printf 1 || printf 2)]: " answer
+    read -rp "Select 1, 2 or 3 [$default_choice]: " answer
     case "${answer:-$default_value}" in
-      1|vrack|vRack|v-rack|ovh|lan|private-network) selected=vrack ;;
+      1|vrack|vRack|v-rack|ovh) selected=vrack ;;
       2|tailscale|tailnet|ts) selected=tailscale ;;
-      *) printf 'Enter 1 for vRack or 2 for Tailscale.\n' >&2; continue ;;
+      3|lan|LAN|local|private-network) selected=lan ;;
+      *) printf 'Enter 1 for vRack, 2 for Tailscale or 3 for a local LAN.\n' >&2; continue ;;
     esac
     printf -v "$variable_name" '%s' "$selected"
     return

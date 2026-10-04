@@ -172,7 +172,7 @@ Options:
   --control-plane-ip IP     Actual private source of this SSH connection
   --control-plane-ssh-ips CSV Verified control-plane administration addresses
   --k3s-version VERSION     Install the control plane's exact K3s version
-  --transport MODE          OVHcloud-only vrack, or hybrid/non-OVH tailscale
+  --transport MODE          vrack (OVHcloud-only), tailscale (hybrid) or lan (existing LAN)
   --vrack-interface NAME    OVHcloud physical private NIC (if not configured)
   --vrack-interface-mac MAC Expected OVHcloud private NIC MAC
   --vrack-vlan-id ID        Optional vRack VLAN ID (1-4094)
@@ -194,10 +194,12 @@ Run one of these commands on the control-plane node to obtain a join token:
   sudo cat /var/lib/rancher/k3s/server/node-token
   sudo k3s token create --ttl 1h --description worker-join
 
-Workers never accept public ingress. Both transports may retain a provider
+Workers never accept public ingress. vRack and Tailscale may retain a provider
 interface for bootstrap and outbound updates, but UFW adds no inbound rule to
-it. Final hardening is refused unless this installer is running through private
-SSH from the exact control-plane address to the worker's vRack/Tailscale IP.
+it. LAN nodes use their existing fixed RFC1918 address, which may be on the
+default-route NIC behind a NAT router. Final hardening is refused unless this
+installer is running through private SSH from the exact control-plane address
+to the node's vRack, Tailscale or LAN IP.
 Prefer running add-node.sh --role worker --mode remote so that path is proven first.
 EOF
 }
@@ -329,7 +331,7 @@ trim() {
 
 select_transport() {
     installer_select_node_transport NODE_TRANSPORT "$NODE_TRANSPORT" vrack "$NON_INTERACTIVE" || \
-        error "Set --transport to vrack or tailscale."
+        error "Set --transport to vrack, tailscale or lan."
 }
 
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
@@ -367,6 +369,8 @@ fi
 if [[ "$NODE_TRANSPORT" == "vrack" && "$NON_INTERACTIVE" != "true" ]]; then
     transport_guide_vrack_account false "$OVH_VRACK_CONFIGURATOR" || \
         error "OVHcloud vRack prerequisites are incomplete."
+elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
+    transport_guide_lan "$NON_INTERACTIVE" || error "Local LAN prerequisites are incomplete."
 fi
 
 info "K3s $ENROLLMENT_ROLE enrollment"
@@ -398,6 +402,8 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
     if [[ -z "$NODE_IP" ]]; then
         if [[ "$NODE_TRANSPORT" == "vrack" ]]; then
             installer_prompt_value NODE_IP "This node's unique OVHcloud vRack RFC1918 address"
+        elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
+            installer_prompt_value NODE_IP "This node's fixed LAN RFC1918 address" "$(detect_node_ip "$SERVER_PRIVATE_IP")"
         else
             installer_prompt_value NODE_IP "This node's Tailscale IPv4 address" "$(detect_node_ip "$SERVER_PRIVATE_IP")"
         fi
@@ -451,6 +457,12 @@ if [[ "$NODE_TRANSPORT" == "vrack" && -z "$(interface_owning_ip "$NODE_IP")" ]];
     [[ -z "$VRACK_VLAN_ID" ]] || vrack_args+=(--vlan-id "$VRACK_VLAN_ID")
     info "Configuring OVHcloud vRack before any UFW changes..."
     "$OVH_VRACK_CONFIGURATOR" "${vrack_args[@]}" >/dev/null
+fi
+if [[ "$NODE_TRANSPORT" == "lan" ]]; then
+    ! tailscale_ipv4 "$NODE_IP" || error "LAN transport requires an RFC1918 node address, not Tailscale: $NODE_IP"
+    [[ "$NODE_NETWORK_CIDR" != "100.64.0.0/10" ]] || error "LAN transport requires an RFC1918 node CIDR."
+    [[ -n "$(interface_owning_ip "$NODE_IP")" ]] || \
+        error "LAN address $NODE_IP is not configured on this host. Assign the fixed address first; LAN transport does not change host networking."
 fi
 NODE_INTERFACE="$(detect_node_interface "$SERVER_PRIVATE_IP")"
 [[ -n "$NODE_INTERFACE" ]] || error "Could not determine the private interface used to reach $SERVER_PRIVATE_IP"

@@ -61,6 +61,22 @@ Fight Mode only for the Registry hostname. Other WAF, rate-limit and TLS
 controls remain enabled. The token therefore needs **Bot Management Read** and
 **Edit**, in addition to the other permissions printed by the configurator.
 
+### Origin behind NAT
+
+On a local LAN, Traefik's ServiceLB address is private and Cloudflare cannot
+reach it, so the configurator refuses to publish it. Forward TCP 80 and 443
+on the router to the first control plane's LAN address and supply the
+router's public IPv4:
+
+```bash
+CLOUDFLARE_ORIGIN_IP=203.0.113.25 ./scripts/configure-cloudflare.sh --zone example.com
+```
+
+The installer passes `CLOUDFLARE_ORIGIN_IP` through. Port forwarding keeps the
+original client address, so the Cloudflare-only origin firewall still applies.
+With a dynamic public address, rerun the configurator after it changes. A
+`local` exposure needs none of this.
+
 ### Application DNS ownership
 
 Each application declares its own DNS records and owns their lifecycle.

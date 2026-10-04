@@ -11,8 +11,9 @@ normalize_server_exposure() {
 
 normalize_node_transport() {
     case "${1,,}" in
-        vrack|v-rack|ovh|lan|private-network) printf 'vrack\n' ;;
+        vrack|v-rack|ovh) printf 'vrack\n' ;;
         tailscale|tailnet|ts) printf 'tailscale\n' ;;
+        lan|local|private-network) printf 'lan\n' ;;
         *) return 1 ;;
     esac
 }
@@ -106,9 +107,36 @@ server_url_ipv4() {
     printf '%s' "$host"
 }
 
+default_route_interface() {
+    ip -4 route show default | awk 'NR == 1 {for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}'
+}
+
+# A default route whose source is RFC1918 leaves through a NAT gateway, so its
+# interface is a local LAN rather than a provider's public network.
+default_route_is_private() {
+    local source
+
+    source="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+    trusted_private_ipv4 "$source" && ! tailscale_ipv4 "$source"
+}
+
 interface_owning_ip() {
     local address="$1"
 
     ip -4 -o address show scope global | awk -v ip="$address" \
         '{split($4, parts, "/")} parts[1] == ip {print $2; exit}'
+}
+
+# Prints the connected IPv4 network of an address configured on this host.
+connected_ipv4_cidr() {
+    local address="$1" cidr prefix mask value
+
+    cidr="$(ip -4 -o address show scope global | awk -v ip="$address" \
+        '{split($4, parts, "/")} parts[1] == ip {print $4; exit}')"
+    [[ -n "$cidr" ]] || return 1
+    prefix="${cidr#*/}"
+    mask=$(( (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+    value=$(( $(ipv4_to_int "$address") & mask ))
+    printf '%u.%u.%u.%u/%s\n' $(( (value >> 24) & 255 )) $(( (value >> 16) & 255 )) \
+        $(( (value >> 8) & 255 )) $(( value & 255 )) "$prefix"
 }

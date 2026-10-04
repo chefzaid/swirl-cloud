@@ -360,10 +360,12 @@ validate_worker_private_ssh_before_firewall() {
     err "Refusing to configure worker UFW: route source $route_source is outside $K3S_NODE_NETWORK_CIDR"
   [[ -n "$route_interface" ]] || err "Refusing to configure worker UFW: private route has no interface"
 
-  if ! tailscale_transport_selected; then
-    default_interface="$(ip -4 route show default | awk 'NR == 1 {for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}')"
+  # A LAN host behind a NAT router may carry cluster traffic on its only NIC.
+  # A public default route must never carry vRack/LAN node traffic.
+  if ! tailscale_transport_selected && ! default_route_is_private; then
+    default_interface="$(default_route_interface)"
     [[ "$route_interface" != "$default_interface" ]] || \
-      err "Refusing to configure worker UFW: OVHcloud vRack traffic uses public default interface $route_interface"
+      err "Refusing to configure worker UFW: private node traffic uses public default interface $route_interface"
   fi
   [[ -n "${SSH_CONNECTION:-}" ]] || \
     err "Refusing to configure private-node UFW without a proven private SSH session. Enroll this node from the control plane over the selected private transport."
@@ -1146,10 +1148,10 @@ if private_node_policy; then
     # any UFW reset and refuses to continue until tailscale0 is ready.
     info "Tailscale worker transport selected; validating the overlay before closing public ingress."
   else
-    # OVHcloud vRack is configured and private SSH is proven before UFW. A
-    # provider NIC may remain for bootstrap/outbound traffic, but receives no
-    # inbound allowance in configure_ufw.
-    info "OVHcloud vRack worker selected; validating private SSH before closing public ingress."
+    # vRack or LAN addressing is configured and private SSH is proven before
+    # UFW. A provider NIC may remain for bootstrap/outbound traffic, but
+    # receives no inbound allowance in configure_ufw.
+    info "vRack/LAN private node selected; validating private SSH before closing public ingress."
   fi
 fi
 

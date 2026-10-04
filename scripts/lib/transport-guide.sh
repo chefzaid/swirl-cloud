@@ -164,3 +164,24 @@ EOF
         warn "Using manually confirmed OVHcloud vRack attachment; each entered private NIC will still be validated on the host."
     fi
 }
+
+transport_guide_lan() {
+    local non_interactive="$1"
+
+    [[ "$non_interactive" != "true" ]] || return 0
+    cat >&2 <<'EOF_GUIDE'
+
+Local LAN prerequisite guide (on-premises or home-lab hosts)
+  1. Connect every node to the same private IPv4 subnet (switch, VLAN or
+     router); no OVHcloud vRack or Tailscale is used.
+  2. Give each node a fixed RFC1918 address: a static address or a DHCP
+     reservation. Kubernetes and etcd break if node addresses change.
+  3. Choose the trusted node CIDR. Every address in it can reach the K3s API,
+     etcd, kubelet and Longhorn ports, so prefer a dedicated node VLAN or a
+     narrow range that excludes laptops, phones and IoT devices.
+  4. Confirm the bootstrap control plane can SSH to each node's LAN address
+     with a key and root or passwordless sudo.
+EOF_GUIDE
+    transport_guide_continue "Return here after every node has a fixed LAN address" || return 1
+    info "Using the existing LAN; the installer will not change host networking."
+}
