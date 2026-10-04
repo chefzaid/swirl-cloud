@@ -1143,12 +1143,64 @@ configure_metrics_textfile_directory() {
   sudo install -d -o root -g root -m 0755 /var/lib/node_exporter/textfile_collector
 }
 
+# Unattended security updates install packages but never reboot. Export the
+# pending-reboot flag so Prometheus can alert when a reboot stays outstanding.
+configure_reboot_required_metrics() {
+  write_root_file /usr/local/sbin/swirl-cloud-reboot-metrics 0755 <<'EOF'
+#!/bin/bash
+# Managed by scripts/configure-node-security.sh
+set -euo pipefail
+metrics_dir=/var/lib/node_exporter/textfile_collector
+flag=/var/run/reboot-required
+required=0
+since=0
+if [[ -e "$flag" ]]; then
+  required=1
+  since="$(stat -c %Y "$flag")"
+fi
+temporary="$(mktemp "$metrics_dir/.swirl_cloud_reboot.XXXXXX")"
+{
+  printf '# HELP swirl_cloud_reboot_required Whether installed updates require a reboot.\n'
+  printf '# TYPE swirl_cloud_reboot_required gauge\n'
+  printf 'swirl_cloud_reboot_required %s\n' "$required"
+  printf '# HELP swirl_cloud_reboot_required_since_timestamp_seconds When the pending reboot was first requested, or 0.\n'
+  printf '# TYPE swirl_cloud_reboot_required_since_timestamp_seconds gauge\n'
+  printf 'swirl_cloud_reboot_required_since_timestamp_seconds %s\n' "$since"
+} > "$temporary"
+chmod 0644 "$temporary"
+mv -f "$temporary" "$metrics_dir/swirl_cloud_reboot.prom"
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-reboot-metrics.service <<'EOF'
+[Unit]
+Description=Export the Swirl Cloud pending-reboot state for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/swirl-cloud-reboot-metrics
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-reboot-metrics.timer <<'EOF'
+[Unit]
+Description=Refresh the Swirl Cloud pending-reboot metric
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now swirl-cloud-reboot-metrics.timer >/dev/null
+  sudo systemctl start swirl-cloud-reboot-metrics.service
+}
+
 # Role- and exposure-independent controls that never touch the firewall or
 # Kubernetes networking, so they can be reconciled on a live host. SSH changes
 # are limited to validated session options.
 configure_host_baseline() {
   configure_login_banner
   configure_metrics_textfile_directory
+  configure_reboot_required_metrics
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_password_quality

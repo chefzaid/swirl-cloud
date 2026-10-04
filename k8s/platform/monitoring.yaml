@@ -784,6 +784,13 @@ data:
             annotations:
               summary: Monthly Lynis audit is overdue
               description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
+          - alert: NodeRebootRequired
+            expr: swirl_cloud_reboot_required == 1 and time() - swirl_cloud_reboot_required_since_timestamp_seconds > 7 * 86400
+            labels:
+              severity: warning
+            annotations:
+              summary: Node reboot has been pending for over a week
+              description: 'Installed updates on {{ $labels.node }} have required a reboot for more than seven days; schedule a maintenance window.'
       - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown
