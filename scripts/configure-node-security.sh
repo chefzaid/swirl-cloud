@@ -420,6 +420,8 @@ backup_file_if_exists() {
   fi
 }
 
+# Leaves an identical root-owned file untouched, so reruns do not churn inodes
+# and timestamps that AIDE and auditd report as changes.
 write_root_file() {
   local destination_path="$1"
   local mode="${2:-0644}"
@@ -427,7 +429,23 @@ write_root_file() {
 
   tmp_file="$(mktemp)"
   cat > "$tmp_file"
-  sudo install -D -m "$mode" "$tmp_file" "$destination_path"
+  if ! sudo test -f "$destination_path" || ! sudo cmp -s "$tmp_file" "$destination_path" || \
+      [[ "$(sudo stat -c '%a %u %g' "$destination_path")" != "$(printf '%o' "$((8#$mode))") 0 0" ]]; then
+    sudo install -D -o root -g root -m "$mode" "$tmp_file" "$destination_path"
+  fi
+  rm -f "$tmp_file"
+}
+
+# Applies an extended sed expression to a root-owned file only when the result
+# differs, keeping the file's inode, owner and mode.
+edit_root_file() {
+  local path="$1" expression="$2" tmp_file
+
+  tmp_file="$(mktemp)"
+  sudo cat "$path" | sed -E "$expression" > "$tmp_file"
+  if ! sudo cmp -s "$tmp_file" "$path"; then
+    sudo cp "$tmp_file" "$path"
+  fi
   rm -f "$tmp_file"
 }
 
@@ -983,7 +1001,7 @@ configure_package_audit_tools() {
     sudo env DEBIAN_FRONTEND=noninteractive dpkg-reconfigure apt-listchanges >/dev/null
   fi
   # Weekly report-only package checksum verification; findings go to syslog.
-  sudo sed -i 's/^CRON_CHECK=.*/CRON_CHECK=weekly/' /etc/default/debsums
+  edit_root_file /etc/default/debsums 's/^CRON_CHECK=.*/CRON_CHECK=weekly/'
 }
 
 # Lynis PKGS-7346. Every kernel update leaves the previous kernel's
@@ -1234,9 +1252,9 @@ configure_host_audit() {
 -a always,exit -F path=/etc/localtime -F perm=wa -k time-change
 -a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules
 EOF
-  sudo sed -i -E 's/^max_log_file[[:space:]]*=.*/max_log_file = 32/; s/^num_logs[[:space:]]*=.*/num_logs = 8/' /etc/audit/auditd.conf
+  edit_root_file /etc/audit/auditd.conf 's/^max_log_file[[:space:]]*=.*/max_log_file = 32/; s/^num_logs[[:space:]]*=.*/num_logs = 8/'
   # Container churn writes roughly 250 MB of raw accounting a day; keep two weeks.
-  sudo sed -i -E 's/^([[:space:]]*)rotate [0-9]+$/\1rotate 14/' /etc/logrotate.d/acct
+  edit_root_file /etc/logrotate.d/acct 's/^([[:space:]]*)rotate [0-9]+$/\1rotate 14/'
   sudo augenrules --load >/dev/null
   sudo systemctl enable --now auditd acct >/dev/null 2>&1
 }
@@ -1259,7 +1277,7 @@ ALLOWHIDDENDIR=/etc/.java
 ALLOWHIDDENFILE=/etc/.updated
 ALLOWHIDDENFILE=/etc/.resolv.conf.systemd-resolved.bak
 EOF
-  sudo sed -i -E 's/^APT_AUTOGEN=.*/APT_AUTOGEN="true"/' /etc/default/rkhunter
+  edit_root_file /etc/default/rkhunter 's/^APT_AUTOGEN=.*/APT_AUTOGEN="true"/'
   sudo rkhunter --config-check --nocolors >/dev/null || err "rkhunter rejected its managed configuration"
   if ! sudo test -s /var/lib/rkhunter/db/rkhunter.dat; then
     sudo rkhunter --propupd --nocolors >/dev/null
@@ -1384,7 +1402,8 @@ configure_file_integrity() {
 !/var/lib/swirl-cloud/filebeat-lynis(/|$)
 !/var/log/(pods|containers|audit|account|lynis-reports|journal)(/|$)
 !/var/backups/swirl-cloud(/|$)
-!/run/(k3s|containerd)(/|$)
+!/run/.
+!/var/lib/crowdsec/data(/|$)
 !/(var/)?tmp/.
 # Home directories: only ~/.ssh and login shell files are monitored.
 !/home/[^/]+/(?!\.ssh(/|$)|\.(bashrc|profile|bash_profile|bash_logout)$)
@@ -1395,9 +1414,9 @@ EOF
 # dailyaidecheck's MAILCMD: ignore the mail arguments and log the report.
 exec systemd-cat -t aide-report
 EOF
-  sudo sed -i -E 's/^COPYNEWDB=.*/COPYNEWDB=yes/; s/^FILTERUPDATES=.*/FILTERUPDATES=yes/; s/^FILTERINSTALLATIONS=.*/FILTERINSTALLATIONS=yes/' /etc/default/aide
+  edit_root_file /etc/default/aide 's/^COPYNEWDB=.*/COPYNEWDB=yes/; s/^FILTERUPDATES=.*/FILTERUPDATES=yes/; s/^FILTERINSTALLATIONS=.*/FILTERINSTALLATIONS=yes/'
   if sudo grep -q '^MAILCMD=' /etc/default/aide; then
-    sudo sed -i -E 's#^MAILCMD=.*#MAILCMD=/usr/local/sbin/swirl-cloud-aide-report#' /etc/default/aide
+    edit_root_file /etc/default/aide 's#^MAILCMD=.*#MAILCMD=/usr/local/sbin/swirl-cloud-aide-report#'
   else
     printf 'MAILCMD=/usr/local/sbin/swirl-cloud-aide-report\n' | sudo tee -a /etc/default/aide >/dev/null
   fi
