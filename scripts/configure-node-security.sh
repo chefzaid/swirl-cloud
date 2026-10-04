@@ -986,11 +986,25 @@ configure_package_audit_tools() {
   sudo sed -i 's/^CRON_CHECK=.*/CRON_CHECK=weekly/' /etc/default/debsums
 }
 
+# Lynis PKGS-7346. Every kernel update leaves the previous kernel's
+# configuration-only ("rc") packages behind; they hold no binaries. Other rc
+# packages may be deliberately retained configuration and are left alone.
+purge_residual_kernel_packages() {
+  local -a residual=()
+  mapfile -t residual < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 2>/dev/null | \
+    awk '$1 == "rc" && $2 ~ /^linux-(image|modules|modules-extra|main-modules-zfs|headers)-[0-9]/ {print $2}')
+  if [[ ${#residual[@]} -gt 0 ]]; then
+    info "Purging configuration left by ${#residual[@]} removed kernel package(s)."
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq "${residual[@]}" >/dev/null
+  fi
+}
+
 # Role- and exposure-independent controls that never touch the firewall, SSH
 # daemon or Kubernetes networking, so they can be reconciled on a live host.
 configure_host_baseline() {
   configure_login_banner
   configure_package_audit_tools
+  purge_residual_kernel_packages
   info "Host baseline applied."
 }
 
