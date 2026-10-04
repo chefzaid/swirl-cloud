@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prevent cross-environment onboarding, pointer verification and DNS certificate mistakes."""
 import base64
+from contextlib import nullcontext
 import copy
 import importlib.util
 import json
@@ -504,5 +505,57 @@ class DeliveryBoundaryTests(unittest.TestCase):
         self.assertTrue(all(value["locked"] and not value["run_untagged"] for value in runners.values()))
         saved = objects[("secret", "gitlab-project-7", "gitlab-runners")]["data"]
         self.assertEqual(set(saved), {"int-id", "int-token", "release-id", "release-token"})
+
+class DeploymentCommand(unittest.TestCase):
+    """The hub/CLI deployment honors environment branch rules and one run per environment."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("deploy_application", ROOT / "scripts/deploy-application.py")
+        self.deploy = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.deploy)
+        app = {"metadata": {"name": "demo-prod", "labels": {"swirl-cloud/environment": "prod"}},
+               "status": {"sync": {"status": "Synced", "revision": "a" * 40}, "health": {"status": "Healthy"}}}
+        self.apps = {"demo": {"project": "group/demo", "environments": {"prod": app, "int": app}}}
+
+    def run_deploy(self, environment, ref=None, active_variables=()):
+        calls = []
+
+        class FakeGitLab:
+            def __init__(self, *_args):
+                pass
+
+            def request(self, method, path, data=None):
+                calls.append((method, path))
+                if path.startswith("/projects/group%2Fdemo"):
+                    return {"id": 7, "default_branch": "main"}
+                if "/pipelines?status=running" in path:
+                    return [{"id": 41, "web_url": "https://gitlab/p/41"}] if active_variables else []
+                if path.endswith("/pipelines/41/variables"):
+                    return list(active_variables)
+                if "/pipelines?status=" in path:
+                    return []
+                if "/repository/commits/" in path:
+                    return {"short_id": "abc1234", "title": "Change"}
+                raise AssertionError(f"unexpected GitLab call {method} {path}")
+
+        args = SimpleNamespace(application="demo", environment=environment, ref=ref, release_version=None, yes=True,
+                               approve_manual=False, timeout=1)
+        forward = patch.object(self.deploy, "forward", return_value=nullcontext("http://127.0.0.1:1"))
+        with patch.object(self.deploy, "applications", return_value=self.apps), \
+                patch.object(self.deploy, "gitlab_token", return_value=("glpat-test", True)), \
+                patch.object(self.deploy, "revoke_token") as revoke, patch.object(self.deploy, "HTTP", FakeGitLab), \
+                forward, self.assertRaises(ServiceError) as raised:
+            self.deploy.deploy(args)
+        revoke.assert_called_once()
+        self.assertFalse([call for call in calls if call[0] == "POST"])
+        return str(raised.exception)
+
+    def test_production_refuses_branches_other_than_the_default(self):
+        self.assertIn("prod deploys only from main", self.run_deploy("prod", ref="feature/x"))
+
+    def test_a_second_deployment_to_the_same_environment_is_refused(self):
+        message = self.run_deploy("int", active_variables=[{"key": "DEPLOYMENT_ENVIRONMENT", "value": "int"}])
+        self.assertIn("already running: https://gitlab/p/41", message)
+
 
 if __name__ == "__main__": unittest.main()

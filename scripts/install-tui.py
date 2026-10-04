@@ -442,6 +442,35 @@ def maintenance(dialog, values):
             dialog.run("--scrolltext", "--textbox", str(STATE / "logs" / name), str(dialog.height), str(dialog.width))
 
 
+def deploy_application(dialog):
+    result = subprocess.run([sys.executable, str(ROOT / "scripts/deploy-application.py"), "list"], capture_output=True,
+                            text=True, timeout=120)
+    applications = re.findall(r"^(\S+)  \((.+)\)$", result.stdout, re.M)
+    if result.returncode or not applications:
+        dialog.message("No environment-aware applications are registered yet.\n\n" + (result.stdout + result.stderr)[-1500:], 12)
+        return
+    dialog.message("Current deployments\n\n" + result.stdout)
+    application = dialog.menu("Application", [(name, project) for name, project in applications])
+    block = result.stdout.split(application + "  (", 1)[1].split("\n\n")[0]
+    environments = re.findall(r"^  (int|uat|prod) ", block, re.M)
+    environment = dialog.menu(f"Environment for {application}", [(e, {"int": "integration snapshot from any branch",
+                              "uat": "acceptance release", "prod": "production release"}[e]) for e in environments])
+    command = [sys.executable, str(ROOT / "scripts/deploy-application.py"), "deploy", "--application", application,
+               "--environment", environment]
+    if environment == "int":
+        ref = dialog.text("Branch or tag to build and deploy (empty: default branch)")
+        if ref:
+            command += ["--ref", ref]
+    elif dialog.menu("What to deploy", [("release", "Publish a new release from the default branch"),
+                                        ("promote", "Promote an existing release version")]) == "promote":
+        command += ["--release-version", dialog.text("Release version to promote (for example 1.2.3)")]
+    code, log = run_logged(f"Deploy {application} to {environment}", command)
+    if code == 2:
+        dialog.message("The release gate is waiting for approval in GitLab; the log shows its link.\n\n" + tail(log, 8), 14)
+    elif code:
+        dialog.message(f"The deployment did not complete (exit code {code}). Last lines:\n\n{tail(log)}")
+
+
 def service_links(values):
     result = subprocess.run(["kubectl", "--request-timeout=20s", "get", "ingress", "-A", "-o", "json"],
                             capture_output=True, text=True)
@@ -486,6 +515,7 @@ MENU = [("overview", "What gets installed and the current state"),
         ("install", "Install or update the platform"),
         ("servers", "Add servers"),
         ("repositories", "Import and deploy GitHub repositories"),
+        ("deploy", "Deploy an application to int, uat or prod"),
         ("status", "Platform status and verification"),
         ("links", "Service links"),
         ("maintenance", "Maintenance: backup, unseal, password rotation, audits, logs"),
@@ -538,6 +568,8 @@ def main():
                 add_servers(dialog, values)
             elif choice == "repositories":
                 import_repositories(dialog, values)
+            elif choice == "deploy":
+                deploy_application(dialog)
             elif choice == "status":
                 dialog.message(verify_report()[1] if unit_exists("k3s.service") else
                                "The platform is not installed on this host yet.")

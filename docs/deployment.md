@@ -95,6 +95,7 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Install or update | Saves, rechecks the host, runs the engine with a private log under `~/.local/state/swirl-cloud/logs`, then shows the [verification report](#verify-the-result). |
 | Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
 | Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
+| Deploy an application | Shows each environment-aware application's revision and health per environment, then deploys a branch to `int`, a new release to `uat`/`prod`, or promotes an existing release ([details](#deploy-from-the-hub-or-the-command-line)). |
 | Status / Service links | Verification report, and every service URL grouped by namespace. |
 | Maintenance | Run the recovery backup or Vault unseal now (with their journal), apply API audit logging, create a support bundle, [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
 
@@ -583,6 +584,27 @@ flowchart LR
     Uat --> Data
     Prod --> Data
 ```
+
+### Deploy from the hub or the command line
+
+`./install.sh` → **Deploy an application**, or the same flow without the hub:
+
+```bash
+scripts/deploy-application.py list
+scripts/deploy-application.py deploy --application swirl-demo-app --environment int [--ref BRANCH]
+scripts/deploy-application.py deploy --application swirl-demo-app --environment prod [--release-version 1.2.3]
+```
+
+Choices come from Argo CD Applications labelled `swirl-cloud/environment` whose
+environment is registered in `infra/deployment-environments`. The command
+starts the project's pipeline with `PIPELINE_MODE=full` and
+`DEPLOYMENT_ENVIRONMENT` (plus `RELEASE_VERSION` when promoting) through a private
+port-forward to GitLab, using a one-day administrator token it creates and
+revokes afterwards (or `GITLAB_ADMIN_TOKEN` when set). `uat` and `prod` deploy
+only from the default branch. Manual release gates are run only after you
+confirm them; otherwise the command stops with exit code 2 and the gate's
+GitLab link. It reports success only when the target Application is `Synced`
+and `Healthy` at a new revision, then prints the application URLs.
 
 Each Application (`swirl-demo-app-int`, `swirl-demo-app-uat`, `swirl-demo-app-prod`) uses its own restricted
 AppProject, registered cluster/namespace pair and immutable runtime configuration commit.
