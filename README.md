@@ -20,10 +20,12 @@ On the first Ubuntu control-plane host, review the
 [installation prerequisites](docs/deployment.md#installation-prerequisites), then run:
 
 ```bash
-./install-control-plane.sh
+python3 scripts/install-tui.py      # guided screens; writes ~/.config/swirl-cloud/install.env
+./install-control-plane.sh --env-file ~/.config/swirl-cloud/install.env
 ```
 
-The installer guides setup and verifies the selected services. Open
+`./install-control-plane.sh` alone asks the same questions in the terminal. The
+installer verifies the selected services. Open
 `https://cloud.<your-domain>` for the service catalog. The
 [deployment guide](docs/deployment.md) also covers unattended setup, Ansible,
 reconciliation and application environments.

@@ -46,6 +46,48 @@ fi
 # shellcheck source=scripts/lib/sso-admin.sh
 source "$SSO_ADMIN_LIBRARY"
 
+usage() {
+    cat <<USAGE
+Usage: $0 [--yes] [--env-file FILE [--validate-only]]
+
+  --yes             Run unattended from environment variables and defaults.
+  --env-file FILE   Run unattended from an installation input file (mode 0600),
+                    such as one written by scripts/install-tui.py. Its values
+                    replace any installation inputs in the calling environment.
+  --validate-only   Report every problem in --env-file FILE, then exit.
+USAGE
+}
+
+AUTO_APPROVE=false
+INSTALL_ENV_FILE=""
+VALIDATE_ONLY=false
+while (( $# > 0 )); do
+    case "$1" in
+        -y|--yes|--auto-approve) AUTO_APPROVE=true ;;
+        --env-file=*) INSTALL_ENV_FILE="${1#*=}" ;;
+        --env-file)
+            (( $# >= 2 )) || { echo "[ERROR] --env-file requires a path" >&2; exit 1; }
+            INSTALL_ENV_FILE="$2"
+            shift
+            ;;
+        --validate-only) VALIDATE_ONLY=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+    shift
+done
+if [[ "$VALIDATE_ONLY" == true && -z "$INSTALL_ENV_FILE" ]]; then
+    echo "[ERROR] --validate-only requires --env-file FILE" >&2
+    exit 1
+fi
+if [[ -n "$INSTALL_ENV_FILE" ]]; then
+    # shellcheck source=scripts/lib/install-env.sh
+    source "$SCRIPT_DIR/scripts/lib/install-env.sh"
+    # Import before the defaults below so file values behave like environment inputs.
+    install_env_import "$INSTALL_ENV_FILE" || exit 1
+    AUTO_APPROVE=true
+fi
+
 K8S_TEMPLATE_DIR="$SCRIPT_DIR/k8s"
 K8S_DIR="$K8S_TEMPLATE_DIR"
 ARGOCD_VALUES_FILE="$SCRIPT_DIR/config/argocd-values.yaml"
@@ -70,7 +112,6 @@ CLUSTER_TOPOLOGY_SCRIPT="$SCRIPT_DIR/scripts/reconcile-cluster-topology.sh"
 K3S_NETWORK_SCRIPT="$SCRIPT_DIR/scripts/configure-k3s-control-plane-network.sh"
 TAILSCALE_SCRIPT="$SCRIPT_DIR/scripts/configure-tailscale.sh"
 OVH_VRACK_SCRIPT="$SCRIPT_DIR/scripts/configure-ovh-vrack.sh"
-AUTO_APPROVE=false
 INSTALL_SCOPE="${INSTALL_SCOPE:-apps}"
 SERVER_EXPOSURE="${SERVER_EXPOSURE:-internet}"
 K3S_NODE_TRANSPORT="${K3S_NODE_TRANSPORT:-}"
@@ -151,19 +192,6 @@ IFS=',' read -r -a DATASTORE_WAIT_APP_ARRAY <<< "$DATASTORE_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_APP_ARRAY <<< "$PLATFORM_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_DAEMONSET_ARRAY <<< "$PLATFORM_WAIT_DAEMONSETS"
 
-for arg in "$@"; do
-    case "$arg" in
-        -y|--yes|--auto-approve)
-            AUTO_APPROVE=true
-            ;;
-        *)
-            echo "Unknown option: $arg"
-            echo "Usage: $0 [--yes]"
-            exit 1
-            ;;
-    esac
-done
-
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -178,6 +206,25 @@ step()  { echo -e "${BLUE}[STEP]${NC}  $*"; }
 
 ask_with_default() {
     installer_prompt_yes_no "$1" "${2:-N}" "$AUTO_APPROVE"
+}
+
+# decide VARIABLE QUESTION DEFAULT: a preset true/false value skips the question;
+# otherwise ask (or take DEFAULT when unattended).
+decide() {
+    local name="$1" question="$2" default_choice="$3" value="${!1:-}"
+    if [[ -n "$value" ]]; then
+        case "${value,,}" in
+            1|true|yes|y) printf -v "$name" true ;;
+            0|false|no|n) printf -v "$name" false ;;
+            *) error "$name must be true or false." ;;
+        esac
+        return
+    fi
+    if ask_with_default "$question" "$default_choice"; then
+        printf -v "$name" true
+    else
+        printf -v "$name" false
+    fi
 }
 
 # shellcheck source=scripts/lib/platform-identity.sh
@@ -507,7 +554,9 @@ configure_platform_component_selection() {
         "The recommended bundle installs storage, ingress, secrets, data stores," \
         "platform services, Descheduler resources, and Argo CD."
 
-    if ask_with_default "Use the recommended platform component bundle?" "Y"; then
+    if [[ -n "${INSTALL_LONGHORN:-}${INSTALL_INGRESS:-}${INSTALL_VAULT_STACK:-}${DEPLOY_DATA_STORES:-}${DEPLOY_PLATFORM_SERVICES:-}${INSTALL_DESCHEDULER:-}${INSTALL_ARGOCD:-}" ]]; then
+        info "Using the supplied component selection; unset components default to installed."
+    elif ask_with_default "Use the recommended platform component bundle?" "Y"; then
         INSTALL_LONGHORN=true
         INSTALL_INGRESS=true
         INSTALL_VAULT_STACK=true
@@ -519,13 +568,13 @@ configure_platform_component_selection() {
     fi
 
     info "Custom component selection enabled."
-    ask_with_default "Install/upgrade Longhorn and make it the default storage class?" "Y" && INSTALL_LONGHORN=true || INSTALL_LONGHORN=false
-    ask_with_default "Install/upgrade Traefik ingress controller?" "Y" && INSTALL_INGRESS=true || INSTALL_INGRESS=false
-    ask_with_default "Install/upgrade Vault + External Secrets and bootstrap secrets?" "Y" && INSTALL_VAULT_STACK=true || INSTALL_VAULT_STACK=false
-    ask_with_default "Deploy/upgrade core data stores (Postgres, Kafka, Redis, MongoDB)?" "Y" && DEPLOY_DATA_STORES=true || DEPLOY_DATA_STORES=false
-    ask_with_default "Deploy/upgrade platform services from the shared inventory?" "Y" && DEPLOY_PLATFORM_SERVICES=true || DEPLOY_PLATFORM_SERVICES=false
-    ask_with_default "Install/upgrade Descheduler addon resources (manual trigger only)?" "Y" && INSTALL_DESCHEDULER=true || INSTALL_DESCHEDULER=false
-    ask_with_default "Install/upgrade Argo CD?" "Y" && INSTALL_ARGOCD=true || INSTALL_ARGOCD=false
+    decide INSTALL_LONGHORN "Install/upgrade Longhorn and make it the default storage class?" "Y"
+    decide INSTALL_INGRESS "Install/upgrade Traefik ingress controller?" "Y"
+    decide INSTALL_VAULT_STACK "Install/upgrade Vault + External Secrets and bootstrap secrets?" "Y"
+    decide DEPLOY_DATA_STORES "Deploy/upgrade core data stores (Postgres, Kafka, Redis, MongoDB)?" "Y"
+    decide DEPLOY_PLATFORM_SERVICES "Deploy/upgrade platform services from the shared inventory?" "Y"
+    decide INSTALL_DESCHEDULER "Install/upgrade Descheduler addon resources (manual trigger only)?" "Y"
+    decide INSTALL_ARGOCD "Install/upgrade Argo CD?" "Y"
 }
 
 prompt_platform_admin_credentials() {
@@ -625,6 +674,28 @@ install_pinned_helm() {
 # shellcheck source=scripts/lib/tls.sh
 source "$SCRIPT_DIR/scripts/lib/tls.sh"
 
+# ---------- Installation input file ----------------------------------------------
+if [[ -n "$INSTALL_ENV_FILE" ]]; then
+    # Report schema and credential-policy problems together, before any change.
+    if [[ -n "${KEYCLOAK_SSO_BOOTSTRAP_USERNAME:-}" ]] && ! sso_admin_validate_username "$KEYCLOAK_SSO_BOOTSTRAP_USERNAME"; then
+        INSTALL_ENV_PROBLEMS+=("KEYCLOAK_SSO_BOOTSTRAP_USERNAME: $SSO_ADMIN_VALIDATION_ERROR")
+    fi
+    if [[ -n "${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-}" ]] && \
+        ! sso_admin_validate_password "$KEYCLOAK_SSO_BOOTSTRAP_PASSWORD" "${KEYCLOAK_SSO_BOOTSTRAP_USERNAME:-}"; then
+        INSTALL_ENV_PROBLEMS+=("KEYCLOAK_SSO_BOOTSTRAP_PASSWORD: $SSO_ADMIN_VALIDATION_ERROR")
+    fi
+    if [[ -n "${LOCAL_ADMIN_PASSWORD:-}" ]] && ! validate_local_admin_password; then
+        INSTALL_ENV_PROBLEMS+=("LOCAL_ADMIN_PASSWORD: $LOCAL_ADMIN_PASSWORD_ERROR")
+    fi
+    if (( ${#INSTALL_ENV_PROBLEMS[@]} > 0 )); then
+        printf '%b[ERROR]%b %s has %d problem(s):\n' "$RED" "$NC" "$INSTALL_ENV_FILE" "${#INSTALL_ENV_PROBLEMS[@]}" >&2
+        printf '  - %s\n' "${INSTALL_ENV_PROBLEMS[@]}" >&2
+        exit 1
+    fi
+    info "Installation inputs in $INSTALL_ENV_FILE are valid."
+    [[ "$VALIDATE_ONLY" != true ]] || exit 0
+fi
+
 # ---------- Combined pre-flight checks -----------------------------------------
 [[ $EUID -eq 0 ]] && error "Do not run as root. The script uses sudo when needed."
 if systemctl cat k3s-agent.service >/dev/null 2>&1; then
@@ -722,14 +793,14 @@ else
     K3S_DEFAULT="Y"
 fi
 
-ask_with_default "Install/upgrade system prerequisites (Ansible, storage clients, validation tools)?" "Y" && INSTALL_PREREQS=true || INSTALL_PREREQS=false
+decide INSTALL_PREREQS "Install/upgrade system prerequisites (Ansible, storage clients, validation tools)?" "Y"
 if [[ "$INSTALL_PREREQS" == true && -z "$INSTALL_DEVELOPER_TOOLS" ]]; then
     ask_with_default "Also install developer tools (Java 21, Maven, Docker)?" "N" && \
         INSTALL_DEVELOPER_TOOLS=true || INSTALL_DEVELOPER_TOOLS=false
 fi
 INSTALL_DEVELOPER_TOOLS="${INSTALL_DEVELOPER_TOOLS:-false}"
 [[ "$INSTALL_DEVELOPER_TOOLS" =~ ^(true|false)$ ]] || error "INSTALL_DEVELOPER_TOOLS must be true or false."
-ask_with_default "Install or reinstall K3s control plane?" "$K3S_DEFAULT" && INSTALL_K3S=true || INSTALL_K3S=false
+decide INSTALL_K3S "Install or reinstall K3s control plane?" "$K3S_DEFAULT"
 if (( WORKERS_TO_ADD > 0 )); then
     ADD_K3S_WORKERS=true
     info "$WORKERS_TO_ADD worker node(s) will be added or reconciled over SSH."
@@ -879,7 +950,7 @@ installer_prompt_section "Recovery and public access" \
     "Configure off-node backups and, for internet-facing clusters, public DNS and TLS."
 configure_backup_destination
 if [[ "$SERVER_EXPOSURE" == "internet" && "$AUTO_APPROVE" != true ]]; then
-    ask_with_default "Configure Cloudflare public DNS and Origin TLS?" "Y" && CONFIGURE_CLOUDFLARE=true || CONFIGURE_CLOUDFLARE=false
+    decide CONFIGURE_CLOUDFLARE "Configure Cloudflare public DNS and Origin TLS?" "Y"
 elif [[ "$SERVER_EXPOSURE" != internet ]]; then
     CONFIGURE_CLOUDFLARE=false
 fi

@@ -41,8 +41,8 @@ unattended runs require it to be ready.
 
 | Task | Entry point |
 | --- | --- |
-| Guided installation | `./install-control-plane.sh` |
-| Unattended installation | [`./install-control-plane.sh --yes`](#unattended-installation) or [Ansible installation](#ansible-installation) |
+| Guided installation | [`python3 scripts/install-tui.py`](#guided-setup-and-the-input-file), or `./install-control-plane.sh` for terminal prompts |
+| Unattended installation | [`./install-control-plane.sh --env-file FILE`](#guided-setup-and-the-input-file), [`--yes`](#unattended-installation) or [Ansible installation](#ansible-installation) |
 | Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
 | Add control planes or workers | [`./add-node.sh`](guides/node-enrollment.md) |
 | Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
@@ -66,6 +66,38 @@ Existing ingress-nginx or private-image installations must first follow the
 read-only migration check; `platform_migration_approved=true` is reserved for a
 prepared Ansible maintenance run. Retired image-profile inputs are rejected.
 New installations use public upstream images and a separate Traefik release.
+
+## Guided setup and the input file
+
+`scripts/install-tui.py` collects the installation inputs in terminal dialogs
+(Python 3 and `whiptail`, both on stock Ubuntu) and writes them to
+`~/.config/swirl-cloud/install.env`, or the path given with `--output`:
+
+- **Express** lists what the recommended platform installs and asks only for the
+  company name and domain, the GitOps URL, the administrator login, the
+  Cloudflare token and Access emails for internet-exposed servers, and optionally
+  more servers, S3 backups and GitHub repositories to import.
+- **Advanced** walks every installer input by section; only inputs that apply to
+  earlier answers are asked.
+- **Review** lists the answers (secrets show as `(set)`) and any problems;
+  **Save** validates the file with the installer and can start the installation.
+
+Rerunning the TUI loads the existing file, so earlier answers become defaults;
+an empty secret keeps the stored value. Then install or rerun with:
+
+```bash
+./install-control-plane.sh --env-file ~/.config/swirl-cloud/install.env
+```
+
+The file is the only source of installation inputs for that run; matching
+variables in the calling shell are ignored. It is parsed as data, never sourced,
+and must be readable only by its owner (`chmod 600`). The installer reports every
+missing, unknown or invalid input and credential-policy failure at once before it
+changes anything; `--validate-only` stops after that report. The
+[input schema](../scripts/lib/install_inputs.py) defines names, types, defaults
+and conditions ([ADR 0026](adr/0026-installer-input-file.md)). Version pins
+remain in [`config/platform.env`](../config/platform.env). The file contains
+credentials: keep it outside Git and remove or protect it after installation.
 
 ## Topology and scheduling
 
@@ -123,7 +155,11 @@ domain, or repository path is a separate migration of accounts and resources.
 ## Unattended installation
 
 `--yes` selects the recommended component bundle and defaults to
-`INSTALL_SCOPE=apps`. This example uses local exposure; replace the identity,
+`INSTALL_SCOPE=apps`. Set `INSTALL_PREREQS`, `INSTALL_K3S` or the component
+inputs (`INSTALL_LONGHORN`, `INSTALL_INGRESS`, `INSTALL_VAULT_STACK`,
+`DEPLOY_DATA_STORES`, `DEPLOY_PLATFORM_SERVICES`, `INSTALL_DESCHEDULER`,
+`INSTALL_ARGOCD`) to `true` or `false` to override a default; unset components
+stay installed. Interactive runs skip questions for inputs already set. This example uses local exposure; replace the identity,
 node name and GitOps URL with your own values:
 
 ```bash
@@ -246,6 +282,10 @@ installer_environment:
 ansible-playbook -i ansible/inventory ansible/install.yml \
   -e @/secure/cluster-install.yml --ask-vault-pass
 ```
+
+To use an [input file](#guided-setup-and-the-input-file) instead, pass
+`-e installer_env_file=/secure/install.env`; it replaces `installer_environment`
+inputs and the process environment for that run.
 
 The installation task uses `no_log` because nested commands handle secrets.
 Failures stop the play; run the shared installer with the same inputs for visible

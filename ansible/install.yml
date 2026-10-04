@@ -10,6 +10,9 @@
     # Optional mapping supplied through an encrypted or local extra-vars file.
     # Unspecified inputs retain the installer's environment/default behavior.
     installer_environment: {}
+    # Optional installation input file (scripts/install-tui.py writes one). When
+    # set, it is the only source of installation inputs, as with --env-file.
+    installer_env_file: ""
 
   tasks:
     - name: Validate installer environment mapping
@@ -24,9 +27,9 @@
 
     - name: Install hosts, enroll nodes, and deploy the platform
       ansible.builtin.command:
-        argv:
-          - "{{ repository_root }}/install-control-plane.sh"
-          - --yes
+        argv: >-
+          {{ [repository_root ~ '/install-control-plane.sh']
+             + (['--env-file', installer_env_file] if installer_env_file | length > 0 else ['--yes']) }}
         chdir: "{{ repository_root }}"
       environment: "{{ installer_environment }}"
       no_log: true

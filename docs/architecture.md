@@ -236,6 +236,7 @@ Statuses:
 - [ADR 0023: Keep A Small Permanent Deployment Safety Suite](./adr/0023-deployment-safety-suite.md)
 - [ADR 0024: Serve Environments From Registered Targets With Isolated Shared Data](./adr/0024-deployment-environments.md)
 - [ADR 0025: Isolate Host Agents So `infra` Can Enforce Baseline Pod Security](./adr/0025-host-agent-namespace-and-infra-pod-security.md)
+- [ADR 0026: Drive Installation From One Versioned Input File](./adr/0026-installer-input-file.md)
 
 ## Superseded ADRs
 
