@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import shutil
 import socket
 import ssl
 import subprocess
@@ -220,6 +221,14 @@ def check_ingress(report):
                failing + warning)
 
 
+def check_disk(report):
+    usage = shutil.disk_usage("/var/lib/rancher" if Path("/var/lib/rancher").exists() else "/")
+    free, used = usage.free / 1024 ** 3, usage.used / usage.total
+    status = FAIL if used >= 0.85 else WARN if free < 30 else PASS
+    report.add(status, "Disk headroom", f"{free:.0f} GiB free, {used:.0%} used on the K3s filesystem "
+               "(maintenance needs about 30 GiB; kubelet image GC starts at 85 %)")
+
+
 def check_backup(report, max_age_hours):
     if BACKUP_METRICS.exists():
         text = BACKUP_METRICS.read_text()
@@ -258,6 +267,7 @@ def main():
             check(report)
         except (RuntimeError, subprocess.SubprocessError, KeyError, ValueError) as error:
             report.add(FAIL, check.__name__.removeprefix("check_").replace("_", " ").title(), f"check failed: {error}")
+    check_disk(report)
     check_backup(report, args.backup_max_age_hours)
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,

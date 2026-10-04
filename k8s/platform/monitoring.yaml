@@ -676,6 +676,18 @@ data:
             annotations:
               summary: Filesystem free space is below 10%
               description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} is critically low on space.'
+          # Backups, image pulls and upgrades need about 30 GiB on the K3s host
+          # filesystem; kubelet image GC starts at 85 % used, before evictions.
+          - alert: NodeMaintenanceHeadroomLow
+            expr: |
+              node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint=~"/|/var|/var/lib|/var/lib/rancher.*"}
+              < 30 * 1024 * 1024 * 1024
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Less than 30 GiB free for maintenance
+              description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanize1024 }}B free. Free space before backups, upgrades or image pulls.'
           - alert: NodeFilesystemFillingWithinDay
             expr: |
               predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}[6h], 24 * 3600) < 0
