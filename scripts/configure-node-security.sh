@@ -974,10 +974,23 @@ EOF
   done
 }
 
+# Lynis DEB-0280, DEB-0811, PKGS-7370 and PKGS-7394. apt-listchanges uses the
+# text frontend so interactive APT runs never stop in a pager.
+configure_package_audit_tools() {
+  printf '%s\n' 'apt-listchanges apt-listchanges/frontend select text' | sudo debconf-set-selections
+  ensure_packages libpam-tmpdir apt-listchanges debsums apt-show-versions
+  if ! sudo grep -Eq '^frontend[[:space:]]*=[[:space:]]*text$' /etc/apt/listchanges.conf 2>/dev/null; then
+    sudo env DEBIAN_FRONTEND=noninteractive dpkg-reconfigure apt-listchanges >/dev/null
+  fi
+  # Weekly report-only package checksum verification; findings go to syslog.
+  sudo sed -i 's/^CRON_CHECK=.*/CRON_CHECK=weekly/' /etc/default/debsums
+}
+
 # Role- and exposure-independent controls that never touch the firewall, SSH
 # daemon or Kubernetes networking, so they can be reconciled on a live host.
 configure_host_baseline() {
   configure_login_banner
+  configure_package_audit_tools
   info "Host baseline applied."
 }
 
