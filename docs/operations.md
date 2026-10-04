@@ -406,6 +406,34 @@ sudo systemctl start swirl-cloud-k3s-backup.service
 sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 ```
 
+### Coverage and recovery points
+
+The nightly archive runs at 02:15 UTC, keeps 7 local copies, and with off-node
+storage restic keeps 7 daily, 5 weekly and 12 monthly copies. Recovery times
+have not been measured yet; they need the restore drill in TODO §16.
+
+| Data | How it is protected | Recovery point | Notes and gaps |
+| --- | --- | --- | --- |
+| K3s state (SQLite or etcd), server token, encryption keys, K3s configuration | Nightly archive | Up to 24 h | Restore steps are in the archive's `RESTORE.txt`. |
+| Vault secrets | Raft snapshot in the nightly archive | Up to 24 h | The unseal key and bootstrap token are in the same archive (TODO §16). |
+| PostgreSQL: Keycloak, SonarQube, Odoo and application databases | `pg_dumpall` in the nightly archive | Up to 24 h | No point-in-time recovery (TODO §10). |
+| MongoDB | `mongodump` in the nightly archive | Up to 24 h | |
+| Odoo filestore | `tar` in the nightly archive, taken after `pg_dumpall` | Up to 24 h, consistent with its database dump | |
+| GitLab repositories, issues, merge requests, CI artifacts, LFS, packages | `gitlab-data` Longhorn volume only, when off-node volume backups are active | None until then | Native GitLab backup is missing (TODO §12). Repositories mirrored to GitHub survive there. |
+| Container registry | Same `gitlab-data` volume | None until then | Images can be rebuilt from their pipelines; pinned upstream images are re-pulled. |
+| Grafana dashboards | Provisioned from Git; user-made dashboards on the `grafana-data` volume | Git: current; volume: none until volume backups | |
+| SonarQube analysis | Database in `pg_dumpall`; search index on its volume | Up to 24 h | Rebuildable: the index regenerates; rerun analyses for history. |
+| Elasticsearch logs and API audit events | Not backed up | None | Short retention by design; a snapshot repository is open (TODO §14). |
+| Prometheus metrics | Not backed up | None | Rebuildable; about 12 h of history today (TODO §26). |
+| Kafka topics | Not backed up; volume only with volume backups | None | Applications must tolerate replaying from their own state. |
+| Redis, Trivy reports | Not backed up | None | Rebuildable caches. |
+| Portainer, DBGate settings | Their volumes, with volume backups | None until then | Low value; recreated by the installer. |
+| Kubernetes PVC and Longhorn volume inventories | YAML in the nightly archive | Up to 24 h | Maps restored volumes back to claims. |
+
+As of 2026-10-04 off-node storage is not configured on `swirlit-node-01` and
+Longhorn's `default` BackupTarget is unavailable, so every copy shares the host's
+failure domain. Configure the S3 target from the setup hub (Configure → Backups).
+
 When configured, restic encrypts and uploads archives to S3-compatible storage.
 Longhorn backs up enrolled volumes to the same private bucket through its
 `default` BackupTarget, which the configurator points at the bucket and waits to
