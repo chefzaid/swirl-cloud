@@ -1556,6 +1556,89 @@ configure_fail2ban() {
   ensure_service fail2ban
 }
 
+# Export Fail2ban and CrowdSec activity for node-exporter so Prometheus can
+# alert when protection stops or an attack wave starts. Counts only; banned
+# addresses stay on the host.
+configure_intrusion_metrics() {
+  write_root_file /usr/local/sbin/swirl-cloud-intrusion-metrics 0755 <<'EOF'
+#!/bin/bash
+# Managed by scripts/configure-node-security.sh
+set -euo pipefail
+metrics_dir=/var/lib/node_exporter/textfile_collector
+metrics_file="$metrics_dir/swirl_cloud_intrusion.prom"
+temporary="$(mktemp "$metrics_dir/.swirl_cloud_intrusion.XXXXXX")"
+trap 'rm -f "$temporary"' EXIT
+up() { systemctl is-active --quiet "$1" && echo 1 || echo 0; }
+{
+  printf '# HELP swirl_cloud_intrusion_service_up Whether a host intrusion-prevention service is active.\n'
+  printf '# TYPE swirl_cloud_intrusion_service_up gauge\n'
+  for service in fail2ban crowdsec crowdsec-firewall-bouncer; do
+    printf 'swirl_cloud_intrusion_service_up{service="%s"} %s\n' "$service" "$(up "$service")"
+  done
+  if fail2ban-client ping >/dev/null 2>&1; then
+    # Each metric family is written as one contiguous group, as the text format requires.
+    jails="$(fail2ban-client status | sed -n 's/.*Jail list:[[:space:]]*//p' | tr -d ' ' | tr ',' ' ')"
+    declare -A jail_status=()
+    for jail in $jails; do
+      [[ "$jail" =~ ^[A-Za-z0-9_-]+$ ]] || continue
+      jail_status[$jail]="$(fail2ban-client status "$jail")"
+    done
+    for family in "banned|gauge|Addresses currently banned by a Fail2ban jail.|Currently banned" \
+                  "banned_total|counter|Addresses banned by a Fail2ban jail since it started.|Total banned" \
+                  "failed_total|counter|Failed attempts seen by a Fail2ban jail since it started.|Total failed"; do
+      IFS='|' read -r suffix type help field <<< "$family"
+      printf '# HELP swirl_cloud_fail2ban_%s %s\n# TYPE swirl_cloud_fail2ban_%s %s\n' "$suffix" "$help" "$suffix" "$type"
+      for jail in "${!jail_status[@]}"; do
+        printf 'swirl_cloud_fail2ban_%s{jail="%s"} %s\n' "$suffix" "$jail" \
+          "$(awk -F':' -v field="$field" 'index($0, field) {gsub(/[^0-9]/, "", $2); print $2+0}' <<< "${jail_status[$jail]}")"
+      done
+    done
+  fi
+  if command -v cscli >/dev/null 2>&1 && decisions="$(cscli decisions list -o json 2>/dev/null)"; then
+    printf '# HELP swirl_cloud_crowdsec_decisions Active CrowdSec decisions by scenario.\n'
+    printf '# TYPE swirl_cloud_crowdsec_decisions gauge\n'
+    jq -r '[.[]? | .decisions[]? | .scenario // "unknown"] | group_by(.) | .[] |
+      "swirl_cloud_crowdsec_decisions{scenario=\"\(.[0] | gsub("[^A-Za-z0-9_./-]"; "_"))\"} \(length)"' <<< "${decisions:-[]}"
+  fi
+  printf '# HELP swirl_cloud_intrusion_metrics_timestamp_seconds When these metrics were written.\n'
+  printf '# TYPE swirl_cloud_intrusion_metrics_timestamp_seconds gauge\n'
+  printf 'swirl_cloud_intrusion_metrics_timestamp_seconds %s\n' "$(date +%s)"
+} > "$temporary"
+chmod 0644 "$temporary"
+mv -f "$temporary" "$metrics_file"
+trap - EXIT
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-intrusion-metrics.service <<'EOF'
+[Unit]
+Description=Export Swirl Cloud Fail2ban and CrowdSec activity for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/swirl-cloud-intrusion-metrics
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-intrusion-metrics.timer <<'EOF'
+[Unit]
+Description=Refresh the Swirl Cloud intrusion-prevention metrics
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now swirl-cloud-intrusion-metrics.timer >/dev/null
+  sudo systemctl start swirl-cloud-intrusion-metrics.service
+}
+
+remove_intrusion_metrics() {
+  sudo systemctl disable --now swirl-cloud-intrusion-metrics.timer >/dev/null 2>&1 || true
+  sudo rm -f /etc/systemd/system/swirl-cloud-intrusion-metrics.timer /etc/systemd/system/swirl-cloud-intrusion-metrics.service \
+    /usr/local/sbin/swirl-cloud-intrusion-metrics /var/lib/node_exporter/textfile_collector/swirl_cloud_intrusion.prom
+  sudo systemctl daemon-reload
+}
+
 configure_crowdsec() {
   ensure_crowdsec_repo
   ensure_packages crowdsec crowdsec-firewall-bouncer-nftables
@@ -1685,10 +1768,12 @@ if [[ "$SERVER_EXPOSURE" == "internet" ]]; then
   disable_unused_rpcbind
   configure_fail2ban
   configure_crowdsec
+  configure_intrusion_metrics
   configure_log_retention
   info "Internet-facing SSH protection applied with Fail2ban and CrowdSec."
 else
   remove_internet_only_tools
+  remove_intrusion_metrics
   info "Local-only node: UFW applied; Fail2ban and CrowdSec are not installed."
 fi
 

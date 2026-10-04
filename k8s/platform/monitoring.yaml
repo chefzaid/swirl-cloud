@@ -940,6 +940,32 @@ data:
             annotations:
               summary: Monthly Lynis audit is overdue
               description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
+          - alert: HostIntrusionPreventionDown
+            expr: swirl_cloud_intrusion_service_up == 0
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: Host intrusion prevention is not running
+              description: '{{ $labels.service }} is inactive on {{ $labels.instance }}; its public SSH has no brute-force protection. Check: sudo systemctl status {{ $labels.service }}.'
+          - alert: HostIntrusionMetricsStale
+            expr: time() - swirl_cloud_intrusion_metrics_timestamp_seconds > 1800
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Intrusion-prevention metrics are stale
+              description: '{{ $labels.instance }} has not refreshed Fail2ban/CrowdSec metrics for 30 minutes. Check: sudo systemctl status swirl-cloud-intrusion-metrics.timer.'
+          - alert: HostBruteForceWave
+            expr: |
+              sum by (instance) (increase(swirl_cloud_fail2ban_banned_total[1h])) > 50
+              or sum by (instance) (swirl_cloud_crowdsec_decisions) > 200
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Brute-force wave against a host
+              description: '{{ $labels.instance }} is banning attackers at an unusual rate ({{ $value | humanize }}). Bans are working; consider key-only SSH on the private interface (TODO §4).'
           - alert: NodeRebootRequired
             expr: swirl_cloud_reboot_required == 1 and time() - swirl_cloud_reboot_required_since_timestamp_seconds > 7 * 86400
             labels:

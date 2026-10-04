@@ -56,6 +56,14 @@ Transport setup and required private ports are covered in [node enrollment](guid
 | Local/private control plane | UFW and Lynis. |
 | Worker | UFW; no Fail2ban, CrowdSec or persistent Lynis installation. |
 
+On internet-facing control planes, `swirl-cloud-intrusion-metrics.timer` writes
+Fail2ban and CrowdSec activity for node-exporter every five minutes: service
+state, current and total bans and failed attempts per jail, and active CrowdSec
+decisions per scenario (counts only; banned addresses stay on the host).
+Prometheus raises `HostIntrusionPreventionDown` (critical) when a service stops,
+`HostIntrusionMetricsStale` when the export stops, and `HostBruteForceWave` for
+more than 50 new bans an hour or 200 active decisions.
+
 Internet-facing control planes retain password SSH, disable root SSH and limit
 authentication attempts and connection bursts. Fail2ban escalates repeat bans;
 CrowdSec also detects slow brute-force and user-enumeration patterns. The shared
