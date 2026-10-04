@@ -401,6 +401,11 @@ spec:
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"cluster":[],"indices":[],"applications":[],"run_as":[],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/kibana_keycloak_proxy" >/dev/null
+              # Health and node statistics for Prometheus; no document access.
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"cluster":["monitor"],"indices":[],"metadata":{"managed_by":"swirl-cloud"}}' \
+                "${endpoint}/_security/role/metrics_monitor" >/dev/null
 
               put_user admin "$ADMIN_PASSWORD" '["superuser"]' 'Platform Administrator'
               put_user logstash_writer "$LOGSTASH_WRITER_PASSWORD" '["logs_writer"]' 'Logstash Writer'
@@ -409,6 +414,7 @@ spec:
               put_user kibana_dashboard_bootstrap "$KIBANA_BOOTSTRAP_PASSWORD" '["kibana_admin"]' 'Kibana Dashboard Bootstrap'
               put_user "$KIBANA_PROXY_USERNAME" "$KIBANA_PROXY_PASSWORD" '["kibana_keycloak_proxy"]' 'Kibana Keycloak Proxy'
               put_user ci_observer "$CI_OBSERVER_PASSWORD" '["logs_reader"]' 'CI Delivery Observer'
+              put_user metrics_monitor "$METRICS_MONITOR_PASSWORD" '["metrics_monitor"]' 'Prometheus Metrics Monitor'
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

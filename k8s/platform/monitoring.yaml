@@ -308,6 +308,61 @@ spec:
             path: /
 
 ---
+# Cluster health and node statistics through a monitor-only Elasticsearch user.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch-exporter
+  namespace: infra
+  labels:
+    app: elasticsearch-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch-exporter
+  template:
+    metadata:
+      labels:
+        app: elasticsearch-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: elasticsearch-exporter
+          image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.11.0@sha256:a056739b095df4baaa076f0b31321394233da9a240eeada2623d1b028b7ee7a6
+          args:
+            - --es.uri=http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
+            - --es.timeout=10s
+          envFrom:
+            - secretRef:
+                name: elasticsearch-exporter-credentials
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: metrics
+              containerPort: 9114
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+---
 # Kafka's headless Service resolves to every broker in single-node and HA
 # topologies; the private listener admits infra clients (see application-data).
 apiVersion: apps/v1
@@ -534,9 +589,9 @@ data:
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_cnpg_io_cluster]
             action: keep
-            regex: (postgres|mongodb|redis|kafka)-exporter;metrics;|postgres;metrics;postgres-ha
+            regex: (postgres|mongodb|redis|kafka|elasticsearch)-exporter;metrics;|postgres;metrics;postgres-ha
           - source_labels: [__meta_kubernetes_pod_container_name]
-            regex: (postgres|mongodb|redis|kafka).*
+            regex: (postgres|mongodb|redis|kafka|elasticsearch).*
             target_label: job
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
@@ -773,6 +828,30 @@ data:
             annotations:
               summary: ExternalSecret is not Ready
               description: '{{ $labels.namespace }}/{{ $labels.name }} has not synchronized from Vault for 15 minutes; inspect kubectl describe externalsecret.'
+          - alert: ElasticsearchUnreachable
+            expr: elasticsearch_cluster_health_up == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Elasticsearch is unreachable
+              description: 'The exporter cannot read Elasticsearch cluster health; logs and audits are not being indexed.'
+          - alert: ElasticsearchClusterRed
+            expr: elasticsearch_cluster_health_status{color="red"} == 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Elasticsearch cluster health is red
+              description: 'At least one primary shard is unassigned; some logs or audits cannot be written or searched.'
+          - alert: ElasticsearchClusterYellow
+            expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: Elasticsearch cluster health is yellow
+              description: 'Replica shards are unassigned; on a single node, check for indices that request replicas.'
           - alert: DatastoreDown
             expr: pg_up == 0 or cnpg_collector_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
             for: 5m

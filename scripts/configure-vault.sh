@@ -537,6 +537,7 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch
   kibana_bootstrap_password="$(generate_secret)"
   kibana_keycloak_proxy_password="$(generate_secret)"
   ci_observer_password="$(generate_secret)"
+  metrics_monitor_password="$(generate_secret)"
   vault_cmd_auth "$root_token" kv put secret/infra/elasticsearch \
     elastic_username="elastic" \
     elastic_password="$elastic_superuser_password" \
@@ -556,12 +557,23 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch
     kibana_keycloak_proxy_password="$kibana_keycloak_proxy_password" \
     ci_observer_username="ci_observer" \
     ci_observer_password="$ci_observer_password" \
+    metrics_monitor_username="metrics_monitor" \
+    metrics_monitor_password="$metrics_monitor_password" \
     kibana_security_encryption_key="$(generate_secret)" \
     kibana_saved_objects_encryption_key="$(generate_secret)" \
     kibana_reporting_encryption_key="$(generate_secret)" >/dev/null
   unset elastic_superuser_password elastic_admin_password kibana_system_password
   unset logstash_writer_password fluent_bit_writer_password grafana_reader_password
   unset kibana_bootstrap_password kibana_keycloak_proxy_password ci_observer_password
+  unset metrics_monitor_password
+fi
+
+if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch | \
+  jq -e '.data.data.metrics_monitor_username and .data.data.metrics_monitor_password' >/dev/null 2>&1; then
+  info "Adding the Elasticsearch metrics monitor credential to Vault"
+  vault_cmd_auth "$root_token" kv patch secret/infra/elasticsearch \
+    metrics_monitor_username="metrics_monitor" \
+    metrics_monitor_password="$(generate_secret)" >/dev/null
 fi
 
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/elasticsearch | \

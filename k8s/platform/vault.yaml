@@ -363,6 +363,10 @@ spec:
       remoteRef:
         key: infra/elasticsearch
         property: ci_observer_password
+    - secretKey: METRICS_MONITOR_PASSWORD
+      remoteRef:
+        key: infra/elasticsearch
+        property: metrics_monitor_password
 
 ---
 apiVersion: external-secrets.io/v1
@@ -453,6 +457,32 @@ spec:
       remoteRef:
         key: infra/elasticsearch
         property: fluent_bit_writer_password
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: elasticsearch-exporter-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: elasticsearch-exporter-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: ES_USERNAME
+      remoteRef:
+        key: infra/elasticsearch
+        property: metrics_monitor_username
+    - secretKey: ES_PASSWORD
+      remoteRef:
+        key: infra/elasticsearch
+        property: metrics_monitor_password
 
 ---
 apiVersion: external-secrets.io/v1
