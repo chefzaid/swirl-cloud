@@ -129,7 +129,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] The managed Lynis run exports `swirl_cloud_lynis_*` metrics through node-exporter's textfile collector; `LynisAuditFailed` and `LynisAuditMissing` (no success for 35 days) alert through Alertmanager. *(live: metrics scraped, rules healthy, 2026-10-04)*
 - [x] Unattended security updates run with the distro defaults (security origins, no automatic reboot). Every node exports `swirl_cloud_reboot_required` through node-exporter; `NodeRebootRequired` alerts after seven days pending. *(live, 2026-10-04: pending since 2026-10-03 for kernel 7.0.0-38)*
 - [ ] Define maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).
-- [ ] Add the small host audit rule set and report-only integrity/malware checks selected in §20; assess a full EDR only if those checks leave a concrete detection gap.
+- [x] Small host audit rule set through `auditd` in the host baseline (§20 ACCT-9628). *(live, 2026-10-04)*
+- [ ] Add the report-only integrity/malware checks selected in §20 (AIDE, rkhunter); assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
 - [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config).
 
@@ -391,7 +392,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [x] **PKGS-7346:** the host baseline purges configuration left by removed kernel packages (30 on this host); the remaining `keyboxd`, `libpython3.12-minimal` and `pollinate` leftovers were purged once by hand. No `rc` packages remain. *(live, 2026-10-04)*
 - [x] **KRNL-6000:** `/etc/sysctl.d/90-swirl-cloud-hardening.conf` sets `kptr_restrict=2`, `dmesg_restrict=1`, `unprivileged_bpf_disabled=1`, `bpf_jit_harden=2`, `fs.protected_*` and `send_redirects=0`; pod DNS/egress/API smoke test passed. Kept by design: `ip_forward`, `rp_filter=2`, `modules_disabled`, `sysrq` (console recovery), `suid_dumpable` (apport) and `log_martians` (each new pod sandbox logs a benign martian). *(live, 2026-10-04)*
 - [x] **FILE-7524:** `/etc/crontab` and `/etc/ssh/sshd_config` are `0600`, the `/etc/cron.*` directories `0700`, with `dpkg-statoverride` keeping packaged paths restricted across upgrades. Lynis FILE-7524 passes. *(live, 2026-10-04)*
-- [ ] **ACCT-9622/9628:** process accounting and `auditd` with a small rule set (overlaps §4).
+- [x] **ACCT-9622/9628:** `acct` (14 days) and `auditd` with a watch-style rule set for accounts, sudoers, SSH, cron, systemd units, K3s/Swirl Cloud config, UFW, time zone and module loads. BPF records and the Ubuntu `who` AppArmor false positive are excluded; measured ≈59 MB/day within an 8 × 32 MB rotation, no lost events. Lynis ACCT tests pass. *(live, 2026-10-04)*
 - [ ] **FINT-4350:** AIDE with `/var/lib/rancher`, `/var/lib/longhorn` and container paths excluded, weekly, report-only.
 - [ ] **HRDN-7230:** weekly `rkhunter` or `chkrootkit` scan, report-only, shipped to Kibana (overlaps §4).
 - [ ] **LOGG-2154:** forward the system journal to Elasticsearch through Fluent Bit.
