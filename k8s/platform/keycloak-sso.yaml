@@ -249,11 +249,14 @@ data:
     # Portainer request the groups scope explicitly. A client-level groups
     # mapper alone does not register that scope with Keycloak, so the browser
     # authorization request is otherwise rejected before credentials are read.
+    # Splitting the list also yields protocol mappers, and a new realm's
+    # microprofile-jwt scope has a mapper named "groups"; skip mapper entries.
     expect_success "$(request GET "realms/$realm/client-scopes")"
     groups_scope_id="$(
       tr -d '\n' < "$response_file" |
         sed 's/},{/}\n{/g' |
         grep -E '^\[?\{"id":"[^"]+","name":"groups"([,}])' |
+        grep -Ev '^\[?\{"id":"[^"]+","name":"[^"]+","protocol":"[^"]+","protocolMapper":"' |
         sed -E 's/^\[?\{"id":"([^"]+)".*/\1/' |
         head -n 1
     )"
@@ -273,6 +276,7 @@ data:
         tr -d '\n' < "$response_file" |
           sed 's/},{/}\n{/g' |
           grep -E '^\[?\{"id":"[^"]+","name":"groups"([,}])' |
+          grep -Ev '^\[?\{"id":"[^"]+","name":"[^"]+","protocol":"[^"]+","protocolMapper":"' |
           sed -E 's/^\[?\{"id":"([^"]+)".*/\1/' |
           head -n 1
       )"
@@ -284,6 +288,7 @@ data:
       tr -d '\n' < "$response_file" |
         sed 's/},{/}\n{/g' |
         grep -E '^\[?\{"id":"[^"]+","name":"roles"([,}])' |
+        grep -Ev '^\[?\{"id":"[^"]+","name":"[^"]+","protocol":"[^"]+","protocolMapper":"' |
         sed -E 's/^\[?\{"id":"([^"]+)".*/\1/' |
         head -n 1
     )"
