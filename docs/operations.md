@@ -112,7 +112,10 @@ and `elasticsearch`. The Elasticsearch exporter signs in as the monitor-only
 and `ElasticsearchClusterYellow` (30 minutes) cover log and audit indexing. Kubelet volume statistics cover
 every persistent volume claim: `PersistentVolumeSpaceLow` (20 % free),
 `PersistentVolumeSpaceCritical` (10 %) and `PersistentVolumeFillingWithinDay`
-mirror the node filesystem alerts. Job `external-secrets` scrapes
+mirror the node filesystem alerts. Grafana's **Ingress Traffic** dashboard shows Traefik
+request rate, 5xx ratio and p95 latency per backend service;
+`IngressServiceErrorRateHigh` fires when a service with steady traffic answers
+more than 5 % of requests with 5xx for 15 minutes. Job `external-secrets` scrapes
 the External Secrets controller; `ExternalSecretNotReady` fires when an
 ExternalSecret stays unsynchronized for 15 minutes.
 `PrometheusTargetDown` covers each of these targets. Vault answers
