@@ -379,7 +379,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [x] Lynis refreshed through `swirl-cloud-lynis.service`: hardening index **66**, one warning (KRNL-5830; `linux-image-7.0.0-38` installed 2026-10-03, running 7.0.0-34). Every finding below still applies; DEB-0810, FIRE-4513, LOGG-2190, NAME-4028 and BOOT-5180/5264 are informational. *(live, 2026-10-04)*
 - [ ] **KRNL-5830 (warning):** if still pending, schedule a maintenance-window reboot after verifying the backup, off-host recovery material and console access (§16). Check Vault unseal, volumes, SSO and applications after boot; add coordinated reboots only after multi-host recovery is proven.
 - [ ] **SSH-7408:** `ClientAliveCountMax 2`, `LogLevel VERBOSE`, `MaxSessions 4`, `TCPKeepAlive no` (client-alive probes keep dead sessions detected).
-- [ ] **BANN-7126/7130:** legal banner in `/etc/issue` and `/etc/issue.net`.
+- [x] **BANN-7126/7130:** legal banner in `/etc/issue` and `/etc/issue.net` through the new firewall-independent `configure-node-security.sh --host-baseline`, also part of every full `--apply`. *(live, Lynis BANN tests pass, 2026-10-04)*
 - [ ] **DEB-0280, DEB-0811, PKGS-7370, PKGS-7394:** install `libpam-tmpdir`, `apt-listchanges`, `debsums`, `apt-show-versions`.
 - [ ] **AUTH-9230/9262/9328:** review the installed distribution's password-hashing defaults, human-account umask and PAM password-quality policy; avoid replacing a stronger supported default just to silence a finding. Rehearse console and automation login before rollout.
 - [ ] **AUTH-9282/9286:** password ageing only for human accounts, never for service accounts (optional once SSH is key-only).
