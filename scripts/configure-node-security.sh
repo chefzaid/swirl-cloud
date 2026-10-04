@@ -1020,13 +1020,43 @@ EOF
   sudo sysctl -q -p /etc/sysctl.d/90-swirl-cloud-hardening.conf
 }
 
-# Role- and exposure-independent controls that never touch the firewall, SSH
-# daemon or Kubernetes networking, so they can be reconciled on a live host.
+# Lynis SSH-7408 session options for every node. Client-alive probes detect dead
+# sessions instead of TCP keepalives; a reload keeps existing sessions open.
+configure_ssh_session_limits() {
+  local config_path=/etc/ssh/sshd_config.d/41-swirl-cloud-sessions.conf
+  local previous=""
+
+  sudo test -f "$config_path" && previous="$(sudo cat "$config_path")"
+  write_root_file "$config_path" 0600 <<'EOF'
+# Managed by scripts/configure-node-security.sh
+ClientAliveInterval 300
+ClientAliveCountMax 2
+TCPKeepAlive no
+MaxSessions 4
+LogLevel VERBOSE
+EOF
+  if ! sudo sshd -t; then
+    if [[ -n "$previous" ]]; then
+      printf '%s\n' "$previous" | write_root_file "$config_path" 0600
+    else
+      sudo rm -f "$config_path"
+    fi
+    err "Refusing to reload SSH because the session configuration failed validation"
+  fi
+  if [[ "$(sudo cat "$config_path")" != "$previous" ]] && systemctl is-active --quiet ssh; then
+    sudo systemctl reload ssh
+  fi
+}
+
+# Role- and exposure-independent controls that never touch the firewall or
+# Kubernetes networking, so they can be reconciled on a live host. SSH changes
+# are limited to validated session options.
 configure_host_baseline() {
   configure_login_banner
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_kernel_hardening
+  configure_ssh_session_limits
   info "Host baseline applied."
 }
 

@@ -62,8 +62,8 @@ CrowdSec also detects slow brute-force and user-enumeration patterns. The shared
 script owns ban periods, authentication-log retention and rules. Follow
 [the private SSH preflight](guides/node-enrollment.md#private-node-network) before applying a node's firewall.
 
-Every node also receives a host baseline that never touches the firewall, SSH
-daemon or Kubernetes networking: a legal login banner in `/etc/issue` and
+Every node also receives a host baseline that never touches the firewall or
+Kubernetes networking: a legal login banner in `/etc/issue` and
 `/etc/issue.net`, and the package audit tools `libpam-tmpdir`, `debsums`,
 `apt-show-versions` and `apt-listchanges` (text frontend, so APT never waits in
 a pager). debsums verifies package checksums weekly and logs mismatches to the
@@ -72,7 +72,10 @@ kernel packages is purged; other removed packages keep their configuration.
 Kernel settings in `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restrict kernel
 pointers, `dmesg`, unprivileged BPF, FIFO/regular-file creation in sticky
 directories and ICMP redirects. Forwarding, reverse-path filtering, module
-loading and SysRq stay at the values Kubernetes and console recovery need. A full `--apply` includes it; to reconcile only the baseline
+loading and SysRq stay at the values Kubernetes and console recovery need.
+SSH session options (`ClientAliveInterval 300`, `ClientAliveCountMax 2`,
+`TCPKeepAlive no`, `MaxSessions 4`, `LogLevel VERBOSE`) are validated with
+`sshd -t` before a reload, which keeps existing sessions open. A full `--apply` includes it; to reconcile only the baseline
 on a live host without resetting UFW, run:
 
 ```bash
