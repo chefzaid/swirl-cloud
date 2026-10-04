@@ -427,9 +427,9 @@ The following are candidates from the historical scan, not verified current
 advisories or proof that a fixed service image has been published. Package fixes
 and availability of a compatible upstream image must be checked separately.
 
-- [ ] Refresh reports for the running digests and current Trivy DB; deduplicate repeated image findings and verify advisory IDs, affected package versions, runtime reachability and fixed-image availability against upstream sources. Record dated, expiring exceptions.
+- [x] Critical findings refreshed for the running digests (reports updated 2026-10-03/04), deduplicated by image and checked for fixed upstream releases; dated exceptions (expiring 2026-11-04) are in [security](docs/security.md#vulnerability-triage). Keycloak 26.7.5 scans with no critical findings. *(live, 2026-10-04)*
 - [ ] Argo CD — reported Go stdlib findings, including CVE-2025-68121; check the Go toolchain used by the candidate build.
-- [ ] Keycloak, SonarQube and Kafbat UI — reported Netty/Bouncy Castle/FreeMarker findings; verify affected libraries and compatible upstream fixes.
+- [ ] Keycloak, SonarQube and Kafbat UI — reported Netty/Bouncy Castle/FreeMarker findings. Keycloak: upgrade 26.7.4 → 26.7.5 (no critical findings). Kafka UI v1.5.0 is the latest release (exception). SonarQube 26.9.0 (latest Community) reports Netty and Bouncy Castle findings (exception).
 - [ ] Elasticsearch/Logstash — reported Netty/Bouncy Castle findings; verify affected libraries and compatible upstream fixes.
 - [ ] GitLab Runner — reported OpenSSH finding; confirm the affected runtime path and matching runner/helper patch.
 - [ ] Longhorn `csi-provisioner` — reported gRPC/Go findings; validate the Longhorn/Kubernetes sidecar compatibility matrix before adding an admission image override.
