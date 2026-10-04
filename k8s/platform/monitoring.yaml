@@ -829,7 +829,7 @@ data:
               summary: ExternalSecret is not Ready
               description: '{{ $labels.namespace }}/{{ $labels.name }} has not synchronized from Vault for 15 minutes; inspect kubectl describe externalsecret.'
           - alert: ElasticsearchUnreachable
-            expr: elasticsearch_cluster_health_up == 0
+            expr: elasticsearch_clusterinfo_up == 0 or absent(elasticsearch_cluster_health_status{color="green"})
             for: 5m
             labels:
               severity: critical
