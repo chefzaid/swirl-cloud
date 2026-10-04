@@ -372,7 +372,8 @@ current totals or three additional remediation projects.
 - [x] `configure-application-delivery.py` for preparing CI before targets exist.
 - [x] Six applications onboarded live, each with its own Argo CD Application in `infra`.
 - [ ] Refresh the app/contract/environment inventory, then migrate remaining version-1 apps in their owning repositories, including data, credentials, DNS and rollback. Verify isolated `int`/`uat`/`prod` delivery before retiring legacy credentials or Kafka access (§10).
-- [ ] Document GitLab as the delivery/metadata authority and the GitHub↔GitLab sync boundary (Git refs only); back up issues, merge requests, releases, packages and LFS through GitLab recovery (§12). Add cross-forge metadata synchronization only for a concrete requirement.
+- [x] GitLab is documented as the delivery and metadata authority and GitHub as a branches-and-tags mirror ([repository onboarding](docs/guides/repository-onboarding.md#synchronization-and-validation)); cross-forge metadata sync is added only for a concrete requirement. *(2026-10-04)*
+- [ ] Back up issues, merge requests, releases, packages and LFS through native GitLab recovery (§12).
 - [ ] Deliver the shared SMTP capability in §27 and its app onboarding contract; application repositories own their mail usage and templates.
 - [x] Environment `ingressAddress` accepts hostnames, and `configure-application-dns.py` already selects A, AAAA or CNAME records. Remaining ingress alias and API endpoint work is in §25.
 

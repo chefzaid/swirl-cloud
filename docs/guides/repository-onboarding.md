@@ -214,6 +214,14 @@ without force pushes. Resolve merge conflicts and conflicting tags before
 retrying. Deletion on only one side is restored. Issues, pull requests, releases,
 packages, Git LFS objects and hosting metadata require separate migration.
 
+GitLab is the delivery and metadata authority: CI pipelines, the Registry,
+protected environments, merge requests, issues, releases, packages and LFS live
+there, and Argo CD reads from it. GitHub is a Git mirror; synchronization
+exchanges branches and tags only and never copies forge metadata in either
+direction. That metadata is therefore protected only by GitLab's own recovery
+([backups and recovery](../operations.md#backups-and-recovery); native GitLab backup is still open in TODO §12). Add
+cross-forge metadata synchronization only for a concrete requirement.
+
 The platform GitOps URL is an independent installer choice. Importing this
 repository copies source; it does not replace platform installation or Odoo setup.
 
