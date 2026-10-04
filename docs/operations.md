@@ -116,7 +116,9 @@ every persistent volume claim: `PersistentVolumeSpaceLow` (20 % free),
 mirror the node filesystem alerts. Grafana's **Ingress Traffic** dashboard shows Traefik
 request rate, 5xx ratio and p95 latency per backend service;
 `IngressServiceErrorRateHigh` fires when a service with steady traffic answers
-more than 5 % of requests with 5xx for 15 minutes. Job `external-secrets` scrapes
+more than 5 % of requests with 5xx for 15 minutes. Traefik's JSON access logs (search `RequestHost` in
+`kubernetes-logs-v2-*`) keep only the user agent and Cloudflare's client IP and
+Ray headers; cookies, other headers and query strings are never logged. Job `external-secrets` scrapes
 the External Secrets controller; `ExternalSecretNotReady` fires when an
 ExternalSecret stays unsynchronized for 15 minutes.
 `PrometheusTargetDown` covers each of these targets. Vault answers
