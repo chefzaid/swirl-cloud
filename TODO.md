@@ -380,7 +380,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [ ] **KRNL-5830 (warning):** if still pending, schedule a maintenance-window reboot after verifying the backup, off-host recovery material and console access (§16). Check Vault unseal, volumes, SSO and applications after boot; add coordinated reboots only after multi-host recovery is proven.
 - [ ] **SSH-7408:** `ClientAliveCountMax 2`, `LogLevel VERBOSE`, `MaxSessions 4`, `TCPKeepAlive no` (client-alive probes keep dead sessions detected).
 - [x] **BANN-7126/7130:** legal banner in `/etc/issue` and `/etc/issue.net` through the new firewall-independent `configure-node-security.sh --host-baseline`, also part of every full `--apply`. *(live, Lynis BANN tests pass, 2026-10-04)*
-- [ ] **DEB-0280, DEB-0811, PKGS-7370, PKGS-7394:** install `libpam-tmpdir`, `apt-listchanges`, `debsums`, `apt-show-versions`.
+- [x] **DEB-0280, DEB-0811, PKGS-7370, PKGS-7394:** `libpam-tmpdir`, `apt-listchanges` (text frontend), `debsums` (weekly, report-only to the journal) and `apt-show-versions` in the host baseline. *(live, Lynis tests pass, 2026-10-04)*
 - [ ] **AUTH-9230/9262/9328:** review the installed distribution's password-hashing defaults, human-account umask and PAM password-quality policy; avoid replacing a stronger supported default just to silence a finding. Rehearse console and automation login before rollout.
 - [ ] **AUTH-9282/9286:** password ageing only for human accounts, never for service accounts (optional once SSH is key-only).
 - [ ] **NETW-3200 / USB-1000:** confirm workload and remote-console requirements before blacklisting unused protocol modules or `usb-storage`; apply only the exclusions proven safe for each host role.
