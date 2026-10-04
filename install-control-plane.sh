@@ -108,7 +108,7 @@ GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-}"
 GITOPS_REPOSITORY_URL="${GITOPS_REPOSITORY_URL:-}"
 RENDERED_CONFIG_DIR=""
 INSTALLER_TEMP_DIR=""
-nodesource_installer=""
+INSTALL_DEVELOPER_TOOLS="${INSTALL_DEVELOPER_TOOLS:-}"
 k3s_installer=""
 helm_archive=""
 K3S_INSTALL_VERSION="${K3S_INSTALL_VERSION:-$DEFAULT_K3S_INSTALL_VERSION}"
@@ -721,7 +721,13 @@ else
     K3S_DEFAULT="Y"
 fi
 
-ask_with_default "Install/upgrade system prerequisites (Java/Maven/Docker/Ansible/Node/etc.)?" "Y" && INSTALL_PREREQS=true || INSTALL_PREREQS=false
+ask_with_default "Install/upgrade system prerequisites (Ansible, storage clients, validation tools)?" "Y" && INSTALL_PREREQS=true || INSTALL_PREREQS=false
+if [[ "$INSTALL_PREREQS" == true && -z "$INSTALL_DEVELOPER_TOOLS" ]]; then
+    ask_with_default "Also install developer tools (Java 21, Maven, Docker)?" "N" && \
+        INSTALL_DEVELOPER_TOOLS=true || INSTALL_DEVELOPER_TOOLS=false
+fi
+INSTALL_DEVELOPER_TOOLS="${INSTALL_DEVELOPER_TOOLS:-false}"
+[[ "$INSTALL_DEVELOPER_TOOLS" =~ ^(true|false)$ ]] || error "INSTALL_DEVELOPER_TOOLS must be true or false."
 ask_with_default "Install or reinstall K3s control plane?" "$K3S_DEFAULT" && INSTALL_K3S=true || INSTALL_K3S=false
 if (( WORKERS_TO_ADD > 0 )); then
     ADD_K3S_WORKERS=true
@@ -953,10 +959,9 @@ NEEDS_HELM=true
 if [[ "$INSTALL_PREREQS" == "true" ]]; then
     step "Installing system prerequisites..."
     sudo apt-get update -qq
-    sudo apt-get install -y -qq \
-        openjdk-21-jdk \
-        maven \
-        docker.io \
+    # Runtime and reconciliation tools, plus the repository validator's tools
+    # (Node.js only syntax-checks embedded scripts, so the distro release is enough).
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         ansible \
         open-iscsi \
         nfs-common \
@@ -967,25 +972,25 @@ if [[ "$INSTALL_PREREQS" == "true" ]]; then
         python3-yaml \
         libsodium23 \
         openssl \
+        shellcheck \
+        sqlite3 \
+        util-linux \
         > /dev/null
-
-    if ! command -v node &>/dev/null || [[ "$(node -v)" != v24* ]]; then
-        info "Installing Node.js 24..."
-        download_installer https://deb.nodesource.com/setup_24.x nodesource-24.sh nodesource_installer
-        sudo -E bash "$nodesource_installer" > /dev/null 2>&1
-        sudo apt-get install -y -qq nodejs > /dev/null
+    if ! command -v node &>/dev/null; then
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs > /dev/null
     fi
 
-    if ! groups "$USER" | grep -q docker; then
-        info "Adding $USER to docker group (re-login required for non-sudo docker)..."
-        sudo usermod -aG docker "$USER"
+    if [[ "$INSTALL_DEVELOPER_TOOLS" == true ]]; then
+        info "Installing developer tools (Java 21, Maven, Docker)..."
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            openjdk-21-jdk maven docker.io > /dev/null
+        if ! groups "$USER" | grep -q docker; then
+            info "Adding $USER to docker group (re-login required for non-sudo docker)..."
+            sudo usermod -aG docker "$USER"
+        fi
     fi
 
     sudo systemctl enable --now iscsid > /dev/null 2>&1
-
-    export MAVEN_OPTS="-Dhttp.proxyHost= -Dhttps.proxyHost="
-    grep -q "MAVEN_OPTS" ~/.bashrc 2>/dev/null || \
-        echo 'export MAVEN_OPTS="-Dhttp.proxyHost= -Dhttps.proxyHost="' >> ~/.bashrc
 else
     warn "Skipping system prerequisites."
 fi

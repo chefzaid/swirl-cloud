@@ -150,6 +150,7 @@ Other installation inputs are:
 | Input | Meaning |
 | --- | --- |
 | `INSTALL_SCOPE` | `apps` includes Odoo; `infra` omits it. |
+| `INSTALL_DEVELOPER_TOOLS` | `true` also installs Java 21, Maven and Docker with the system prerequisites; defaults to `false`. Runtime and validation tools (Ansible, storage clients, Node.js, ShellCheck, SQLite) are always included. |
 | `SERVER_EXPOSURE` | `local` or `internet`; internet exposure enables the public host policy and defaults to Cloudflare configuration. |
 | `CONTROL_PLANE_NODE_NAME` | Local Kubernetes node name; defaults to the lowercase host name. |
 | `CONTROL_PLANE_COUNT`, `CLUSTER_NODE_COUNT` | Desired final counts, including registered nodes; the control-plane count must be odd. |
