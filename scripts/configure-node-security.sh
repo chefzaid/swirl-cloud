@@ -999,12 +999,34 @@ purge_residual_kernel_packages() {
   fi
 }
 
+# Lynis KRNL-6000, limited to values that Kubernetes does not depend on.
+# Deliberately unchanged: ip_forward and rp_filter (pod routing), modules_disabled
+# (CNI, iSCSI and Longhorn load modules), sysrq (console recovery), suid_dumpable
+# (owned by apport) and log_martians (every new pod sandbox logs benign martians).
+configure_kernel_hardening() {
+  write_root_file /etc/sysctl.d/90-swirl-cloud-hardening.conf <<'EOF'
+# Managed by scripts/configure-node-security.sh
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+kernel.unprivileged_bpf_disabled = 1
+net.core.bpf_jit_harden = 2
+fs.protected_fifos = 2
+fs.protected_regular = 2
+fs.protected_symlinks = 1
+fs.protected_hardlinks = 1
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+EOF
+  sudo sysctl -q -p /etc/sysctl.d/90-swirl-cloud-hardening.conf
+}
+
 # Role- and exposure-independent controls that never touch the firewall, SSH
 # daemon or Kubernetes networking, so they can be reconciled on a live host.
 configure_host_baseline() {
   configure_login_banner
   configure_package_audit_tools
   purge_residual_kernel_packages
+  configure_kernel_hardening
   info "Host baseline applied."
 }
 

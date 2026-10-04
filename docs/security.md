@@ -68,7 +68,11 @@ daemon or Kubernetes networking: a legal login banner in `/etc/issue` and
 `apt-show-versions` and `apt-listchanges` (text frontend, so APT never waits in
 a pager). debsums verifies package checksums weekly and logs mismatches to the
 system journal under the `debsums` tag. Configuration left behind by removed
-kernel packages is purged; other removed packages keep their configuration. A full `--apply` includes it; to reconcile only the baseline
+kernel packages is purged; other removed packages keep their configuration.
+Kernel settings in `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restrict kernel
+pointers, `dmesg`, unprivileged BPF, FIFO/regular-file creation in sticky
+directories and ICMP redirects. Forwarding, reverse-path filtering, module
+loading and SysRq stay at the values Kubernetes and console recovery need. A full `--apply` includes it; to reconcile only the baseline
 on a live host without resetting UFW, run:
 
 ```bash
