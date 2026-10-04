@@ -393,7 +393,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [ ] **FINT-4350:** AIDE with `/var/lib/rancher`, `/var/lib/longhorn` and container paths excluded, weekly, report-only.
 - [ ] **HRDN-7230:** weekly `rkhunter` or `chkrootkit` scan, report-only, shipped to Kibana (overlaps §4).
 - [ ] **LOGG-2154:** forward the system journal to Elasticsearch through Fluent Bit.
-- [ ] Record accepted or inapplicable findings with rationale, owner and review date in a managed Lynis profile; keep the raw audit available and do not suppress a real gap merely to improve the score.
+- [x] Accepted findings are recorded in the managed `/etc/lynis/custom.prf` (owner, review date 2027-04-04, rationale per entry), skipping single checks or values only: AUTH-9230, AUTH-9328, BOOT-5122, FILE-6310, USB-1000, SSH-7408 port/MaxSessions and the KRNL-6000 values Kubernetes or console recovery need. Raw reports stay in `/var/log/lynis-reports`. Hardening index 66 → **75**; remaining suggestions match the open items above. *(live, 2026-10-04)*
 
 Deliberately not planned (too disruptive for the benefit): GRUB password
 (BOOT-5122, breaks remote console recovery), separate `/home` and `/var`
