@@ -196,7 +196,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Longhorn manager metrics are scraped (job `longhorn`) through the `longhorn-manager-metrics` NetworkPolicy.
 - [x] `LonghornVolumeDegraded` (missing replicas or rebuilding, 15 min) and `LonghornVolumeFaulted` alerts. *(live)*
 - [x] Snapshot deletion cleanup was recorded complete on 2026-09-28 in `9e736db`; retain that resolution as history. Current snapshot health was not rechecked in this source review.
-- [ ] One volume (`gitlab-runners/gitlab-runner-cache`) reports robustness `unknown` while detached — expected, but confirm it is still used after the move to ephemeral project-runner caches.
+- [x] `gitlab-runners/gitlab-runner-cache` is still used: the instance runner mounts it at `/cache` (`gitlab-runner.yaml`) and job pods attach it, so `unknown` robustness while detached between jobs is expected. Project runners use `emptyDir` caches. *(live, 2026-10-04)*
 
 ### 9. Secrets (Vault + External Secrets)
 
