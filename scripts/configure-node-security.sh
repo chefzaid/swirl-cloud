@@ -1237,6 +1237,81 @@ EOF
   sudo systemctl enable --now auditd acct >/dev/null 2>&1
 }
 
+# Lynis HRDN-7230: weekly, report-only rkhunter scan. Recommends are skipped
+# because they pull in a listening mail server. Warnings go to the journal and
+# a node-exporter metric; package updates refresh the file-property baseline.
+configure_rootkit_scan() {
+  if ! dpkg -s rkhunter >/dev/null 2>&1; then
+    apt_update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends rkhunter >/dev/null
+  fi
+  write_root_file /etc/rkhunter.conf.local 0640 <<'EOF'
+# Managed by scripts/configure-node-security.sh
+PKGMGR=DPKG
+# PermitRootLogin no is set in sshd_config.d, which rkhunter does not read.
+ALLOW_SSH_ROOT_USER=unset
+# Java preferences, systemd's update stamp and systemd-resolved's backup.
+ALLOWHIDDENDIR=/etc/.java
+ALLOWHIDDENFILE=/etc/.updated
+ALLOWHIDDENFILE=/etc/.resolv.conf.systemd-resolved.bak
+EOF
+  sudo sed -i -E 's/^APT_AUTOGEN=.*/APT_AUTOGEN="true"/' /etc/default/rkhunter
+  sudo rkhunter --config-check --nocolors >/dev/null || err "rkhunter rejected its managed configuration"
+  if ! sudo test -s /var/lib/rkhunter/db/rkhunter.dat; then
+    sudo rkhunter --propupd --nocolors >/dev/null
+  fi
+  write_root_file /usr/local/sbin/swirl-cloud-rkhunter-weekly 0750 <<'EOF'
+#!/bin/bash
+# Managed by scripts/configure-node-security.sh
+set -uo pipefail
+metrics_dir=/var/lib/node_exporter/textfile_collector
+output="$(rkhunter --check --sk --rwo --nocolors 2>&1)"
+status=$?
+[[ -z "$output" ]] || printf '%s\n' "$output"
+warnings="$(grep -c '^Warning:' <<< "$output")"
+temporary="$(mktemp "$metrics_dir/.swirl_cloud_rkhunter.XXXXXX")"
+{
+  printf '# HELP swirl_cloud_rkhunter_last_run_timestamp_seconds Last rkhunter scan.\n'
+  printf '# TYPE swirl_cloud_rkhunter_last_run_timestamp_seconds gauge\n'
+  printf 'swirl_cloud_rkhunter_last_run_timestamp_seconds %s\n' "$(date +%s)"
+  printf '# HELP swirl_cloud_rkhunter_exit_code Exit code of the last scan (1 means warnings).\n'
+  printf '# TYPE swirl_cloud_rkhunter_exit_code gauge\n'
+  printf 'swirl_cloud_rkhunter_exit_code %s\n' "$status"
+  printf '# HELP swirl_cloud_rkhunter_warnings Warnings reported by the last scan.\n'
+  printf '# TYPE swirl_cloud_rkhunter_warnings gauge\n'
+  printf 'swirl_cloud_rkhunter_warnings %s\n' "$warnings"
+} > "$temporary"
+chmod 0644 "$temporary"
+mv -f "$temporary" "$metrics_dir/swirl_cloud_rkhunter.prom"
+# Report-only: warnings are findings to review, not a failed run.
+(( status <= 1 )) || exit "$status"
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-rkhunter.service <<'EOF'
+[Unit]
+Description=Swirl Cloud weekly rkhunter scan (report-only)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/swirl-cloud-rkhunter-weekly
+Nice=10
+IOSchedulingClass=idle
+EOF
+  write_root_file /etc/systemd/system/swirl-cloud-rkhunter.timer <<'EOF'
+[Unit]
+Description=Run the Swirl Cloud rkhunter scan weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now swirl-cloud-rkhunter.timer >/dev/null
+}
+
 # Role- and exposure-independent controls that never touch the firewall or
 # Kubernetes networking, so they can be reconciled on a live host. SSH changes
 # are limited to validated session options.
@@ -1249,6 +1324,7 @@ configure_host_baseline() {
   configure_password_quality
   configure_kernel_hardening
   configure_host_audit
+  configure_rootkit_scan
   configure_unused_protocol_modules
   configure_restricted_file_modes
   configure_lynis_accepted_findings

@@ -89,7 +89,12 @@ and Swirl Cloud configuration, UFW and the time zone, plus kernel module loads
 audited; `acct` keeps 14 days of per-process accounting (`lastcomm`, `sa`).
 Audit logs rotate at 8 × 32 MB, BPF program-load records from container
 start-up are excluded, and a full audit disk suspends auditing instead of
-halting the node. A full `--apply` includes it; to reconcile only the baseline
+halting the node.
+`swirl-cloud-rkhunter.timer` runs a report-only rkhunter scan every Sunday.
+Warnings appear in `journalctl -u swirl-cloud-rkhunter.service` and as
+`swirl_cloud_rkhunter_warnings` in Prometheus; package updates refresh its
+file-property baseline. Each whitelist entry in `/etc/rkhunter.conf.local`
+carries its reason. A full `--apply` includes it; to reconcile only the baseline
 on a live host without resetting UFW, run:
 
 ```bash
