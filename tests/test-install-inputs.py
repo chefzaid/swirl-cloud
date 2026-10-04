@@ -227,6 +227,24 @@ class InstallInputs(unittest.TestCase):
             _, log = hub.run_logged("Echo", writer)
         self.assertEqual("[redacted][redacted]", log.read_text())
 
+    def test_support_bundles_never_read_secrets_and_redact_credentials(self):
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("support_bundle", ROOT / "scripts/support-bundle.py")
+        bundle = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bundle)
+        commands = []
+        with patch.object(bundle, "capture", side_effect=lambda *c, **_: commands.append(c) or ""), \
+                patch.object(bundle, "unhealthy_pods", return_value=[("infra", "demo-0")]), \
+                patch.object(bundle, "STATE", self.dir / "state"):
+            bundle.collect()
+        self.assertFalse([c for c in commands if any(part in ("secret", "secrets") or part.startswith("secret/")
+                                                     for part in c)])
+        text = bundle.redact(f"token: glpat-{'a' * 20}\npassword={PASSWORD}\nAuthorization: Bearer cfut_{'b' * 30}\n"
+                             + "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----")
+        for leaked in ("glpat-", PASSWORD, "cfut_", "BEGIN OPENSSH"):
+            self.assertNotIn(leaked, text)
+
 
 if __name__ == "__main__":
     unittest.main()

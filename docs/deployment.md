@@ -52,6 +52,7 @@ unattended runs require it to be ready.
 | Check a file without changing anything | `./install.sh --env-file FILE --validate-only` |
 | Verify an installed platform | [`./install.sh --status`](#verify-the-result) |
 | See what a rerun will change | [`./install.sh --plan [--env-file FILE]`](#setup-hub-and-the-input-file) |
+| Collect troubleshooting data | [`./install.sh --support-bundle`](../docs/operations.md#cluster-status) |
 | Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
 | Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
 
@@ -95,7 +96,7 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
 | Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
 | Status / Service links | Verification report, and every service URL grouped by namespace. |
-| Maintenance | Run the recovery backup or Vault unseal now (with their journal), [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
+| Maintenance | Run the recovery backup or Vault unseal now (with their journal), apply API audit logging, create a support bundle, [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
 
 Password fields can generate a strong password; it is shown once from a private
 file, never as a command argument. Any secret can instead be read from a
@@ -706,6 +707,10 @@ nonzero exit when a check fails. Run the same read-only report at any time:
 | API audit log | | auditing is configured but not yet active, or not configured |
 | Disk headroom | the K3s filesystem is 85 % used (kubelet image GC) | less than 30 GiB is free for maintenance |
 | Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric has been written yet |
+
+Each warning or failure ends with a `Next:` line naming the command to run
+first, such as describing the failing pod or ExternalSecret, starting the Vault
+unseal service or reading the backup journal.
 
 Redirects and `401`/`403` answers count as reachable: administration hosts sit
 behind Cloudflare Access and SSO by design. Then open `https://cloud.<your-domain>`.

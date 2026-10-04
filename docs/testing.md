@@ -80,7 +80,7 @@ source inputs and rendered deployment output, then runs only these safety suites
 | `test-application-clusters.py` | Wrong cluster/namespace identity, unsafe shared-cluster ingress, and unverified remote gateway access. |
 | `test-application-data.py` | Cross-environment data access, anonymous remote cache access and unsafe database adoption; optional disposable datastore checks. |
 | `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage and accepting a certificate that does not cover an environment hostname. |
-| `test-install-inputs.py` | Shell execution through the installation input file, inputs leaking in from the calling shell, readable credential files, secrets (including generated passwords and file references) in setup-hub process arguments, the input file or run logs, and installs starting with unreported input problems. |
+| `test-install-inputs.py` | Shell execution through the installation input file, inputs leaking in from the calling shell, readable credential files, secrets (including generated passwords and file references) in setup-hub process arguments, the input file, run logs or support bundles, and installs starting with unreported input problems. |
 
 Do not restore broad application, UI, source-text assertion or per-image test
 frameworks here. New tests need a concrete deployment or recovery failure that

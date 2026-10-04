@@ -29,12 +29,41 @@ PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 YOUNG_POD_SECONDS = 300
 
 
+def first_object(details):
+    """Return (namespace, name) of the first 'namespace/name: ...' detail."""
+    match = re.match(r"([a-z0-9-]+)/([A-Za-z0-9.-]+)", details[0]) if details else None
+    return match.groups() if match else ("<namespace>", "<name>")
+
+
+def first_name(details):
+    return details[0].split(":")[0].replace("faulted: ", "").replace("degraded: ", "") if details else "<name>"
+
+
+# The next command to run for a warning or failure; nothing here changes state.
+HINTS = {
+    "Nodes": lambda d: f"kubectl describe node {first_name(d)}; on that host: sudo journalctl -u k3s -u k3s-agent -n 100",
+    "Workloads": lambda d: "kubectl -n {0} describe pod {1}; kubectl -n {0} logs {1} --all-containers --tail=50".format(*first_object(d)),
+    "ExternalSecrets": lambda d: "kubectl -n {0} describe externalsecret {1}; see docs/operations.md (ExternalSecret is not Ready)".format(*first_object(d)),
+    "Argo CD": lambda d: f"kubectl -n infra get application {first_name(d)} -o yaml | less; see docs/deployment.md (Argo CD operations)",
+    "Vault": lambda d: "sudo systemctl start swirl-cloud-vault-unseal.service; kubectl -n infra logs vault-0 -c vault --tail=50",
+    "Longhorn": lambda d: f"kubectl -n longhorn-system get volumes.longhorn.io {first_name(d)} -o yaml; open the Longhorn UI",
+    "TLS secrets": lambda d: "rerun the installer (Cloudflare origin certificate) or replace the secret; see docs/dns.md",
+    "Public endpoints": lambda d: f"curl -sSI https://{first_name(d)}/ ; kubectl get ingress -A | grep {first_name(d)}",
+    "Disk headroom": lambda d: "sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail; move old archives "
+                               "off the host (pinned recovery images must stay); see docs/operations.md#storage-and-retention",
+    "API audit log": lambda d: "./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)",
+    "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
+}
+
+
 class Report:
     def __init__(self):
         self.results = []
 
     def add(self, status, check, summary, details=()):
-        self.results.append({"status": status, "check": check, "summary": summary, "details": list(details)})
+        details = list(details)
+        hint = HINTS[check](details) if status != PASS and check in HINTS else ""
+        self.results.append({"status": status, "check": check, "summary": summary, "details": details, "hint": hint})
 
     def counts(self):
         return {status: sum(r["status"] == status for r in self.results) for status in (PASS, WARN, FAIL)}
@@ -46,6 +75,8 @@ class Report:
             lines += [f"       {detail}" for detail in result["details"][:12]]
             if len(result["details"]) > 12:
                 lines.append(f"       ... and {len(result['details']) - 12} more")
+            if result["hint"]:
+                lines.append(f"       Next: {result['hint']}")
         counts = self.counts()
         lines += ["", f"Summary: {counts[PASS]} passed, {counts[WARN]} warning(s), {counts[FAIL]} failed"]
         return "\n".join(lines)

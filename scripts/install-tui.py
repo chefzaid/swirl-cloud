@@ -54,6 +54,7 @@ GUIDES = """Files and commands
   Validate file  ./install.sh --env-file FILE --validate-only
   Status         ./install.sh --status
   Rerun plan     ./install.sh --plan [--env-file FILE]
+  Support bundle ./install.sh --support-bundle
 
 Guides
 
@@ -385,7 +386,8 @@ def maintenance(dialog, values):
                 ("audit", "Audit cluster hosts with Lynis"),
                 ("dry-run", "Validate rendered profiles against the API server"),
                 ("units", "Failed host maintenance units"),
-                ("logs", "Earlier run logs")])
+                ("logs", "Earlier run logs"),
+                ("bundle", "Create a support bundle (secrets redacted)")])
         except Cancelled:
             return
         if choice in ("backup", "unseal"):
@@ -419,6 +421,11 @@ def maintenance(dialog, values):
             run_logged("Lynis audit", [str(ROOT / "scripts/audit-cluster-nodes.sh")])
         elif choice == "dry-run":
             run_logged("API dry-run", [str(ROOT / "scripts/validate-repository.sh"), "--live"])
+        elif choice == "bundle":
+            result = subprocess.run([sys.executable, str(ROOT / "scripts/support-bundle.py")], capture_output=True,
+                                    text=True, timeout=900)
+            dialog.message(("Support bundle written:\n\n" + result.stdout) if result.returncode == 0 else
+                           "The support bundle failed:\n\n" + result.stderr[-2000:], 12)
         elif choice == "units":
             result = subprocess.run(["systemctl", "list-units", "swirl-cloud-*", "--all", "--failed", "--no-pager",
                                      "--no-legend"], capture_output=True, text=True)

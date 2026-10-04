@@ -35,7 +35,16 @@ use the access controls described in [security and identity](security.md).
 
 `./install.sh --status` prints a read-only PASS/WARN/FAIL report of nodes,
 workloads, ExternalSecrets, Argo CD, Vault, Longhorn, TLS certificates, public
-endpoints and the nightly backup ([checks](deployment.md#verify-the-result)).
+endpoints and the nightly backup ([checks](deployment.md#verify-the-result)),
+with a `Next:` command for each problem.
+
+`./install.sh --support-bundle` writes a private archive (mode `600`) under
+`~/.local/state/swirl-cloud/support/` with that report, the rerun plan, versions,
+nodes, pods, recent events, Argo CD, ExternalSecret, Longhorn and storage status,
+host maintenance units, descriptions and log tails of unhealthy pods, and the
+setup hub's latest run logs. It never reads Kubernetes Secrets and redacts
+token-, password- and private-key-like strings; still review it before sharing.
+
 For details:
 
 ```bash
