@@ -39,23 +39,29 @@ unattended runs require it to be ready.
 
 ## Choose an entry point
 
-| Task | Entry point |
-| --- | --- |
-| Guided installation | [`python3 scripts/install-tui.py`](#guided-setup-and-the-input-file), or `./install-control-plane.sh` for terminal prompts |
-| Unattended installation | [`./install-control-plane.sh --env-file FILE`](#guided-setup-and-the-input-file), [`--yes`](#unattended-installation) or [Ansible installation](#ansible-installation) |
-| Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
-| Add control planes or workers | [`./add-node.sh`](guides/node-enrollment.md) |
-| Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
-| Import, synchronize and deploy applications | [`./add-repos.sh`](guides/repository-onboarding.md) |
-
-For a new cluster, run:
+`./install.sh` is the entry point. Run it without arguments for the setup hub:
 
 ```bash
-./install-control-plane.sh
+./install.sh
 ```
 
-The assistant collects identity, installation scope, topology, components,
-recovery destination, public access and administrator credentials. Accept the
+| Task | Command |
+| --- | --- |
+| Guided installation, servers, repositories, status | [`./install.sh`](#setup-hub-and-the-input-file) |
+| Unattended install or rerun from a saved file | [`./install.sh --env-file FILE`](#setup-hub-and-the-input-file) or [Ansible installation](#ansible-installation) |
+| Check a file without changing anything | `./install.sh --env-file FILE --validate-only` |
+| Verify an installed platform | [`./install.sh --status`](#verify-the-result) |
+| Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
+| Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
+
+The hub starts [`add-node.sh`](guides/node-enrollment.md) and
+[`add-repos.sh`](guides/repository-onboarding.md) for you; both still run on their
+own. `install-control-plane.sh` is the engine behind the hub: run without
+arguments in a terminal it opens the hub, and `--prompts` keeps the plain
+terminal questions. Environment-driven runs use [`--yes`](#unattended-installation).
+
+The hub collects identity, installation scope, topology, components, recovery
+destination, public access and administrator credentials. Accept the
 recommended shared-platform bundle or select components individually.
 `INSTALL_SCOPE=apps` also installs Odoo in `corp`; `infra` omits it. Both scopes
 provide the `apps` namespace and its networking, credentials and TLS foundation
@@ -67,26 +73,35 @@ read-only migration check; `platform_migration_approved=true` is reserved for a
 prepared Ansible maintenance run. Retired image-profile inputs are rejected.
 New installations use public upstream images and a separate Traefik release.
 
-## Guided setup and the input file
+## Setup hub and the input file
 
-`scripts/install-tui.py` collects the installation inputs in terminal dialogs
-(Python 3 and `whiptail`, both on stock Ubuntu) and writes them to
-`~/.config/swirl-cloud/install.env`, or the path given with `--output`:
+`./install.sh` checks that it is not running as root, offers to install
+`python3` and `whiptail` with apt-get when they are missing, and opens the hub.
+Answers are kept in `~/.config/swirl-cloud/install.env` (`--output FILE` chooses
+another path outside the checkout). Nothing changes on the host until you choose
+**Install**.
 
-- **Express** lists what the recommended platform installs and asks only for the
-  company name and domain, the GitOps URL, the administrator login, the
-  Cloudflare token and Access emails for internet-exposed servers, and optionally
-  more servers, S3 backups and GitHub repositories to import.
-- **Advanced** walks every installer input by section; only inputs that apply to
-  earlier answers are asked.
-- **Review** lists the answers (secrets show as `(set)`) and any problems;
-  **Save** validates the file with the installer and can start the installation.
+| Menu | What it does |
+| --- | --- |
+| Overview | What gets installed, and the current state of this host and the input file. |
+| Check this host | OS, architecture, sudo, CPU, memory, free disk, ports, clock, K3s role, internet egress and domain resolution. |
+| Configure: express | Asks only for the company name and domain, GitOps URL, administrator login, the Cloudflare token and Access emails for internet-exposed servers, and optionally more servers, S3 backups and GitHub repositories. |
+| Configure: advanced | Every installer input by section; only inputs that apply to earlier answers are asked. |
+| Test credentials | Calls Cloudflare (token and zone), GitHub (token and repository admin access) and Tailscale with the entered tokens. OVHcloud and S3 keys are checked by the installer. |
+| Review / Save | Lists answers (secrets show as `(set)`) and problems; Save writes the file and runs the installer's `--validate-only` check. |
+| Install or update | Saves, rechecks the host, runs the engine with a private log under `~/.local/state/swirl-cloud/logs`, then shows the [verification report](#verify-the-result). |
+| Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
+| Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
+| Status / Service links | Verification report, and every service URL grouped by namespace. |
 
-Rerunning the TUI loads the existing file, so earlier answers become defaults;
-an empty secret keeps the stored value. Then install or rerun with:
+Password fields can generate a strong password; it is shown once from a private
+file, never as a command argument. On a host that already runs the platform,
+the hub loads the installed identity as defaults. Rerunning it loads the saved
+file, so earlier answers become defaults and an empty secret keeps the stored
+value. Unattended reruns use the same file:
 
 ```bash
-./install-control-plane.sh --env-file ~/.config/swirl-cloud/install.env
+./install.sh --env-file ~/.config/swirl-cloud/install.env
 ```
 
 The file is the only source of installation inputs for that run; matching
@@ -283,7 +298,7 @@ ansible-playbook -i ansible/inventory ansible/install.yml \
   -e @/secure/cluster-install.yml --ask-vault-pass
 ```
 
-To use an [input file](#guided-setup-and-the-input-file) instead, pass
+To use an [input file](#setup-hub-and-the-input-file) instead, pass
 `-e installer_env_file=/secure/install.env`; it replaces `installer_environment`
 inputs and the process environment for that run.
 
@@ -651,14 +666,29 @@ persists, inspect the live heap/cache and adjust both budgets within node capaci
 
 ## Verify the result
 
-The installer waits for selected components and reports their endpoints. Check
-cluster and GitOps status, then open `https://cloud.<your-domain>`:
+The installer waits for selected components, then runs
+[`scripts/verify-platform.py`](../scripts/verify-platform.py) and stops with a
+nonzero exit when a check fails. Run the same read-only report at any time:
 
 ```bash
-kubectl get nodes
-kubectl get applications -n infra
-./scripts/validate-repository.sh --live
+./install.sh --status                 # add --strict to fail on warnings, --json for tooling
+./install.sh --status --api-dry-run   # also validate rendered profiles against the API server
 ```
+
+| Check | Fails when | Warns when |
+| --- | --- | --- |
+| Nodes | any node is not `Ready` | |
+| Workloads | a pod older than five minutes is not ready (failed Job pods are left to their Jobs) | a newer pod is still starting |
+| ExternalSecrets | any is not `Ready` | |
+| Argo CD | an Application is not `Synced` and `Healthy` | a synced Application is `Progressing` |
+| Vault | a Vault pod is sealed or not running | Vault is not installed |
+| Longhorn | a volume is `faulted` | a volume is `degraded` |
+| TLS secrets | a certificate in `infra`, `apps` or `corp` has expired | it expires within 30 days |
+| Public endpoints | an Ingress host answers 5xx or fails TLS | DNS does not resolve yet or the request times out |
+| Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric has been written yet |
+
+Redirects and `401`/`403` answers count as reachable: administration hosts sit
+behind Cloudflare Access and SSO by design. Then open `https://cloud.<your-domain>`.
 
 For source changes and Ansible syntax checks:
 

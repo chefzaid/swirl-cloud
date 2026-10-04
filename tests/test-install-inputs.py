@@ -92,41 +92,63 @@ class InstallInputs(unittest.TestCase):
                                 cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)
 
-    def test_tui_never_passes_secrets_as_process_arguments(self):
+    def run_tui(self, answers):
+        """Drive the setup hub with a fake whiptail that records every argument list."""
         fake = self.dir / "bin/whiptail"
-        fake.parent.mkdir()
-        fake.write_text(textwrap.dedent("""\
-            #!/usr/bin/env python3
-            import json, os, sys
-            args, queue_path = sys.argv[1:], os.environ["QUEUE"]
-            with open(os.environ["ARGV_LOG"], "a") as log:
-                log.write(json.dumps(args) + "\\n")
-            if "--msgbox" in args:
-                sys.exit(0)
-            queue = json.load(open(queue_path))
-            code, answer = queue.pop(0)
-            json.dump(queue, open(queue_path, "w"))
-            os.write(int(args[args.index("--output-fd") + 1]), answer.encode())
-            sys.exit(code)
-            """))
-        fake.chmod(0o700)
-        token = "cfut_" + "s" * 30
-        answers = [[0, "express"], [0, "Example Co"], [0, "example.com"], [0, VALID["GITOPS_REPOSITORY_URL"]], [1, ""],
-                   [0, "internet"], [1, ""], [1, ""], [0, token], [0, token], [0, "admin@example.com"],
-                   [0, "platform-admin"], [0, PASSWORD], [0, PASSWORD], [0, "save"], [1, ""]]
+        if not fake.exists():
+            fake.parent.mkdir()
+            fake.write_text(textwrap.dedent("""\
+                #!/usr/bin/env python3
+                import json, os, sys
+                args, queue_path = sys.argv[1:], os.environ["QUEUE"]
+                shown = ""
+                if "--textbox" in args:
+                    shown = open(args[args.index("--textbox") + 1]).read()
+                with open(os.environ["ARGV_LOG"], "a") as log:
+                    log.write(json.dumps({"args": args, "textbox": shown}) + "\\n")
+                if "--msgbox" in args or "--textbox" in args:
+                    sys.exit(0)
+                queue = json.load(open(queue_path))
+                code, answer = queue.pop(0)
+                json.dump(queue, open(queue_path, "w"))
+                os.write(int(args[args.index("--output-fd") + 1]), answer.encode())
+                sys.exit(code)
+                """))
+            fake.chmod(0o700)
         (self.dir / "queue.json").write_text(json.dumps(answers))
         output = self.dir / "out/install.env"
         subprocess.run([sys.executable, str(ROOT / "scripts/install-tui.py"), "--output", str(output)], cwd=ROOT,
-                       check=True, capture_output=True, env={**os.environ, "PATH": f"{fake.parent}:{os.environ['PATH']}",
-                                                             "QUEUE": str(self.dir / "queue.json"),
-                                                             "ARGV_LOG": str(self.dir / "argv.log")})
-        arguments = (self.dir / "argv.log").read_text()
-        self.assertNotIn(token, arguments)
-        self.assertNotIn(PASSWORD, arguments)
-        saved = install_inputs.read(output)
+                       check=True, capture_output=True, timeout=120,
+                       env={**os.environ, "PATH": f"{fake.parent}:{os.environ['PATH']}", "KUBECONFIG": "/nonexistent",
+                            "QUEUE": str(self.dir / "queue.json"), "ARGV_LOG": str(self.dir / "argv.log"),
+                            "XDG_STATE_HOME": str(self.dir / "state")})
+        self.assertEqual("[]", (self.dir / "queue.json").read_text())
+        calls = [json.loads(line) for line in (self.dir / "argv.log").read_text().splitlines()]
+        return install_inputs.read(output), [call["args"] for call in calls], [call["textbox"] for call in calls]
+
+    def express_answers(self, token, password_answers):
+        return ([[0, "express"], [0, "Example Co"], [0, "example.com"], [0, VALID["GITOPS_REPOSITORY_URL"]], [1, ""],
+                 [0, "internet"], [1, ""], [1, ""], [0, token], [0, token], [0, "admin@example.com"],
+                 [0, "platform-admin"]] + password_answers + [[0, "save"], [1, ""]])
+
+    def test_tui_never_passes_secrets_as_process_arguments(self):
+        token = "cfut_" + "s" * 30
+        saved, arguments, _ = self.run_tui(self.express_answers(token, [[0, "enter"], [0, PASSWORD], [0, PASSWORD]]))
+        self.assertNotIn(token, json.dumps(arguments))
+        self.assertNotIn(PASSWORD, json.dumps(arguments))
         self.assertEqual(token, saved["CLOUDFLARE_API_TOKEN"])
         self.assertEqual(PASSWORD, saved["KEYCLOAK_SSO_BOOTSTRAP_PASSWORD"])
 
+    def test_generated_passwords_meet_policy_and_are_shown_only_from_a_private_file(self):
+        token = "cfut_" + "t" * 30
+        saved, arguments, shown = self.run_tui(self.express_answers(token, [[0, "generate"]]))
+        generated = saved["KEYCLOAK_SSO_BOOTSTRAP_PASSWORD"]
+        self.assertTrue(len(generated) >= 16 and any(c.isupper() for c in generated) and any(c.isdigit() for c in generated)
+                        and any(not c.isalnum() for c in generated))
+        self.assertNotIn(generated, json.dumps(arguments))
+        self.assertTrue(any(generated in text for text in shown))
+        textbox = next(args[args.index("--textbox") + 1] for args in arguments if "--textbox" in args)
+        self.assertFalse(Path(textbox).exists())
 
 if __name__ == "__main__":
     unittest.main()

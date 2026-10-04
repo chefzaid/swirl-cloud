@@ -48,19 +48,27 @@ source "$SSO_ADMIN_LIBRARY"
 
 usage() {
     cat <<USAGE
-Usage: $0 [--yes] [--env-file FILE [--validate-only]]
+Usage: $0 --yes | --env-file FILE [--validate-only] | --prompts
+
+The installer engine. Start guided setup with ./install.sh instead.
 
   --yes             Run unattended from environment variables and defaults.
   --env-file FILE   Run unattended from an installation input file (mode 0600),
                     such as one written by scripts/install-tui.py. Its values
                     replace any installation inputs in the calling environment.
   --validate-only   Report every problem in --env-file FILE, then exit.
+  --prompts         Ask the installation questions as plain terminal prompts.
 USAGE
 }
 
 AUTO_APPROVE=false
 INSTALL_ENV_FILE=""
 VALIDATE_ONLY=false
+if (( $# == 0 )) && [[ -t 0 && -t 1 ]]; then
+    # One interactive entry point: the setup hub collects inputs and runs this engine.
+    echo "Starting the setup hub (./install.sh); use --prompts for plain terminal questions." >&2
+    exec "$SCRIPT_DIR/install.sh"
+fi
 while (( $# > 0 )); do
     case "$1" in
         -y|--yes|--auto-approve) AUTO_APPROVE=true ;;
@@ -71,6 +79,7 @@ while (( $# > 0 )); do
             shift
             ;;
         --validate-only) VALIDATE_ONLY=true ;;
+        --prompts) ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -1496,6 +1505,13 @@ if [[ "$CONFIGURE_REPOSITORY_SYNC" == true ]]; then
     replication_args=()
     [[ "$AUTO_APPROVE" != true ]] || replication_args+=(--yes)
     "$REPLICATE_REPO_SCRIPT" "${replication_args[@]}"
+fi
+
+if [[ "$RUN_K8S_FEATURES" == true ]]; then
+    step "Verifying the installed platform..."
+    # Endpoint probes stay warnings while new DNS records propagate; failures stop here.
+    python3 "$SCRIPT_DIR/scripts/verify-platform.py" || \
+        error "Platform verification failed; fix the [FAIL] items above, then rerun the installer or ./install.sh --status."
 fi
 
 info ""

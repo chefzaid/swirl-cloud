@@ -33,6 +33,11 @@ use the access controls described in [security and identity](security.md).
 
 ## Cluster status
 
+`./install.sh --status` prints a read-only PASS/WARN/FAIL report of nodes,
+workloads, ExternalSecrets, Argo CD, Vault, Longhorn, TLS certificates, public
+endpoints and the nightly backup ([checks](deployment.md#verify-the-result)).
+For details:
+
 ```bash
 kubectl get nodes
 kubectl get pods -A

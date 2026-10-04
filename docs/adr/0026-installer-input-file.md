@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-04
+- Amended: 2026-10-04 (single `./install.sh` entry point and setup hub)
 
 ## Context
 
@@ -29,9 +30,15 @@ A terminal UI and later a web front end need one contract to write.
   unattended. `--validate-only` stops after that report. The `--yes` path and
   interactive prompts are unchanged; preset decision inputs now skip their
   questions in both.
-- The front end is [`scripts/install-tui.py`](../../scripts/install-tui.py):
-  Python 3 and `whiptail`, both present on stock Ubuntu, so the TUI needs no
-  extra runtime before prerequisites are installed. It renders the schema, keeps
+- [`install.sh`](../../install.sh) is the single entry point. Without arguments
+  it opens the setup hub; `--env-file` runs the engine and `--status` runs
+  [`verify-platform.py`](../../scripts/verify-platform.py). A bare interactive
+  `install-control-plane.sh` opens the hub too; `--prompts` keeps the plain prompts.
+- The hub is [`scripts/install-tui.py`](../../scripts/install-tui.py). Besides
+  collecting inputs it checks the host and credentials, runs the engine with a
+  private log, verifies the result, and starts node enrollment and repository
+  import. It uses Python 3 and `whiptail`, both present on stock Ubuntu, so it
+  needs no extra runtime before prerequisites are installed. It renders the schema, keeps
   secrets out of process arguments, and writes the file with mode `0600` in a
   `0700` directory outside the checkout. `ansible/install.yml` accepts the same
   file through `installer_env_file`.

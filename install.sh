@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Swirl Cloud entry point.
+#
+#   ./install.sh                         guided setup hub (terminal UI)
+#   ./install.sh --output FILE           hub with a different input file
+#   ./install.sh --env-file FILE         unattended install/update from a saved file
+#   ./install.sh --env-file FILE --validate-only
+#   ./install.sh --status                verify an installed platform
+set -Eeuo pipefail
+umask 077
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+    sed -n '3,8s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+}
+
+if [[ $EUID -eq 0 ]]; then
+    echo "[ERROR] Run ./install.sh as a regular user with sudo rights, not as root." >&2
+    exit 1
+fi
+
+missing_packages() {
+    local packages=()
+    command -v python3 >/dev/null 2>&1 || packages+=(python3)
+    if [[ "${1:-}" == tui ]]; then
+        command -v whiptail >/dev/null 2>&1 || packages+=(whiptail)
+    fi
+    printf '%s\n' "${packages[@]}"
+}
+
+ensure_packages() {
+    local packages answer
+    mapfile -t packages < <(missing_packages "$1")
+    [[ ${#packages[@]} -gt 0 && -n "${packages[0]}" ]] || return 0
+    command -v apt-get >/dev/null 2>&1 || {
+        echo "[ERROR] Install ${packages[*]} with your package manager, then rerun ./install.sh." >&2
+        exit 1
+    }
+    [[ -t 0 ]] || { echo "[ERROR] Missing ${packages[*]}; install them first." >&2; exit 1; }
+    read -rp "The setup needs ${packages[*]}. Install with apt-get now? [Y/n] " answer
+    [[ "${answer:-Y}" =~ ^[Yy]$ ]] || exit 1
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq "${packages[@]}"
+}
+
+case "${1:-}" in
+    --env-file|--env-file=*)
+        ensure_packages engine
+        exec "$ROOT/install-control-plane.sh" "$@"
+        ;;
+    --status)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/verify-platform.py" "$@"
+        ;;
+    -h|--help)
+        usage
+        ;;
+    ""|--output|--output=*)
+        [[ -t 0 && -t 1 ]] || { echo "[ERROR] The setup hub needs a terminal; use --env-file for automation." >&2; exit 1; }
+        ensure_packages tui
+        exec python3 "$ROOT/scripts/install-tui.py" "$@"
+        ;;
+    *)
+        echo "[ERROR] Unknown option: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+esac

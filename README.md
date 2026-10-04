@@ -20,12 +20,15 @@ On the first Ubuntu control-plane host, review the
 [installation prerequisites](docs/deployment.md#installation-prerequisites), then run:
 
 ```bash
-python3 scripts/install-tui.py      # guided screens; writes ~/.config/swirl-cloud/install.env
-./install-control-plane.sh --env-file ~/.config/swirl-cloud/install.env
+./install.sh
 ```
 
-`./install-control-plane.sh` alone asks the same questions in the terminal. The
-installer verifies the selected services. Open
+The setup hub checks the host, asks only what an express installation needs (or
+every input under Advanced), tests your Cloudflare, GitHub and Tailscale tokens,
+installs, and verifies the result. It also adds servers and imports
+repositories. Saved answers drive unattended reruns with
+`./install.sh --env-file ~/.config/swirl-cloud/install.env`, and
+`./install.sh --status` verifies an installed platform. Open
 `https://cloud.<your-domain>` for the service catalog. The
 [deployment guide](docs/deployment.md) also covers unattended setup, Ansible,
 reconciliation and application environments.
