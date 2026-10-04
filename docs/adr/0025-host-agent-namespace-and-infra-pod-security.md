@@ -35,6 +35,10 @@ configuration would need a server restart and are invisible in Git.
 
 ## Consequences
 
-New host-level agents must be added to `host-agents`, not `infra`. Enforcement
+New host-level agents must be added to `host-agents`, not `infra`. Trivy
+Operator always runs its node-collector (infra assessment) jobs in its own
+namespace with host PID and hostPath access; before enforcing `baseline` on
+`infra`, either exempt its service account in the K3s Pod Security admission
+configuration (a server restart) or disable infra assessment. Enforcement
 rejects new or restarted `infra` pods that need host access, so such workloads
 fail visibly instead of running with unreviewed privileges.
