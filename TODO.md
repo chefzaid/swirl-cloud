@@ -133,7 +133,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] Report-only integrity and malware checks (AIDE, rkhunter) run weekly (§20). *(live, 2026-10-04)*
 - [ ] Assess a full EDR only if those checks leave a concrete detection gap.
 - [ ] CrowdSec parses only SSH/Linux logs; Traefik access logs are not acquired, so there is no in-cluster HTTP IDS behind Cloudflare. *(from `todo.txt`: "EDR / IDS / WAF")*
-- [ ] Kubernetes API audit logging is not configured (no `audit-policy-file`/`audit-log-path` in the K3s config). *Progress 2026-10-04:* `scripts/configure-k3s-audit.sh` with a metadata-only policy (validated on a disposable K3s v1.36.4: Secret reads and writes recorded, values absent); the installer and control-plane enrollment apply it before K3s starts. Fluent Bit ships it to `kubernetes-audit-*` with 30-day retention (pipeline tested with the pinned Fluent Bit image). Remaining: apply on `swirlit-node-01` in a maintenance restart (hub Maintenance menu).
+- [x] Host firewall cannot stay off after a reconcile: on 2026-10-04 a hardening rerun left UFW disabled for about 3 minutes (22:10–22:13 UTC) because `ufw-init` saw leftover IPv4 chains and skipped the IPv6 rules. The script now verifies UFW after enabling it, reloads every rule file on failure and otherwise fails closed; `HostFirewallDisabled` and the `--status` firewall check detect it.
+- [x] Kubernetes API audit logging is configured (live on `swirlit-node-01` since 2026-10-04 22:15 UTC). *Details:* `scripts/configure-k3s-audit.sh` with a metadata-only policy (validated on a disposable K3s v1.36.4: Secret reads and writes recorded, values absent); the installer and control-plane enrollment apply it before K3s starts. Fluent Bit ships it to `kubernetes-audit-*` with 30-day retention (pipeline tested with the pinned Fluent Bit image). Applied with a 14-second K3s restart.
 
 ### 5. Private node networking and enrollment
 
