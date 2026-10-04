@@ -562,10 +562,49 @@ data:
     master_admin_role="$(tr -d '\n' < "$response_file")"
     expect_success "$(request POST "realms/master/users/$master_user_id/role-mappings/realm" "[$master_admin_role]")"
 
+    # Store login and admin events in every realm (identity audit evidence).
+    # The jboss-logging listener also writes each event to the container log,
+    # which the logging agent keeps in the identity-audit-* indices for a year.
+    # Admin event details stay off so representations never reach the store.
+    event_retention_seconds=7776000
+    events_body='{
+      "eventsEnabled":true,
+      "eventsExpiration":'"$event_retention_seconds"',
+      "eventsListeners":["jboss-logging"],
+      "enabledEventTypes":[],
+      "adminEventsEnabled":true,
+      "adminEventsDetailsEnabled":false
+    }'
+    expect_success "$(request GET 'realms?briefRepresentation=true')"
+    realms="$(tr -d '\n' < "$response_file" | grep -o '"realm":"[^"]*"' | sed 's/^"realm":"//; s/"$//')"
+    for event_realm in $realms; do
+      expect_success "$(request PUT "realms/$event_realm/events/config" "$events_body")"
+      # Admin event expiry is a realm attribute, and a realm PUT replaces the
+      # whole attribute map, so merge into the current map (frontendUrl and
+      # similar settings live there).
+      expect_success "$(request GET "realms/$event_realm")"
+      realm_json="$(tr -d '\n' < "$response_file")"
+      case "$realm_json" in
+        *'"adminEventsExpiration":"'"$event_retention_seconds"'"'*) continue ;;
+      esac
+      if [ "$(printf '%s' "$realm_json" | grep -o '"attributes"[[:space:]]*:' | wc -l)" -ne 1 ]; then
+        echo "Realm '$event_realm' has an unexpected attribute layout; set admin event expiry in the console." >&2
+        exit 1
+      fi
+      attributes="$(printf '%s' "$realm_json" \
+        | sed -n 's/.*"attributes"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p' \
+        | sed 's/,*[[:space:]]*"adminEventsExpiration"[[:space:]]*:[[:space:]]*"[^"]*"//; s/^,//')"
+      if [ -n "$attributes" ]; then
+        attributes="$attributes,"
+      fi
+      expect_success "$(request PUT "realms/$event_realm" "{\"attributes\":{$attributes\"adminEventsExpiration\":\"$event_retention_seconds\"}}")"
+    done
+
     unset token_response access_token
 
     echo "Keycloak realm '$realm' reconciled."
     echo "Keycloak master administrator '$SSO_BOOTSTRAP_USERNAME' reconciled."
+    echo "Login and admin events stored for 90 days in realms:" $realms
 
 ---
 apiVersion: batch/v1

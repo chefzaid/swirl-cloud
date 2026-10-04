@@ -134,6 +134,16 @@ data:
         script                    /fluent-bit/etc/enrich-kubernetes.lua
         call                      enrich_kubernetes
 
+    # Keycloak login and admin events (marked by the Lua filter above) move to
+    # the long-retention identity-audit-* indices instead of the general logs.
+    [FILTER]
+        Name                      rewrite_tag
+        Match                     kube.*
+        Rule                      $log_source ^identity-audit$ identity.keycloak false
+        Emitter_Name              identity_audit_emitter
+        Emitter_Storage.type      filesystem
+        Emitter_Mem_Buf_Limit     10MB
+
     [OUTPUT]
         Name                      es
         Match                     kube.*
@@ -180,6 +190,24 @@ data:
         Logstash_Format           On
         Logstash_Prefix           kubernetes-audit
         Logstash_DateFormat       %Y.%m.%d
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+
+    [OUTPUT]
+        Name                      es
+        Match                     identity.*
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           identity-audit
+        Logstash_DateFormat       %Y.%m
         Suppress_Type_Name        On
         Generate_ID               On
         Write_Operation           index
@@ -289,6 +317,25 @@ data:
         record["message"] = nil
       end
 
+      -- Keycloak's jboss-logging event listener writes one key="value" line
+      -- per login or admin event. Only the platform Keycloak container may
+      -- produce identity audit records.
+      local line = record["log"]
+      if kubernetes["namespace_name"] == "infra" and
+          kubernetes["container_name"] == "keycloak" and type(line) == "string" then
+        local level, payload = string.match(line, "^%S+ %S+ (%u+)%s+%[org%.keycloak%.events%] %b() (.*)$")
+        if payload ~= nil then
+          local event = {}
+          for key, value in string.gmatch(payload, '([%w_]+)="([^"]*)"') do
+            event[key] = value
+          end
+          record["log_source"] = "identity-audit"
+          record["level"] = level
+          record["event_category"] = event["operationType"] ~= nil and "admin" or "user"
+          record["keycloak"] = event
+        end
+      end
+
       return 2, timestamp, record
     end
   audit-template.json: |
@@ -334,6 +381,46 @@ data:
         }
       }
     }
+  identity-audit-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["identity-audit-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "10s",
+        "index.lifecycle.name": "swirl-cloud-identity-audit"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "level": {"type": "keyword"},
+          "event_category": {"type": "keyword"},
+          "log": {"type": "text"},
+          "keycloak": {"properties": {
+            "type": {"type": "keyword"}, "operationType": {"type": "keyword"},
+            "realmName": {"type": "keyword"}, "realmId": {"type": "keyword"},
+            "clientId": {"type": "keyword"}, "userId": {"type": "keyword"},
+            "username": {"type": "keyword"}, "sessionId": {"type": "keyword"},
+            "ipAddress": {"type": "keyword"}, "error": {"type": "keyword"},
+            "auth_method": {"type": "keyword"}, "grant_type": {"type": "keyword"},
+            "identity_provider": {"type": "keyword"}, "redirect_uri": {"type": "keyword", "ignore_above": 1024},
+            "resourceType": {"type": "keyword"}, "resourcePath": {"type": "keyword", "ignore_above": 1024}}},
+          "kubernetes": {"properties": {"pod_name": {"type": "keyword"}, "host": {"type": "keyword"}}}
+        }
+      }
+    }
+  identity-audit-ilm-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {"min_age": "0ms", "actions": {"set_priority": {"priority": 50}}},
+          "delete": {"min_age": "396d", "actions": {"delete": {}}}
+        }
+      }
+    }
   ilm-policy.json: |
     {
       "policy": {
@@ -374,7 +461,7 @@ spec:
         app: fluent-bit
       annotations:
         swirl-cloud.io/logging-agent: pending
-        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "8"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "9"
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
@@ -418,6 +505,14 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-audit >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/identity-audit-ilm-policy.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-identity-audit >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/identity-audit-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/identity-audit >/dev/null
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary '{"index.lifecycle.name":"swirl-cloud-logs-7d"}' \

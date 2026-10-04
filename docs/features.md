@@ -50,6 +50,7 @@ the pieces fit together.
 ## Identity
 
 - Keycloak realm reconciled declaratively with password and brute-force policy
+- login and admin events stored in every Keycloak realm (90 days) and kept a year in `identity-audit-*` indices
 - single sign-on to GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo through native OIDC
 - OAuth2 Proxy gate for DBGate, Kibana, Longhorn, SonarQube and the portal
 - Cloudflare Access backed by Keycloak

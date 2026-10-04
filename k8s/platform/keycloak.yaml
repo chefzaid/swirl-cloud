@@ -49,7 +49,9 @@ spec:
       - name: keycloak
         image: quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85
         # The vendor image applies build-time configuration during startup.
-        args: ["start", "--import-realm"]
+        # Log successful logins and admin actions too (default: errors only);
+        # the logging agent keeps these events in identity-audit-* indices.
+        args: ["start", "--import-realm", "--spi-events-listener--jboss-logging--success-level=info"]
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false

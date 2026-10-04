@@ -168,6 +168,27 @@ Fluent Bit ships the log from every control plane to Elasticsearch indices
 lifecycle policy deletes after 30 days. In Kibana, create a data view for
 `kubernetes-audit-*` and filter on `objectRef.resource : secrets`.
 
+## Identity events
+
+`keycloak-sso-reconcile` turns on event storage in every Keycloak realm on each
+sync: login events (logins, failures, logouts, password and credential changes,
+lockouts, identity-provider links) and admin events (who created, changed or
+deleted which user, client, role or realm setting). Keycloak keeps both for 90
+days in its database; browse them under **Realm settings → Events** or the
+realm's **Events** page. Admin event details stay off, so stored events never
+contain the submitted representation.
+
+Keycloak also logs every event, successful or not, through its `jboss-logging`
+listener. The logging agent moves those lines out of the general container logs
+into monthly `identity-audit-*` indices with parsed fields under `keycloak.*`
+(`type`, `operationType`, `realmName`, `clientId`, `userId`, `username`,
+`ipAddress`, `error`, `resourceType`, `resourcePath`) and `event_category`
+(`user` or `admin`). The `swirl-cloud-identity-audit` lifecycle policy deletes
+each monthly index 396 days after it starts, so every event is kept for at least
+a year. Only lines from the `keycloak` container in `infra` are accepted. In Kibana, create a data view for `identity-audit-*`
+and filter, for example, on `keycloak.type : LOGIN_ERROR`. Admin events log the
+realm of the acting administrator; the target is in `keycloak.resourcePath`.
+
 ## Vulnerability triage
 
 Prometheus raises `TrivyNewCriticalVulnerability` when a running image gains
