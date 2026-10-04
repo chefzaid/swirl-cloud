@@ -23,6 +23,7 @@ from install_inputs import (INPUTS, SCHEMA_VERSION, SECTIONS, TRUE, VERSION_KEY,
                             applies, check_value, parse, read, validate, write)
 from tui_checks import FAIL, credential_checks, host_checks, render, unit_exists  # noqa: E402
 from tui_dialog import Cancelled, Dialog  # noqa: E402
+from install_plan import plan, render as render_plan  # noqa: E402
 
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "swirl-cloud"
 DEFAULT_OUTPUT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "swirl-cloud/install.env"
@@ -52,6 +53,7 @@ GUIDES = """Files and commands
   Unattended     ./install.sh --env-file FILE
   Validate file  ./install.sh --env-file FILE --validate-only
   Status         ./install.sh --status
+  Rerun plan     ./install.sh --plan [--env-file FILE]
 
 Guides
 
@@ -225,6 +227,8 @@ def run_logged(title, command, env=None):
             sys.stdout.flush()
             log.write(ANSI.sub("", chunk.decode(errors="replace")).encode())
         code = process.wait()
+    record = {"title": title, "code": code, "log": str(log_path), "finished": f"{datetime.now():%Y-%m-%d %H:%M}"}
+    (STATE / "last-run.json").write_text(json.dumps(record))
     input(f"\n{title} finished with exit code {code}. Press Enter to return to the menu...")
     return code, log_path
 
@@ -259,6 +263,7 @@ def install(dialog, values, output):
     if failures and not dialog.yes_no("This host has blocking problems:\n\n" + render(failures) +
                                       "\n\nInstall anyway?", False):
         return
+    dialog.message("What the next run will do\n\n" + render_plan(plan(ROOT, values, STATE)))
     if not dialog.yes_no("Install or update the platform now?\n\nThis changes this host: packages, firewall, "
                          "K3s and every selected platform service. A first installation takes 30-60 minutes. "
                          "Reruns keep existing data.", False, "Install", "Cancel"):
@@ -349,6 +354,7 @@ MENU = [("overview", "What gets installed and the current state"),
         ("credentials", "Test credentials (Cloudflare, GitHub, Tailscale)"),
         ("review", "Review answers and problems"),
         ("save", "Save the input file"),
+        ("plan", "Plan: installed, missing or drifted stages and the next run"),
         ("install", "Install or update the platform"),
         ("servers", "Add servers"),
         ("repositories", "Import and deploy GitHub repositories"),
@@ -392,6 +398,8 @@ def main():
             elif choice == "save":
                 if save(dialog, values, output):
                     dialog.message(f"Saved and validated {output}.\n\nUnattended reruns:\n  ./install.sh --env-file {output}", 10)
+            elif choice == "plan":
+                dialog.message(render_plan(plan(ROOT, values, STATE)))
             elif choice == "install":
                 install(dialog, values, output)
                 default = "status"

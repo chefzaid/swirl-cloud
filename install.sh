@@ -6,13 +6,14 @@
 #   ./install.sh --env-file FILE         unattended install/update from a saved file
 #   ./install.sh --env-file FILE --validate-only
 #   ./install.sh --status                verify an installed platform
+#   ./install.sh --plan [--env-file FILE]  show installed, missing or drifted stages
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,8s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,9s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -53,6 +54,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/verify-platform.py" "$@"
+        ;;
+    --plan)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/install-plan.py" "$@"
         ;;
     -h|--help)
         usage

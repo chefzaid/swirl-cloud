@@ -51,6 +51,7 @@ unattended runs require it to be ready.
 | Unattended install or rerun from a saved file | [`./install.sh --env-file FILE`](#setup-hub-and-the-input-file) or [Ansible installation](#ansible-installation) |
 | Check a file without changing anything | `./install.sh --env-file FILE --validate-only` |
 | Verify an installed platform | [`./install.sh --status`](#verify-the-result) |
+| See what a rerun will change | [`./install.sh --plan [--env-file FILE]`](#setup-hub-and-the-input-file) |
 | Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
 | Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
 
@@ -89,6 +90,7 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Configure: advanced | Every installer input by section; only inputs that apply to earlier answers are asked. |
 | Test credentials | Calls Cloudflare (token and zone), GitHub (token and repository admin access) and Tailscale with the entered tokens. OVHcloud and S3 keys are checked by the installer. |
 | Review / Save | Lists answers (secrets show as `(set)`) and problems; Save writes the file and runs the installer's `--validate-only` check. |
+| Plan | Each stage as installed, missing, drifted (chart or K3s version differs from `config/platform.env`, or the installed identity differs from the file) or failed, the action the next run takes, and the result of the last run. Install shows it before asking for confirmation. |
 | Install or update | Saves, rechecks the host, runs the engine with a private log under `~/.local/state/swirl-cloud/logs`, then shows the [verification report](#verify-the-result). |
 | Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
 | Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
