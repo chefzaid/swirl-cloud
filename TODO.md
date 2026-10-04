@@ -376,7 +376,7 @@ Historical control-plane audit on 2026-09-27: hardening index **66**, one warnin
 suggestions. Apply through [`configure-node-security.sh`](scripts/configure-node-security.sh)
 so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 
-- [ ] Refresh Lynis and the pending-reboot state; retain only findings applicable to the installed OS and selected workload roles.
+- [x] Lynis refreshed through `swirl-cloud-lynis.service`: hardening index **66**, one warning (KRNL-5830; `linux-image-7.0.0-38` installed 2026-10-03, running 7.0.0-34). Every finding below still applies; DEB-0810, FIRE-4513, LOGG-2190, NAME-4028 and BOOT-5180/5264 are informational. *(live, 2026-10-04)*
 - [ ] **KRNL-5830 (warning):** if still pending, schedule a maintenance-window reboot after verifying the backup, off-host recovery material and console access (§16). Check Vault unseal, volumes, SSO and applications after boot; add coordinated reboots only after multi-host recovery is proven.
 - [ ] **SSH-7408:** `ClientAliveCountMax 2`, `LogLevel VERBOSE`, `MaxSessions 4`, `TCPKeepAlive no` (client-alive probes keep dead sessions detected).
 - [ ] **BANN-7126/7130:** legal banner in `/etc/issue` and `/etc/issue.net`.
