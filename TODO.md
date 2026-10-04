@@ -2,7 +2,9 @@
 
 The direction is a reusable private cloud: recover the existing installation
 reliably, expand onto several hosts, then make installation and application
-delivery easier and add company services. Application repositories keep their
+delivery easier and add company services, then package it as a product: a
+sovereign company cloud ([Part IV](#part-iv--product-roadmap-added-2026-10-04)).
+Application repositories keep their
 runtime resources and delivery contracts; this repository owns the shared
 platform and centrally managed corporate services.
 
@@ -29,7 +31,7 @@ current cluster health still needs verification.
 
 Work in dependency order: **recovery and current health → access controls and
 useful alerts → capacity and HA → installer/delivery UX → additional services**.
-Use the [priority index](#part-iv--priority-index-of-open-items) to pick work.
+Use the [priority index](#part-v--priority-index-of-open-items) to pick work.
 Repeated gaps in the inventory point to their owning roadmap section; they are
 not separate implementations. Close operational items only with a dated result
 (restore, migration or failure drill); source/render checks alone are insufficient.
@@ -596,7 +598,140 @@ resource budgets, network policy, ingress/Access, Homepage, alerts and restore.
 
 ---
 
-## Part IV — Priority index of open items
+## Part IV — Product roadmap (added 2026-10-04)
+
+Swirl Cloud becomes a product: a **sovereign company cloud** that a European SME
+or regulated mid-market company installs on rented or owned bare metal in hours,
+then runs itself or has operated remotely while keeping its own keys. One
+installation replaces what such a company otherwise assembles from a hyperscaler
+and several SaaS vendors: application delivery, identity, business applications,
+security operations and audit-ready compliance evidence.
+
+**Niche.** Kubernetes distributions (OpenShift, Rancher, Talos and similar) need
+an in-house platform team; hyperscalers and their sovereign offerings bill by
+usage and keep the customer dependent on them; simple self-hosted PaaS tools stop
+at deploying containers. Companies with 20–500 employees under NIS2, DORA (as
+financial entities or their ICT suppliers) or customer security questionnaires
+have none of a platform team, a predictable bill or audit evidence. Swirl Cloud
+fills that gap: **own it like on-premises, run it like SaaS, leave at any time.**
+
+**Differentiators to build and protect** (each maps to sections below):
+
+1. Whole-company scope in one installation: developer platform, workplace,
+   ERP and security operations, not a bare cluster (§34, §35, §40).
+2. Compliance evidence generated continuously from the running platform for
+   NIS2, ISO/IEC 27001, DORA and GDPR (§36).
+3. Customer-held keys: vendor operations only through an outbound,
+   customer-approved and recorded channel (§39).
+4. No mandatory non-EU dependency: Cloudflare, Tailscale, GitHub and external AI
+   become options with EU or self-hosted equivalents (§33).
+5. Documented exit: open components, standard data formats and a
+   self-operation runbook; fixed hardware-based cost instead of usage billing
+   (§32, §34).
+
+Recovery and operating gaps (Part V P0/P1) stay ahead of this roadmap: a product
+cannot be sold before its own backups, MFA and alerting are proven.
+
+### 32. Product packaging, releases and supply chain
+
+- [ ] **ADR — licensing and editions:** choose between a GPL-3.0 core with a commercial edition (fleet console, compliance packs, LTS), support-only subscriptions, or dual licensing. Verify that every bundled component's licence permits redistribution and operation by a third party for customers (for example Elastic, Odoo, GitLab, SonarQube, Portainer and Kafbat editions) and record the result per component.
+- [ ] Versioned platform releases: semantic versions of the whole platform (chart, scripts, pinned images, K3s), `stable` and `lts` channels with a defined security-backport window, generated changelog and upgrade notes per release.
+- [ ] Signed releases: SBOM (SPDX or CycloneDX) and build provenance for every release bundle and chart, signed in CI with a key held in Vault or keyless signing; the installer and upgrader refuse an unsigned or altered bundle.
+- [ ] Offline installation bundle: K3s binaries, charts, every pinned image and the required OS packages in one verified archive, loaded into the internal Registry. Prove a full install on a host with no Internet egress.
+- [ ] Platform upgrades as one operation (`./install.sh --upgrade <version>`): preflight (health, fresh verified backup, capacity, API deprecations through `validate-repository.sh --live`, migration guards), ordered component upgrades, node-by-node K3s upgrades, recorded rollback points and post-upgrade `--status`. Support and test only N-1 → N paths.
+- [ ] Release qualification pipeline: each release candidate installs on disposable hosts, upgrades from the previous release, runs the safety suites and `verify-platform.py --strict`, and blocks the release on failure.
+- [ ] Publish a support matrix: Ubuntu LTS versions, CPU architectures (GitLab's Omnibus image is amd64-only today, so arm64 needs a decision), minimum hardware per sizing profile (§26) and tested providers.
+- [ ] Publish versioned product documentation from `docs/` (administrator, operator and application-team guides, API reference), one version per release.
+- [ ] Offer the hub, portal and installer messages in French and English.
+
+### 33. Sovereignty mode and provider independence
+
+- [ ] Inventory every external service the platform calls (Cloudflare, Tailscale, GitHub, image registries, Let's Encrypt or Origin CA, OpenRouter, OVH API), the data each receives and its jurisdiction; publish it as the platform's data-flow and subprocessor record.
+- [ ] **ADR — edge without Cloudflare:** add an edge mode that needs no Cloudflare account: ACME certificates (cert-manager or Traefik), DNS through an EU provider API, in-cluster WAF and rate limiting (Traefik with CrowdSec or Coraza, linked to §4's HTTP IDS), Keycloak-gated admin hosts in place of Access, and the provider's network DDoS protection. Keep Cloudflare as a supported option.
+- [ ] Private networking without Tailscale's coordination service: support a self-hosted control server (Headscale or NetBird) or WireGuard directly as an additional `K3S_NODE_TRANSPORT`; encrypt vRack and LAN node traffic too (flannel `wireguard-native`), which travels unencrypted today.
+- [ ] Make GitHub optional: repository onboarding and synchronization work from GitLab alone, with GitHub mirroring as an add-on.
+- [ ] `SOVEREIGNTY_MODE=strict` installation profile that refuses non-EU or non-self-hosted dependencies, pulls images only from the internal Registry (§32 offline bundle) and reports any remaining external call in `--status`.
+- [ ] Provider modules (OpenTofu) for ordering and preparing servers at two or more European bare-metal providers (private network, OS image, DNS), callable from the hub with an API key; a generic path for already-installed servers stays the default.
+- [ ] On-premises appliance: an unattended Ubuntu installation image (ISO and PXE) that applies the host baseline and starts the setup hub on first boot; test on physical hardware with a BMC.
+
+### 34. Multi-tenancy, self-service and cost transparency
+
+- [ ] **ADR — tenancy model:** projects inside one organization installation (namespaces per environment, Keycloak groups, Argo CD AppProjects, GitLab groups, Vault paths, quotas) versus virtual clusters for stronger isolation. Depends on `infra` default-deny networking (§6).
+- [ ] Declarative project resource (CRD or Git-managed file) reconciled into per-environment namespaces with ResourceQuota and LimitRange, NetworkPolicies, AppProject, GitLab group, Keycloak groups (owner, developer, viewer), Vault policy, data credentials, Grafana folder and Kibana space. Everyday project work no longer needs `platform-admins`.
+- [ ] Role model across every service: platform administrator, security auditor (read-only everywhere plus compliance views), project owner, developer and viewer; covers Grafana, Kibana, Argo CD, GitLab, Vault, DBGate, Kafka UI and Portainer (replaces the all-or-nothing access in §18).
+- [ ] Self-service data services through claims or the portal: a PostgreSQL database (shared server or dedicated CloudNativePG cluster), Redis ACL user, Kafka topics, S3 bucket. Credentials land in the project's Vault path; backups, metrics and alerts come with the claim; deletion keeps a retention period.
+- [ ] In-cluster S3-compatible object storage for applications and platform services, on the implementation chosen in §31, with per-project buckets, quotas and backups.
+- [ ] Cost showback: per-project CPU, memory, storage, backup and traffic usage priced from the actual hardware and provider bills, with a monthly report per project and a comparison against equivalent hyperscaler list prices with stated assumptions.
+
+### 35. Developer portal and golden paths
+
+- [ ] **ADR — portal:** extend Homepage, adopt Backstage, or build a small portal on the platform API. The portal is the product's front door: catalog with owner, repository, environments, deployed revision, health, SLO (§38), vulnerabilities, Sonar quality gate and documentation, fed by the onboarding contract, Argo CD, GitLab, Trivy and Sonar.
+- [ ] Versioned platform API behind Keycloak for the portal, CLI, deployment UI (§24) and fleet agent (§39), so front ends never run scripts directly.
+- [ ] Golden-path templates (Spring Boot, NestJS/Node, Python, static site): one action creates the GitLab project with CI, Dockerfile, manifests, onboarding contract version 2, Sonar project and Keycloak client, then deploys to `int`. Measure and publish template-to-URL time.
+- [ ] Preview environments per merge request: temporary namespace and hostname, seeded test data, quota-limited, removed on merge or close.
+- [ ] Progressive delivery: canary or blue-green releases with automated analysis on Prometheus metrics and automatic rollback (Argo Rollouts or equivalent), plus release-freeze windows recorded as change records (§36).
+- [ ] `swirl` CLI on the platform API: Keycloak device-flow login, applications and environments, deploy and promote (packaging `scripts/deploy-application.py`), logs, dashboards and time-limited database access for authorized roles.
+
+### 36. Compliance evidence and governance
+
+- [ ] Control catalog mapping platform controls to NIS2 Article 21 measures, ISO/IEC 27001:2022 Annex A, DORA ICT risk management, GDPR Article 32 and the CIS Kubernetes and Ubuntu benchmarks. Each control names its automated evidence (Trivy compliance, Lynis, Keycloak configuration, backup and restore metrics, audit logs, alert history) or the manual evidence required.
+- [ ] Compliance dashboard with a status per framework and control, drift alerts, and an exportable evidence pack per period (signed archive with timestamps and hashes) that an auditor can verify.
+- [ ] **ADR — policy engine:** Kyverno versus ValidatingAdmissionPolicy only. Ship policy packs (images only from the internal Registry and signed, no mutable tags, resource limits, `owner` and data-classification labels, no privilege in project namespaces) in audit mode first, then enforce; exceptions carry an owner and an expiry like the Trivy exceptions.
+- [ ] Sign application images in platform CI and verify signatures at admission for `prod` (and `uat` once stable).
+- [ ] Enable Keycloak login and admin events with retention (none are stored today) and collect them with Kubernetes API, Vault, GitLab and host audit records into a tamper-evident store: off-site object storage with retention lock, retention set per framework.
+- [ ] Periodic access reviews: report every person's roles across services, including local accounts outside SSO; owners confirm or revoke, and the result becomes evidence.
+- [ ] Records of processing (GDPR Article 30) generated from project metadata: data classes, storage locations, retention, backup copies and subprocessors (§33).
+- [ ] Incident register and notification workflow: timeline from alerts and audit events, NIS2 early-warning (24 h), notification (72 h) and final-report templates for the national CSIRT, and a post-incident review record.
+- [ ] Vulnerability-handling deadlines per severity, measured from Trivy findings and exceptions, with monthly reporting.
+- [ ] Secret rotation: dynamic or scheduled rotation for database credentials (Vault database engine), registry and GitLab tokens and API keys; report the age of every credential and alert past its limit.
+
+### 37. Security operations
+
+- [ ] **ADR — runtime detection:** Falco or Tetragon with curated rules (shell in a container, unexpected egress, mining, sensitive file reads, privilege escalation), alerting through Alertmanager and indexed for investigation.
+- [ ] Detection rules correlating host, Kubernetes API, identity and HTTP events (brute force followed by success, new administrator, secret read by an unusual identity, impossible travel) with severity and a linked runbook.
+- [ ] Encryption at rest for application volumes (Longhorn encrypted volumes with keys in Vault) and a documented disk-encryption option for hosts in rented data centers.
+- [ ] Ransomware-resilient backups: off-site copies under retention lock, written with credentials that cannot delete or overwrite retained data, so a compromised cluster cannot destroy its backups (§16).
+- [ ] Just-in-time administration: time-limited `platform-admins` membership requested, approved and recorded, replacing permanent membership for daily users; recorded `kubectl` and SSH sessions (with §29's Nexterm or an equivalent).
+- [ ] External penetration test of a reference installation before the first customer, repeated per major release; publish a vulnerability disclosure policy and a `security.txt` contact for the platform.
+
+### 38. Reliability, SLOs and observability depth
+
+- [ ] SLOs for the portal, Git, CI, Registry, Argo CD, SSO, ingress and data services, with multi-window burn-rate alerts and a monthly SLO report; these define the managed-service SLA.
+- [ ] Add a runbook link (`runbook_url`) and an owner to every alert rule; none has one today. Runbooks live in the product documentation (§32).
+- [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
+- [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
+- [ ] OpenTelemetry: a collector, a trace backend and automatic instrumentation for Java and Node applications; correlate traces with logs and metrics in Grafana. Decide in the ADR whether logs stay in Elasticsearch.
+- [ ] Capacity forecasting per node and per project (CPU, memory, disk, volume growth) with a recommended hardware addition before exhaustion.
+- [ ] Application-level backup and restore per project namespace (manifests, volumes and claimed databases), including self-service restore into a sandbox and moving a project between clusters.
+- [ ] Scheduled game days in non-production environments (pod and node loss, DNS failure, storage degradation) with recorded results.
+
+### 39. Fleet management and the managed service
+
+- [ ] **ADR — fleet architecture:** an outbound-only agent per installation reports version, health, alerts, backup age, certificate expiry, capacity and compliance status to a central fleet console hosted in the EU. No inbound access; the customer can see every field sent and can disconnect at any time.
+- [ ] Fleet console: inventory of installations, staged release rollout (internal installation first, then canary customers), upgrade status, fleet-wide alert and compliance views.
+- [ ] Customer-approved support access: a time-limited session that the vendor requests and a customer administrator approves in the customer's own Keycloak; every action is recorded and visible to the customer and access ends automatically. The customer keeps the Vault recovery keys.
+- [ ] Support bundle upload through the agent with customer consent, linked to a support ticket.
+- [ ] If the licensing ADR (§32) adopts a commercial edition: offline-verifiable licence files whose expiry disables only commercial features and never stops running workloads.
+- [ ] Prepare the managed service for certification: ISO/IEC 27001 scope covering the vendor's operation of customer installations, then evaluate HDS or SecNumCloud only for a named customer segment.
+
+### 40. Business and workplace modules
+
+- [ ] Module catalog in the hub and portal generalizing the [platform capability checklist](docs/development.md#adding-a-platform-capability): each optional service declares dependencies, sizing, SSO, Vault secrets, network policy, backups, alerts and restore test, and installs or uninstalls with an explicit data-retention choice. §28 and §29 services become modules.
+- [ ] Files and office module: Nextcloud with Collabora Online or ONLYOFFICE, Keycloak SSO, object or Longhorn storage, backups and restore test.
+- [ ] Video-conferencing module: Jitsi Meet with Keycloak-authenticated room creation and a TURN service.
+- [ ] Offer the mail and directory outcome of §27 as an installation option for customers.
+- [ ] Odoo business profiles: preconfigured module sets (CRM and sales, invoicing and accounting, projects and timesheets, HR) applied by the Odoo bootstrap, with French localization.
+- [ ] French electronic invoicing in Odoo: reception is mandatory for every French company from 2026-09-01. Connect through a registered partner platform (PDP) supported by the pinned Odoo version and test sending and receiving.
+
+### 41. Private AI
+
+- [ ] AI gateway (OpenAI-compatible proxy) as the only path from users and applications to language models: per-project keys from Vault, budgets, model allowlists per data classification (confidential data only to local models), usage metrics and request metadata logging without prompt contents by default. Open WebUI (§28) uses it.
+- [ ] Local inference runtime on GPU nodes (§31) with GPU scheduling and sharing, exposed only through the gateway.
+- [ ] Read-only operations assistant over Prometheus, Kibana, Argo CD and the runbooks that explains alerts and proposes runbook steps; it never applies a change without an operator's approval.
+
+---
+
+## Part V — Priority index of open items
 
 P0 protects recovery before disruptive changes. P1 closes operating gaps and
 prepares expansion. P2 improves delivery and company services once prerequisites
@@ -616,12 +751,22 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §26 |
 | P1 | Version-2 app migration and removal of legacy anonymous Kafka access | Owning repos verify environment isolation and delivery before credentials/listener retirement | §10, §19 |
 | P1 | Multi-host expansion, stable endpoints and HA | P0 complete; topology helpers first; three eligible storage hosts; ordered migration and host-loss drills | §5, §15, §25–26 |
+| P1 | Ransomware-resilient backups and identity audit retention | Retention-locked off-site copies the cluster cannot delete; Keycloak events stored | §36–37 |
 | P2 | Installer prerequisite cleanup, schema/engine and TUI | Bootstrap without Vault, idempotent rerun/resume and useful verification report | §2, §23 |
 | P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §20 |
 | P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §27 |
 | P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §29 |
 | P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §22 |
 | P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §24 |
+| P2 | Licensing ADR and product releases | Per-component licence review; signed bundles, SBOM, offline install and a green N-1 → N upgrade qualification | §32 |
+| P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh, GitHub optional; strict profile installs with no external call reported | §33 |
+| P2 | Tenancy, roles and self-service data | `infra` isolation (§6) first; cross-project access denied in tests; claims include backups and alerts | §34 |
+| P2 | Compliance catalog and evidence pack | Evidence produced from live checks; policy packs in audit, then enforced | §36 |
+| P2 | SLOs, runbooks, status page and on-call | Every alert has a runbook; external status page; burn-rate alerts tested | §38 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
 | P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
 | P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §30–31 |
+| P3 | Developer portal, platform API, golden paths and preview environments | Platform API first; measured template-to-URL time | §35 |
+| P3 | Fleet console and customer-approved support access | Licensing ADR; outbound-only agent; approved, recorded and expiring session tested | §39 |
+| P3 | Runtime detection, JIT administration, encryption at rest and penetration test | Detection rules fire on simulated attacks; pentest findings closed | §37 |
+| P3 | Module catalog, workplace and business modules, AI gateway | Module install/uninstall with restore test; capacity and GPU sizing | §40–41 |
