@@ -95,7 +95,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] Final summary points Argo CD to Keycloak SSO (local `admin` is disabled) instead of `argocd-initial-admin-secret`.
 - [x] Final summary points GitLab to Keycloak SSO (linked to `root`) instead of `/etc/gitlab/initial_root_password`, and to Vault `secret/infra/gitlab:root_password`. Only `rotate-local-admin-passwords.sh` writes that field; a fresh install stores no local root password.
 - [ ] Separate runtime/bootstrap prerequisites from developer and validation tools. Remove unconditional Java 21, Maven, Docker and the `MAVEN_OPTS` shell-profile edit; retain Node only where repository validation needs it. Make developer tooling opt-in and keep fresh-host installation and validation documented (§23).
-- [ ] Pin and verify the Helm installer/release instead of downloading the mutable `helm/main/scripts/get-helm-3`; remove the NodeSource setup step with the developer bundle or pin/verify it if retained.
+- [x] Helm is installed from the release pinned in `config/platform.env` (`DEFAULT_HELM_VERSION`, v3.22.0) after SHA-256 verification; the mutable `get-helm-3` script is no longer executed. *(validated with v3.22.0, 2026-10-04)*
+- [ ] Remove the NodeSource setup step with the developer bundle, or pin and verify it if retained.
 
 ### 3. Ansible
 
@@ -132,7 +133,7 @@ not separate implementations. Close operational items only with a dated result
 
 ### 5. Private node networking and enrollment
 
-- [x] Two transports: OVHcloud vRack (Netplan or ifupdown, optional tagged VLAN, NIC MAC verification, optional OVH API attachment via `configure-ovh-vrack.sh`) and Tailscale (`configure-tailscale.sh`, `configure-tailscale-fleet.sh`).
+- [x] Three transports: OVHcloud vRack (Netplan or ifupdown, optional tagged VLAN, NIC MAC verification, optional OVH API attachment via `configure-ovh-vrack.sh`), Tailscale (`configure-tailscale.sh`, `configure-tailscale-fleet.sh`) and a local LAN (existing fixed RFC1918 addresses, no host network changes; the default-route NIC is accepted only behind NAT). Application clusters remain Tailscale-only.
 - [x] Tailscale: merges role tags `tag:<mesh>-control-plane` / `tag:<mesh>-worker` and grants into the existing tailnet policy, issues one-use tagged keys (1 h expiry), binds K3s to `tailscale0` with trusted CIDR `100.64.0.0/10`, keeps etcd control-plane-only. *(live: node InternalIP is a Tailscale address)*
 - [x] Shared account/transport wizard (`scripts/lib/transport-guide.sh`) used by installer and node assistant.
 - [x] `configure-k3s-control-plane-network.sh` binds K3s to the private address while preserving the public route.
