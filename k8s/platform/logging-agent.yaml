@@ -64,6 +64,26 @@ data:
         Rotate_Wait               30
         storage.type              filesystem
 
+    # Host journal (Lynis LOGG-2154). Starts at the tail so enabling it never
+    # replays the local journal history, which journald keeps for months.
+    [INPUT]
+        Name                      systemd
+        Alias                     host_journal
+        Path                      /var/log/journal
+        Tag                       host.journal
+        DB                        /var/lib/fluent-bit/systemd.db
+        DB.Sync                   Normal
+        Read_From_Tail            On
+        Strip_Underscores         On
+        Lowercase                 On
+        Mem_Buf_Limit             10MB
+        storage.type              filesystem
+
+    [FILTER]
+        Name                      modify
+        Match                     host.journal
+        Add                       log_source host-journal
+
     [FILTER]
         Name                      kubernetes
         Match                     kube.*
@@ -95,6 +115,24 @@ data:
         HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
         Logstash_Format           On
         Logstash_Prefix           kubernetes-logs-v2
+        Logstash_DateFormat       %Y.%m.%d
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+
+    [OUTPUT]
+        Name                      es
+        Match                     host.journal
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           kubernetes-logs-host
         Logstash_DateFormat       %Y.%m.%d
         Suppress_Type_Name        On
         Generate_ID               On
@@ -149,6 +187,36 @@ data:
               "host": {"type": "keyword"}
             }
           }
+        }
+      }
+    }
+  host-journal-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["kubernetes-logs-host-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "5s",
+        "index.mapping.total_fields.limit": 100,
+        "index.mapping.ignore_malformed": true,
+        "index.lifecycle.name": "swirl-cloud-logs-7d"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "hostname": {"type": "keyword"},
+          "systemd_unit": {"type": "keyword"},
+          "syslog_identifier": {"type": "keyword"},
+          "priority": {"type": "keyword"},
+          "transport": {"type": "keyword"},
+          "pid": {"type": "keyword"},
+          "uid": {"type": "keyword"},
+          "comm": {"type": "keyword"},
+          "exe": {"type": "keyword"},
+          "message": {"type": "text"}
         }
       }
     }
@@ -217,7 +285,7 @@ spec:
         app: fluent-bit
       annotations:
         swirl-cloud.io/logging-agent: pending
-        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "5"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "6"
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
@@ -249,6 +317,10 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/index-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-logs-v2 >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/host-journal-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-logs-host >/dev/null
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary '{"index.lifecycle.name":"swirl-cloud-logs-7d"}' \
@@ -321,6 +393,9 @@ spec:
             - name: varlogpods
               mountPath: /var/log/pods
               readOnly: true
+            - name: journal
+              mountPath: /var/log/journal
+              readOnly: true
             - name: state
               mountPath: /var/lib/fluent-bit
       terminationGracePeriodSeconds: 30
@@ -334,6 +409,10 @@ spec:
         - name: varlogpods
           hostPath:
             path: /var/log/pods
+        - name: journal
+          hostPath:
+            path: /var/log/journal
+            type: Directory
         - name: state
           hostPath:
             path: /var/lib/fluent-bit

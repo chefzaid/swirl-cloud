@@ -117,7 +117,11 @@ when [monitoring.yaml](../k8s/platform/monitoring.yaml) changes.
 
 Fluent Bit adds Kubernetes metadata to container logs; records from managed
 application namespaces carry
-`observability_scope=application`. Filebeat sends host Lynis records through
+`observability_scope=application`. Fluent Bit also forwards each node's systemd
+journal, from the moment it starts, to `kubernetes-logs-host-*` with
+`log_source=host-journal` and fields such as `systemd_unit`,
+`syslog_identifier` and `priority`. It uses the same one-day retention; the
+local journal keeps the longer history. Filebeat sends host Lynis records through
 Logstash to Kibana's **Lynis Security Audits** dashboard. The managed Lynis
 run also writes `swirl_cloud_lynis_*` metrics to node-exporter's textfile
 collector (`/var/lib/node_exporter/textfile_collector`): `LynisAuditFailed`
