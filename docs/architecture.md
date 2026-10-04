@@ -97,6 +97,7 @@ for private SSH and API access.
 | `infra` | Shared platform services and Argo CD Applications |
 | `apps` | Workloads managed by application repositories |
 | `corp` | Centrally managed Odoo |
+| `host-agents` | Node-level telemetry agents with host access (node-exporter, Fluent Bit, Filebeat) |
 | `gitlab-runners` | Isolated CI jobs |
 | `longhorn-system` | Persistent storage management |
 | `kube-system` | Kubernetes networking and system components |
@@ -234,6 +235,7 @@ Statuses:
 - [ADR 0022: Pin Public Upstream Images By Digest](./adr/0022-upstream-images-by-digest.md)
 - [ADR 0023: Keep A Small Permanent Deployment Safety Suite](./adr/0023-deployment-safety-suite.md)
 - [ADR 0024: Serve Environments From Registered Targets With Isolated Shared Data](./adr/0024-deployment-environments.md)
+- [ADR 0025: Isolate Host Agents So `infra` Can Enforce Baseline Pod Security](./adr/0025-host-agent-namespace-and-infra-pod-security.md)
 
 ## Superseded ADRs
 
@@ -246,7 +248,7 @@ Statuses:
 Create decisions before implementing:
 
 - offsite backup activation, key separation and scheduled restore drills
-- `infra` default-deny network policy and Pod Security enforcement
+- `infra` default-deny network policy
 - multi-factor authentication for platform administrators
 - alert routing, paging and missing platform alerts
 - platform SMTP relay

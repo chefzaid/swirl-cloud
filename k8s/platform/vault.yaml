@@ -68,7 +68,7 @@ spec:
   # Environment namespaces use their own restricted stores. The legacy store
   # can read platform credentials and must never be available to branch apps.
   conditions:
-    - namespaces: [infra, apps, corp, gitlab-runners]
+    - namespaces: [infra, host-agents, apps, corp, gitlab-runners]
   provider:
     vault:
       server: http://vault.__INTERNAL_DNS_ZONE__:8200
@@ -437,7 +437,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: fluent-bit-elasticsearch-credentials
-  namespace: infra
+  namespace: host-agents
   annotations:
     argocd.argoproj.io/sync-wave: "-3"
 spec:

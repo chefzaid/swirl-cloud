@@ -146,6 +146,7 @@ IFS=',' read -r -a DATASTORE_MANIFEST_ARRAY <<< "$DATASTORE_MANIFESTS"
 IFS=',' read -r -a PLATFORM_MANIFEST_ARRAY <<< "$PLATFORM_MANIFESTS"
 IFS=',' read -r -a POST_ARGOCD_MANIFEST_ARRAY <<< "$POST_ARGOCD_MANIFESTS"
 IFS=',' read -r -a EXTERNAL_SECRET_NAME_ARRAY <<< "$EXTERNAL_SECRET_NAMES"
+IFS=',' read -r -a HOST_AGENTS_EXTERNAL_SECRET_NAME_ARRAY <<< "$HOST_AGENTS_EXTERNAL_SECRET_NAMES"
 IFS=',' read -r -a DATASTORE_WAIT_APP_ARRAY <<< "$DATASTORE_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_APP_ARRAY <<< "$PLATFORM_WAIT_APPS"
 IFS=',' read -r -a PLATFORM_WAIT_DAEMONSET_ARRAY <<< "$PLATFORM_WAIT_DAEMONSETS"
@@ -1274,6 +1275,10 @@ EOF
             kubectl wait --for=condition=Ready externalsecret/"$es" -n infra \
                 --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
         done
+        for es in "${HOST_AGENTS_EXTERNAL_SECRET_NAME_ARRAY[@]}"; do
+            kubectl wait --for=condition=Ready externalsecret/"$es" -n "$HOST_AGENTS_NAMESPACE" \
+                --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
+        done
     fi
 
     if [[ "$DEPLOY_DATA_STORES" == "true" ]]; then
@@ -1314,7 +1319,7 @@ EOF
                 --timeout="$PLATFORM_WAIT_TIMEOUT"
         done
         for daemonset in "${PLATFORM_WAIT_DAEMONSET_ARRAY[@]}"; do
-            kubectl rollout status "daemonset/$daemonset" -n infra \
+            kubectl rollout status "daemonset/$daemonset" -n "$HOST_AGENTS_NAMESPACE" \
                 --timeout="$PLATFORM_WAIT_TIMEOUT"
         done
         if [[ "$ROTATE_LOCAL_ADMIN_PASSWORDS" == "true" ]]; then

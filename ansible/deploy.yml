@@ -79,6 +79,10 @@
       {{ lookup('ansible.builtin.ini', 'DATASTORE_WAIT_APPS type=properties file=' ~ platform_config_file) | split(',') | reject('equalto', '') | list }}
     platform_wait_apps: >-
       {{ lookup('ansible.builtin.ini', 'PLATFORM_WAIT_APPS type=properties file=' ~ platform_config_file) | split(',') | reject('equalto', '') | list }}
+    host_agents_namespace: >-
+      {{ lookup('ansible.builtin.ini', 'HOST_AGENTS_NAMESPACE type=properties file=' ~ platform_config_file) }}
+    host_agents_external_secret_names: >-
+      {{ lookup('ansible.builtin.ini', 'HOST_AGENTS_EXTERNAL_SECRET_NAMES type=properties file=' ~ platform_config_file) | split(',') | reject('equalto', '') | list }}
     platform_wait_daemonsets: >-
       {{ lookup('ansible.builtin.ini', 'PLATFORM_WAIT_DAEMONSETS type=properties file=' ~ platform_config_file) | split(',') | reject('equalto', '') | list }}
     default_node_transport: >-
@@ -842,6 +846,14 @@
       changed_when: false
       when: vault_stack_effective
 
+    - name: Wait for host agent secrets
+      ansible.builtin.command: >-
+        kubectl wait --for=condition=Ready externalsecret/{{ item }}
+        -n {{ host_agents_namespace }} --timeout={{ external_secret_wait_timeout }}
+      loop: "{{ host_agents_external_secret_names }}"
+      changed_when: false
+      when: vault_stack_effective
+
     - name: Prepare replicated platform dependencies before switching canonical services
       ansible.builtin.command: kubectl apply -f {{ k8s_dir }}/ha/platform.yaml
       when: platform_ha_values_file | length > 0 and data_stores_effective
@@ -912,7 +924,7 @@
     - name: Wait for cluster observability DaemonSets
       ansible.builtin.command: >-
         kubectl rollout status daemonset/{{ item }}
-        -n {{ infra_namespace }} --timeout={{ platform_wait_timeout }}
+        -n {{ host_agents_namespace }} --timeout={{ platform_wait_timeout }}
       loop: "{{ platform_wait_daemonsets }}"
       changed_when: false
       when: platform_services_enabled
