@@ -48,6 +48,22 @@ ports:
         readTimeout: 900s
         writeTimeout: 900s
         idleTimeout: 900s
+# JSON access logs on stdout reach Elasticsearch through Fluent Bit. Request
+# headers and query strings are dropped (cookies, Authorization, OAuth codes);
+# only the client identity Cloudflare forwards and the user agent are kept.
+accessLog:
+  enabled: true
+  format: json
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+      names:
+        User-Agent: keep
+        Cf-Connecting-Ip: keep
+        Cf-Ray: keep
+    queryParameters:
+      defaultMode: drop
 additionalArguments:
   - --serversTransport.forwardingTimeouts.responseHeaderTimeout=900s
 service:
