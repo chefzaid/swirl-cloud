@@ -110,7 +110,7 @@ RENDERED_CONFIG_DIR=""
 INSTALLER_TEMP_DIR=""
 nodesource_installer=""
 k3s_installer=""
-helm_installer=""
+helm_archive=""
 K3S_INSTALL_VERSION="${K3S_INSTALL_VERSION:-$DEFAULT_K3S_INSTALL_VERSION}"
 K3S_REGISTRY_HOST="${K3S_REGISTRY_HOST:-${DEFAULT_K3S_REGISTRY_HOST:-}}"
 K3S_REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-$DEFAULT_K3S_REGISTRY_ENDPOINT}"
@@ -603,6 +603,24 @@ download_installer() {
     printf -v "$destination_variable" '%s' "$destination"
 }
 
+# Install the pinned Helm release only after its archive matches the reviewed
+# checksum; the mutable upstream get-helm script is never executed.
+install_pinned_helm() {
+    local arch expected_sha256
+    case "$(uname -m)" in
+        x86_64|amd64) arch=amd64; expected_sha256="${DEFAULT_HELM_LINUX_AMD64_SHA256:-}" ;;
+        aarch64|arm64) arch=arm64; expected_sha256="${DEFAULT_HELM_LINUX_ARM64_SHA256:-}" ;;
+        *) error "No pinned Helm release for architecture $(uname -m); install Helm manually." ;;
+    esac
+    [[ "${DEFAULT_HELM_VERSION:-}" =~ ^v3\.[0-9]+\.[0-9]+$ ]] || error "DEFAULT_HELM_VERSION must be a Helm 3 release such as v3.22.0."
+    [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || error "The pinned Helm $arch checksum is missing or invalid."
+    download_installer "https://get.helm.sh/helm-${DEFAULT_HELM_VERSION}-linux-${arch}.tar.gz" helm.tar.gz helm_archive
+    printf '%s  %s\n' "$expected_sha256" "$helm_archive" | sha256sum --check --status || \
+        error "Helm ${DEFAULT_HELM_VERSION} archive checksum mismatch; refusing to install it."
+    tar -xzf "$helm_archive" -C "$INSTALLER_TEMP_DIR" "linux-$arch/helm"
+    sudo install -o root -g root -m 0755 "$INSTALLER_TEMP_DIR/linux-$arch/helm" /usr/local/bin/helm
+}
+
 # shellcheck source=scripts/lib/tls.sh
 source "$SCRIPT_DIR/scripts/lib/tls.sh"
 
@@ -975,9 +993,8 @@ fi
 # Rendering uses Python/YAML and Helm, including the default non-HA profile.
 python3 -c 'import yaml' >/dev/null 2>&1 || error "Configuration rendering requires python3-yaml; enable prerequisite installation."
 if [[ "$NEEDS_HELM" == "true" ]] && ! command -v helm &>/dev/null; then
-    info "Installing Helm 3..."
-    download_installer https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 helm-install.sh helm_installer
-    bash "$helm_installer" > /dev/null 2>&1
+    info "Installing pinned Helm ${DEFAULT_HELM_VERSION:-}..."
+    install_pinned_helm
 fi
 if [[ "$RUN_K8S_FEATURES" == true ]] && command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
     "$SCRIPT_DIR/scripts/check-platform-migration.sh"

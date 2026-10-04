@@ -25,6 +25,10 @@ Run commands from this checkout on the first control-plane host as a non-root
 user with sudo access. Use Ubuntu and size CPU, memory, and disk for the
 selected services' [resource and volume requests](../k8s), with headroom for
 builds, snapshots, and backups. Unattended runs require passwordless sudo.
+When Helm is missing, the installer downloads the release pinned by
+`DEFAULT_HELM_VERSION` in [`config/platform.env`](../config/platform.env) and
+installs it only if the archive matches the recorded SHA-256 checksum. To update
+Helm, change the version and both architecture checksums together.
 
 Prepare your public domain, an accessible GitOps repository, and the
 [administrator credentials](security.md#administrator-sign-in). For multiple
