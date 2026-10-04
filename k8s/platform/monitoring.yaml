@@ -543,6 +543,18 @@ data:
           - source_labels: [__meta_kubernetes_pod_node_name]
             target_label: node
 
+      - job_name: external-secrets
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [infra]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: external-secrets;metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
       # Applications opt in from their owning repository with these pod annotations:
       # prometheus.io/scrape=true, prometheus.io/path=/metrics, prometheus.io/port=<port>.
       - job_name: kubernetes-pods
@@ -727,6 +739,14 @@ data:
             annotations:
               summary: Longhorn volume is faulted
               description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) has no usable replica.'
+          - alert: ExternalSecretNotReady
+            expr: externalsecret_status_condition{condition="Ready",status="False"} == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: ExternalSecret is not Ready
+              description: '{{ $labels.namespace }}/{{ $labels.name }} has not synchronized from Vault for 15 minutes; inspect kubectl describe externalsecret.'
           - alert: DatastoreDown
             expr: pg_up == 0 or cnpg_collector_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
             for: 5m
