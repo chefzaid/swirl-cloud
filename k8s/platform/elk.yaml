@@ -525,7 +525,12 @@ data:
 
     async function ensureOwnershipIndex() {
       const existing = await elasticFetch(`/${ownershipIndex}`);
-      if (existing.status >= 200 && existing.status < 300) return;
+      if (existing.status >= 200 && existing.status < 300) {
+        // Indices created before the replica setting existed kept one replica,
+        // which a single node can never assign.
+        await elasticRequest(`/${ownershipIndex}/_settings`, "PUT", { "index.number_of_replicas": 0 });
+        return;
+      }
       if (existing.status !== 404) {
         throw new Error(`GET ${ownershipIndex} returned ${existing.status}: ${existing.text.slice(0, 500)}`);
       }
