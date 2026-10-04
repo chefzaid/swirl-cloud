@@ -308,7 +308,7 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Remove the orphaned `platform-registry-auth` ExternalSecrets in `kube-system` and `longhorn-system`, and the `imagePullSecrets` references to that Secret on CoreDNS, metrics-server, local-path-provisioner, the Longhorn CSI sidecars and the Longhorn UI. They were dropped from Git in the upstream-image migration (`ef35d1c`) but never pruned, and have failed since 2026-09-24 because `vault-backend` refuses those namespaces. All images are public upstream images; confirm and approve before deleting live resources.
 - [x] Elasticsearch is scraped through `elasticsearch-exporter` with the monitor-only `metrics_monitor` user (Vault `infra/elasticsearch`; document reads are denied); `ElasticsearchUnreachable`, `ElasticsearchClusterRed` and `ElasticsearchClusterYellow` alert on it. *(live, 2026-10-04: green, rules healthy)*
 - [x] `LonghornVolumeBackupStale` alerts on any volume without an off-node backup in 36 hours once the backup target holds backups (silent before activation). *(2026-10-04)*
-- [x] CrowdSec/Fail2ban activity alerts: `swirl-cloud-intrusion-metrics.timer` (host hardening) exports service state, bans and decisions; `HostIntrusionPreventionDown`, `HostIntrusionMetricsStale` and `HostBruteForceWave` (rules and exporter output checked with `promtool` against live counts, 2026-10-04). Live after the next host-hardening run.
+- [x] CrowdSec/Fail2ban activity alerts: `swirl-cloud-intrusion-metrics.timer` (host hardening) exports service state, bans and decisions; `HostIntrusionPreventionDown`, `HostIntrusionMetricsStale` and `HostBruteForceWave` (rules and exporter output checked with `promtool` against live counts, 2026-10-04). Live on `swirlit-node-01` since 2026-10-04.
 - [x] Trivy critical findings alert with a baseline: `TrivyNewCriticalVulnerability` fires only when an image's critical count exceeds its own recent maximum or a new image arrives with criticals (0 series fire on 2026-10-04; all 14 affected images would fire on one more finding). The 6 h baseline fits today's size-bound Prometheus retention (about 12 h); widen it with §26.
 - [x] Scraped: Traefik, Vault, Argo CD, Longhorn, PostgreSQL, MongoDB, Redis and Kafka.
 - [ ] Not scraped: cloudflared (only runs in HA Tunnel mode).
@@ -450,7 +450,10 @@ and availability of a compatible upstream image must be checked separately.
 ### 22. Odoo API for applications (CRM leads and Live Chat)
 
 Applications own their UI changes in their own repositories; the platform owns
-Odoo and the wiring.
+Odoo and the wiring. CRM and Live Chat serve only the company website, so this
+section waits until the website is linked to Odoo; scope it to the website then.
+A generic implementation (CRM intake add-on, scoped keys, sandbox company, Live
+Chat, rate limit) is parked on the local branch `park/odoo-crm-livechat`.
 
 - [ ] Install and configure Odoo `crm` (contact forms become CRM leads) and `im_livechat` (support chat) in the Odoo bootstrap.
 - [ ] Choose and verify the API supported by the pinned self-hosted Odoo build. Create a dedicated integration user per application/environment with model ACLs and record rules for the intended lead/chat operations; API keys inherit user permissions ([Odoo API access rights](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html#access-rights)). Store rotating keys in Vault under the existing app/env contract and keep them out of browsers.
@@ -477,6 +480,7 @@ prompts. **ADR** on the file schema and TUI technology.
 - [x] Setup hub: overview of what gets installed and the current state, host preflight (OS, sudo, CPU, memory, disk, ports, clock, K3s role, egress, domain), live Cloudflare/GitHub/Tailscale credential tests, strong password generation shown only from a private file, install with a private log and verification report, add servers, import repositories, service links, and installed-identity defaults on existing hosts. Maintenance menu: backup or Vault unseal now, local administrator password rotation (stdin only), Lynis host audit, API dry-run, failed units and earlier run logs. Verification prints a `Next:` command for each problem; `./install.sh --support-bundle` (also in Maintenance) collects a redacted troubleshooting archive without reading Secrets.
 - [x] Make `ansible/install.yml` and `--yes` consume the same `.env`. `--env-file` runs unattended; Ansible takes `installer_env_file`.
 - [ ] After the engine/TUI is proven, design the optional Keycloak-protected web front end around constrained jobs, authorization, redacted logs and a single execution lock. Keep console-based bootstrap/recovery independent of that UI.
+- [ ] Run `./install.sh` in a real terminal on `swirlit-node-01` and check every hub screen renders and navigates (so far only driven with scripted dialog answers).
 - [ ] Rehearse fresh install, no-change rerun, interrupted resume, invalid inputs and Vault-unavailable recovery on disposable hosts (the input file and TUI have only offline tests and scripted dialog runs so far); add focused safety tests only for credential leakage or deployment/recovery failures under the existing test policy.
 
 ### 24. Deployment UI (app → environment → deploy)
