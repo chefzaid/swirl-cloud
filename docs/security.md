@@ -164,6 +164,19 @@ advisory scope and how the platform runs the component; it was not exploit-teste
 | MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
 | PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. Moving PostgreSQL to a newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 
+Debian bookworm status of the PostgreSQL and DBGate findings
+([security tracker](https://security-tracker.debian.org/tracker/), checked
+2026-10-04):
+
+| CVE | Package | Debian status | Runtime use in these images |
+| --- | --- | --- | --- |
+| CVE-2023-45853 | zlib (minizip) | Ignored: minizip is not built into `zlib1g` | Not present |
+| CVE-2026-42496 | Perl Archive::Tar | Postponed, minor | No Perl processes untrusted archives |
+| CVE-2026-8376 | Perl regex compiler | No DSA, minor; point release | No Perl handles untrusted regular expressions |
+| CVE-2026-13221 | Perl regex | Vulnerable per tracker; introduced in Perl 5.37.10, newer than bookworm's 5.36 | As above |
+| CVE-2025-7458 | SQLite | No DSA, minor | PostgreSQL and DBGate do not use SQLite for data |
+| CVE-2026-6653 | libxml2 | Postponed, minor (fixed only in 2.11) | PostgreSQL XML functions; reachable only by authenticated database clients (denial of service) |
+
 ## Administrator sign-in
 
 Normal browser access uses the administrator login selected during installation.
