@@ -106,7 +106,10 @@ in Grafana's **GitLab Delivery** dashboard.
 Prometheus also scrapes the platform releases by chart label and named port:
 jobs `traefik`, `vault`, `argocd` and `longhorn`. It scrapes the datastores through
 exporter sidecars and a Kafka exporter: jobs `postgres` (including CloudNativePG
-instances), `mongodb`, `redis` (including the shared Redis HA servers) and `kafka`. Job `external-secrets` scrapes
+instances), `mongodb`, `redis` (including the shared Redis HA servers) and `kafka`. Kubelet volume statistics cover
+every persistent volume claim: `PersistentVolumeSpaceLow` (20 % free),
+`PersistentVolumeSpaceCritical` (10 %) and `PersistentVolumeFillingWithinDay`
+mirror the node filesystem alerts. Job `external-secrets` scrapes
 the External Secrets controller; `ExternalSecretNotReady` fires when an
 ExternalSecret stays unsynchronized for 15 minutes.
 `PrometheusTargetDown` covers each of these targets. Vault answers
