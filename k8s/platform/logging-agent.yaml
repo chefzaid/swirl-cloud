@@ -99,6 +99,8 @@ data:
         Annotations               Off
         Namespace_Labels          On
         Kube_Meta_Namespace_Cache_TTL 60s
+        # CI job pods carry large specs; the 32 KB default dropped their metadata.
+        Buffer_Size               256KB
 
     [FILTER]
         Name                      lua
@@ -285,7 +287,7 @@ spec:
         app: fluent-bit
       annotations:
         swirl-cloud.io/logging-agent: pending
-        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "6"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "7"
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
