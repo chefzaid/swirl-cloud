@@ -161,7 +161,8 @@ not separate implementations. Close operational items only with a dated result
 - [x] `reconcile-system-hardening.sh` re-applies hardening to already-running system controllers.
 - [x] Default-deny ingress NetworkPolicy in `apps` and `corp`; environment namespaces receive `default-deny` plus `application-connectivity`.
 - [x] Workload hardening across platform manifests: non-root UIDs, `RuntimeDefault` seccomp, dropped capabilities, read-only root filesystems where supported, `automountServiceAccountToken: false` where no API access is needed, resource requests/limits.
-- [ ] Inventory PSA violations in `infra`, including host-access telemetry agents; move workloads needing host privileges to a narrowly controlled namespace or define explicit exceptions, then enforce `baseline`. Verify rollouts and recovery before enforcement.
+- [x] PSA `baseline` inventory for `infra` (server dry-run of the enforce label): only the three host telemetry DaemonSets violate it — `node-exporter` (hostNetwork, hostPID, hostPort, hostPath `/`), `fluent-bit` (hostPath container logs, journal, state) and `filebeat-lynis` (hostPath `/var/log`, state). *(live, 2026-10-04)*
+- [ ] Move those three agents to a narrowly scoped privileged namespace (with their credentials, scrape discovery and Elasticsearch access) or record explicit exceptions, then enforce `baseline` on `infra`. Verify rollouts and recovery before enforcement.
 - [ ] Introduce default-deny ingress in `infra` with explicit service/port allowlists for platform dependencies, app data, CI, ingress, metrics and remote gateways. Current source has only selected service policies. Prove required traffic and denied cross-environment/admin access before rollout; stage egress restrictions separately with DNS/API/external dependencies accounted for.
 - [x] Registered environment namespaces carry the `security.<domain>/deny-hostpath` label like `apps` and `corp` (prod shares `apps`). *(live)*
 
