@@ -385,7 +385,7 @@ so new nodes inherit the result, then rerun Lynis and `swirl-cloud-audit-nodes`.
 - [ ] **AUTH-9282/9286:** password ageing only for human accounts, never for service accounts (optional once SSH is key-only).
 - [ ] **NETW-3200 / USB-1000:** confirm workload and remote-console requirements before blacklisting unused protocol modules or `usb-storage`; apply only the exclusions proven safe for each host role.
 - [x] **PKGS-7346:** the host baseline purges configuration left by removed kernel packages (30 on this host); the remaining `keyboxd`, `libpython3.12-minimal` and `pollinate` leftovers were purged once by hand. No `rc` packages remain. *(live, 2026-10-04)*
-- [ ] **KRNL-6000:** apply safe sysctl values (`kernel.kptr_restrict`, `kernel.dmesg_restrict`, `fs.protected_*`, `log_martians`) and leave Kubernetes-required settings (`ip_forward`, bridge netfilter) untouched.
+- [x] **KRNL-6000:** `/etc/sysctl.d/90-swirl-cloud-hardening.conf` sets `kptr_restrict=2`, `dmesg_restrict=1`, `unprivileged_bpf_disabled=1`, `bpf_jit_harden=2`, `fs.protected_*` and `send_redirects=0`; pod DNS/egress/API smoke test passed. Kept by design: `ip_forward`, `rp_filter=2`, `modules_disabled`, `sysrq` (console recovery), `suid_dumpable` (apport) and `log_martians` (each new pod sandbox logs a benign martian). *(live, 2026-10-04)*
 - [ ] **FILE-7524:** tighten the file permissions Lynis lists.
 - [ ] **ACCT-9622/9628:** process accounting and `auditd` with a small rule set (overlaps §4).
 - [ ] **FINT-4350:** AIDE with `/var/lib/rancher`, `/var/lib/longhorn` and container paths excluded, weekly, report-only.
