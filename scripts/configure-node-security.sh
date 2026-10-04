@@ -1137,11 +1137,18 @@ EOF
   fi
 }
 
+# node-exporter's textfile collector reads host-written metrics such as the
+# managed Lynis run; the directory exists on every node so it never errors.
+configure_metrics_textfile_directory() {
+  sudo install -d -o root -g root -m 0755 /var/lib/node_exporter/textfile_collector
+}
+
 # Role- and exposure-independent controls that never touch the firewall or
 # Kubernetes networking, so they can be reconciled on a live host. SSH changes
 # are limited to validated session options.
 configure_host_baseline() {
   configure_login_banner
+  configure_metrics_textfile_directory
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_password_quality

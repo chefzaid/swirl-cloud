@@ -118,7 +118,11 @@ when [monitoring.yaml](../k8s/platform/monitoring.yaml) changes.
 Fluent Bit adds Kubernetes metadata to container logs; records from managed
 application namespaces carry
 `observability_scope=application`. Filebeat sends host Lynis records through
-Logstash to Kibana's **Lynis Security Audits** dashboard. See
+Logstash to Kibana's **Lynis Security Audits** dashboard. The managed Lynis
+run also writes `swirl_cloud_lynis_*` metrics to node-exporter's textfile
+collector (`/var/lib/node_exporter/textfile_collector`): `LynisAuditFailed`
+fires on a non-zero exit and `LynisAuditMissing` when no run has succeeded for
+35 days. Monitoring starts with a control plane's first managed run. See
 [storage and retention](#storage-and-retention) for retention settings.
 
 Trivy Operator scans across namespaces and maintains image/SBOM, configuration,

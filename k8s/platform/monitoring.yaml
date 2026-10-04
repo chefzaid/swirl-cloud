@@ -276,6 +276,7 @@ spec:
           args:
             - --path.rootfs=/host
             - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/kubelet/pods/.+|var/lib/containerd/.+)($|/)
+            - --collector.textfile.directory=/host/var/lib/node_exporter/textfile_collector
           ports:
             - name: metrics
               containerPort: 9100
@@ -767,6 +768,22 @@ data:
             annotations:
               summary: TLS certificate expires within 3 days
               description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
+      - name: swirl-cloud.host-audit
+        rules:
+          - alert: LynisAuditFailed
+            expr: swirl_cloud_lynis_last_run_exit_code != 0
+            labels:
+              severity: warning
+            annotations:
+              summary: Managed Lynis audit failed
+              description: 'The last Lynis run on {{ $labels.node }} exited with code {{ $value }}; inspect journalctl -u swirl-cloud-lynis.service.'
+          - alert: LynisAuditMissing
+            expr: time() - swirl_cloud_lynis_last_success_timestamp_seconds > 35 * 86400
+            labels:
+              severity: warning
+            annotations:
+              summary: Monthly Lynis audit is overdue
+              description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
       - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown

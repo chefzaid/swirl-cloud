@@ -38,6 +38,43 @@ archive_dir=/var/log/lynis-reports
 canonical_report=/var/log/lynis-report.dat
 canonical_log=/var/log/lynis.log
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+metrics_dir=/var/lib/node_exporter/textfile_collector
+metrics_file="$metrics_dir/swirl_cloud_lynis.prom"
+
+# node-exporter reads these metrics; Prometheus alerts on a failed run or a
+# missing monthly success. The last success survives later failed runs.
+write_metrics() {
+  local status="$1" index="${2:-}" now previous_success="" temporary
+  now="$(date +%s)"
+  if [[ -r "$metrics_file" ]]; then
+    previous_success="$(awk '$1 == "swirl_cloud_lynis_last_success_timestamp_seconds" {print $2}' "$metrics_file")"
+  fi
+  install -d -o root -g root -m 0755 "$metrics_dir"
+  temporary="$(mktemp "$metrics_dir/.swirl_cloud_lynis.XXXXXX")"
+  {
+    printf '# HELP swirl_cloud_lynis_last_run_timestamp_seconds Last managed Lynis run.\n'
+    printf '# TYPE swirl_cloud_lynis_last_run_timestamp_seconds gauge\n'
+    printf 'swirl_cloud_lynis_last_run_timestamp_seconds %s\n' "$now"
+    printf '# HELP swirl_cloud_lynis_last_run_exit_code Exit code of the last managed Lynis run.\n'
+    printf '# TYPE swirl_cloud_lynis_last_run_exit_code gauge\n'
+    printf 'swirl_cloud_lynis_last_run_exit_code %s\n' "$status"
+    if [[ "$status" == 0 ]]; then
+      previous_success="$now"
+    fi
+    if [[ -n "$previous_success" ]]; then
+      printf '# HELP swirl_cloud_lynis_last_success_timestamp_seconds Last successful managed Lynis run.\n'
+      printf '# TYPE swirl_cloud_lynis_last_success_timestamp_seconds gauge\n'
+      printf 'swirl_cloud_lynis_last_success_timestamp_seconds %s\n' "$previous_success"
+    fi
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+      printf '# HELP swirl_cloud_lynis_hardening_index Lynis hardening index of the last run.\n'
+      printf '# TYPE swirl_cloud_lynis_hardening_index gauge\n'
+      printf 'swirl_cloud_lynis_hardening_index %s\n' "$index"
+    fi
+  } > "$temporary"
+  chmod 0644 "$temporary"
+  mv -f "$temporary" "$metrics_file"
+}
 
 install -d -o root -g root -m 0700 "$archive_dir"
 working_dir="$(mktemp -d "$archive_dir/.run.XXXXXX")"
@@ -62,7 +99,9 @@ set -e
 
 if [[ ! -s "$report_file" ]]; then
   echo "Lynis did not produce a structured report." >&2
-  exit "${audit_status:-1}"
+  (( audit_status != 0 )) || audit_status=1
+  write_metrics "$audit_status"
+  exit "$audit_status"
 fi
 
 # Replace the canonical files only after a complete report exists. Filebeat
@@ -77,6 +116,7 @@ install -o root -g root -m 0600 "$output_file" "$archive_dir/lynis-${timestamp}.
 # same 365-day retention independently after Filebeat ingestion.
 find "$archive_dir" -maxdepth 1 -type f -name 'lynis-*' -mtime +365 -delete
 
+write_metrics "$audit_status" "$(awk -F= '$1 == "hardening_index" {print $2; exit}' "$report_file")"
 exit "$audit_status"
 RUNNER
 
