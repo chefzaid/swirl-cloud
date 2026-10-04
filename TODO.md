@@ -678,7 +678,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Compliance dashboard with a status per framework and control, drift alerts, and an exportable evidence pack per period (signed archive with timestamps and hashes) that an auditor can verify.
 - [ ] **ADR — policy engine:** Kyverno versus ValidatingAdmissionPolicy only. Ship policy packs (images only from the internal Registry and signed, no mutable tags, resource limits, `owner` and data-classification labels, no privilege in project namespaces) in audit mode first, then enforce; exceptions carry an owner and an expiry like the Trivy exceptions.
 - [ ] Sign application images in platform CI and verify signatures at admission for `prod` (and `uat` once stable).
-- [ ] Enable Keycloak login and admin events with retention (none are stored today) and collect them with Kubernetes API, Vault, GitLab and host audit records into a tamper-evident store: off-site object storage with retention lock, retention set per framework.
+- [x] Keycloak login and admin events stored in every realm for 90 days (admin details off), and every event logged and kept at least a year in `identity-audit-*` with parsed fields ([identity events](docs/security.md#identity-events)). *(live, 2026-10-04: 50 events indexed within minutes of rollout)*
+- [ ] Collect identity, Kubernetes API, Vault, GitLab and host audit records into a tamper-evident store: off-site object storage with retention lock, retention set per framework.
 - [ ] Periodic access reviews: report every person's roles across services, including local accounts outside SSO; owners confirm or revoke, and the result becomes evidence.
 - [ ] Records of processing (GDPR Article 30) generated from project metadata: data classes, storage locations, retention, backup copies and subprocessors (§33).
 - [ ] Incident register and notification workflow: timeline from alerts and audit events, NIS2 early-warning (24 h), notification (72 h) and final-report templates for the national CSIRT, and a post-incident review record.
@@ -751,7 +752,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §26 |
 | P1 | Version-2 app migration and removal of legacy anonymous Kafka access | Owning repos verify environment isolation and delivery before credentials/listener retirement | §10, §19 |
 | P1 | Multi-host expansion, stable endpoints and HA | P0 complete; topology helpers first; three eligible storage hosts; ordered migration and host-loss drills | §5, §15, §25–26 |
-| P1 | Ransomware-resilient backups and identity audit retention | Retention-locked off-site copies the cluster cannot delete; Keycloak events stored | §36–37 |
+| P1 | Ransomware-resilient backups and tamper-evident audit retention | Retention-locked off-site copies the cluster cannot delete | §36–37 |
 | P2 | Installer prerequisite cleanup, schema/engine and TUI | Bootstrap without Vault, idempotent rerun/resume and useful verification report | §2, §23 |
 | P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §20 |
 | P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §27 |
