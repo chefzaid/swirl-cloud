@@ -545,6 +545,26 @@ Commit the change to the owning manifest or Helm values; Kubernetes edits are
 temporary. Separately installed Helm releases (Longhorn, Traefik, Vault, External
 Secrets, Argo CD) are reconciled through the installer or Ansible instead.
 
+### Argo CD itself is unhealthy or lost
+
+Argo CD does not manage itself. It is the Helm release `argocd` in `infra`
+(chart and image pinned as `DEFAULT_ARGOCD_CHART_VERSION` and
+`DEFAULT_ARGOCD_IMAGE_TAG` in [platform.env](../config/platform.env)), installed
+by `scripts/reconcile-platform-release.sh argocd` with the rendered
+`config/argocd-values.yaml` (plus `argocd-ha-values.yaml` in HA). Both the
+installer (*Install/upgrade Argo CD*) and `ansible/deploy.yml`
+(`install_argocd`) render the values, run that release step and then reapply the
+root and application Applications, so either one restores a broken or deleted
+release from Git. Compare the live release with the contract first:
+
+```bash
+helm list -n infra --filter '^argocd$'
+helm -n infra get values argocd | grep -A1 'image:'
+```
+
+Applications resume from Git after the release is back; workloads keep running
+while Argo CD is down, but nothing reconciles.
+
 ### Longhorn volume is degraded or faulted
 
 ```bash
