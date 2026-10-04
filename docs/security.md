@@ -292,6 +292,25 @@ command arguments and logs. Argo CD's local `admin` is disabled. DBGate signs in
 through its own Keycloak client and admits only `platform-admins`; Kafka UI,
 Longhorn and Homepage rely on their authentication boundary.
 
+## Recovery kit
+
+`scripts/export-recovery-kit.sh` (or `./install.sh` → Maintenance → Export the
+encrypted recovery kit) writes everything needed to rebuild without this host
+into one file encrypted with a passphrase you choose (OpenSSL AES-256-CBC,
+PBKDF2 with 600 000 iterations): the Vault unseal key and root token, the K3s
+server token and secrets-encryption state, and the restic password and S3
+credentials when off-node backups are configured. The passphrase is read from
+the terminal and passed to OpenSSL on stdin, never as an argument. The script
+decrypts the file once before reporting success and records only SHA-256
+fingerprints in `/var/lib/swirl-cloud/recovery-kit.json`.
+
+Move the kit and its passphrase off the host (password manager, encrypted USB),
+then confirm it with `scripts/export-recovery-kit.sh --verify FILE`, which fails
+when any key changed since the export. With `--separate-archives`, nightly
+archives omit the Vault keys while they still match the kit and say so in
+`RESTORE.txt`; a rotated key is archived again with a warning until you export a
+new kit. Export a new kit after rotating Vault, K3s or backup credentials.
+
 ## Rotate local administrator passwords
 
 The optional installer rotation step aligns infrastructure-local administrator

@@ -130,5 +130,103 @@ class UnsealTests(unittest.TestCase):
         self.assert_secret_only_on_stdin(key, result)
 
 
+
+class RecoveryKitTests(unittest.TestCase):
+    """The offline recovery kit decrypts, holds the keys and never exposes them in arguments."""
+
+    PASSPHRASE = "correct-horse-battery-staple-42"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.temp.name)
+        state, data, bin_dir = self.dir / "state", self.dir / "k3s/server/cred", self.dir / "bin"
+        for directory in (state, data, bin_dir):
+            directory.mkdir(parents=True)
+        (state / "vault-unseal-key").write_text("unseal-key-fixture-value\n")
+        (state / "vault-bootstrap-token").write_text("hvs.bootstrap-fixture-value\n")
+        (self.dir / "k3s/server/token").write_text("k3s-token-fixture-value\n")
+        (data / "encryption-config.json").write_text('{"fixture": true}\n')
+        (self.dir / "backup.env").write_text("RESTIC_PASSWORD=restic-fixture-value\n")
+        log = self.dir / "argv.log"
+        # sudo runs the command as this user (dropping -o/-g); openssl logs its arguments.
+        (bin_dir / "sudo").write_text(f"""#!/usr/bin/env bash
+printf '%s\\n' "sudo $*" >> {log}
+if [[ "$1" == install ]]; then
+  shift; args=(); while (( $# )); do case "$1" in -o|-g) shift 2 ;; *) args+=("$1"); shift ;; esac; done
+  exec install "${{args[@]}}"
+fi
+exec "$@"
+""")
+        (bin_dir / "openssl").write_text(f"""#!/usr/bin/env bash
+printf '%s\\n' "openssl $*" >> {log}
+exec /usr/bin/openssl "$@"
+""")
+        for shim in ("sudo", "openssl"):
+            (bin_dir / shim).chmod(0o700)
+        self.env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "HOME": str(self.dir),
+                    "SWIRL_CLOUD_STATE_DIR": str(state), "K3S_DATA_DIR": str(self.dir / "k3s"),
+                    "SWIRL_CLOUD_BACKUP_ENV": str(self.dir / "backup.env")}
+        self.log, self.state = log, state
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def run_kit(self, *args, answers):
+        import pty
+        import select
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execve(str(ROOT / "scripts/export-recovery-kit.sh"), ["export-recovery-kit.sh", *args], self.env)
+        output, pending = b"", list(answers)
+        while True:
+            ready, _, _ = select.select([fd], [], [], 30)
+            if not ready:
+                break
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output += chunk
+            if pending and chunk.rstrip().endswith(b":"):
+                os.write(fd, pending.pop(0).encode() + b"\n")
+        _, status = os.waitpid(pid, 0)
+        return os.waitstatus_to_exitcode(status), output.decode(errors="replace")
+
+    def test_kit_round_trips_and_keys_never_reach_arguments(self):
+        kit = self.dir / "kit.enc"
+        code, output = self.run_kit("--output", str(kit), "--separate-archives", answers=[self.PASSPHRASE] * 2)
+        self.assertEqual(0, code, output)
+        self.assertEqual(0o600, kit.stat().st_mode & 0o777)
+        clear = subprocess.run(["/usr/bin/openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "600000", "-pass", "stdin",
+                                "-in", str(kit)], input=self.PASSPHRASE.encode(), capture_output=True, check=True).stdout
+        listing = subprocess.run(["tar", "-tf", "-"], input=clear, capture_output=True, check=True).stdout.decode()
+        for name in ("vault-unseal-key", "vault-bootstrap-token", "token", "encryption-config.json", "backup.env"):
+            self.assertIn("kit/" + name, listing)
+        manifest = json.loads((self.state / "recovery-kit.json").read_text())
+        self.assertTrue(manifest["separateArchives"])
+        self.assertIn(str(self.state / "vault-unseal-key"), manifest["fingerprints"])
+        arguments = self.log.read_text()
+        for secret in (self.PASSPHRASE, "unseal-key-fixture-value", "hvs.bootstrap-fixture-value", "restic-fixture-value"):
+            self.assertNotIn(secret, arguments)
+        self.assertNotIn(self.PASSPHRASE, output)
+        code, output = self.run_kit("--verify", str(kit), answers=[self.PASSPHRASE])
+        self.assertEqual(0, code, output)
+        (self.state / "vault-unseal-key").write_text("rotated\n")
+        code, output = self.run_kit("--verify", str(kit), answers=[self.PASSPHRASE])
+        self.assertEqual(1, code)
+        self.assertIn("no longer matches", output)
+        code, output = self.run_kit("--verify", str(kit), answers=["wrong-passphrase-entirely"])
+        self.assertIn("Wrong passphrase", output)
+
+    def test_short_or_mismatched_passphrases_write_nothing(self):
+        kit = self.dir / "kit.enc"
+        for answers in (["short"], [self.PASSPHRASE, self.PASSPHRASE + "x"]):
+            code, _ = self.run_kit("--output", str(kit), answers=answers)
+            self.assertEqual(1, code)
+            self.assertFalse(kit.exists())
+            self.assertFalse((self.state / "recovery-kit.json").exists())
+
 if __name__ == '__main__':
     unittest.main()

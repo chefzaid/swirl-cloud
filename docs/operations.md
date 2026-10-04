@@ -415,7 +415,7 @@ have not been measured yet; they need the restore drill in TODO §16.
 | Data | How it is protected | Recovery point | Notes and gaps |
 | --- | --- | --- | --- |
 | K3s state (SQLite or etcd), server token, encryption keys, K3s configuration | Nightly archive | Up to 24 h | Restore steps are in the archive's `RESTORE.txt`. |
-| Vault secrets | Raft snapshot in the nightly archive | Up to 24 h | The unseal key and bootstrap token are in the same archive (TODO §16). |
+| Vault secrets | Raft snapshot in the nightly archive | Up to 24 h | The unseal key and bootstrap token travel in the same archive unless an exported [recovery kit](security.md#recovery-kit) holds them and separation was chosen. |
 | PostgreSQL: Keycloak, SonarQube, Odoo and application databases | `pg_dumpall` in the nightly archive | Up to 24 h | No point-in-time recovery (TODO §10). |
 | MongoDB | `mongodump` in the nightly archive | Up to 24 h | |
 | Odoo filestore | `tar` in the nightly archive, taken after `pg_dumpall` | Up to 24 h, consistent with its database dump | |

@@ -114,8 +114,26 @@ if [[ -d "$K3S_CONFIG_DIR/config.yaml.d" ]]; then
   cp -a "$K3S_CONFIG_DIR/config.yaml.d" "$staging_dir/k3s-config/config.yaml.d"
 fi
 
+# Vault keys stay out of routine archives only when an exported recovery kit
+# (scripts/export-recovery-kit.sh --separate-archives) still holds these exact files.
+RECOVERY_KIT_MANIFEST="${RECOVERY_KIT_MANIFEST:-/var/lib/swirl-cloud/recovery-kit.json}"
+kit_holds() {
+  [[ -f "$RECOVERY_KIT_MANIFEST" ]] && command -v jq >/dev/null 2>&1 || return 1
+  jq -e '.separateArchives == true' "$RECOVERY_KIT_MANIFEST" >/dev/null 2>&1 || return 1
+  [[ "$(jq -r --arg file "$1" '.fingerprints[$file] // empty' "$RECOVERY_KIT_MANIFEST")" == \
+     "$(sha256sum "$1" | cut -d' ' -f1)" ]]
+}
+kit_omitted=()
 for source_file in /var/lib/swirl-cloud/vault-unseal-key /var/lib/swirl-cloud/vault-bootstrap-token; do
-  [[ -f "$source_file" ]] && install -m 0600 "$source_file" "$staging_dir/vault/$(basename "$source_file")"
+  [[ -f "$source_file" ]] || continue
+  if kit_holds "$source_file"; then
+    kit_omitted+=("$(basename "$source_file")")
+    continue
+  fi
+  if [[ -f "$RECOVERY_KIT_MANIFEST" ]] && jq -e '.separateArchives == true' "$RECOVERY_KIT_MANIFEST" >/dev/null 2>&1; then
+    echo "WARNING: $source_file changed since the recovery kit was exported; archiving it. Export a new kit." >&2
+  fi
+  install -m 0600 "$source_file" "$staging_dir/vault/$(basename "$source_file")"
 done
 
 if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>&1; then
@@ -189,6 +207,14 @@ server token, encryption files, and K3s configuration (including config.yaml.d)
 before starting the restored server. Review node-specific private addresses,
 names, and join settings before reusing configuration on a replacement host.
 EOF
+if (( ${#kit_omitted[@]} > 0 )); then
+  cat >> "$staging_dir/RESTORE.txt" <<EOF
+
+Not in this archive: ${kit_omitted[*]}. They are in the offline recovery kit
+exported on $(jq -r '.exported' "$RECOVERY_KIT_MANIFEST") (scripts/export-recovery-kit.sh);
+place them in /var/lib/swirl-cloud (root, mode 600) before unsealing Vault.
+EOF
+fi
 if [[ "$DATASTORE" == "etcd" ]]; then
   cat >> "$staging_dir/RESTORE.txt" <<EOF
 

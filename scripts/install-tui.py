@@ -387,7 +387,9 @@ def maintenance(dialog, values):
                 ("dry-run", "Validate rendered profiles against the API server"),
                 ("units", "Failed host maintenance units"),
                 ("logs", "Earlier run logs"),
-                ("bundle", "Create a support bundle (secrets redacted)")])
+                ("bundle", "Create a support bundle (secrets redacted)"),
+                ("kit", "Export the encrypted recovery kit"),
+                ("kit-verify", "Verify a recovery kit against the current keys")])
         except Cancelled:
             return
         if choice in ("backup", "unseal"):
@@ -421,6 +423,18 @@ def maintenance(dialog, values):
             run_logged("Lynis audit", [str(ROOT / "scripts/audit-cluster-nodes.sh")])
         elif choice == "dry-run":
             run_logged("API dry-run", [str(ROOT / "scripts/validate-repository.sh"), "--live"])
+        elif choice == "kit":
+            separate = dialog.yes_no("The recovery kit holds the Vault keys, K3s token and encryption state and the "
+                                     "off-node backup credentials, encrypted with a passphrase you choose.\n\nAfter you "
+                                     "store it offline, should nightly archives stop including the Vault keys? They "
+                                     "are archived again automatically if the keys change.", False,
+                                     "Separate keys", "Keep in archives")
+            run_logged("Export recovery kit", [str(ROOT / "scripts/export-recovery-kit.sh")]
+                       + (["--separate-archives"] if separate else []))
+        elif choice == "kit-verify":
+            path = dialog.text("Path of the recovery kit to verify")
+            if path:
+                run_logged("Verify recovery kit", [str(ROOT / "scripts/export-recovery-kit.sh"), "--verify", path])
         elif choice == "bundle":
             result = subprocess.run([sys.executable, str(ROOT / "scripts/support-bundle.py")], capture_output=True,
                                     text=True, timeout=900)

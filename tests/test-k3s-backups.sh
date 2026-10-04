@@ -91,6 +91,36 @@ mapfile -t snapshot_files < <(find "$TEST_DIR/etcd-extracted/k3s-db" -type f)
 grep -Fxq 'fixture-etcd-snapshot' "${snapshot_files[0]}"
 cmp "$TEST_DIR/data/server/token" "$TEST_DIR/etcd-extracted/k3s-server/token"
 
+# Vault keys leave routine archives only while an opted-in recovery kit holds
+# these exact files; a rotated key is archived again.
+printf 'unseal-fixture\n' > "$TEST_DIR/vault/vault-unseal-key"
+printf 'token-fixture\n' > "$TEST_DIR/vault/vault-bootstrap-token"
+extract_latest() {
+    local archive
+    archive="$(find "$TEST_DIR/$1" -name 'k3s-*.tar.gz' | sort | tail -n 1)"
+    rm -rf "$TEST_DIR/$1-extracted" && mkdir "$TEST_DIR/$1-extracted"
+    tar -xzf "$archive" -C "$TEST_DIR/$1-extracted"
+}
+run_backup kit-absent >/dev/null
+extract_latest kit-absent
+cmp "$TEST_DIR/vault/vault-unseal-key" "$TEST_DIR/kit-absent-extracted/vault/vault-unseal-key"
+jq -n --arg key "$TEST_DIR/vault/vault-unseal-key" --arg token "$TEST_DIR/vault/vault-bootstrap-token" \
+    --arg key_sum "$(sha256sum "$TEST_DIR/vault/vault-unseal-key" | cut -d' ' -f1)" \
+    --arg token_sum "$(sha256sum "$TEST_DIR/vault/vault-bootstrap-token" | cut -d' ' -f1)" \
+    '{exported: "2026-10-04T00:00:00Z", separateArchives: true, fingerprints: {($key): $key_sum, ($token): $token_sum}}' \
+    > "$TEST_DIR/vault/recovery-kit.json"
+run_backup kit-held >/dev/null
+extract_latest kit-held
+[[ ! -e "$TEST_DIR/kit-held-extracted/vault/vault-unseal-key" && ! -e "$TEST_DIR/kit-held-extracted/vault/vault-bootstrap-token" ]]
+grep -Fq 'Not in this archive: vault-unseal-key vault-bootstrap-token' "$TEST_DIR/kit-held-extracted/RESTORE.txt"
+printf 'rotated-unseal\n' > "$TEST_DIR/vault/vault-unseal-key"
+run_backup kit-stale 2>"$TEST_DIR/kit-stale.err" >/dev/null
+extract_latest kit-stale
+cmp "$TEST_DIR/vault/vault-unseal-key" "$TEST_DIR/kit-stale-extracted/vault/vault-unseal-key"
+[[ ! -e "$TEST_DIR/kit-stale-extracted/vault/vault-bootstrap-token" ]]
+grep -Fq 'changed since the recovery kit was exported' "$TEST_DIR/kit-stale.err"
+rm "$TEST_DIR/vault/recovery-kit.json"
+
 # Execute failure cases in independent shells so errexit remains active even
 # while the caller checks the exit status.
 export SCRIPT_DIR TEST_DIR
@@ -106,4 +136,4 @@ if bash -c 'set -e; run_backup missing-token' >/dev/null 2>&1; then
     exit 1
 fi
 
-printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, and snapshot failure\n'
+printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure and recovery-kit key separation\n'
