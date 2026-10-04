@@ -74,9 +74,13 @@ if ! sudo cmp -s "$POLICY_SOURCE" "$POLICY_PATH" 2>/dev/null; then
     changed=true
 fi
 dropin > "$temporary"
+# World-readable like the other drop-ins: it holds only paths, and the k3s
+# binary (also kubectl) reads every drop-in when it starts.
 if ! sudo cmp -s "$temporary" "$DROPIN_PATH" 2>/dev/null; then
-    sudo install -D -o root -g root -m 0600 "$temporary" "$DROPIN_PATH"
+    sudo install -D -o root -g root -m 0644 "$temporary" "$DROPIN_PATH"
     changed=true
+elif [[ "$(sudo stat -c %a "$DROPIN_PATH")" != 644 ]]; then
+    sudo chmod 0644 "$DROPIN_PATH"
 fi
 sudo install -d -o root -g root -m 0700 "$(dirname "$LOG_PATH")"
 
