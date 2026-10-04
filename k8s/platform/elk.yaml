@@ -391,7 +391,7 @@ spec:
 
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":["monitor","manage_index_templates","manage_ilm"],"indices":[{"names":["kubernetes-logs-*","app-logs-*","lynis-audits-*"],"privileges":["auto_configure","create_index","manage","write"]}]}' \
+                --data-binary '{"cluster":["monitor","manage_index_templates","manage_ilm"],"indices":[{"names":["kubernetes-logs-*","kubernetes-audit-*","app-logs-*","lynis-audits-*"],"privileges":["auto_configure","create_index","manage","write"]}]}' \
                 "${endpoint}/_security/role/logs_writer" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
