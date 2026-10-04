@@ -820,6 +820,13 @@ data:
             annotations:
               summary: Longhorn volume is faulted
               description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) has no usable replica.'
+          - alert: KeycloakPasswordFailuresHigh
+            expr: sum by (realm) (increase(keycloak_credentials_password_hashing_validations_total{outcome!="valid"}[15m])) > 20
+            labels:
+              severity: warning
+            annotations:
+              summary: Many failed Keycloak password checks
+              description: 'Realm {{ $labels.realm }} rejected {{ $value | printf "%.0f" }} passwords in 15 minutes; check for credential guessing against the SSO identity.'
           - alert: ExternalSecretNotReady
             expr: externalsecret_status_condition{condition="Ready",status="False"} == 1
             for: 15m

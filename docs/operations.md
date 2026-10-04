@@ -109,7 +109,8 @@ exporter sidecars and a Kafka exporter: jobs `postgres` (including CloudNativePG
 instances), `mongodb`, `redis` (including the shared Redis HA servers), `kafka`
 and `elasticsearch`. The Elasticsearch exporter signs in as the monitor-only
 `metrics_monitor` user; `ElasticsearchUnreachable`, `ElasticsearchClusterRed`
-and `ElasticsearchClusterYellow` (30 minutes) cover log and audit indexing. Kubelet volume statistics cover
+and `ElasticsearchClusterYellow` (30 minutes) cover log and audit indexing. `KeycloakPasswordFailuresHigh` fires when a realm rejects more than
+20 passwords within 15 minutes. Kubelet volume statistics cover
 every persistent volume claim: `PersistentVolumeSpaceLow` (20 % free),
 `PersistentVolumeSpaceCritical` (10 %) and `PersistentVolumeFillingWithinDay`
 mirror the node filesystem alerts. Grafana's **Ingress Traffic** dashboard shows Traefik
