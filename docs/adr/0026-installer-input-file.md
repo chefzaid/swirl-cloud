@@ -57,8 +57,8 @@ need a package before the installer can install packages.
 
 - New installer inputs must be added to the schema; the file rejects unknown keys.
 - Inline values put credentials in the file. `NAME_FILE=/path` references to
-  protected one-line files avoid that and work before Vault exists; the hub
-  redacts entered secrets from its run logs. Vault references and stdin input
-  remain open (TODO §23).
+  protected one-line files, or `--secrets-stdin`, avoid that and work before
+  Vault exists; the hub redacts entered secrets from its run logs. Vault
+  references for reruns remain open (TODO §23).
 - Interactive-only steps outside the installer's own inputs still need a person:
   registrar nameserver delegation in `configure-cloudflare.sh` fails without a TTY.

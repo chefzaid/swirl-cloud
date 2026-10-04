@@ -104,7 +104,16 @@ protected file: choose **Read it from a protected file**, or write
 instead of `NAME=value`. The file holds one line, belongs to you or root and has
 mode `600`; the engine reads it when it imports the inputs, so the input file
 itself carries no credentials and Vault is not needed during bootstrap or
-recovery. Hub run logs replace every entered secret with `[redacted]`. On a host that already runs the platform,
+recovery. Hub run logs replace every entered secret with `[redacted]`.
+
+Automation can keep secrets off the disk entirely: pipe `NAME=value` lines for
+secret inputs into the engine, for example from a password manager or CI secret
+store. Non-secret names and values that the file also sets are rejected:
+
+```bash
+pass show swirl-cloud/install-secrets | \
+  ./install.sh --env-file ~/.config/swirl-cloud/install.env --secrets-stdin
+``` On a host that already runs the platform,
 the hub loads the installed identity as defaults. Rerunning it loads the saved
 file, so earlier answers become defaults and an empty secret keeps the stored
 value. Unattended reruns use the same file:

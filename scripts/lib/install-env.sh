@@ -6,7 +6,7 @@
 INSTALL_ENV_PROBLEMS=()
 
 install_env_import() {
-    local file="$1" tool name value problems
+    local file="$1" from_stdin="${2:-false}" tool name value problems secrets="" flag=()
     tool="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-inputs.py"
     [[ -r "$file" ]] || { printf '[ERROR] Installation input file is not readable: %s\n' "$file" >&2; return 1; }
 
@@ -15,11 +15,18 @@ install_env_import() {
         unset "$name"
     done < <(python3 "$tool" names)
 
-    if ! problems="$(python3 "$tool" check "$file")"; then
+    if [[ "$from_stdin" == true ]]; then
+        # Secret NAME=value lines arrive on stdin and are passed on through pipes
+        # (printf is a builtin): never arguments, here-string files or the disk.
+        secrets="$(cat)"
+        flag=(--secrets-stdin)
+    fi
+    if ! problems="$(printf '%s\n' "$secrets" | python3 "$tool" check "$file" "${flag[@]}")"; then
         mapfile -t INSTALL_ENV_PROBLEMS <<< "$problems"
     fi
     while IFS= read -r -d '' name && IFS= read -r -d '' value; do
         printf -v "$name" '%s' "$value"
         export "${name?}"
-    done < <(python3 "$tool" pairs "$file")
+    done < <(printf '%s\n' "$secrets" | python3 "$tool" pairs "$file" "${flag[@]}")
+    secrets=""
 }

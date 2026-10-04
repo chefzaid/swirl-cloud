@@ -5,6 +5,7 @@
 #   ./install.sh --output FILE           hub with a different input file
 #   ./install.sh --env-file FILE         unattended install/update from a saved file
 #   ./install.sh --env-file FILE --validate-only
+#   ... | ./install.sh --env-file FILE --secrets-stdin   secrets as NAME=value lines on stdin
 #   ./install.sh --status                verify an installed platform
 #   ./install.sh --plan [--env-file FILE]  show installed, missing or drifted stages
 set -Eeuo pipefail
@@ -13,7 +14,7 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,9s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,10s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then

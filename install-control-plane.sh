@@ -48,7 +48,7 @@ source "$SSO_ADMIN_LIBRARY"
 
 usage() {
     cat <<USAGE
-Usage: $0 --yes | --env-file FILE [--validate-only] | --prompts
+Usage: $0 --yes | --env-file FILE [--secrets-stdin] [--validate-only] | --prompts
 
 The installer engine. Start guided setup with ./install.sh instead.
 
@@ -56,6 +56,8 @@ The installer engine. Start guided setup with ./install.sh instead.
   --env-file FILE   Run unattended from an installation input file (mode 0600),
                     such as one written by scripts/install-tui.py. Its values
                     replace any installation inputs in the calling environment.
+  --secrets-stdin   Read NAME=value lines for secret inputs from stdin and merge
+                    them with --env-file FILE, so credentials need not be on disk.
   --validate-only   Report every problem in --env-file FILE, then exit.
   --prompts         Ask the installation questions as plain terminal prompts.
 USAGE
@@ -64,6 +66,7 @@ USAGE
 AUTO_APPROVE=false
 INSTALL_ENV_FILE=""
 VALIDATE_ONLY=false
+SECRETS_STDIN=false
 if (( $# == 0 )) && [[ -t 0 && -t 1 ]]; then
     # One interactive entry point: the setup hub collects inputs and runs this engine.
     echo "Starting the setup hub (./install.sh); use --prompts for plain terminal questions." >&2
@@ -79,21 +82,26 @@ while (( $# > 0 )); do
             shift
             ;;
         --validate-only) VALIDATE_ONLY=true ;;
+        --secrets-stdin) SECRETS_STDIN=true ;;
         --prompts) ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
     shift
 done
-if [[ "$VALIDATE_ONLY" == true && -z "$INSTALL_ENV_FILE" ]]; then
-    echo "[ERROR] --validate-only requires --env-file FILE" >&2
+if [[ ( "$VALIDATE_ONLY" == true || "$SECRETS_STDIN" == true ) && -z "$INSTALL_ENV_FILE" ]]; then
+    echo "[ERROR] --validate-only and --secrets-stdin require --env-file FILE" >&2
     exit 1
 fi
 if [[ -n "$INSTALL_ENV_FILE" ]]; then
     # shellcheck source=scripts/lib/install-env.sh
     source "$SCRIPT_DIR/scripts/lib/install-env.sh"
     # Import before the defaults below so file values behave like environment inputs.
-    install_env_import "$INSTALL_ENV_FILE" || exit 1
+    install_env_import "$INSTALL_ENV_FILE" "$SECRETS_STDIN" || exit 1
+    if [[ "$SECRETS_STDIN" == true ]]; then
+        # Stdin is consumed; later sudo and SSH prompts use the terminal when there is one.
+        if { : </dev/tty; } 2>/dev/null; then exec </dev/tty; else exec </dev/null; fi
+    fi
     AUTO_APPROVE=true
 fi
 

@@ -199,6 +199,19 @@ class InstallInputs(unittest.TestCase):
                                         install_inputs.VERSION_KEY: "1"})
         self.assertTrue(any("not both" in problem for problem in both))
 
+    def test_secrets_on_stdin_complete_the_file_without_being_written(self):
+        path = self.dir / "install.env"
+        install_inputs.write(path, {k: v for k, v in VALID.items() if k != "KEYCLOAK_SSO_BOOTSTRAP_PASSWORD"})
+        command = [str(ROOT / "install-control-plane.sh"), "--env-file", str(path), "--secrets-stdin", "--validate-only"]
+        accepted = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, start_new_session=True,
+                                  input=f"KEYCLOAK_SSO_BOOTSTRAP_PASSWORD={PASSWORD}\n")
+        self.assertEqual(0, accepted.returncode, accepted.stderr)
+        self.assertNotIn(PASSWORD, path.read_text())
+        rejected = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, start_new_session=True,
+                                  input="PLATFORM_DOMAIN=evil.example\n")
+        self.assertEqual(1, rejected.returncode)
+        self.assertIn("PLATFORM_DOMAIN: only secret inputs may be supplied on stdin", rejected.stderr)
+
     def test_run_logs_redact_secrets_split_across_output_chunks(self):
         import importlib.util
         from unittest.mock import patch

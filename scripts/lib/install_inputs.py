@@ -407,7 +407,22 @@ def render(values):
     return "\n".join(lines) + "\n"
 
 
-def read(path, *, check_permissions=True):
+def merge_secrets(values, text):
+    """Merge NAME=value secret lines (for example from stdin); return (values, problems)."""
+    extra, problems = parse(text)
+    merged = dict(values)
+    for name, value in extra.items():
+        item = BY_NAME.get(name)
+        if not item or not item.secret:
+            problems.append(f"{name}: only secret inputs may be supplied on stdin")
+        elif values.get(name) or values.get(name + FILE_SUFFIX):
+            problems.append(f"{name}: set in both the input file and stdin")
+        else:
+            merged[name] = value
+    return merged, problems
+
+
+def read(path, *, check_permissions=True, secrets_text=None):
     """Read and validate a file; raise InputError listing every problem."""
     path = Path(path)
     try:
@@ -426,6 +441,9 @@ def read(path, *, check_permissions=True):
     if any(ord(c) < 32 and c not in "\n\t\r" for c in text):
         problems.append(f"{path}: contains control characters")
     values, parse_problems = parse(text)
+    if secrets_text is not None:
+        values, secret_problems = merge_secrets(values, secrets_text)
+        parse_problems += secret_problems
     problems += parse_problems + validate(values)
     if problems:
         raise InputError(problems)
