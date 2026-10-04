@@ -211,8 +211,11 @@ def review(values):
 
 # ---------------------------------------------------------------- actions
 
-def run_logged(title, command, env=None):
-    """Run a command on the terminal; its output is also saved to a private log."""
+def run_logged(title, command, env=None, stdin_data=None):
+    """Run a command on the terminal; its output is also saved to a private log.
+
+    stdin_data (for example a password) is written to the process's stdin and
+    never placed in arguments, the environment or the log."""
     logs = STATE / "logs"
     logs.mkdir(parents=True, exist_ok=True, mode=0o700)
     log_path = logs / f"{datetime.now():%Y%m%d-%H%M%S}-{title.lower().replace(' ', '-')}.log"
@@ -221,7 +224,11 @@ def run_logged(title, command, env=None):
     print(f"== {title} ==\nLog: {log_path}\n", flush=True)
     with os.fdopen(descriptor, "wb") as log:
         process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.PIPE if stdin_data is not None else None,
                                    env={**os.environ, **(env or {})})
+        if stdin_data is not None:
+            process.stdin.write(stdin_data.encode())
+            process.stdin.close()
         while chunk := os.read(process.stdout.fileno(), 4096):
             sys.stdout.buffer.write(chunk)
             sys.stdout.flush()
@@ -314,6 +321,67 @@ def import_repositories(dialog, values):
         dialog.message(f"Repository import stopped (exit code {code}). Last lines:\n\n{tail(log)}\n\nLog: {log}")
 
 
+def journal(unit, lines=30):
+    result = subprocess.run(["journalctl", "-u", unit, "-n", str(lines), "--no-pager", "-o", "short-iso"],
+                            capture_output=True, text=True)
+    return result.stdout or result.stderr or "No journal entries are readable for this account."
+
+
+def maintenance(dialog, values):
+    while True:
+        try:
+            choice = dialog.menu("Maintenance", [
+                ("backup", "Run the recovery backup now"),
+                ("unseal", "Unseal Vault now"),
+                ("rotate", "Rotate local infrastructure administrator passwords"),
+                ("audit", "Audit cluster hosts with Lynis"),
+                ("dry-run", "Validate rendered profiles against the API server"),
+                ("units", "Failed host maintenance units"),
+                ("logs", "Earlier run logs")])
+        except Cancelled:
+            return
+        if choice in ("backup", "unseal"):
+            unit = f"swirl-cloud-{'k3s-backup' if choice == 'backup' else 'vault-unseal'}.service"
+            if not unit_exists(unit):
+                dialog.message(f"{unit} is not installed on this host.", 8)
+                continue
+            code, _ = run_logged(f"Start {unit}", ["sudo", "systemctl", "start", unit])
+            dialog.message(f"{unit} finished with exit code {code}.\n\n{journal(unit)}")
+        elif choice == "rotate":
+            if not dialog.yes_no("Rotate the local administrator passwords of PostgreSQL, MongoDB, Grafana, "
+                                 "Keycloak, GitLab, SonarQube and the other local superusers, and store them in "
+                                 "Vault? SSO accounts and application credentials do not change.", False):
+                continue
+            item = next(i for i in INPUTS if i.name == "LOCAL_ADMIN_PASSWORD")
+            scratch = {}
+            ask(dialog, item, scratch)
+            if scratch.get(item.name):
+                code, log = run_logged("Rotate local administrator passwords",
+                                       [str(ROOT / "scripts/rotate-local-admin-passwords.sh"), "--password-stdin"],
+                                       stdin_data=scratch[item.name] + "\n")
+                if code:
+                    dialog.message(f"Rotation stopped (exit code {code}); rerun resumes with START_AT. "
+                                   f"Last lines:\n\n{tail(log)}")
+        elif choice == "audit":
+            run_logged("Lynis audit", [str(ROOT / "scripts/audit-cluster-nodes.sh")])
+        elif choice == "dry-run":
+            run_logged("API dry-run", [str(ROOT / "scripts/validate-repository.sh"), "--live"])
+        elif choice == "units":
+            result = subprocess.run(["systemctl", "list-units", "swirl-cloud-*", "--all", "--failed", "--no-pager",
+                                     "--no-legend"], capture_output=True, text=True)
+            dialog.message("Failed swirl-cloud units:\n\n" + (result.stdout.strip() or "none"), 14)
+        elif choice == "logs":
+            logs = sorted((STATE / "logs").glob("*.log"), reverse=True)[:20] if (STATE / "logs").exists() else []
+            if not logs:
+                dialog.message("No run logs yet.", 8)
+                continue
+            try:
+                name = dialog.menu("Run logs (newest first)", [(log.name, "") for log in logs])
+            except Cancelled:
+                continue
+            dialog.run("--scrolltext", "--textbox", str(STATE / "logs" / name), str(dialog.height), str(dialog.width))
+
+
 def service_links(values):
     result = subprocess.run(["kubectl", "--request-timeout=20s", "get", "ingress", "-A", "-o", "json"],
                             capture_output=True, text=True)
@@ -360,6 +428,7 @@ MENU = [("overview", "What gets installed and the current state"),
         ("repositories", "Import and deploy GitHub repositories"),
         ("status", "Platform status and verification"),
         ("links", "Service links"),
+        ("maintenance", "Maintenance: backup, unseal, password rotation, audits, logs"),
         ("help", "Files, commands and guides"),
         ("quit", "Quit")]
 
@@ -410,6 +479,8 @@ def main():
             elif choice == "status":
                 dialog.message(verify_report()[1] if unit_exists("k3s.service") else
                                "The platform is not installed on this host yet.")
+            elif choice == "maintenance":
+                maintenance(dialog, values)
             elif choice == "links":
                 dialog.message(service_links(values))
             elif choice == "help":

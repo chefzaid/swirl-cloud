@@ -95,6 +95,7 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
 | Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
 | Status / Service links | Verification report, and every service URL grouped by namespace. |
+| Maintenance | Run the recovery backup or Vault unseal now (with their journal), [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
 
 Password fields can generate a strong password; it is shown once from a private
 file, never as a command argument. On a host that already runs the platform,

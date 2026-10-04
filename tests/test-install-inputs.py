@@ -149,6 +149,22 @@ class InstallInputs(unittest.TestCase):
         self.assertTrue(any(generated in text for text in shown))
         textbox = next(args[args.index("--textbox") + 1] for args in arguments if "--textbox" in args)
         self.assertFalse(Path(textbox).exists())
+    def test_hub_commands_receive_passwords_on_stdin_without_logging_them(self):
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("install_tui", ROOT / "scripts/install-tui.py")
+        hub = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hub)
+        reader = [sys.executable, "-c", "import sys; secret = sys.stdin.read(); print('received', len(secret))"]
+        with patch.object(hub, "STATE", self.dir / "state"), patch("builtins.input"), \
+                patch.object(hub.subprocess, "run"), patch("sys.stdout"):
+            code, log = hub.run_logged("Rotate", reader, stdin_data=PASSWORD + "\n")
+        self.assertEqual(0, code)
+        self.assertIn("received 18", log.read_text())
+        self.assertNotIn(PASSWORD, log.read_text())
+        self.assertEqual(0o600, stat.S_IMODE(log.stat().st_mode))
+        self.assertEqual(0, json.loads((self.dir / "state/last-run.json").read_text())["code"])
+
 
 if __name__ == "__main__":
     unittest.main()
