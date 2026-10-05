@@ -640,7 +640,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Offline installation bundle: K3s binaries, charts, every pinned image and the required OS packages in one verified archive, loaded into the internal Registry. Prove a full install on a host with no Internet egress.
 - [ ] Platform upgrades as one operation (`./install.sh --upgrade <version>`): preflight (health, fresh verified backup, capacity, API deprecations through `validate-repository.sh --live`, migration guards), ordered component upgrades, node-by-node K3s upgrades, recorded rollback points and post-upgrade `--status`. Support and test only N-1 → N paths.
 - [ ] Release qualification pipeline: each release candidate installs on disposable hosts, upgrades from the previous release, runs the safety suites and `verify-platform.py --strict`, and blocks the release on failure.
-- [ ] Publish a support matrix: Ubuntu LTS versions, CPU architectures (GitLab's Omnibus image is amd64-only today, so arm64 needs a decision), minimum hardware per sizing profile (§26) and tested providers.
+- [x] Support matrix in the [deployment guide](docs/deployment.md#support-matrix): Ubuntu LTS (tested 26.04), x86_64 (GitLab is amd64-only), K3s pin, topologies, and minimum/recommended/reference sizes from measured requests and usage. *(2026-10-05)*
+- [ ] Extend the support matrix with sizing profiles (§26), additional tested Ubuntu releases and named providers once installations on them are verified.
 - [ ] Publish versioned product documentation from `docs/` (administrator, operator and application-team guides, API reference), one version per release.
 - [ ] Offer the hub, portal and installer messages in French and English.
 

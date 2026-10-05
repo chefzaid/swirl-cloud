@@ -30,6 +30,30 @@ When Helm is missing, the installer downloads the release pinned by
 installs it only if the archive matches the recorded SHA-256 checksum. To update
 Helm, change the version and both architecture checksums together.
 
+### Support matrix
+
+| Item | Supported | Notes |
+| --- | --- | --- |
+| Operating system | Ubuntu LTS; tested on Ubuntu 26.04 LTS | The setup hub warns on other distributions. |
+| Architecture | x86_64 | The GitLab Omnibus image is amd64-only, so a full installation needs x86_64; aarch64 passes preflight but is untested. |
+| Kubernetes | K3s at the version pinned in `config/platform.env` | Installed by the platform; existing clusters are not adopted. |
+| Topology | One server; three or more control planes with the high-availability profile | HA profiles are not yet drill-tested on three hosts. |
+
+Minimum and recommended sizes for one server running every platform service
+plus a few applications, measured on the reference installation in October
+2026 (platform services request about 5.4 CPU cores and 16 GiB of memory,
+applications the rest; peak CPU use was 3 cores):
+
+| Size | CPU | Memory | Disk |
+| --- | --- | --- | --- |
+| Minimum (preflight passes) | 8 cores | 24 GiB | 100 GiB free |
+| Recommended | 16 cores | 64 GiB | 500 GB NVMe |
+| Reference installation | 8 cores (requests at about 90 %) | 31 GiB | 145 GiB (67 % used) |
+
+At the minimum size, CPU requests leave little room for applications or
+rollouts; follow [capacity planning](guides/capacity-planning.md) before adding
+workloads. Add 30 GiB of free disk for backups and upgrades on top of data.
+
 Prepare your public domain, an accessible GitOps repository, and the
 [administrator credentials](security.md#administrator-sign-in). For multiple
 nodes, complete the [private transport prerequisites](guides/node-enrollment.md#private-node-network)
