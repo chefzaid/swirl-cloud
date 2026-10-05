@@ -436,6 +436,15 @@ spec:
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"index_patterns":["security-findings-*"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0,"index.lifecycle.name":"swirl-cloud-security-findings"},"mappings":{"dynamic_templates":[{"strings":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":1024}}}],"properties":{"@timestamp":{"type":"date"},"description":{"type":"text"},"summary":{"type":"text"}}}}}' \
                 "${endpoint}/_index_template/security-findings" >/dev/null
+              # Single-document state index; one shard and no replica like every
+              # other platform index, so a single node stays green.
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"index_patterns":["security-detection-state"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0}}}' \
+                "${endpoint}/_index_template/security-detection-state" >/dev/null
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' --data-binary '{"index":{"number_of_replicas":0}}' \
+                "${endpoint}/security-detection-state*/_settings?allow_no_indices=true&ignore_unavailable=true" >/dev/null
               if [ -n "${SECURITY_DETECTION_PASSWORD:-}" ]; then
                 put_user security_detection "$SECURITY_DETECTION_PASSWORD" '["security_detection"]' 'Security Detection Reader'
               fi
