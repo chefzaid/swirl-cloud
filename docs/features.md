@@ -79,6 +79,7 @@ the pieces fit together.
 - every alert labelled with an owner and linked to its runbook section
 - availability probes for every Ingress host, a 99.5 % objective with multi-window burn-rate alerts and a Service Levels dashboard
 - hourly snapshots of availability, cost and compliance kept 13 months in Elasticsearch for the monthly Platform Report
+- capacity planning on requests and usage, headroom after losing the largest server, capacity to add, and days until storage fills
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
 - generated per-application Grafana and Kibana dashboards from namespace labels
 - Trivy Operator vulnerability, configuration, RBAC, secret and compliance reports

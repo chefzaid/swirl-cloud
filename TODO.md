@@ -711,7 +711,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
 - [ ] OpenTelemetry: a collector, a trace backend and automatic instrumentation for Java and Node applications; correlate traces with logs and metrics in Grafana. Decide in the ADR whether logs stay in Elasticsearch.
-- [ ] Capacity forecasting per node and per project (CPU, memory, disk, volume growth) with a recommended hardware addition before exhaustion.
+- [x] Capacity planning: requested and used CPU/memory per server, requests after losing the largest server, cores and memory to add to stay below 70 %, days until filesystems and volumes fill; `ClusterCapacityRequestsHigh` and `ClusterCannotSurviveNodeLoss` alerts; Grafana **Capacity Planning** ([capacity planning](docs/guides/capacity-planning.md)); per-namespace history in the platform reports. *(2026-10-05: CPU requests at 96 % of allocatable with 15 % used; about 3 cores to add or to release by rightsizing)*
+- [ ] Rightsize the largest CPU requests in `infra` and `longhorn-system` (requests 96 % of allocatable, usage 15 %) before adding hardware; application repositories adjust their own.
 - [ ] Application-level backup and restore per project namespace (manifests, volumes and claimed databases), including self-service restore into a sandbox and moving a project between clusters.
 - [ ] Scheduled game days in non-production environments (pod and node loss, DNS failure, storage degradation) with recorded results.
 

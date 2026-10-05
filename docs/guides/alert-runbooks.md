@@ -62,6 +62,25 @@ space now as for [PersistentVolumeSpaceLow](#persistentvolumespacelow).
 The volume is predicted to fill within 24 hours. Identify the writer from the
 claim's namespace and stop runaway growth before expanding.
 
+### ClusterCapacityRequestsHigh
+
+Running pods request more than 90 % of the cluster's allocatable CPU or memory.
+Requests reserve capacity whether used or not, so new pods, rollouts and pods
+moved after a restart may stay Pending even when real usage is low.
+
+- Compare requested with used capacity in Grafana **Capacity Planning** and
+  **Cost Showback → Rightsizing**; lower the largest over-sized requests in the
+  owning manifests first.
+- When usage is also high, add a server: the dashboard shows how many cores and
+  how much memory keep requests below 70 %. See [capacity planning](capacity-planning.md).
+
+### ClusterCannotSurviveNodeLoss
+
+The capacity left after losing the largest server is smaller than what running
+pods request, so a host failure would leave workloads unscheduled. Lower
+requests or add a server until the ratio on **Capacity Planning** stays below
+100 %; this is a prerequisite for high availability.
+
 ## Kubernetes workloads
 
 ### KubernetesDeploymentUnavailable
