@@ -645,7 +645,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [x] Support matrix in the [deployment guide](docs/deployment.md#support-matrix): Ubuntu LTS (tested 26.04), x86_64 (GitLab is amd64-only), K3s pin, topologies, and minimum/recommended/reference sizes from measured requests and usage. *(2026-10-05)*
 - [ ] Extend the support matrix with sizing profiles (§26), additional tested Ubuntu releases and named providers once installations on them are verified.
 - [ ] Publish versioned product documentation from `docs/` (administrator, operator and application-team guides, API reference), one version per release.
-- [ ] Offer the hub, portal and installer messages in French and English.
+- [x] Keycloak sign-in, account and administration pages in English and French, chosen from the browser language with a selector; Odoo already has French installed. *(2026-10-05)*
+- [ ] Offer the setup hub, installer messages and portal (Homepage) in French and English.
 
 ### 33. Sovereignty mode and provider independence
 

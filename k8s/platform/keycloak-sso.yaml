@@ -169,9 +169,15 @@ data:
       "passwordPolicy":"length(12) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1) and notUsername(undefined)",
       "accessTokenLifespan":300,
       "ssoSessionIdleTimeout":28800,
-      "ssoSessionMaxLifespan":36000
+      "ssoSessionMaxLifespan":36000,
+      "internationalizationEnabled":true,
+      "supportedLocales":["en","fr"],
+      "defaultLocale":"en"
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
+    # Sign-in and account pages follow the browser language (English or
+    # French), with a language selector; the administration console too.
+    expect_success "$(request PUT "realms/master" '{"internationalizationEnabled":true,"supportedLocales":["en","fr"],"defaultLocale":"en"}')"
 
     # Keycloak 26 ignores attributes that are not declared in the realm user
     # profile. Keep the bootstrap identity's future LDAP migration marker as an
