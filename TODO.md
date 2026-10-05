@@ -701,7 +701,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 ### 38. Reliability, SLOs and observability depth
 
-- [ ] SLOs for the portal, Git, CI, Registry, Argo CD, SSO, ingress and data services, with multi-window burn-rate alerts and a monthly SLO report; these define the managed-service SLA.
+- [x] Availability SLO (99.5 %) for every public endpoint (portal, Git, Registry, Argo CD, SSO, Odoo and every application host, discovered from Ingresses) measured by blackbox probes over the public path; multi-window burn-rate alerts; Grafana **Service Levels** with availability and budget left per endpoint ([service levels](docs/guides/service-levels.md)). *(live, 2026-10-05: 25 endpoints probed, all up)*
+- [ ] SLIs that probes do not cover: CI job success and queue time, Registry push/pull, Argo CD sync latency and data-service availability; then a monthly SLO report per service (needs the retention increase in §26 or exported monthly figures). These define the managed-service SLA.
 - [x] Every alert rule carries an `owner` label (`platform`, `security`, or `application` for application namespaces) and a `runbook_url` to its section of [alert runbooks](docs/guides/alert-runbooks.md); validation rejects an alert without both. *(2026-10-05, 44 alerts)*
 - [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
