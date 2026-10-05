@@ -674,8 +674,10 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 ### 36. Compliance evidence and governance
 
-- [ ] Control catalog mapping platform controls to NIS2 Article 21 measures, ISO/IEC 27001:2022 Annex A, DORA ICT risk management, GDPR Article 32 and the CIS Kubernetes and Ubuntu benchmarks. Each control names its automated evidence (Trivy compliance, Lynis, Keycloak configuration, backup and restore metrics, audit logs, alert history) or the manual evidence required.
-- [ ] Compliance dashboard with a status per framework and control, drift alerts, and an exportable evidence pack per period (signed archive with timestamps and hashes) that an auditor can verify.
+- [x] Control catalog ([`k8s/files/compliance-controls.yaml`](k8s/files/compliance-controls.yaml)): 25 controls mapped to NIS2 Article 21(2)/23, ISO/IEC 27001:2022 Annex A, DORA, GDPR and the CIS Kubernetes and Ubuntu benchmarks; each names its automated Prometheus evidence (reusing alert thresholds) or the manual evidence required ([compliance evidence](docs/guides/compliance-evidence.md)). *(live, 2026-10-05)*
+- [x] Helm-generated recording rules evaluate every control continuously; Grafana **Compliance Evidence** dashboard per framework, control and requirement; `ComplianceControlRegressed` drift alert; `./install.sh --compliance [--evidence-pack --sign-key KEY]` writes a hashed, SSH-signed archive that `--verify` checks offline (tamper test fails as expected). *(live, 2026-10-05: NIS2 12/16, ISO 27001 13/17, DORA 12/16, GDPR 10/11, CIS 6/9 automated controls passing)*
+- [ ] Generate the evidence pack monthly on a timer and keep it with the tamper-evident audit store below; Prometheus history covers only hours today (§26).
+- [ ] Triage the standing failures the report shows (15 CIS Kubernetes and 3 Pod Security Baseline checks, `gitlab-runners`/`host-agents` without NetworkPolicies) and record accepted exceptions with owner, rationale and review date in the catalog.
 - [ ] **ADR — policy engine:** Kyverno versus ValidatingAdmissionPolicy only. Ship policy packs (images only from the internal Registry and signed, no mutable tags, resource limits, `owner` and data-classification labels, no privilege in project namespaces) in audit mode first, then enforce; exceptions carry an owner and an expiry like the Trivy exceptions.
 - [ ] Sign application images in platform CI and verify signatures at admission for `prod` (and `uat` once stable).
 - [x] Keycloak login and admin events stored in every realm for 90 days (admin details off), and every event logged and kept at least a year in `identity-audit-*` with parsed fields ([identity events](docs/security.md#identity-events)). *(live, 2026-10-04: 50 events indexed within minutes of rollout)*
@@ -762,7 +764,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Licensing ADR and product releases | Per-component licence review; signed bundles, SBOM, offline install and a green N-1 → N upgrade qualification | §32 |
 | P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh, GitHub optional; strict profile installs with no external call reported | §33 |
 | P2 | Tenancy, roles and self-service data | `infra` isolation (§6) first; cross-project access denied in tests; claims include backups and alerts | §34 |
-| P2 | Compliance catalog and evidence pack | Evidence produced from live checks; policy packs in audit, then enforced | §36 |
+| P2 | Compliance policy packs and periodic evidence | Policy packs in audit, then enforced; monthly evidence packs archived | §36 |
 | P2 | SLOs, runbooks, status page and on-call | Every alert has a runbook; external status page; burn-rate alerts tested | §38 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
 | P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
