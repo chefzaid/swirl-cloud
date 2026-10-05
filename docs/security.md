@@ -168,6 +168,11 @@ Fluent Bit ships the log from every control plane to Elasticsearch indices
 lifecycle policy deletes after 30 days. In Kibana, create a data view for
 `kubernetes-audit-*` and filter on `objectRef.resource : secrets`.
 
+## Security detection
+
+The [security detection](guides/security-detection.md) job turns identity
+events, the API audit log and Keycloak state into alerts every five minutes.
+
 ## Compliance evidence
 
 The [compliance evidence guide](guides/compliance-evidence.md) maps the controls

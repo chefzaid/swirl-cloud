@@ -1,0 +1,275 @@
+# Security detection rules over identity events, the Kubernetes API audit log
+# and Keycloak state, run every five minutes; findings are posted to
+# Alertmanager like Prometheus alerts. See docs/guides/security-detection.md.
+#
+# The job reads audit indices with its own Elasticsearch account. Its password
+# is generated in the cluster (External Secrets Password generator) and the
+# Elasticsearch security bootstrap creates the account from it.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: security-detection-password
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  length: 40
+  digits: 8
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: security-detection-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  # Generate once; the Elasticsearch bootstrap re-applies it on every sync.
+  refreshInterval: "0"
+  target:
+    name: security-detection-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        ELASTICSEARCH_USERNAME: security_detection
+        ELASTICSEARCH_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: security-detection-password
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-detection
+  namespace: infra
+data:
+  detect.mjs: |
+    // Each rule returns findings for the recent window. Every run re-posts the
+    // current findings with a 30-minute end time, so an alert stays active while
+    // its evidence is in the window and resolves on its own afterwards.
+    const elasticsearch = process.env.ELASTICSEARCH_URL;
+    const alertmanager = process.env.ALERTMANAGER_URL;
+    const keycloak = process.env.KEYCLOAK_URL;
+    const realm = process.env.KEYCLOAK_REALM;
+    const runbooks = process.env.RUNBOOK_BASE_URL;
+    const esAuth = "Basic " + Buffer.from(
+      `${process.env.ELASTICSEARCH_USERNAME}:${process.env.ELASTICSEARCH_PASSWORD}`).toString("base64");
+    const now = Date.now();
+    const minutes = (count) => new Date(now - count * 60000).toISOString();
+    const LEARNING_DAYS = 7;
+    // Identities whose RBAC writes are expected: GitOps, K3s and Kubernetes controllers.
+    const RBAC_WRITERS = /^(system:serviceaccount:infra:argocd-|system:k3s-supervisor$|system:kube-controller-manager$|system:apiserver$|system:serviceaccount:kube-system:)/;
+
+    async function search(index, body) {
+      const response = await fetch(`${elasticsearch}/${index}/_search?ignore_unavailable=true&allow_no_indices=true`, {
+        method: "POST", headers: { Authorization: esAuth, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!response.ok) throw new Error(`${index}: HTTP ${response.status} ${(await response.text()).slice(0, 300)}`);
+      return response.json();
+    }
+
+    async function bruteForceThenSuccess() {
+      const failures = await search("identity-audit-*", { size: 0,
+        query: { bool: { filter: [{ term: { "keycloak.type": "LOGIN_ERROR" } }, { range: { "@timestamp": { gte: minutes(15) } } }] } },
+        aggs: { users: { terms: { field: "keycloak.username", min_doc_count: 5, size: 50 },
+          aggs: { first: { min: { field: "@timestamp" } }, realm: { terms: { field: "keycloak.realmName", size: 1 } },
+                  sources: { terms: { field: "keycloak.ipAddress", size: 5 } } } } } });
+      const findings = [];
+      for (const bucket of failures.aggregations?.users?.buckets || []) {
+        const success = await search("identity-audit-*", { size: 1, sort: [{ "@timestamp": "asc" }],
+          query: { bool: { filter: [{ term: { "keycloak.type": "LOGIN" } }, { term: { "keycloak.username": bucket.key } },
+                                    { range: { "@timestamp": { gt: bucket.first.value_as_string } } }] } } });
+        const hit = success.hits.hits[0];
+        if (!hit) continue;
+        findings.push({ alertname: "IdentityBruteForceThenSuccess", severity: "critical", username: bucket.key,
+          realm: bucket.realm.buckets[0]?.key || "",
+          summary: "Successful login after repeated password failures",
+          description: `${bucket.key} failed ${bucket.doc_count} logins from ${bucket.sources.buckets.map((b) => b.key).join(", ")} `
+            + `and then signed in from ${hit._source.keycloak?.ipAddress || "an unknown address"}; confirm it was the owner.` });
+      }
+      return findings;
+    }
+
+    async function rbacChangedOutsideGitOps() {
+      const result = await search("kubernetes-audit-*", { size: 0,
+        query: { bool: {
+          filter: [{ terms: { "objectRef.resource": ["clusterrolebindings", "rolebindings", "clusterroles", "roles"] } },
+                   { terms: { verb: ["create", "update", "patch", "delete"] } }, { range: { "@timestamp": { gte: minutes(15) } } }],
+          must_not: [{ wildcard: { requestURI: "*dryRun*" } }, { range: { "responseStatus.code": { gte: 400 } } }] } },
+        aggs: { users: { terms: { field: "user.username", size: 50 },
+          aggs: { objects: { multi_terms: { terms: [{ field: "objectRef.resource" }, { field: "objectRef.name" }], size: 5 } } } } } });
+      return (result.aggregations?.users?.buckets || []).filter((b) => !RBAC_WRITERS.test(b.key)).map((bucket) => ({
+        alertname: "KubernetesRBACChangedOutsideGitOps", severity: "warning", user: bucket.key,
+        summary: "Kubernetes permissions changed outside GitOps",
+        description: `${bucket.key} changed ${bucket.doc_count} RBAC objects (${bucket.objects.buckets.map((b) => b.key.join(" ")).join(", ")}); `
+          + "check that the change is intended and back-port it to Git." }));
+    }
+
+    async function secretReadByNewIdentity() {
+      const history = await search("kubernetes-audit-*", { size: 0, aggs: { first: { min: { field: "@timestamp" } } } });
+      const first = history.aggregations?.first?.value;
+      if (!first || now - first < LEARNING_DAYS * 86400000) return [];
+      const recent = await search("kubernetes-audit-*", { size: 0,
+        query: { bool: { filter: [{ term: { "objectRef.resource": "secrets" } }, { terms: { verb: ["get", "list", "watch"] } },
+                                  { range: { "@timestamp": { gte: minutes(15) } } }] } },
+        aggs: { users: { terms: { field: "user.username", size: 200 },
+          aggs: { names: { terms: { field: "objectRef.namespace", size: 5 } } } } } });
+      const findings = [];
+      for (const bucket of recent.aggregations?.users?.buckets || []) {
+        const before = await search("kubernetes-audit-*", { size: 0, track_total_hits: 1,
+          query: { bool: { filter: [{ term: { "objectRef.resource": "secrets" } }, { term: { "user.username": bucket.key } },
+                                    { range: { "@timestamp": { gte: `now-${LEARNING_DAYS}d`, lt: minutes(15) } } }] } } });
+        if (before.hits.total.value > 0) continue;
+        findings.push({ alertname: "KubernetesSecretReadByNewIdentity", severity: "warning", user: bucket.key,
+          summary: "An identity read Kubernetes Secrets for the first time in a week",
+          description: `${bucket.key} read Secrets ${bucket.doc_count} times in namespaces `
+            + `${bucket.names.buckets.map((b) => b.key).join(", ")}; confirm the workload or person should.` });
+      }
+      return findings;
+    }
+
+    async function keycloakToken() {
+      const response = await fetch(`${keycloak}/realms/master/protocol/openid-connect/token`, { method: "POST",
+        body: new URLSearchParams({ client_id: "admin-cli", grant_type: "password",
+          username: process.env.KC_BOOTSTRAP_ADMIN_USERNAME, password: process.env.KC_BOOTSTRAP_ADMIN_PASSWORD }) });
+      if (!response.ok) throw new Error(`Keycloak login: HTTP ${response.status}`);
+      return (await response.json()).access_token;
+    }
+
+    async function newPlatformAdministrators() {
+      const token = await keycloakToken();
+      const get = async (path) => {
+        const response = await fetch(`${keycloak}/admin/realms/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error(`Keycloak ${path}: HTTP ${response.status}`);
+        return response.json();
+      };
+      const groups = await get(`${realm}/groups?search=platform-admins&exact=true`);
+      const admins = new Set();
+      for (const group of groups.filter((g) => g.name === "platform-admins")) {
+        for (const user of await get(`${realm}/groups/${group.id}/members?max=1000`)) admins.add(`${realm}/${user.username}`);
+      }
+      for (const user of await get("master/roles/admin/users?max=1000")) admins.add(`master/${user.username}`);
+      const state = `${elasticsearch}/security-detection-state/_doc/platform-administrators`;
+      const previous = await fetch(state, { headers: { Authorization: esAuth } });
+      if (!previous.ok && previous.status !== 404) throw new Error(`state: HTTP ${previous.status}`);
+      // The first run records a baseline; later runs report additions.
+      const stored = previous.ok ? (await previous.json())._source : null;
+      const known = stored ? new Set(stored.administrators) : null;
+      const added = known ? [...admins].filter((a) => !known.has(a)) : [];
+      // Keep reporting a new administrator for a day, then accept them as known.
+      const pending = stored?.pending || {};
+      for (const name of added) pending[name] = pending[name] || new Date(now).toISOString();
+      for (const [name, since] of Object.entries(pending)) {
+        if (!admins.has(name) || now - Date.parse(since) > 86400000) delete pending[name];
+      }
+      const write = await fetch(state, { method: "PUT", headers: { Authorization: esAuth, "Content-Type": "application/json" },
+        body: JSON.stringify({ "@timestamp": new Date(now).toISOString(), administrators: [...admins].sort(), pending }) });
+      if (!write.ok) throw new Error(`state: HTTP ${write.status} ${(await write.text()).slice(0, 200)}`);
+      return Object.keys(pending).map((name) => ({ alertname: "NewPlatformAdministrator", severity: "warning", administrator: name,
+        summary: "A new platform administrator was added",
+        description: `${name} became a platform administrator (platform-admins group or the master realm admin role); `
+          + "confirm the grant was approved." }));
+    }
+
+    const findings = [];
+    const failures = [];
+    for (const rule of [bruteForceThenSuccess, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators]) {
+      try {
+        findings.push(...await rule());
+      } catch (error) {
+        failures.push(`${rule.name}: ${error.message}`);
+      }
+    }
+    const alerts = findings.map(({ summary, description, ...labels }) => ({
+      labels: { ...labels, owner: "security", source: "security-detection" },
+      annotations: { summary, description, runbook_url: `${runbooks}#${labels.alertname.toLowerCase()}` },
+      startsAt: new Date(now).toISOString(), endsAt: new Date(now + 30 * 60000).toISOString() }));
+    if (alerts.length) {
+      const response = await fetch(`${alertmanager}/api/v2/alerts`, { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(alerts) });
+      if (!response.ok) failures.push(`Alertmanager: HTTP ${response.status}`);
+    }
+    console.log(`${findings.length} finding(s): ${findings.map((f) => f.alertname).join(", ") || "none"}`);
+    if (failures.length) {
+      console.error(failures.join("\n"));
+      process.exit(1);
+    }
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: security-detection
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 240
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 240
+      template:
+        metadata:
+          labels:
+            app: security-detection
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: detect
+              image: docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+              command: ["node", "/opt/security-detection/detect.mjs"]
+              env:
+                - name: ELASTICSEARCH_URL
+                  value: http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
+                - name: ALERTMANAGER_URL
+                  value: http://alertmanager.__INTERNAL_DNS_ZONE__:9093
+                - name: KEYCLOAK_URL
+                  value: http://keycloak:8080/auth
+                - name: KEYCLOAK_REALM
+                  value: __KEYCLOAK_REALM__
+                - name: RUNBOOK_BASE_URL
+                  value: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md
+              envFrom:
+                - secretRef:
+                    name: security-detection-credentials
+                - secretRef:
+                    name: keycloak-admin-secret
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /opt/security-detection
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: security-detection

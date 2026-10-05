@@ -75,6 +75,7 @@ Specialized procedures:
 - [Service levels](./docs/guides/service-levels.md): availability objectives and burn-rate alerts for every public endpoint
 - [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance kept for 13 months
 - [Capacity planning](./docs/guides/capacity-planning.md): requested and used capacity, server-loss headroom and what to add
+- [Security detection](./docs/guides/security-detection.md): alerts on suspicious logins, permission changes and Secret access
 
 ## Roadmap
 

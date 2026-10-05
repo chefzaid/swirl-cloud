@@ -99,6 +99,10 @@ controls:
         description: Prometheus scrapes its targets and Alertmanager is reachable.
         present: up{job="prometheus"}
         failing: ALERTS{alertname="PrometheusTargetDown",alertstate="firing"} or (up{job="prometheus"} == 0) or absent(prometheus_notifications_alertmanagers_discovered > 0)
+      - id: security-detection
+        description: The security detection job completed within the last 30 minutes.
+        present: kube_cronjob_status_last_successful_time{namespace="infra",cronjob="security-detection"}
+        failing: time() - kube_cronjob_status_last_successful_time{namespace="infra",cronjob="security-detection"} > 1800
     manual:
       - Alert notification route (mail or chat) and the on-call owner for critical alerts.
 

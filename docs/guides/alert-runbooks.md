@@ -322,6 +322,54 @@ The Vault unseal service has not run for 15 minutes, so Vault would stay sealed
 after a restart. `sudo systemctl status swirl-cloud-vault-unseal.timer` and
 restart it; see [VaultSealed](#vaultsealed).
 
+## Security detection
+
+These alerts come from the `security-detection` job, which checks identity
+events, the Kubernetes API audit log and Keycloak every five minutes and posts
+findings to Alertmanager. Each stays active for 30 minutes after its evidence
+was last seen. See [security detection](security-detection.md).
+
+### IdentityBruteForceThenSuccess
+
+An account had at least five failed logins in 15 minutes and then signed in.
+Either the owner remembered the password or someone guessed it.
+
+- Contact the owner through another channel. In Kibana, filter `identity-audit-*`
+  on `keycloak.username` for the failures and the successful login with source addresses.
+- If the owner did not sign in: disable the user in Keycloak, end their sessions
+  (**Users → Sessions → Sign out**), reset the password and review what the session did.
+
+### KubernetesRBACChangedOutsideGitOps
+
+Someone other than Argo CD or K3s created, changed or deleted a Role,
+ClusterRole or binding. Changes outside Git are reverted or drift, and new
+bindings can grant access silently.
+
+- In Kibana, filter `kubernetes-audit-*` on `user.username` and
+  `objectRef.resource : *bindings` for the exact objects and source addresses.
+- If the change is intended, back-port it to Git; if not, revert it and rotate
+  the credentials of the identity that made it. Installer reruns by
+  `system:admin` also trigger this alert.
+
+### KubernetesSecretReadByNewIdentity
+
+An identity read Secrets that it had not read during the previous week. New
+workloads and new operators cause this legitimately; a compromised token or a
+person browsing Secrets also does.
+
+- Check `kubernetes-audit-*` for the identity's Secret reads (`objectRef.name`,
+  `sourceIPs`) and whether a matching deployment or onboarding just happened.
+- If unexpected, revoke the identity (delete the ServiceAccount token or remove
+  the binding) and rotate the Secrets it read.
+
+### NewPlatformAdministrator
+
+A user joined `platform-admins` in the platform realm or received the `admin`
+role in the Keycloak master realm. The alert stays for a day.
+
+- Confirm the grant was approved. If not, remove the membership or role, end the
+  user's sessions and review the Keycloak admin events for who granted it.
+
 ## Ingress and monitoring
 
 ### IngressServiceErrorRateHigh

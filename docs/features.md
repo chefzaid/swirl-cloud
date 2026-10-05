@@ -85,6 +85,10 @@ the pieces fit together.
 - Trivy Operator vulnerability, configuration, RBAC, secret and compliance reports
 - SonarQube with automatic project provisioning and freshness-driven analysis requests
 
+## Security Detection
+
+- alerts for a successful login after repeated failures, RBAC changes outside GitOps, Secret reads by new identities and new platform administrators, every five minutes
+
 ## Host Security
 
 - UFW default deny on every node and IPv4/IPv6 forwarding guards
