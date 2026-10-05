@@ -46,8 +46,8 @@ Grafana's **Compliance Evidence** dashboard (Applications folder) shows the
 passing share per framework, every control and check needing attention, the
 requirement coverage per framework and the controls proven only by documents.
 
-`ComplianceControlRegressed` fires when a control has been worse than its best
-state of the last six hours for 30 minutes, for example a firewall turned off,
+`ComplianceControlRegressed` fires when a control has been worse than its usual
+state (the median of the last six hours) for 30 minutes, for example a firewall turned off,
 a backup that stopped or a vulnerability baseline exceeded. Standing failures
 stay visible on the dashboard without paging repeatedly.
 

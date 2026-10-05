@@ -1278,9 +1278,10 @@ data:
                 or count by (framework) (swirl_cloud_compliance_framework_control_status) * 0
               )
               / count by (framework) (swirl_cloud_compliance_framework_control_status)
-          # Drift: a control is worse than its best state in the last six hours.
+          # Drift: a control is worse than its usual state (six-hour median), so
+          # brief evaluation gaps such as an exporter restart do not count.
           - alert: ComplianceControlRegressed
-            expr: swirl_cloud_compliance_control_status < max_over_time(swirl_cloud_compliance_control_status[6h])
+            expr: swirl_cloud_compliance_control_status < quantile_over_time(0.5, swirl_cloud_compliance_control_status[6h])
             for: 30m
             labels:
               severity: warning

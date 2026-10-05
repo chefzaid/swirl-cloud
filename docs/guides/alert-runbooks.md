@@ -422,7 +422,7 @@ intermittent failures (restarts, OOM kills, a flapping dependency) on the
 ### ComplianceControlRegressed
 
 A compliance control is now failing or lost its evidence, compared with its
-best state in the last six hours. Run `./install.sh --compliance` to see which
+usual state (the median of the last six hours). Run `./install.sh --compliance` to see which
 check changed and the failing series, then follow that check's alert runbook
 (for example [HostFirewallDisabled](#hostfirewalldisabled) or
 [K3sRecoveryBackupMissing](#k3srecoverybackupmissing)). See
