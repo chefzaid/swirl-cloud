@@ -43,7 +43,7 @@ def main():
             results.append({"namespace": namespace, "kind": item["kind"], "name": item["metadata"]["name"],
                             "violations": violations,
                             "error": "" if result.returncode == 0 else result.stderr.strip().splitlines()[-1]})
-    rules = Counter(v.split(":")[0] for r in results for v in r["violations"])
+    rules = Counter(v.rsplit(": ", 1)[0] for r in results for v in r["violations"])
     failing = [r for r in results if r["violations"] or r["error"]]
     if args.format == "json":
         print(json.dumps({"workloads": len(results), "violating": len(failing), "rules": rules, "results": results}, indent=2))
