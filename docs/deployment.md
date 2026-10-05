@@ -678,6 +678,13 @@ platform resources after bootstrap; it does not upgrade its own Argo CD Helm
 release. Reconcile Helm changes through the installer, Ansible, or a Helm upgrade
 with those same rendered inputs and pins.
 
+Bootstrap Jobs such as `elasticsearch-security-bootstrap` and
+`keycloak-sso-reconcile` are sync hooks: they run during a sync operation, and
+automated sync only starts one when a regular resource differs from Git. A
+commit that changes only a hook Job leaves the Application Synced without running
+it; start a sync of the current revision (Argo CD **Sync**, or
+`kubectl -n infra patch application swirl-cloud --type merge -p '{"operation":{"sync":{}}}'`).
+
 With `HIGH_AVAILABILITY_ENABLED=true`, the installer and Ansible also apply
 [`config/argocd-ha-values.yaml`](../config/argocd-ha-values.yaml). API/repository
 servers and ApplicationSet controllers run in pairs on separate hosts. The
