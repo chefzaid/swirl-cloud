@@ -646,7 +646,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Extend the support matrix with sizing profiles (§26), additional tested Ubuntu releases and named providers once installations on them are verified.
 - [ ] Publish versioned product documentation from `docs/` (administrator, operator and application-team guides, API reference), one version per release.
 - [x] Keycloak sign-in, account and administration pages in English and French, chosen from the browser language with a selector; Odoo already has French installed. *(2026-10-05)*
-- [ ] Offer the setup hub, installer messages and portal (Homepage) in French and English.
+- [x] Setup hub in French with `./install.sh --lang fr` (or `SWIRL_CLOUD_LANG=fr`): menus, overview, every input prompt and help, checks, maintenance and common messages, translated where text reaches whiptail; untranslated lines stay in English. *(2026-10-05)*
+- [ ] Translate the installer engine's console messages, the verification report and the portal (Homepage) for French installations.
 
 ### 33. Sovereignty mode and provider independence
 

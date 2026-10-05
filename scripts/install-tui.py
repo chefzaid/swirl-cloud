@@ -23,6 +23,7 @@ from install_inputs import (FILE_SUFFIX, INPUTS, SCHEMA_VERSION, SECTIONS, TRUE,
                             applies, check_value, parse, read, read_secret_file, resolve, validate, write)
 from tui_checks import FAIL, credential_checks, host_checks, render, unit_exists  # noqa: E402
 from tui_dialog import Cancelled, Dialog  # noqa: E402
+from tui_i18n import set_language  # noqa: E402
 from install_plan import plan, render as render_plan  # noqa: E402
 
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "swirl-cloud"
@@ -561,7 +562,10 @@ MENU = [("overview", "What gets installed and the current state"),
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help=f"input file (default: {DEFAULT_OUTPUT})")
+    parser.add_argument("--lang", choices=("en", "fr"), help="hub language (default: SWIRL_CLOUD_LANG, else English)")
     args = parser.parse_args()
+    if args.lang:
+        set_language(args.lang)
     output = args.output.expanduser().resolve()
     if ROOT in output.parents:
         raise SystemExit("Keep the input file outside the repository checkout; it contains credentials.")

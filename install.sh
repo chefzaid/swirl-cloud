@@ -3,6 +3,7 @@
 #
 #   ./install.sh                         guided setup hub (terminal UI)
 #   ./install.sh --output FILE           hub with a different input file
+#   ./install.sh --lang fr               hub in French (also SWIRL_CLOUD_LANG=fr)
 #   ./install.sh --env-file FILE         unattended install/update from a saved file
 #   ./install.sh --env-file FILE --validate-only
 #   ... | ./install.sh --env-file FILE --secrets-stdin   secrets as NAME=value lines on stdin
@@ -24,7 +25,7 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,20s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,21s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -124,7 +125,7 @@ case "${1:-}" in
     -h|--help)
         usage
         ;;
-    ""|--output|--output=*)
+    ""|--output|--output=*|--lang|--lang=*)
         [[ -t 0 && -t 1 ]] || { echo "[ERROR] The setup hub needs a terminal; use --env-file for automation." >&2; exit 1; }
         ensure_packages tui
         exec python3 "$ROOT/scripts/install-tui.py" "$@"

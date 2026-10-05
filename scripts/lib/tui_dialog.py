@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import tempfile
 
+from tui_i18n import t
+
 TITLE = "Swirl Cloud"
 
 
@@ -30,7 +32,7 @@ class Dialog:
         read_end, write_end = os.pipe()
         command = [self.binary, "--title", TITLE, "--output-fd", str(write_end)]
         if self.backtitle:
-            command += ["--backtitle", self.backtitle]
+            command += ["--backtitle", t(self.backtitle)]
         try:
             result = subprocess.run(command + list(box), pass_fds=(write_end,))
         finally:
@@ -39,7 +41,7 @@ class Dialog:
             return result.returncode, output.read()
 
     def message(self, text, height=None):
-        self.run("--scrolltext", "--msgbox", text, str(height or self.height), str(self.width))
+        self.run("--scrolltext", "--msgbox", t(text), str(height or self.height), str(self.width))
 
     def private(self, text):
         """Show text that contains a secret without putting it in a process argument."""
@@ -50,6 +52,7 @@ class Dialog:
             self.run("--scrolltext", "--textbox", str(path), str(self.height), str(self.width))
 
     def yes_no(self, text, default=True, yes="Yes", no="No"):
+        text, yes, no = t(text), t(yes), t(no)
         code, _ = self.run(*([] if default else ["--defaultno"]), "--yes-button", yes, "--no-button", no,
                            "--yesno", text, str(min(self.height, 8 + text.count("\n"))), str(self.width))
         if code == 255:
@@ -57,21 +60,25 @@ class Dialog:
         return code == 0
 
     def text(self, prompt, initial=""):
-        code, answer = self.run("--inputbox", prompt, str(min(self.height, 10 + prompt.count("\n"))),
-                                str(self.width), initial)
+        prompt = t(prompt)
+        code, answer = self.run("--cancel-button", t("Cancel"), "--inputbox", prompt,
+                                str(min(self.height, 10 + prompt.count("\n"))), str(self.width), initial)
         if code:
             raise Cancelled
         return answer.strip()
 
     def password(self, prompt):
-        code, answer = self.run("--passwordbox", prompt, str(min(self.height, 10 + prompt.count("\n"))), str(self.width))
+        prompt = t(prompt)
+        code, answer = self.run("--cancel-button", t("Cancel"), "--passwordbox", prompt,
+                                str(min(self.height, 10 + prompt.count("\n"))), str(self.width))
         if code:
             raise Cancelled
         return answer
 
     def menu(self, prompt, items, default=None, cancel="Back"):
-        flat = [part for tag, label in items for part in (tag, label)]
-        extra = (["--default-item", default] if default else []) + ["--cancel-button", cancel]
+        prompt = t(prompt)
+        flat = [part for tag, label in items for part in (tag, t(label))]
+        extra = (["--default-item", default] if default else []) + ["--cancel-button", t(cancel)]
         rows = min(len(items), self.height - 9 - prompt.count("\n"))
         code, answer = self.run(*extra, "--menu", prompt, str(self.height), str(self.width), str(max(rows, 3)), *flat)
         if code:

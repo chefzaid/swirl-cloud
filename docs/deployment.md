@@ -63,7 +63,8 @@ unattended runs require it to be ready.
 
 ## Choose an entry point
 
-`./install.sh` is the entry point. Run it without arguments for the setup hub:
+`./install.sh` is the entry point. Run it without arguments for the setup hub
+(`./install.sh --lang fr`, or `SWIRL_CLOUD_LANG=fr`, shows it in French):
 
 ```bash
 ./install.sh
