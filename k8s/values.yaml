@@ -173,8 +173,9 @@ trivy-operator:
   resources:
     # Report caching and detailed metrics reached the previous 512Mi limit,
     # causing repeated health-check timeouts and stale vulnerability reports.
+    # CPU peaked at 0.06 core over 6 h on 2026-10-05.
     requests:
-      cpu: 250m
+      cpu: 100m
       memory: 384Mi
     limits:
       cpu: "1"

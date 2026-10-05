@@ -1672,9 +1672,10 @@ spec:
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20
+          # CPU peaked at 0.07 core over 6 h on 2026-10-05.
           resources:
             requests:
-              cpu: 200m
+              cpu: 100m
               memory: 256Mi
             limits:
               cpu: "1"

@@ -404,10 +404,12 @@ spec:
           mountPath: /opt/sonarqube/temp
         - name: tmp
           mountPath: /tmp
+        # Requests follow measured use (peak 0.09 core over 6 h on 2026-10-05);
+        # analyses burst up to the limit.
         resources:
           requests:
             memory: "2Gi"
-            cpu: "250m"
+            cpu: "150m"
           limits:
             memory: "4Gi"
             cpu: "2"

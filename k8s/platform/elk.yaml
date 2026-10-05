@@ -1169,13 +1169,14 @@ spec:
           value: '["authorization"]'
         - name: NODE_OPTIONS
           value: "--max-old-space-size=1536"
+        # Requests follow measured use (peak 0.04 core over 6 h on 2026-10-05).
         resources:
           limits:
             memory: "2Gi"
             cpu: "1"
           requests:
             memory: "1Gi"
-            cpu: "250m"
+            cpu: "100m"
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
