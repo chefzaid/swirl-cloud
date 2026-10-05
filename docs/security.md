@@ -315,7 +315,7 @@ advisory scope and how the platform runs the component; it was not exploit-teste
 | SonarQube 26.9.0 Community | Netty SNI routing, Bouncy Castle | Latest Community release; plain HTTP behind Traefik. Exception. |
 | GitLab CE 19.4.1 | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck the next 19.4 patch. |
 | GitLab Runner helper 19.4.1 (Alpine) | `miniperl` regular-expression handling | Fixed in Alpine `5.42.2-r1`; 19.4.1 is the latest helper. Job helpers do not run untrusted Perl. Exception. |
-| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Tracked in TODO §21 with the Longhorn compatibility matrix. |
+| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | No v5.3 patch exists upstream. Longhorn 1.13.0 (2026-09-29) bundles `csi-provisioner` v6.3.0 with its supported sidecars, so the fix arrives with that Longhorn upgrade, done in a maintenance window per [image updates](operations.md#image-updates); overriding one sidecar alone stays outside Longhorn's support matrix. Exception until then. |
 | MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
 | PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. Moving PostgreSQL to a newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 
