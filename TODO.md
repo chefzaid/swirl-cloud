@@ -696,7 +696,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 ### 37. Security operations
 
 - [ ] **ADR — runtime detection:** Falco or Tetragon with curated rules (shell in a container, unexpected egress, mining, sensitive file reads, privilege escalation), alerting through Alertmanager and indexed for investigation.
-- [ ] Detection rules correlating host, Kubernetes API, identity and HTTP events (brute force followed by success, new administrator, secret read by an unusual identity, impossible travel) with severity and a linked runbook.
+- [x] Detection rules every five minutes, posted to Alertmanager with severity, `owner: security` and runbooks: brute force followed by success, new platform administrator (Keycloak state), RBAC changed outside GitOps (dry-runs excluded), Secret read by an identity unseen for a week (after a 7-day learning period) ([security detection](docs/guides/security-detection.md)). *(live, 2026-10-05: RBAC rule verified with a test RoleBinding)*
+- [ ] Extend detection to host events (Fail2ban/CrowdSec bans followed by a successful SSH login, sudo by unexpected users), HTTP events once Traefik access logs are shipped (§4), and impossible travel once logins carry a geolocation.
 - [ ] Encryption at rest for application volumes (Longhorn encrypted volumes with keys in Vault) and a documented disk-encryption option for hosts in rented data centers.
 - [ ] Ransomware-resilient backups: off-site copies under retention lock, written with credentials that cannot delete or overwrite retained data, so a compromised cluster cannot destroy its backups (§16).
 - [ ] Just-in-time administration: time-limited `platform-admins` membership requested, approved and recorded, replacing permanent membership for daily users; recorded `kubectl` and SSH sessions (with §29's Nexterm or an equivalent).
