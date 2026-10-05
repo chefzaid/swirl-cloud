@@ -6,8 +6,12 @@
 {{- $path := index . 1 -}}
 {{- $content := $root.Files.Get $path -}}
 {{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "platform/monitoring.yaml" -}}
-{{- $checksum := printf "%s\n%s" ($root.Files.Get $source) (include "swirl-cloud.identity" $root) | sha256sum -}}
+{{- $extra := eq $source "platform/monitoring.yaml" | ternary ($root.Files.Get "files/compliance-controls.yaml") "" -}}
+{{- $checksum := printf "%s\n%s%s" ($root.Files.Get $source) (include "swirl-cloud.identity" $root) $extra | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
+{{- end -}}
+{{- if eq $path "platform/monitoring.yaml" -}}
+{{- $content = replace "      # swirl-cloud:compliance-evidence-rules" (include "swirl-cloud.compliance-rule-groups" $root | indent 6) $content -}}
 {{- end -}}
 {{- $content = replace "swirl-cloud.io/application-data: disabled" (printf "swirl-cloud.io/application-data: %s" (toJson ($root.Values.applicationData | default dict) | sha256sum)) $content -}}
 {{- range $token, $value := (include "swirl-cloud.identity" $root | fromJson) -}}

@@ -55,6 +55,7 @@ GUIDES = """Files and commands
   Status         ./install.sh --status
   Rerun plan     ./install.sh --plan [--env-file FILE]
   Support bundle ./install.sh --support-bundle
+  Compliance     ./install.sh --compliance [--evidence-pack]
 
 Guides
 
@@ -388,6 +389,7 @@ def maintenance(dialog, values):
                 ("units", "Failed host maintenance units"),
                 ("logs", "Earlier run logs"),
                 ("bundle", "Create a support bundle (secrets redacted)"),
+                ("compliance", "Compliance report and evidence pack"),
                 ("kit", "Export the encrypted recovery kit"),
                 ("kit-verify", "Verify a recovery kit against the current keys")])
         except Cancelled:
@@ -440,6 +442,8 @@ def maintenance(dialog, values):
                                     text=True, timeout=900)
             dialog.message(("Support bundle written:\n\n" + result.stdout) if result.returncode == 0 else
                            "The support bundle failed:\n\n" + result.stderr[-2000:], 12)
+        elif choice == "compliance":
+            run_logged("Compliance report", [sys.executable, str(ROOT / "scripts/compliance-report.py"), "--evidence-pack"])
         elif choice == "units":
             result = subprocess.run(["systemctl", "list-units", "swirl-cloud-*", "--all", "--failed", "--no-pager",
                                      "--no-legend"], capture_output=True, text=True)

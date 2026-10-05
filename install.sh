@@ -9,13 +9,14 @@
 #   ./install.sh --status                verify an installed platform
 #   ./install.sh --plan [--env-file FILE]  show installed, missing or drifted stages
 #   ./install.sh --support-bundle        private troubleshooting archive (secrets redacted)
+#   ./install.sh --compliance [--evidence-pack]  control status for NIS2/ISO 27001/DORA/GDPR/CIS
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,11s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,12s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -66,6 +67,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/support-bundle.py" "$@"
+        ;;
+    --compliance)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/compliance-report.py" "$@"
         ;;
     -h|--help)
         usage

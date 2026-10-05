@@ -168,6 +168,12 @@ Fluent Bit ships the log from every control plane to Elasticsearch indices
 lifecycle policy deletes after 30 days. In Kibana, create a data view for
 `kubernetes-audit-*` and filter on `objectRef.resource : secrets`.
 
+## Compliance evidence
+
+The [compliance evidence guide](guides/compliance-evidence.md) maps the controls
+on this page to NIS2, ISO/IEC 27001, DORA, GDPR and CIS requirements, evaluates
+them continuously and exports signed evidence packs.
+
 ## Identity events
 
 `keycloak-sso-reconcile` turns on event storage in every Keycloak realm on each
@@ -522,3 +528,4 @@ See [security and access](#recovery-credentials) for credential lookup.
 - [Operations](operations.md)
 - [Data model](data-model.md)
 - [Node enrollment](guides/node-enrollment.md)
+- [Compliance evidence](guides/compliance-evidence.md)

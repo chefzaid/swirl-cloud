@@ -200,6 +200,7 @@ data:
 
     [OUTPUT]
         Name                      es
+        Alias                     identity_audit
         Match                     identity.*
         Host                      elasticsearch.__INTERNAL_DNS_ZONE__
         Port                      9200

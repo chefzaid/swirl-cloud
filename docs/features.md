@@ -97,6 +97,13 @@ the pieces fit together.
 - default-deny ingress for application and corporate namespaces
 - every platform image pinned by digest; every workload declares token mounting and resource budgets
 
+
+## Compliance Evidence
+
+- control catalog mapped to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS, evaluated continuously in Prometheus
+- Compliance Evidence dashboard and a drift alert when a control starts failing or loses its evidence
+- `./install.sh --compliance` report and a hashed, optionally SSH-signed evidence pack that auditors verify offline
+
 ## Administration And Corporate Tools
 
 - Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery

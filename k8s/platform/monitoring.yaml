@@ -1044,6 +1044,34 @@ data:
             annotations:
               summary: Prometheus target is down
               description: '{{ $labels.job }} target {{ $labels.instance }} has been unreachable for ten minutes.'
+      # Helm replaces the next line with per-check rules generated from
+      # k8s/files/compliance-controls.yaml (status 2 passing, 1 no evidence, 0 failing).
+      # swirl-cloud:compliance-evidence-rules
+      - name: swirl-cloud.compliance
+        rules:
+          - record: swirl_cloud_compliance_control_status
+            expr: min by (control) (swirl_cloud_compliance_check_status)
+          - record: swirl_cloud_compliance_framework_control_status
+            expr: |
+              min by (framework, control) (
+                swirl_cloud_compliance_requirement * on (control) group_left swirl_cloud_compliance_control_status
+              )
+          - record: swirl_cloud_compliance_framework_passing_ratio
+            expr: |
+              (
+                count by (framework) (swirl_cloud_compliance_framework_control_status == 2)
+                or count by (framework) (swirl_cloud_compliance_framework_control_status) * 0
+              )
+              / count by (framework) (swirl_cloud_compliance_framework_control_status)
+          # Drift: a control is worse than its best state in the last six hours.
+          - alert: ComplianceControlRegressed
+            expr: swirl_cloud_compliance_control_status < max_over_time(swirl_cloud_compliance_control_status[6h])
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: A compliance control started failing or lost its evidence
+              description: 'Control {{ $labels.control }} is now {{ if eq $value 0.0 }}failing{{ else }}without evidence{{ end }}. Open the Compliance Evidence dashboard or run ./install.sh --compliance.'
 
 ---
 apiVersion: v1
@@ -1823,6 +1851,736 @@ spec:
         - name: grafana-logs
           emptyDir:
             sizeLimit: 256Mi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-compliance-dashboard
+  namespace: infra
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: swirl-cloud
+data:
+  compliance-evidence.json: |
+    {
+      "uid": "compliance-evidence",
+      "title": "Compliance Evidence",
+      "description": "Continuous evidence for the platform control catalog (k8s/files/compliance-controls.yaml) mapped to NIS2, ISO/IEC 27001:2022, DORA, GDPR and CIS. Export a signed evidence pack with ./install.sh --compliance.",
+      "tags": [
+        "compliance",
+        "security",
+        "provisioned"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 41,
+      "version": 1,
+      "refresh": "5m",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "framework",
+            "label": "Framework",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "query": {
+              "query": "label_values(swirl_cloud_compliance_requirement, framework)",
+              "refId": "Framework"
+            },
+            "includeAll": true,
+            "allValue": ".*",
+            "multi": true,
+            "refresh": 1,
+            "current": {
+              "text": "All",
+              "value": [
+                "$__all"
+              ]
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Automated controls passing",
+          "description": "Share of automated controls mapped to each framework whose evidence is present and passing.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 14,
+            "x": 0,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_compliance_framework_passing_ratio{framework=~\"$framework\"}",
+              "legendFormat": "{{framework}}",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.6
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.9
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Controls by status",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 10,
+            "x": 14,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_status == 0) or vector(0)",
+              "legendFormat": "Failing",
+              "instant": true
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_status == 1) or vector(0)",
+              "legendFormat": "No evidence",
+              "instant": true
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_status == 2) or vector(0)",
+              "legendFormat": "Passing",
+              "instant": true
+            },
+            {
+              "refId": "D",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_info{automated=\"false\"}) or vector(0)",
+              "legendFormat": "Manual evidence only",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Failing"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "No evidence"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "orange"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Passing"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "green"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "type": "table",
+          "title": "Controls",
+          "description": "Status of every automated control: the worst of its checks.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 5
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_compliance_control_status * on (control) group_left (title) swirl_cloud_compliance_control_info",
+              "format": "table",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "filterable": true,
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Failing",
+                            "color": "red",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "No evidence",
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "2": {
+                            "text": "Passing",
+                            "color": "green",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "control": 0,
+                  "title": 1,
+                  "Value": 2
+                },
+                "renameByName": {
+                  "Value": "Status"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "table",
+          "title": "Checks needing attention",
+          "description": "Checks that are failing or have no evidence. The catalog describes each check and its queries.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 12,
+            "y": 5
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_compliance_check_status < 2",
+              "format": "table",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "filterable": true,
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Failing",
+                            "color": "red",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "No evidence",
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "2": {
+                            "text": "Passing",
+                            "color": "green",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "control": 0,
+                  "check": 1,
+                  "Value": 2
+                },
+                "renameByName": {
+                  "Value": "Status"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "table",
+          "title": "Requirement coverage",
+          "description": "Framework requirements covered by automated controls and their current status.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 17
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_compliance_requirement{framework=~\"$framework\"} * on (control) group_left swirl_cloud_compliance_control_status",
+              "format": "table",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "filterable": true,
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Failing",
+                            "color": "red",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "No evidence",
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "2": {
+                            "text": "Passing",
+                            "color": "green",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "framework": 0,
+                  "requirement": 1,
+                  "control": 2,
+                  "Value": 3
+                },
+                "renameByName": {
+                  "Value": "Status"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "table",
+          "title": "Manual evidence only",
+          "description": "Controls proven by documents rather than telemetry; ./install.sh --compliance lists the evidence each needs.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 12,
+            "y": 17
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_compliance_control_info{automated=\"false\"}",
+              "format": "table",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "filterable": true,
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "automated": true
+                },
+                "indexByName": {
+                  "control": 0,
+                  "title": 1
+                },
+                "renameByName": {}
+              }
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Control status over time",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 29
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_status == 0) or vector(0)",
+              "legendFormat": "Failing"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(swirl_cloud_compliance_control_status == 1) or vector(0)",
+              "legendFormat": "No evidence"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Failing"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "No evidence"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "orange"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        }
+      ]
+    }
 
 ---
 apiVersion: v1

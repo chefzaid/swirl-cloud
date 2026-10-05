@@ -1,0 +1,390 @@
+# Swirl Cloud control catalog: platform controls mapped to regulatory and
+# benchmark requirements, with the evidence that shows each control working.
+#
+# Automated checks are Prometheus queries evaluated continuously (generated
+# recording rules, see templates/resources.yaml) and on demand by
+# scripts/compliance-report.py:
+#   present: must return at least one series, proving the evidence exists;
+#   failing: returns series only while the control is not met.
+# A check passes when evidence is present and nothing is failing, fails when
+# anything is failing, and reports "no evidence" otherwise. Reuse an existing
+# alert (ALERTS{alertname=...}) as the failing signal so thresholds live in one
+# place. Manual evidence names what an operator must supply for an audit.
+#
+# Requirement references: NIS2 Directive (EU) 2022/2555 Article 21(2) and 23;
+# ISO/IEC 27001:2022 Annex A; DORA Regulation (EU) 2022/2554; GDPR Articles 30,
+# 32 and 33; CIS Kubernetes and Ubuntu Linux benchmarks.
+version: 1
+frameworks:
+  nis2: NIS2 Directive
+  iso27001: ISO/IEC 27001:2022 Annex A
+  dora: DORA
+  gdpr: GDPR
+  cis: CIS Benchmarks
+controls:
+  - id: identity-sso
+    title: Central identity and single sign-on
+    objective: People sign in to platform services through one identity provider that enforces password and brute-force policy; local accounts exist only for break-glass access.
+    frameworks:
+      nis2: ["21(2)(i)"]
+      iso27001: [A.5.15, A.5.16, A.5.17, A.8.5]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(b)]
+    checks:
+      - id: keycloak-available
+        description: The Keycloak identity provider has an available replica.
+        present: kube_deployment_status_replicas_available{namespace="infra",deployment="keycloak"}
+        failing: kube_deployment_status_replicas_available{namespace="infra",deployment="keycloak"} == 0
+    manual:
+      - Access control policy naming who receives which role and how access is approved.
+      - Export of Keycloak users, groups and role mappings for the review period.
+
+  - id: admin-mfa
+    title: Multi-factor authentication for administrators
+    objective: Administrator access to the platform requires a second factor.
+    frameworks:
+      nis2: ["21(2)(j)"]
+      iso27001: [A.8.2, A.8.5]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(b)]
+    manual:
+      - Keycloak authentication flow or required action enforcing OTP or WebAuthn for platform-admins, with a test login.
+      - Break-glass procedure for administrator access when the second factor is lost.
+
+  - id: access-review
+    title: Periodic access review
+    objective: Owners periodically confirm or revoke every person's roles, including local accounts outside single sign-on.
+    frameworks:
+      nis2: ["21(2)(i)"]
+      iso27001: [A.5.18, A.8.2]
+      dora: [Art. 9]
+    manual:
+      - Signed access review for the period covering Keycloak, GitLab, Vault, Argo CD, Grafana and local service accounts.
+
+  - id: audit-logging
+    title: Security audit logging
+    objective: Kubernetes API, secret-store and identity events are recorded centrally with defined retention.
+    frameworks:
+      nis2: ["21(2)(b)"]
+      iso27001: [A.8.15, A.5.28]
+      dora: [Art. 10]
+      gdpr: [Art. 32(1)(b)]
+      cis: [Kubernetes 3.2.1, Kubernetes 3.2.2]
+    checks:
+      - id: kubernetes-api-audit
+        description: Every control plane ships Kubernetes API audit events (no hour without events).
+        present: fluentbit_input_records_total{name="kubernetes_audit"} and on (node) kube_node_role{role=~"control-plane|master"}
+        failing: increase(fluentbit_input_records_total{name="kubernetes_audit"}[1h]) == 0 and on (node) kube_node_role{role=~"control-plane|master"}
+      - id: vault-audit
+        description: Vault audit devices record every request without failures.
+        present: last_over_time(vault_audit_log_request_count[1h])
+        failing: ALERTS{alertname="VaultAuditDeviceFailing",alertstate="firing"}
+      - id: identity-events
+        description: Keycloak login and admin events reach the identity-audit indices.
+        present: fluentbit_input_records_total{name="identity_audit_emitter"}
+        failing: increase(fluentbit_output_retries_failed_total{name="identity_audit"}[1h]) > 0
+    manual:
+      - Retention decision per data set and framework (currently 30 days API audit, at least one year identity events).
+
+  - id: security-monitoring
+    title: Security monitoring and alerting
+    objective: Metrics collection and alert routing run continuously so detected problems reach an operator.
+    frameworks:
+      nis2: ["21(2)(b)"]
+      iso27001: [A.8.16]
+      dora: [Art. 10]
+      gdpr: [Art. 32(1)(b)]
+    checks:
+      - id: monitoring-targets
+        description: Prometheus scrapes its targets and Alertmanager is reachable.
+        present: up{job="prometheus"}
+        failing: ALERTS{alertname="PrometheusTargetDown",alertstate="firing"} or (up{job="prometheus"} == 0) or absent(prometheus_notifications_alertmanagers_discovered > 0)
+    manual:
+      - Alert notification route (mail or chat) and the on-call owner for critical alerts.
+
+  - id: intrusion-prevention
+    title: Host intrusion prevention
+    objective: Fail2ban and CrowdSec block brute-force and known-bad sources on every host.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.16, A.8.20]
+      dora: [Art. 10]
+      gdpr: [Art. 32(1)(b)]
+    checks:
+      - id: intrusion-services
+        description: Intrusion prevention services run and report fresh metrics.
+        present: swirl_cloud_intrusion_service_up
+        failing: ALERTS{alertname=~"HostIntrusionPreventionDown|HostIntrusionMetricsStale",alertstate="firing"}
+
+  - id: host-firewall
+    title: Default-deny host firewall
+    objective: Each host drops unsolicited inbound traffic except documented management, ingress and cluster ports.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.20, A.8.22]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(b)]
+      cis: ["Ubuntu: host-based firewall"]
+    checks:
+      - id: firewall-active
+        description: UFW is active with a default-deny INPUT policy on every host.
+        present: swirl_cloud_host_firewall_active
+        failing: swirl_cloud_host_firewall_active == 0
+
+  - id: network-segmentation
+    title: Network segmentation between workloads
+    objective: Every workload namespace restricts traffic with NetworkPolicies.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.22]
+      dora: [Art. 9]
+      cis: [Kubernetes 5.3.2]
+    checks:
+      - id: namespaces-with-policies
+        description: Namespaces running pods (except Kubernetes system namespaces) have at least one NetworkPolicy.
+        present: kube_networkpolicy_created
+        failing: count by (namespace) (kube_pod_info{namespace!~"kube-system|kube-public|kube-node-lease"}) unless on (namespace) count by (namespace) (kube_networkpolicy_created)
+
+  - id: workload-isolation
+    title: Workload isolation (Pod Security Standards)
+    objective: Workloads meet the Kubernetes Pod Security Standards Baseline profile.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.9]
+      dora: [Art. 9]
+      cis: [Kubernetes 5.2]
+    checks:
+      - id: pss-baseline
+        description: Trivy finds no Pod Security Standards Baseline failures.
+        present: trivy_cluster_compliance{title="Kubernetes Pod Security Standards - Baseline"}
+        failing: trivy_cluster_compliance{title="Kubernetes Pod Security Standards - Baseline",status="Fail"} > 0
+
+  - id: kubernetes-benchmark
+    title: Kubernetes configuration benchmark
+    objective: The cluster configuration is assessed continuously against the CIS Kubernetes Benchmark.
+    frameworks:
+      nis2: ["21(2)(f)"]
+      iso27001: [A.8.9]
+      dora: [Art. 9]
+      cis: [Kubernetes benchmark]
+    checks:
+      - id: cis-kubernetes
+        description: Trivy finds no failing CIS Kubernetes Benchmark checks.
+        present: trivy_cluster_compliance{title=~"CIS Kubernetes.*"}
+        failing: trivy_cluster_compliance{title=~"CIS Kubernetes.*",status="Fail"} > 0
+    manual:
+      - Accepted benchmark exceptions with owner, rationale and review date.
+
+  - id: host-hardening
+    title: Host hardening audit
+    objective: Hosts are audited monthly with Lynis and stay at or above the accepted hardening level.
+    frameworks:
+      nis2: ["21(2)(f)"]
+      iso27001: [A.8.9]
+      gdpr: [Art. 32(1)(d)]
+      cis: ["Ubuntu: benchmark audit"]
+    checks:
+      - id: lynis-current
+        description: The monthly Lynis audit ran successfully within 35 days.
+        present: swirl_cloud_lynis_last_success_timestamp_seconds
+        failing: ALERTS{alertname=~"LynisAuditFailed|LynisAuditMissing",alertstate="firing"}
+      - id: lynis-index
+        description: The Lynis hardening index is at least 70.
+        present: swirl_cloud_lynis_hardening_index
+        failing: swirl_cloud_lynis_hardening_index < 70
+
+  - id: integrity-monitoring
+    title: File integrity and malware checks
+    objective: AIDE and rkhunter check host files for unexpected changes and rootkits at least weekly.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.7, A.8.16]
+      dora: [Art. 10]
+      cis: ["Ubuntu: filesystem integrity checking"]
+    checks:
+      - id: aide-current
+        description: AIDE completed a check within eight days.
+        present: swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="dailyaidecheck.service"}
+        failing: time() - swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="dailyaidecheck.service"} > 8 * 86400
+      - id: rkhunter-current
+        description: rkhunter ran within eight days.
+        present: swirl_cloud_rkhunter_last_run_timestamp_seconds
+        failing: time() - swirl_cloud_rkhunter_last_run_timestamp_seconds > 8 * 86400
+
+  - id: patch-management
+    title: Security updates
+    objective: Hosts install security updates automatically and restart within a week when an update requires it.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.8, A.8.19]
+      dora: [Art. 9]
+      cis: ["Ubuntu: software updates"]
+    checks:
+      - id: reboot-pending
+        description: No host has waited more than seven days for an update reboot.
+        present: swirl_cloud_reboot_required
+        failing: ALERTS{alertname="NodeRebootRequired",alertstate="firing"}
+
+  - id: vulnerability-management
+    title: Vulnerability management
+    objective: Running images are scanned continuously and new critical vulnerabilities are triaged.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.8]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(d)]
+    checks:
+      - id: new-critical-vulnerabilities
+        description: No running image gained critical vulnerabilities above its triaged baseline.
+        present: trivy_image_vulnerabilities
+        failing: ALERTS{alertname="TrivyNewCriticalVulnerability",alertstate="firing"}
+    manual:
+      - Vulnerability triage record with decisions and expiry dates (docs/security.md, Vulnerability triage).
+
+  - id: secrets-management
+    title: Secrets management
+    objective: Credentials live in Vault, are delivered to workloads by External Secrets and never stored in Git.
+    frameworks:
+      nis2: ["21(2)(h)"]
+      iso27001: [A.5.17, A.8.24]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(a)]
+      cis: [Kubernetes 5.4.2]
+    checks:
+      - id: vault-unsealed
+        description: Every Vault server is unsealed.
+        present: vault_core_unsealed
+        failing: vault_core_unsealed == 0
+      - id: external-secrets-synced
+        description: Every ExternalSecret is synchronized from Vault.
+        present: externalsecret_status_condition
+        failing: ALERTS{alertname="ExternalSecretNotReady",alertstate="firing"}
+
+  - id: encryption-in-transit
+    title: Encryption in transit
+    objective: Public endpoints use valid TLS certificates that are renewed before expiry.
+    frameworks:
+      nis2: ["21(2)(h)"]
+      iso27001: [A.8.24]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(a)]
+    checks:
+      - id: certificates-valid
+        description: No served certificate expires within 14 days.
+        present: traefik_tls_certs_not_after
+        failing: ALERTS{alertname=~"TLSCertificateExpiringSoon|TLSCertificateExpiryCritical",alertstate="firing"}
+    manual:
+      - Cryptography policy covering protocols, certificate authorities and key custody.
+
+  - id: backup
+    title: Backups
+    objective: Platform recovery archives and persistent volumes are backed up daily outside the failure domain.
+    frameworks:
+      nis2: ["21(2)(c)"]
+      iso27001: [A.8.13]
+      dora: [Art. 12]
+      gdpr: [Art. 32(1)(c)]
+    checks:
+      - id: platform-archive
+        description: The nightly platform recovery archive succeeded within 36 hours.
+        present: swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service"}
+        failing: ALERTS{alertname="K3sRecoveryBackupMissing",alertstate="firing"} or swirl_cloud_systemd_unit_last_run_success{unit=~".*backup.*"} == 0
+      - id: volume-backups
+        description: Persistent volumes have off-node backups no older than 36 hours.
+        present: longhorn_volume_last_backup_at > 0
+        failing: ALERTS{alertname="LonghornVolumeBackupStale",alertstate="firing"}
+
+  - id: business-continuity
+    title: Recovery and business continuity
+    objective: The organization can restore the platform and its data within agreed recovery objectives.
+    frameworks:
+      nis2: ["21(2)(c)"]
+      iso27001: [A.5.29, A.5.30]
+      dora: [Art. 11, Art. 12]
+      gdpr: [Art. 32(1)(c)]
+    manual:
+      - Disaster recovery plan with recovery point and recovery time objectives.
+      - Record of the latest restore drill with measured recovery time and data checks.
+
+  - id: change-management
+    title: Change and configuration management
+    objective: Platform and application changes are applied from reviewed Git revisions and live state does not drift.
+    frameworks:
+      nis2: ["21(2)(e)"]
+      iso27001: [A.8.9, A.8.32]
+      dora: [Art. 9]
+    checks:
+      - id: gitops-in-sync
+        description: Every Argo CD application is synced to Git and healthy.
+        present: argocd_app_info
+        failing: ALERTS{alertname=~"ArgoCDApplicationOutOfSync|ArgoCDApplicationUnhealthy",alertstate="firing"}
+    manual:
+      - Merge request approval rules for protected branches and production deployments.
+
+  - id: capacity
+    title: Capacity management
+    objective: Storage and compute headroom is monitored so services are not lost to exhaustion.
+    frameworks:
+      iso27001: [A.8.6]
+      dora: [Art. 9]
+      gdpr: [Art. 32(1)(b)]
+    checks:
+      - id: storage-headroom
+        description: No host filesystem or persistent volume is low on or predicted to run out of space.
+        present: node_filesystem_avail_bytes
+        failing: ALERTS{alertname=~"NodeFilesystemSpace.*|NodeFilesystemFillingWithinDay|NodeMaintenanceHeadroomLow|PersistentVolumeSpace.*|PersistentVolumeFillingWithinDay",alertstate="firing"}
+
+  - id: risk-management
+    title: Risk management and security policy
+    objective: Information security risks are assessed and treated under an approved policy.
+    frameworks:
+      nis2: ["21(2)(a)"]
+      iso27001: [A.5.1]
+      dora: [Art. 6]
+      gdpr: [Art. 32(2)]
+    manual:
+      - Approved information security policy and the current risk assessment with treatment decisions.
+
+  - id: incident-management
+    title: Incident handling and notification
+    objective: Security incidents are detected, handled, recorded and notified within regulatory deadlines.
+    frameworks:
+      nis2: ["21(2)(b)", "23"]
+      iso27001: [A.5.24, A.5.25, A.5.26, A.5.27]
+      dora: [Art. 17, Art. 19]
+      gdpr: [Art. 33]
+    manual:
+      - Incident response procedure with roles, the national CSIRT contact and the 24-hour, 72-hour and final report templates.
+      - Incident register for the period with post-incident reviews.
+
+  - id: supply-chain
+    title: Supplier and supply-chain security
+    objective: External services and software suppliers are inventoried, assessed and covered by agreements.
+    frameworks:
+      nis2: ["21(2)(d)"]
+      iso27001: [A.5.19, A.5.20, A.5.21, A.5.22]
+      dora: [Art. 28]
+      gdpr: [Art. 28]
+    manual:
+      - Inventory of external services the platform uses, the data each receives and its jurisdiction.
+      - Supplier assessments and data processing agreements.
+
+  - id: awareness-and-hr
+    title: Security awareness and personnel security
+    objective: Staff are trained, and joiners, movers and leavers receive and lose access on time.
+    frameworks:
+      nis2: ["21(2)(g)", "21(2)(i)"]
+      iso27001: [A.6.1, A.6.3, A.6.5]
+    manual:
+      - Training records for the period and the joiner, mover and leaver procedure.
+
+  - id: effectiveness-review
+    title: Effectiveness assessment
+    objective: Security measures are tested and reviewed regularly, and findings are tracked to closure.
+    frameworks:
+      nis2: ["21(2)(f)"]
+      iso27001: [A.5.35, A.5.36]
+      dora: [Art. 24, Art. 25]
+      gdpr: [Art. 32(1)(d)]
+    manual:
+      - This evidence pack for each period, the latest penetration test or internal audit report and its remediation status.
