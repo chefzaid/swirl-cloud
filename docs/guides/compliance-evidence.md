@@ -75,11 +75,37 @@ mode `0600` and contains:
 | `history.json` | Control status over the last 24 hours (`--history-hours`), limited by Prometheus retention. |
 | `context/verification.json` | The platform verification report (`./install.sh --status`). |
 | `context/trivy-compliance.json` | CIS Kubernetes, NSA and Pod Security Standards results with the failing check IDs. |
+| `context/access-review.json` | With `--access-review`: the [access review](#access-reviews) at the time of the pack. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature over the manifest. |
 
 No Kubernetes Secret is read. Generate a pack at least monthly and store it
 with the period's manual evidence; Prometheus keeps only recent history, so the
 archived packs are the long-term record.
+
+## Access reviews
+
+```bash
+./install.sh --access-review                                # summary and findings
+./install.sh --access-review --output-dir ~/access-reviews  # review sheets (.md, .csv, .json)
+```
+
+The review lists every identity and what it can do: Keycloak users in every
+realm with groups, effective roles and last recorded login; GitLab users with
+the administrator flag, two-factor status, last activity and group or project
+memberships; Kubernetes users, groups and ServiceAccounts bound to
+`cluster-admin`, `admin` or `edit`; Argo CD role mappings and local accounts;
+and the local break-glass administrators. It flags administrators, disabled or
+blocked accounts that keep memberships, accounts without activity for 90 days,
+missing two-factor authentication where GitLab does not require it, and
+non-system ServiceAccounts with `cluster-admin`. Keycloak and GitLab are read
+through their own in-pod administration tools, so no Kubernetes Secret is read.
+
+Owners mark each identity **Keep** or **Revoke** in the sheet, the revocations
+are applied, and the signed sheet is the evidence for the `access-review`
+control. Run it at least quarterly and when people leave. Inactivity relies on
+Keycloak's stored login events (90 days), so it becomes reliable 90 days after
+event storage started. Vault policies and Grafana roles follow the Keycloak
+groups shown in the sheet.
 
 ### Verify a pack
 

@@ -56,6 +56,7 @@ GUIDES = """Files and commands
   Rerun plan     ./install.sh --plan [--env-file FILE]
   Support bundle ./install.sh --support-bundle
   Compliance     ./install.sh --compliance [--evidence-pack]
+  Access review  ./install.sh --access-review [--output-dir DIR]
 
 Guides
 
@@ -390,6 +391,7 @@ def maintenance(dialog, values):
                 ("logs", "Earlier run logs"),
                 ("bundle", "Create a support bundle (secrets redacted)"),
                 ("compliance", "Compliance report and evidence pack"),
+                ("access-review", "Access review sheet (who has access to what)"),
                 ("cost", "Record this server's monthly cost (cost showback)"),
                 ("kit", "Export the encrypted recovery kit"),
                 ("kit-verify", "Verify a recovery kit against the current keys")])
@@ -452,7 +454,11 @@ def maintenance(dialog, values):
                     run_logged("Server cost", [str(ROOT / "scripts/configure-node-cost.sh"), "--monthly-cost", amount,
                                                "--currency", currency])
         elif choice == "compliance":
-            run_logged("Compliance report", [sys.executable, str(ROOT / "scripts/compliance-report.py"), "--evidence-pack"])
+            run_logged("Compliance report", [sys.executable, str(ROOT / "scripts/compliance-report.py"), "--evidence-pack",
+                                             "--access-review"])
+        elif choice == "access-review":
+            run_logged("Access review", [sys.executable, str(ROOT / "scripts/access-review.py"), "--output-dir",
+                                         str(STATE / "compliance")])
         elif choice == "units":
             result = subprocess.run(["systemctl", "list-units", "swirl-cloud-*", "--all", "--failed", "--no-pager",
                                      "--no-legend"], capture_output=True, text=True)

@@ -8,7 +8,8 @@ Controls map to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS requirement
 
 --evidence-pack writes a private archive with the report (JSON and Markdown), the
 catalog, every query and its raw result, recent status history, the platform
-verification report and Trivy compliance summaries, plus a SHA256SUMS manifest.
+verification report and Trivy compliance summaries (plus the access review with
+--access-review), and a SHA256SUMS manifest.
 --sign-key signs the manifest with an SSH key (ssh-keygen -Y sign); an auditor
 checks an archive with --verify ARCHIVE [--allowed-signers FILE --signer ID].
 Everything is read-only; Kubernetes Secrets are never read.
@@ -205,7 +206,7 @@ def trivy_compliance():
     return summary
 
 
-def write_pack(output_dir, catalog_text, results, summary, generated, platform, history, sign_key):
+def write_pack(output_dir, catalog_text, results, summary, generated, platform, history, sign_key, access_review=False):
     stamp = f"{generated:%Y%m%dT%H%M%SZ}"
     name = f"swirl-cloud-evidence-{stamp}"
     files = {
@@ -218,6 +219,9 @@ def write_pack(output_dir, catalog_text, results, summary, generated, platform, 
                                                     "--skip-endpoints"),
         "context/trivy-compliance.json": json.dumps(trivy_compliance(), indent=2),
     }
+    if access_review:
+        files["context/access-review.json"] = command_output(sys.executable, str(ROOT / "scripts/access-review.py"),
+                                                             "--format", "json", timeout=1200)
     with tempfile.TemporaryDirectory(prefix="swirl-cloud-evidence.") as directory:
         base = Path(directory) / name
         for path, text in files.items():
@@ -288,6 +292,8 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=STATE / "compliance")
     parser.add_argument("--sign-key", type=Path, help="SSH private key that signs the evidence manifest")
     parser.add_argument("--history-hours", type=int, default=24, help="status history included in the pack")
+    parser.add_argument("--access-review", action="store_true",
+                        help="include the access review (scripts/access-review.py, about two minutes) in the pack")
     parser.add_argument("--prometheus-url", help="query Prometheus directly instead of through the Kubernetes API")
     parser.add_argument("--strict", action="store_true", help="exit 1 when a control fails or lacks evidence")
     parser.add_argument("--verify", type=Path, metavar="ARCHIVE", help="check an evidence archive and its signature")
@@ -324,7 +330,7 @@ def main():
         except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
             history = {"error": str(error)}
         path, digest = write_pack(args.output_dir, catalog_text, results, summary, generated, platform, history,
-                                  args.sign_key)
+                                  args.sign_key, args.access_review)
         print(f"\nEvidence pack: {path}\nManifest SHA-256: {digest}"
               f"{' (signed)' if args.sign_key else ''}. Verify with: {Path(sys.argv[0]).name} --verify {path}",
               file=sys.stderr)

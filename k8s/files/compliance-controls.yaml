@@ -59,7 +59,7 @@ controls:
       iso27001: [A.5.18, A.8.2]
       dora: [Art. 9]
     manual:
-      - Signed access review for the period covering Keycloak, GitLab, Vault, Argo CD, Grafana and local service accounts.
+      - Signed access review sheet for the period (./install.sh --access-review --output-dir DIR covers Keycloak, GitLab, Kubernetes RBAC, Argo CD and local administrators; add Vault and Grafana role mappings).
 
   - id: audit-logging
     title: Security audit logging
