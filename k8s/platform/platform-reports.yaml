@@ -163,7 +163,7 @@ data:
       const body = batch.flatMap(({ metric }) => {
         const image = `${metric.image_registry}/${metric.image_repository}`;
         return [JSON.stringify({ update: { _index: "platform-reports-vulnerability-tracking", _id: `${image}|${metric.vuln_id}`,
-                                           _source: ["first_seen"] } }),
+                                           _source: true } }),
                 JSON.stringify({ script: { source: "ctx._source.last_seen = params.seen; ctx._source['@timestamp'] = params.seen",
                                            params: { seen } },
                                  upsert: { "@timestamp": seen, kind: "vulnerability", image, vuln_id: metric.vuln_id,
