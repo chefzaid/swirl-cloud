@@ -8,7 +8,11 @@ requires Kubernetes 1.34 or later (installed: 1.36.4).
 
 Before the upgrade: no faulted volumes or backing images, all volumes on the v1
 data engine, a fresh recovery archive, and a Longhorn snapshot of every attached
-volume (deleted after the volumes were verified healthy). The guaranteed
+volume (`<volume>-pre-1-13`). The snapshots were deleted once the volumes were
+verified healthy; Longhorn postpones removing them while an engine still runs in
+the previous instance manager ("snapshot deletion delayed: volume engine ... is
+upgrading"), so each disappears when its volume is next reattached. They hold
+only the blocks changed since the snapshot. The guaranteed
 instance-manager CPU was lowered from 12 % to 5 % first: Longhorn keeps the
 request of an instance manager that runs engines and applies the new value to the
 instance manager the upgrade creates, so no volume was interrupted.
