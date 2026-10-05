@@ -663,7 +663,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] In-cluster S3-compatible object storage for applications and platform services, on the implementation chosen in §31, with per-project buckets, quotas and backups.
 - [x] Cost showback from each server's recorded monthly cost (`scripts/configure-node-cost.sh`, installer input `SERVER_MONTHLY_COST`, hub Maintenance): allocation by the larger of requests and usage (65 % CPU / 35 % memory, capped at server cost), idle and shared costs, Grafana **Cost Showback** per environment, namespace and workload with a rightsizing view ([cost showback](docs/guides/cost-showback.md)). *(live, 2026-10-05: allocation series for 90 pods)*
 - [ ] **Operator action:** record `swirlit-node-01`'s monthly cost (and shared costs such as backup storage) with `scripts/configure-node-cost.sh` so the dashboard shows money, not only shares.
-- [ ] Monthly showback report per project (exported from the recorded series, like the compliance evidence pack) and a comparison against equivalent hyperscaler list prices with stated assumptions; add backup and traffic usage once those are measured per project.
+- [x] Monthly showback per namespace and workload in Grafana **Platform Report**, from hourly snapshots kept 13 months in Elasticsearch `platform-reports-*` ([platform reports](docs/guides/platform-reports.md)). *(live, 2026-10-05: first snapshot indexed)*
+- [ ] Comparison against equivalent hyperscaler list prices with stated assumptions; add backup and traffic usage once those are measured per project.
 
 ### 35. Developer portal and golden paths
 
@@ -678,7 +679,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 - [x] Control catalog ([`k8s/files/compliance-controls.yaml`](k8s/files/compliance-controls.yaml)): 25 controls mapped to NIS2 Article 21(2)/23, ISO/IEC 27001:2022 Annex A, DORA, GDPR and the CIS Kubernetes and Ubuntu benchmarks; each names its automated Prometheus evidence (reusing alert thresholds) or the manual evidence required ([compliance evidence](docs/guides/compliance-evidence.md)). *(live, 2026-10-05)*
 - [x] Helm-generated recording rules evaluate every control continuously; Grafana **Compliance Evidence** dashboard per framework, control and requirement; `ComplianceControlRegressed` drift alert; `./install.sh --compliance [--evidence-pack --sign-key KEY]` writes a hashed, SSH-signed archive that `--verify` checks offline (tamper test fails as expected). *(live, 2026-10-05: NIS2 12/16, ISO 27001 13/17, DORA 12/16, GDPR 10/11, CIS 6/9 automated controls passing)*
-- [ ] Generate the evidence pack monthly on a timer and keep it with the tamper-evident audit store below; Prometheus history covers only hours today (§26).
+- [x] Hourly compliance status per control and framework kept 13 months in `platform-reports-*`; the **Platform Report** shows the share of hours each control passed per month.
+- [ ] Generate the signed evidence pack monthly on a timer and keep it with the tamper-evident audit store below.
 - [ ] Triage the standing failures the report shows (15 CIS Kubernetes and 3 Pod Security Baseline checks, `gitlab-runners`/`host-agents` without NetworkPolicies) and record accepted exceptions with owner, rationale and review date in the catalog.
 - [ ] **ADR — policy engine:** Kyverno versus ValidatingAdmissionPolicy only. Ship policy packs (images only from the internal Registry and signed, no mutable tags, resource limits, `owner` and data-classification labels, no privilege in project namespaces) in audit mode first, then enforce; exceptions carry an owner and an expiry like the Trivy exceptions.
 - [ ] Sign application images in platform CI and verify signatures at admission for `prod` (and `uat` once stable).
@@ -702,7 +704,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 ### 38. Reliability, SLOs and observability depth
 
 - [x] Availability SLO (99.5 %) for every public endpoint (portal, Git, Registry, Argo CD, SSO, Odoo and every application host, discovered from Ingresses) measured by blackbox probes over the public path; multi-window burn-rate alerts; Grafana **Service Levels** with availability and budget left per endpoint ([service levels](docs/guides/service-levels.md)). *(live, 2026-10-05: 25 endpoints probed, all up)*
-- [ ] SLIs that probes do not cover: CI job success and queue time, Registry push/pull, Argo CD sync latency and data-service availability; then a monthly SLO report per service (needs the retention increase in §26 or exported monthly figures). These define the managed-service SLA.
+- [x] Monthly availability per endpoint in Grafana **Platform Report** from the hourly snapshots, independent of Prometheus retention.
+- [ ] SLIs that probes do not cover: CI job success and queue time, Registry push/pull, Argo CD sync latency and data-service availability. These define the managed-service SLA.
 - [x] Every alert rule carries an `owner` label (`platform`, `security`, or `application` for application namespaces) and a `runbook_url` to its section of [alert runbooks](docs/guides/alert-runbooks.md); validation rejects an alert without both. *(2026-10-05, 44 alerts)*
 - [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
