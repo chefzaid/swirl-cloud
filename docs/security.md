@@ -262,6 +262,16 @@ StorageClass with the cluster's replica count. Existing volumes stay
 unencrypted; move data by restoring it into a new encrypted claim. Disk
 encryption of the host itself is a separate, provider-dependent choice.
 
+## Administrator second factor
+
+A second factor is optional. Any user can add an authenticator app in the
+Keycloak account console (**Account security → Signing in**); Keycloak then asks
+for a code at every sign-in. `./install.sh --admin-mfa status` shows which
+`platform-admins` members have one. `./install.sh --admin-mfa require` asks every
+member without one to set it up at their next sign-in (Keycloak's *Configure OTP*
+required action); it does not change the sign-in flow and leaves members with
+other pending actions untouched. Run it again after adding administrators.
+
 ## Credential age
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its
@@ -315,7 +325,7 @@ advisory scope and how the platform runs the component; it was not exploit-teste
 | SonarQube 26.9.0 Community | Netty SNI routing, Bouncy Castle | Latest Community release; plain HTTP behind Traefik. Exception. |
 | GitLab CE 19.4.1 | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck the next 19.4 patch. |
 | GitLab Runner helper 19.4.1 (Alpine) | `miniperl` regular-expression handling | Fixed in Alpine `5.42.2-r1`; 19.4.1 is the latest helper. Job helpers do not run untrusted Perl. Exception. |
-| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | No v5.3 patch exists upstream. Longhorn 1.13.0 (2026-09-29) bundles `csi-provisioner` v6.3.0 with its supported sidecars, so the fix arrives with that Longhorn upgrade, done in a maintenance window per [image updates](operations.md#image-updates); overriding one sidecar alone stays outside Longhorn's support matrix. Exception until then. |
+| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Resolved: Longhorn 1.13.0 (2026-10-05) runs `csi-provisioner` v6.3.0. |
 | MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
 | PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. Moving PostgreSQL to a newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 

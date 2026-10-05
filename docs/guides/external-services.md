@@ -42,7 +42,7 @@ installation bundle that removes these downloads is planned (TODO §32).
 
 | Service | Provider | Data | Status |
 | --- | --- | --- | --- |
-| CrowdSec Central API | CrowdSec SAS (France) | Addresses that attacked the host and the matching scenarios, in exchange for the community block list | Active on internet-exposed hosts with CrowdSec's default enrollment |
+| CrowdSec Central API | CrowdSec SAS (France) | Addresses that attacked the host and the matching scenarios, in exchange for the community block list | Active on internet-exposed hosts with CrowdSec's default enrollment; kept deliberately (2026-10-05) for the community block list |
 
 ## Vendor telemetry and update checks (switched off)
 

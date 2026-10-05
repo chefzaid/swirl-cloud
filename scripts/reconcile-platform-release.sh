@@ -96,6 +96,7 @@ case "$SERVICE" in
             --set defaultSettings.storageMinimalAvailablePercentage=20 \
             --set defaultSettings.storageOverProvisioningPercentage=110 \
             --set defaultSettings.upgradeChecker=false \
+            --set "longhornGlobalManager.replicas=$LONGHORN_REPLICA_COUNT" \
             --wait --timeout "${LONGHORN_HELM_TIMEOUT:-$DEFAULT_LONGHORN_HELM_TIMEOUT}"
         kubectl patch storageclass longhorn -p \
             '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
@@ -103,6 +104,11 @@ case "$SERVICE" in
             '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' 2>/dev/null || true
         kubectl wait --for=condition=ready pod -l app=longhorn-manager \
             -n "$NAMESPACE" --timeout="${LONGHORN_POD_WAIT_TIMEOUT:-$DEFAULT_LONGHORN_POD_WAIT_TIMEOUT}"
+        # Instance managers keep their CPU request while engines run; Longhorn
+        # applies the new value when they are next recreated (upgrades, restarts).
+        guaranteed_cpu="${LONGHORN_GUARANTEED_INSTANCE_MANAGER_CPU:-$DEFAULT_LONGHORN_GUARANTEED_INSTANCE_MANAGER_CPU}"
+        kubectl -n "$NAMESPACE" patch settings.longhorn.io guaranteed-instance-manager-cpu --type merge \
+            -p "{\"value\":\"{\\\"v1\\\":\\\"$guaranteed_cpu\\\",\\\"v2\\\":\\\"12\\\"}\"}"
         # Opt-in encrypted volumes; the key Secret comes from Vault through the
         # longhorn-volume-encryption ExternalSecret in infra (docs/security.md).
         kubectl apply -f - <<EOF

@@ -48,7 +48,7 @@ controls:
       dora: [Art. 9]
       gdpr: [Art. 32(1)(b)]
     manual:
-      - Keycloak authentication flow or required action enforcing OTP or WebAuthn for platform-admins, with a test login.
+      - Which platform-admins members use a second factor (./install.sh --admin-mfa status); it is optional, and ./install.sh --admin-mfa require asks every member to enrol.
       - Break-glass procedure for administrator access when the second factor is lost.
 
   - id: access-review

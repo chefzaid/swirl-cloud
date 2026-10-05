@@ -19,13 +19,14 @@
 #   ./install.sh --processing-records    draft GDPR Article 30 records from the running platform
 #   ./install.sh --admin-access grant|revoke|list  time-limited platform administration
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
+#   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,21s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,22s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -121,6 +122,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/game-day.py" "$@"
+        ;;
+    --admin-mfa)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/admin-mfa.py" "$@"
         ;;
     -h|--help)
         usage

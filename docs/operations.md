@@ -353,7 +353,7 @@ never delete replica files directly.
 If allocation remains high after deletion, compare replica allocation with live
 filesystem usage. A filesystem can remember previous trim requests; reclaiming
 those blocks may require a planned workload stop, verified unmount, restart and
-another trim. Follow [Longhorn's trim guidance](https://longhorn.io/docs/1.12.1/nodes-and-volumes/volumes/trim-filesystem/)
+another trim. Follow [Longhorn's trim guidance](https://longhorn.io/docs/1.13.0/nodes-and-volumes/volumes/trim-filesystem/)
 and preserve a verified recovery copy before that interruption.
 
 Retention is declared with the component that owns the data:
@@ -537,6 +537,7 @@ Keep experiments, downloaded images, reports and recovery archives outside Git.
 The [validation policy](testing.md#validation-policy) defines which permanent
 tests belong in this repository.
 
+The [October 2026 record](guides/service-upgrades-2026-10.md) covers the Longhorn 1.13.0 upgrade.
 The [September 2026 maintenance record](guides/service-upgrades-2026-09.md) lists
 the selected releases, compatibility exceptions and recovery evidence.
 
