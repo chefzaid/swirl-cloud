@@ -3989,10 +3989,166 @@ data:
               "mode": "multi"
             }
           }
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Vulnerabilities past deadline",
+          "description": "Open Critical (15 days) and High (30 days) image x vulnerability pairs older than their deadline; ./install.sh --vulnerability-report lists them.",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 36
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "elasticsearch",
+                "uid": "platform-reports"
+              },
+              "query": "kind:vulnerabilities",
+              "metrics": [
+                {
+                  "id": "1",
+                  "type": "max",
+                  "field": "past_deadline"
+                }
+              ],
+              "bucketAggs": [
+                {
+                  "id": "3",
+                  "type": "terms",
+                  "field": "severity",
+                  "settings": {
+                    "min_doc_count": "1",
+                    "size": "10",
+                    "order": "asc",
+                    "orderBy": "_term"
+                  }
+                },
+                {
+                  "id": "2",
+                  "type": "date_histogram",
+                  "field": "@timestamp",
+                  "settings": {
+                    "interval": "auto",
+                    "min_doc_count": "0",
+                    "trimEdges": "0"
+                  }
+                }
+              ],
+              "timeField": "@timestamp"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Open Critical and High vulnerabilities",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 36
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "elasticsearch",
+                "uid": "platform-reports"
+              },
+              "query": "kind:vulnerabilities",
+              "metrics": [
+                {
+                  "id": "1",
+                  "type": "max",
+                  "field": "open"
+                }
+              ],
+              "bucketAggs": [
+                {
+                  "id": "3",
+                  "type": "terms",
+                  "field": "severity",
+                  "settings": {
+                    "min_doc_count": "1",
+                    "size": "10",
+                    "order": "asc",
+                    "orderBy": "_term"
+                  }
+                },
+                {
+                  "id": "2",
+                  "type": "date_histogram",
+                  "field": "@timestamp",
+                  "settings": {
+                    "interval": "auto",
+                    "min_doc_count": "0",
+                    "trimEdges": "0"
+                  }
+                }
+              ],
+              "timeField": "@timestamp"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
         }
       ]
     }
-
 ---
 apiVersion: v1
 kind: ConfigMap

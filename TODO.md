@@ -694,7 +694,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Resolve the first review's findings: enforce GitLab 2FA (or rely on Keycloak MFA once §11 lands) and narrow Portainer's ServiceAccount (§18); add Vault policy and Grafana role assignments to the sheet.
 - [ ] Records of processing (GDPR Article 30) generated from project metadata: data classes, storage locations, retention, backup copies and subprocessors (§33).
 - [x] Incident register and NIS2 workflow: GitLab **Incident** template (awareness time, significance test, deadlines, timeline, post-incident review) and `./install.sh --incident-report` with endpoint impact, a timeline of alerts and security findings, changes, restarts, logins and audit activity, NIS2/GDPR due times and drafts of the three NIS2 reports ([incident response](docs/guides/incident-response.md)); detection findings kept 13 months. *(2026-10-05)*
-- [ ] Vulnerability-handling deadlines per severity, measured from Trivy findings and exceptions, with monthly reporting.
+- [x] Vulnerability deadlines (Critical 15 days, High 30 days from first sighting in a running image): hourly first/last-seen tracking per image and vulnerability, open and past-deadline counts in the **Platform Report**, `./install.sh --vulnerability-report` listing overdue items ([platform reports](docs/guides/platform-reports.md)). *(2026-10-05; tracking starts now, so the first deadlines fall due mid-October)*
+- [ ] Record triaged vulnerability exceptions as data (image, vulnerability, owner, expiry) so the deadline report and `TrivyNewCriticalVulnerability` subtract them.
 - [ ] Secret rotation: dynamic or scheduled rotation for database credentials (Vault database engine), registry and GitLab tokens and API keys; report the age of every credential and alert past its limit.
 
 ### 37. Security operations

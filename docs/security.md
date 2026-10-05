@@ -206,6 +206,14 @@ Prometheus raises `TrivyNewCriticalVulnerability` when a running image gains
 critical findings over its recent maximum, or a newly deployed image has any;
 findings already triaged below do not keep alerting.
 
+Remediation deadlines run from the first time a vulnerability is seen in a
+running image: 15 days for Critical and 30 days for High. `./install.sh
+--vulnerability-report` lists the open items past their deadline, and the
+Grafana **Platform Report** tracks the counts per month
+([platform reports](guides/platform-reports.md)). An item triaged below still
+counts until its image changes; record the decision here so the report can be
+read against it.
+
 Trivy Operator keeps one report per running image digest. List critical findings
 by image, deduplicated across workloads:
 

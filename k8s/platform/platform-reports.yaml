@@ -33,7 +33,31 @@ data:
             "passing": {"type": "double"},
             "monthly_cost": {"type": "double"},
             "cpu_cores": {"type": "double"},
-            "memory_bytes": {"type": "double"}
+            "memory_bytes": {"type": "double"},
+            "severity": {"type": "keyword"},
+            "open": {"type": "long"},
+            "past_deadline": {"type": "long"},
+            "deadline_days": {"type": "long"}
+          }
+        }
+      }
+    }
+  vulnerability-template.json: |
+    {
+      "index_patterns": ["platform-reports-vulnerability-tracking"],
+      "priority": 10,
+      "template": {
+        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+        "mappings": {
+          "dynamic": false,
+          "properties": {
+            "@timestamp": {"type": "date"},
+            "kind": {"type": "keyword"},
+            "image": {"type": "keyword"},
+            "vuln_id": {"type": "keyword"},
+            "severity": {"type": "keyword"},
+            "first_seen": {"type": "date"},
+            "last_seen": {"type": "date"}
           }
         }
       }
@@ -122,6 +146,41 @@ data:
 
     await elastic("/_ilm/policy/swirl-cloud-platform-reports", "PUT", await readFile("/opt/platform-reports/ilm-policy.json"));
     await elastic("/_index_template/platform-reports", "PUT", await readFile("/opt/platform-reports/index-template.json"));
+    await elastic("/_index_template/platform-reports-vulnerability-tracking", "PUT",
+      await readFile("/opt/platform-reports/vulnerability-template.json"));
+
+    // Vulnerability deadlines: remember when each image x vulnerability was
+    // first and last seen (kept without lifecycle deletion), and count the open
+    // ones older than their severity's deadline.
+    const deadlines = Object.fromEntries((process.env.VULNERABILITY_DEADLINE_DAYS || "Critical=15,High=30")
+      .split(",").map((pair) => pair.split("=")).map(([severity, days]) => [severity, Number(days)]));
+    const vulnerabilities = await query(`count by (image_registry, image_repository, vuln_id, severity) `
+      + `(trivy_vulnerability_id{severity=~"${Object.keys(deadlines).join("|")}"})`);
+    const seen = hour.toISOString();
+    const counts = Object.fromEntries(Object.keys(deadlines).map((severity) => [severity, { open: 0, past_deadline: 0 }]));
+    for (let start = 0; start < vulnerabilities.length; start += 500) {
+      const batch = vulnerabilities.slice(start, start + 500);
+      const body = batch.flatMap(({ metric }) => {
+        const image = `${metric.image_registry}/${metric.image_repository}`;
+        return [JSON.stringify({ update: { _index: "platform-reports-vulnerability-tracking", _id: `${image}|${metric.vuln_id}`,
+                                           _source: ["first_seen"] } }),
+                JSON.stringify({ script: { source: "ctx._source.last_seen = params.seen; ctx._source['@timestamp'] = params.seen",
+                                           params: { seen } },
+                                 upsert: { "@timestamp": seen, kind: "vulnerability", image, vuln_id: metric.vuln_id,
+                                           severity: metric.severity, first_seen: seen, last_seen: seen } })];
+      }).join("\n") + "\n";
+      const result = await elastic("/_bulk", "POST", body, "application/x-ndjson");
+      result.items.forEach((item, position) => {
+        const { severity } = batch[position].metric;
+        const firstSeen = item.update?.get?._source?.first_seen || seen;
+        counts[severity].open += 1;
+        if (hour.getTime() - Date.parse(firstSeen) > deadlines[severity] * 86400000) counts[severity].past_deadline += 1;
+      });
+    }
+    for (const [severity, { open, past_deadline }] of Object.entries(counts)) {
+      add(`vulnerabilities:${severity}`, { kind: "vulnerabilities", severity, open, past_deadline,
+        deadline_days: deadlines[severity] });
+    }
     if (documents.length) {
       const bulk = documents.flatMap(({ id, doc }) => [JSON.stringify({ index: { _index: index, _id: id } }), JSON.stringify(doc)]).join("\n") + "\n";
       const result = await elastic("/_bulk?refresh=false", "POST", bulk, "application/x-ndjson");

@@ -15,6 +15,15 @@ into a monthly report.
 | `usage` | `namespace`, `cpu_cores`, `memory_bytes` (larger of requests and usage) | cost showback allocation |
 | `compliance` | `control`, `status`, `passing` (1 or 0) | [compliance evidence](compliance-evidence.md) |
 | `compliance_framework` | `framework`, `ratio` (share of automated controls passing) | compliance evidence |
+| `vulnerabilities` | `severity`, `open`, `past_deadline`, `deadline_days` | Trivy findings in running images |
+
+The vulnerability counts rest on `platform-reports-vulnerability-tracking`, which
+keeps, without lifecycle deletion, when each image and vulnerability pair
+(Critical and High) was first and last seen. Deadlines default to 15 days for
+Critical and 30 days for High; change them with `VULNERABILITY_DEADLINE_DAYS`
+(for example `Critical=7,High=30`) on the CronJob. `./install.sh
+--vulnerability-report` lists the items past their deadline (`--all` lists every
+open item).
 
 Documents are stamped with the start of the hour they cover, in monthly indices
 `platform-reports-YYYY.MM`. Their IDs derive from the hour, so rerunning a
@@ -31,6 +40,7 @@ example *Previous month*). It shows:
 - availability across all endpoints and per endpoint against the 99.5 % objective;
 - the average monthly platform cost, idle capacity cost, and cost per namespace and workload;
 - the share of hours each compliance control passed;
+- open Critical and High vulnerabilities and those past their deadline;
 - availability and CPU allocation over time.
 
 Export a table with **Inspect → Data → Download CSV** to send it on, and attach

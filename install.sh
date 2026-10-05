@@ -12,13 +12,14 @@
 #   ./install.sh --compliance [--evidence-pack]  control status for NIS2/ISO 27001/DORA/GDPR/CIS
 #   ./install.sh --access-review [--output-dir DIR]  who has access to what, with findings
 #   ./install.sh --incident-report --start TIME [--end TIME] [--aware TIME]  evidence and NIS2 drafts
+#   ./install.sh --vulnerability-report [--all]  Critical/High vulnerabilities past their deadline
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,14s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,15s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -84,6 +85,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/incident-report.py" "$@"
+        ;;
+    --vulnerability-report)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/vulnerability-report.py" "$@"
         ;;
     -h|--help)
         usage

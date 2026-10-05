@@ -243,7 +243,7 @@ controls:
         present: trivy_image_vulnerabilities
         failing: ALERTS{alertname="TrivyNewCriticalVulnerability",alertstate="firing"}
     manual:
-      - Vulnerability triage record with decisions and expiry dates (docs/security.md, Vulnerability triage).
+      - Vulnerability triage record with decisions and expiry dates (docs/security.md, Vulnerability triage) and the monthly ./install.sh --vulnerability-report against the deadlines.
 
   - id: secrets-management
     title: Secrets management
