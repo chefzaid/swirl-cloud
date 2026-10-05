@@ -73,6 +73,7 @@ Specialized procedures:
 - [Cost showback](./docs/guides/cost-showback.md) per environment, namespace and workload
 - [Alert runbooks](./docs/guides/alert-runbooks.md) for every platform alert
 - [Service levels](./docs/guides/service-levels.md): availability objectives and burn-rate alerts for every public endpoint
+- [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance kept for 13 months
 
 ## Roadmap
 

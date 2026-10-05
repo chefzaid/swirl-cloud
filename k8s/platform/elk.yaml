@@ -391,11 +391,11 @@ spec:
 
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":["monitor","manage_index_templates","manage_ilm"],"indices":[{"names":["kubernetes-logs-*","kubernetes-audit-*","identity-audit-*","app-logs-*","lynis-audits-*"],"privileges":["auto_configure","create_index","manage","write"]}]}' \
+                --data-binary '{"cluster":["monitor","manage_index_templates","manage_ilm"],"indices":[{"names":["kubernetes-logs-*","kubernetes-audit-*","identity-audit-*","app-logs-*","lynis-audits-*","platform-reports-*"],"privileges":["auto_configure","create_index","manage","write"]}]}' \
                 "${endpoint}/_security/role/logs_writer" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":["monitor"],"indices":[{"names":["kubernetes-logs-*","app-logs-*","lynis-audits-*"],"privileges":["read","view_index_metadata"]}]}' \
+                --data-binary '{"cluster":["monitor"],"indices":[{"names":["kubernetes-logs-*","app-logs-*","lynis-audits-*","platform-reports-*"],"privileges":["read","view_index_metadata"]}]}' \
                 "${endpoint}/_security/role/logs_reader" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \

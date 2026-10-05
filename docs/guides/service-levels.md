@@ -48,9 +48,9 @@ Both carry `owner: application` for endpoints in application namespaces and
 Grafana's **Service Levels** dashboard (Applications folder) lists every
 endpoint with its current state, availability and remaining error budget over
 the selected range, probe time, HTTP status and certificate lifetime, plus
-failing endpoints over time. Select the month to report it; Prometheus keeps
-limited history today, so export the table monthly until retention grows
-(TODO §26).
+failing endpoints over time. Prometheus keeps only recent history; monthly
+availability per endpoint comes from the hourly snapshots in the
+[platform reports](platform-reports.md).
 
 The `service-availability` control of the
 [compliance evidence](compliance-evidence.md) fails while a budget-burn alert

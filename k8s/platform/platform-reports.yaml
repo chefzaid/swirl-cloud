@@ -1,0 +1,205 @@
+# Hourly snapshots of availability, cost, capacity and compliance status kept in
+# Elasticsearch (platform-reports-*, 13 months) for monthly reports beyond
+# Prometheus retention. See docs/guides/platform-reports.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-reports-snapshot
+  namespace: infra
+data:
+  index-template.json: |
+    {
+      "index_patterns": ["platform-reports-*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.lifecycle.name": "swirl-cloud-platform-reports"
+        },
+        "mappings": {
+          "dynamic": false,
+          "properties": {
+            "@timestamp": {"type": "date"},
+            "kind": {"type": "keyword"},
+            "scope": {"type": "keyword"},
+            "endpoint": {"type": "keyword"},
+            "namespace": {"type": "keyword"},
+            "workload": {"type": "keyword"},
+            "control": {"type": "keyword"},
+            "framework": {"type": "keyword"},
+            "currency": {"type": "keyword"},
+            "status": {"type": "keyword"},
+            "ratio": {"type": "double"},
+            "passing": {"type": "double"},
+            "monthly_cost": {"type": "double"},
+            "cpu_cores": {"type": "double"},
+            "memory_bytes": {"type": "double"}
+          }
+        }
+      }
+    }
+  ilm-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {"min_age": "0ms", "actions": {"set_priority": {"priority": 50}}},
+          "delete": {"min_age": "400d", "actions": {"delete": {}}}
+        }
+      }
+    }
+  snapshot.mjs: |
+    // Snapshot the last full hour from Prometheus recording rules into
+    // Elasticsearch. Document IDs are derived from the hour, so a rerun
+    // replaces that hour's documents instead of duplicating them.
+    import { readFile } from "node:fs/promises";
+
+    const prometheus = process.env.PROMETHEUS_URL;
+    const elasticsearch = process.env.ELASTICSEARCH_URL;
+    const authorization = "Basic " + Buffer.from(
+      `${process.env.ELASTICSEARCH_USERNAME}:${process.env.ELASTICSEARCH_PASSWORD}`).toString("base64");
+    // Evaluate at the top of the hour; documents are stamped with the start of
+    // the hour their one-hour windows cover.
+    const hour = new Date();
+    hour.setUTCMinutes(0, 0, 0);
+    const timestamp = new Date(hour.getTime() - 3600 * 1000).toISOString();
+    const index = `platform-reports-${timestamp.slice(0, 7).replace("-", ".")}`;
+    const STATUS = { 0: "failing", 1: "no_evidence", 2: "passing" };
+
+    async function query(expr) {
+      const parameters = new URLSearchParams({ query: expr, time: String(hour.getTime() / 1000) });
+      const response = await fetch(`${prometheus}/api/v1/query?${parameters}`);
+      const body = await response.json();
+      if (body.status !== "success") throw new Error(`${expr}: ${body.error}`);
+      return body.data.result.map(({ metric, value }) => ({ metric, value: Number(value[1]) }))
+        .filter(({ value }) => Number.isFinite(value));
+    }
+
+    async function elastic(path, method, body, type = "application/json") {
+      const response = await fetch(`${elasticsearch}${path}`, {
+        method, headers: { Authorization: authorization, "Content-Type": type }, body });
+      const text = await response.text();
+      if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status} ${text.slice(0, 300)}`);
+      return text ? JSON.parse(text) : {};
+    }
+
+    const documents = [];
+    const add = (id, fields) => documents.push({ id: `${id}@${timestamp}`, doc: { "@timestamp": timestamp, ...fields } });
+
+    for (const { metric, value } of await query(
+      'avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[1h]))')) {
+      add(`availability:${metric.instance}`, { kind: "availability", endpoint: metric.instance, namespace: metric.namespace, ratio: value });
+    }
+    for (const { metric, value } of await query("swirl_cloud_cost_namespace_monthly")) {
+      add(`cost:namespace:${metric.namespace}:${metric.currency}`,
+        { kind: "cost", scope: "namespace", namespace: metric.namespace, currency: metric.currency, monthly_cost: value });
+    }
+    for (const { metric, value } of await query("swirl_cloud_cost_workload_monthly")) {
+      add(`cost:workload:${metric.namespace}:${metric.workload}:${metric.currency}`,
+        { kind: "cost", scope: "workload", namespace: metric.namespace, workload: metric.workload, currency: metric.currency, monthly_cost: value });
+    }
+    for (const [scope, expr] of [["idle", "sum by (currency) (swirl_cloud_cost_idle_monthly)"],
+                                 ["shared", "sum by (currency) (swirl_cloud_cost_shared_monthly)"],
+                                 ["total", "swirl_cloud_cost_total_monthly"]]) {
+      for (const { metric, value } of await query(expr)) {
+        add(`cost:${scope}:${metric.currency}`, { kind: "cost", scope, currency: metric.currency, monthly_cost: value });
+      }
+    }
+    const usage = new Map();
+    for (const [field, expr] of [["cpu_cores", "sum by (namespace) (swirl_cloud_cost_pod_cpu_cores)"],
+                                 ["memory_bytes", "sum by (namespace) (swirl_cloud_cost_pod_memory_bytes)"]]) {
+      for (const { metric, value } of await query(expr)) {
+        usage.set(metric.namespace, { ...(usage.get(metric.namespace) || {}), [field]: value });
+      }
+    }
+    for (const [namespace, fields] of usage) add(`usage:${namespace}`, { kind: "usage", namespace, ...fields });
+    for (const { metric, value } of await query("swirl_cloud_compliance_control_status")) {
+      add(`compliance:${metric.control}`, { kind: "compliance", control: metric.control,
+        status: STATUS[value] || "unknown", passing: value === 2 ? 1 : 0 });
+    }
+    for (const { metric, value } of await query("swirl_cloud_compliance_framework_passing_ratio")) {
+      add(`compliance-framework:${metric.framework}`, { kind: "compliance_framework", framework: metric.framework, ratio: value });
+    }
+
+    await elastic("/_ilm/policy/swirl-cloud-platform-reports", "PUT", await readFile("/opt/platform-reports/ilm-policy.json"));
+    await elastic("/_index_template/platform-reports", "PUT", await readFile("/opt/platform-reports/index-template.json"));
+    if (documents.length) {
+      const bulk = documents.flatMap(({ id, doc }) => [JSON.stringify({ index: { _index: index, _id: id } }), JSON.stringify(doc)]).join("\n") + "\n";
+      const result = await elastic("/_bulk?refresh=false", "POST", bulk, "application/x-ndjson");
+      if (result.errors) {
+        const failed = result.items.find((item) => item.index?.error);
+        throw new Error(`bulk indexing failed: ${JSON.stringify(failed?.index?.error).slice(0, 300)}`);
+      }
+    }
+    console.log(`Indexed ${documents.length} report documents for ${timestamp} into ${index}.`);
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: platform-reports-snapshot
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  # A few minutes past the hour, after the hour's recording rules are evaluated.
+  schedule: "7 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: platform-reports-snapshot
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snapshot
+              image: docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+              command: ["node", "/opt/platform-reports/snapshot.mjs"]
+              env:
+                - name: PROMETHEUS_URL
+                  value: http://prometheus.__INTERNAL_DNS_ZONE__:9090
+                - name: ELASTICSEARCH_URL
+                  value: http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
+                - name: ELASTICSEARCH_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: logstash-elasticsearch-credentials
+                      key: ELASTICSEARCH_USERNAME
+                - name: ELASTICSEARCH_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: logstash-elasticsearch-credentials
+                      key: ELASTICSEARCH_PASSWORD
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /opt/platform-reports
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: platform-reports-snapshot

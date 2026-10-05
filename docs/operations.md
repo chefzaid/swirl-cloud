@@ -33,6 +33,7 @@ use the access controls described in [security and identity](security.md).
 | Compliance evidence | `https://grafana.<your-domain>/d/compliance-evidence` | Control status per framework ([guide](guides/compliance-evidence.md)) |
 | Cost showback | `https://grafana.<your-domain>/d/cost-showback` | Cost per environment, namespace and workload ([guide](guides/cost-showback.md)) |
 | Service levels | `https://grafana.<your-domain>/d/service-levels` | Availability and error budget per public endpoint ([guide](guides/service-levels.md)) |
+| Platform report | `https://grafana.<your-domain>/d/platform-report` | Monthly availability, cost and compliance ([guide](guides/platform-reports.md)) |
 
 ## Cluster status
 
