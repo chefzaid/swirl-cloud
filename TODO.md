@@ -646,7 +646,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 ### 33. Sovereignty mode and provider independence
 
-- [ ] Inventory every external service the platform calls (Cloudflare, Tailscale, GitHub, image registries, Let's Encrypt or Origin CA, OpenRouter, OVH API), the data each receives and its jurisdiction; publish it as the platform's data-flow and subprocessor record.
+- [x] [External services](docs/guides/external-services.md): every outside service, update source and data flow with provider, headquarters and the data it receives. Vendor telemetry and update checks switched off: GitLab Service Ping and version check, Grafana reporting/update checks/news/Gravatar, Kibana and SonarQube telemetry, Portainer statistics, Longhorn upgrade checker, Odoo publisher-warranty report. *(live, 2026-10-05)*
+- [ ] Traefik's version check (`global.checkNewVersion: false`) takes effect at the next ingress reconcile (`scripts/configure-ingress.sh`); decide whether CrowdSec keeps sharing attack signals with its Central API (active, in exchange for the community block list).
 - [ ] **ADR — edge without Cloudflare:** add an edge mode that needs no Cloudflare account: ACME certificates (cert-manager or Traefik), DNS through an EU provider API, in-cluster WAF and rate limiting (Traefik with CrowdSec or Coraza, linked to §4's HTTP IDS), Keycloak-gated admin hosts in place of Access, and the provider's network DDoS protection. Keep Cloudflare as a supported option.
 - [ ] Private networking without Tailscale's coordination service: support a self-hosted control server (Headscale or NetBird) or WireGuard directly as an additional `K3S_NODE_TRANSPORT`; encrypt vRack and LAN node traffic too (flannel `wireguard-native`), which travels unencrypted today.
 - [ ] Make GitHub optional: repository onboarding and synchronization work from GitLab alone, with GitHub mirroring as an add-on.
