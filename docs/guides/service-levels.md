@@ -58,6 +58,17 @@ Probes cover what users reach over HTTPS. These indicators cover the rest:
 queue time stays above ten minutes for an hour; data stores already alert
 through [`DatastoreDown`](alert-runbooks.md#datastoredown).
 
+## Game days
+
+`./install.sh --game-day --namespace apps-int --record` runs a pod-loss drill in
+a non-production environment: it deletes one running pod of each Deployment,
+measures how long each takes to be fully available again and probes the
+environment's endpoints throughout. It refuses namespaces labelled
+`swirl-cloud.io/application-environment: prod`. With `--record` the result is
+kept in the [platform reports](platform-reports.md) (**Game days** table). Run it
+monthly and after changing replica counts, probes or start-up behaviour; a
+single-replica service is unavailable until its replacement is ready.
+
 ## Dashboard and reports
 
 Grafana's **Service Levels** dashboard (Applications folder) lists every

@@ -17,13 +17,14 @@
 #   ./install.sh --policy-report         application workloads that break admission policies
 #   ./install.sh --processing-records    draft GDPR Article 30 records from the running platform
 #   ./install.sh --admin-access grant|revoke|list  time-limited platform administration
+#   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,19s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,20s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -114,6 +115,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/admin-access.py" "$@"
+        ;;
+    --game-day)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/game-day.py" "$@"
         ;;
     -h|--help)
         usage

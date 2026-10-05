@@ -4248,6 +4248,115 @@ data:
               }
             }
           ]
+        },
+        {
+          "id": 14,
+          "type": "table",
+          "title": "Game days",
+          "description": "Pod-loss drills (scripts/game-day.py --record): endpoint availability during the drill and the slowest recovery in seconds.",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 52
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "elasticsearch",
+                "uid": "platform-reports"
+              },
+              "query": "kind:game_day",
+              "metrics": [
+                {
+                  "id": "1",
+                  "type": "min",
+                  "field": "ratio"
+                },
+                {
+                  "id": "4",
+                  "type": "max",
+                  "field": "value"
+                },
+                {
+                  "id": "5",
+                  "type": "count"
+                }
+              ],
+              "bucketAggs": [
+                {
+                  "id": "2",
+                  "type": "terms",
+                  "field": "namespace",
+                  "settings": {
+                    "min_doc_count": "1",
+                    "size": "20",
+                    "order": "asc",
+                    "orderBy": "_term"
+                  }
+                },
+                {
+                  "id": "3",
+                  "type": "terms",
+                  "field": "scope",
+                  "settings": {
+                    "min_doc_count": "1",
+                    "size": "10",
+                    "order": "asc",
+                    "orderBy": "_term"
+                  }
+                }
+              ],
+              "timeField": "@timestamp"
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Min ratio"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "scope": "Scenario",
+                  "Min ratio": "Lowest availability",
+                  "Max value": "Slowest recovery (s)",
+                  "Count": "Drills"
+                }
+              }
+            }
+          ]
         }
       ]
     }

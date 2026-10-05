@@ -730,7 +730,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [x] Lowered CPU requests of Kibana (250m → 100m), SonarQube (250m → 150m), Trivy operator (250m → 100m) and Prometheus (200m → 100m) to measured peaks; requests fall from about 99 % to 92 % of allocatable CPU. *(2026-10-05)*
 - [ ] Lower Longhorn's guaranteed instance-manager CPU (12 % = 0.96 core, used 0.2–0.26) in a maintenance window: the instance managers restart, so detach volumes first; then set it in `reconcile-platform-release.sh` for new installations. Application repositories lower their own over-sized requests (Cost Showback rightsizing).
 - [ ] Application-level backup and restore per project namespace (manifests, volumes and claimed databases), including self-service restore into a sandbox and moving a project between clusters.
-- [ ] Scheduled game days in non-production environments (pod and node loss, DNS failure, storage degradation) with recorded results.
+- [x] Game days: `./install.sh --game-day` pod-loss drill outside `prod` with recovery times and endpoint availability, recorded in the **Platform Report** ([game days](docs/guides/service-levels.md#game-days)). *(2026-10-05, `apps-int`: recovered in 7–47 s, endpoint 94 % available during the drill: single replicas)*
+- [ ] Add node-loss, DNS-failure and storage-degradation scenarios on disposable hosts, and run the pod-loss drill on a schedule.
 
 ### 39. Fleet management and the managed service
 
