@@ -291,6 +291,9 @@ credentials or generated cluster configuration.
   [backup and recovery](operations.md#backups-and-recovery).
 - **Repository import and deployment:** set `CONFIGURE_REPOSITORY_SYNC=true`
   and supply the [onboarding automation inputs](guides/repository-onboarding.md#automation-and-reruns).
+  With `REPOSITORY_SOURCE=gitlab` and `GITLAB_PROJECTS`, reruns deploy
+  [projects that already live in GitLab](guides/repository-onboarding.md#projects-without-github)
+  without any GitHub input.
   The installer calls `add-repos.sh` after platform and Argo CD readiness,
   forwarding `--yes` for unattended runs. Selecting deployment authorizes the
   app configuration commits and service changes described in that guide.

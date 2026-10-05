@@ -56,6 +56,13 @@ def nodes_added(values):
                                              "K3S_WORKER_HOSTS", "K3S_WORKER_IPS"))
 
 
+def github_source(values):
+    """True for GitHub import, False for existing GitLab projects, None when onboarding is off."""
+    if not flag(values, "CONFIGURE_REPOSITORY_SYNC"):
+        return None
+    return (values.get("REPOSITORY_SOURCE") or "github") == "github"
+
+
 def transport(values):
     return values.get("K3S_NODE_TRANSPORT", "")
 
@@ -100,12 +107,17 @@ INPUTS = (
           help="Argo CD reconciles the platform from it. Defaults to this checkout's GitHub remote."),
     Input("CONFIGURE_REPOSITORY_SYNC", "Repositories", "Import GitHub repositories into GitLab with two-way sync?",
           kind="bool", default="false", express=True),
+    Input("REPOSITORY_SOURCE", "Repositories", "Repository source", kind="choice", choices=("github", "gitlab"),
+          default="github", when=lambda v: flag(v, "CONFIGURE_REPOSITORY_SYNC"),
+          help="gitlab deploys projects already in the platform GitLab group, with no GitHub account (reruns)."),
+    Input("GITLAB_PROJECTS", "Repositories", "GitLab projects to deploy (comma-separated)", kind="list",
+          when=lambda v: github_source(v) is False, required=lambda v: True),
     Input("GITHUB_USERNAME", "Repositories", "GitHub username", express=True,
-          when=lambda v: flag(v, "CONFIGURE_REPOSITORY_SYNC"), required=lambda v: True),
+          when=github_source, required=lambda v: True),
     Input("GITHUB_ADMIN_TOKEN", "Repositories", "GitHub fine-grained personal access token", kind="secret", express=True,
-          when=lambda v: flag(v, "CONFIGURE_REPOSITORY_SYNC"), required=lambda v: True),
+          when=github_source, required=lambda v: True),
     Input("GITHUB_REPOSITORIES", "Repositories", "Repositories to import (comma-separated)", kind="list", express=True,
-          when=lambda v: flag(v, "CONFIGURE_REPOSITORY_SYNC"), required=lambda v: True),
+          when=github_source, required=lambda v: True),
     Input("DEPLOY_REPOSITORIES", "Repositories", "Repositories to deploy: all, none, or comma-separated names", express=True,
           default="none", when=lambda v: flag(v, "CONFIGURE_REPOSITORY_SYNC"), required=lambda v: True),
     Input("DEPLOYMENT_ENVIRONMENTS_FILE", "Repositories", "Deployment environments inventory file (optional)", kind="path",

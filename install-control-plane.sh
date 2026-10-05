@@ -161,6 +161,8 @@ PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 INTERNAL_DNS_ZONE="${INTERNAL_DNS_ZONE:-}"
 CONTROL_PLANE_NODE_NAME="${CONTROL_PLANE_NODE_NAME:-}"
 CONFIGURE_REPOSITORY_SYNC="${CONFIGURE_REPOSITORY_SYNC:-}"
+REPOSITORY_SOURCE="${REPOSITORY_SOURCE:-github}"
+GITLAB_PROJECTS="${GITLAB_PROJECTS:-}"
 DEPLOYMENT_ENVIRONMENTS_FILE="${DEPLOYMENT_ENVIRONMENTS_FILE:-}"
 GITLAB_GROUP_PATH="${GITLAB_GROUP_PATH:-}"
 GITLAB_GROUP_NAME="${GITLAB_GROUP_NAME:-}"
@@ -996,7 +998,12 @@ fi
     error "CLOUDFLARE_ACCESS_TEAM_NAME must be a single lowercase DNS label."
 export CLOUDFLARE_ACCESS_TEAM_NAME
 
-if [[ "$CONFIGURE_REPOSITORY_SYNC" == true && "$AUTO_APPROVE" == true ]]; then
+[[ "$REPOSITORY_SOURCE" =~ ^(github|gitlab)$ ]] || error "REPOSITORY_SOURCE must be github or gitlab."
+export REPOSITORY_SOURCE GITLAB_PROJECTS
+if [[ "$CONFIGURE_REPOSITORY_SYNC" == true && "$AUTO_APPROVE" == true && "$REPOSITORY_SOURCE" == gitlab ]]; then
+    [[ -n "$GITLAB_PROJECTS" && -n "${DEPLOY_REPOSITORIES:-}" ]] || \
+        error "Deploying GitLab projects with --yes requires GITLAB_PROJECTS and DEPLOY_REPOSITORIES (all, none, or names)."
+elif [[ "$CONFIGURE_REPOSITORY_SYNC" == true && "$AUTO_APPROVE" == true ]]; then
     [[ -n "${GITHUB_USERNAME:-${GITHUB_OWNER:-}}" && -n "${GITHUB_ADMIN_TOKEN:-}" &&
        -n "${GITHUB_REPOSITORIES:-}" && -n "${DEPLOY_REPOSITORIES:-}" ]] || \
         error "Repository replication with --yes requires GITHUB_USERNAME, GITHUB_ADMIN_TOKEN, GITHUB_REPOSITORIES, and DEPLOY_REPOSITORIES (all, none, or names)."
@@ -1518,7 +1525,7 @@ PY
 fi
 
 if [[ "$CONFIGURE_REPOSITORY_SYNC" == true ]]; then
-    step "Importing repositories, configuring two-way sync, and selecting deployments..."
+    step "Onboarding repositories ($REPOSITORY_SOURCE) and selecting deployments..."
     [[ -x "$REPLICATE_REPO_SCRIPT" ]] || error "Repository assistant is not executable: $REPLICATE_REPO_SCRIPT"
     replication_args=()
     [[ "$AUTO_APPROVE" != true ]] || replication_args+=(--yes)

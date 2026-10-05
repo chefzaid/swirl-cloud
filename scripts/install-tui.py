@@ -365,7 +365,8 @@ def import_repositories(dialog, values):
     if not unit_exists("k3s.service"):
         dialog.message("Install the platform first; repositories are imported into its GitLab.", 8)
         return
-    names = ("GITHUB_USERNAME", "GITHUB_ADMIN_TOKEN", "GITHUB_REPOSITORIES", "DEPLOY_REPOSITORIES")
+    names = ("REPOSITORY_SOURCE", "GITLAB_PROJECTS", "GITHUB_USERNAME", "GITHUB_ADMIN_TOKEN", "GITHUB_REPOSITORIES",
+             "DEPLOY_REPOSITORIES")
     code, log = run_logged("Import repositories", [str(ROOT / "add-repos.sh")],
                            {name: values[name] for name in names if values.get(name)})
     if code:
@@ -548,7 +549,7 @@ MENU = [("overview", "What gets installed and the current state"),
         ("plan", "Plan: installed, missing or drifted stages and the next run"),
         ("install", "Install or update the platform"),
         ("servers", "Add servers"),
-        ("repositories", "Import and deploy GitHub repositories"),
+        ("repositories", "Import and deploy repositories (GitHub, or existing GitLab projects)"),
         ("deploy", "Deploy an application to int, uat or prod"),
         ("status", "Platform status and verification"),
         ("links", "Service links"),
