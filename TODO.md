@@ -702,7 +702,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 ### 38. Reliability, SLOs and observability depth
 
 - [ ] SLOs for the portal, Git, CI, Registry, Argo CD, SSO, ingress and data services, with multi-window burn-rate alerts and a monthly SLO report; these define the managed-service SLA.
-- [ ] Add a runbook link (`runbook_url`) and an owner to every alert rule; none has one today. Runbooks live in the product documentation (§32).
+- [x] Every alert rule carries an `owner` label (`platform`, `security`, or `application` for application namespaces) and a `runbook_url` to its section of [alert runbooks](docs/guides/alert-runbooks.md); validation rejects an alert without both. *(2026-10-05, 44 alerts)*
 - [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
 - [ ] OpenTelemetry: a collector, a trace backend and automatic instrumentation for Java and Node applications; correlate traces with logs and metrics in Grafana. Decide in the ADR whether logs stay in Elasticsearch.

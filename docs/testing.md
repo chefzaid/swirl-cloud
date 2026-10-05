@@ -9,7 +9,7 @@ an installation, migration or failover actually works.
 
 | Layer | Command or location | Proves |
 | --- | --- | --- |
-| Source syntax and policy | `./scripts/validate-repository.sh` | Shell, Python, YAML, JSON and Ansible syntax; ShellCheck; documentation links; manifest inventories; digest-pinned images; workload token/resource declarations. |
+| Source syntax and policy | `./scripts/validate-repository.sh` | Shell, Python, YAML, JSON and Ansible syntax; ShellCheck; documentation links; manifest inventories; digest-pinned images; workload token/resource declarations; an owner and a runbook section for every alert. |
 | Rendering | `scripts/validate-manifests.py` (called by the validator) | Nine installer/GitOps render profiles, resource references, Service selectors and named ports, Ingress backends, RBAC and installer/GitOps parity. |
 | Safety suites | `tests/` | Deployment and recovery failure modes listed in the [validation policy](#validation-policy). |
 | Live dry-run | `./scripts/validate-repository.sh --live` | API compatibility of every rendered profile with the active cluster, without mutation. Objects that need a namespace the profile creates, `cnpg-system` or CloudNativePG APIs before HA activation are counted and reported as not validated; any other missing namespace or API fails. |

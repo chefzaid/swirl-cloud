@@ -76,6 +76,7 @@ the pieces fit together.
 ## Observability And Quality
 
 - Prometheus, Alertmanager to GitLab alerts, Grafana dashboards for Kubernetes, delivery and security
+- every alert labelled with an owner and linked to its runbook section
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
 - generated per-application Grafana and Kibana dashboards from namespace labels
 - Trivy Operator vulnerability, configuration, RBAC, secret and compliance reports

@@ -270,6 +270,24 @@ def resource_wiring(resources):
                                 for value in target["spec"].get("ports", [])), f"{owner}: missing Service port {service}")
 
 
+def alert_policy(resources):
+    """Every alert names an owner and links to its section of the runbook guide."""
+    runbooks = ROOT / "docs/guides/alert-runbooks.md"
+    anchors = {line[4:].strip().lower() for line in runbooks.read_text().splitlines() if line.startswith("### ")}
+    for doc in resources:
+        if doc["kind"] != "ConfigMap" or "rules.yaml" not in doc.get("data", {}):
+            continue
+        for group in yaml.safe_load(doc["data"]["rules.yaml"])["groups"]:
+            for rule in group["rules"]:
+                if "alert" not in rule:
+                    continue
+                name = rule["alert"]
+                require(rule.get("labels", {}).get("owner"), f"alert {name}: missing owner label")
+                url = rule.get("annotations", {}).get("runbook_url", "")
+                require(url.endswith("docs/guides/alert-runbooks.md#" + name.lower()), f"alert {name}: missing runbook_url")
+                require(name.lower() in anchors, f"alert {name}: no section in {runbooks.relative_to(ROOT)}")
+
+
 def source_inputs():
     files = {ROOT / name for name in run("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0") if name}
     for path in sorted(files):
@@ -308,6 +326,7 @@ def source_inputs():
                     require(DIGEST.search(image), f"{path.name}: image must have an immutable digest: {image}")
                 resources.append(doc)
     index(resources)
+    alert_policy(resources)
     hosts = {rule["host"].removesuffix(".__PUBLIC_DOMAIN__") for doc in resources if doc["kind"] == "Ingress"
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")

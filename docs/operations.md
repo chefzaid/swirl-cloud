@@ -600,6 +600,10 @@ preference. Uninstall the module in Odoo before removing its files.
 
 ## Common Incidents
 
+Every alert links to its section of the [alert runbooks](guides/alert-runbooks.md)
+(`runbook_url`) and carries an `owner` label (`platform`, `security` or
+`application`). The incidents below cover situations that span several alerts.
+
 ### Root Application is Degraded while Synced
 
 Argo CD aggregates the health of every chart resource. A failed CronJob run is

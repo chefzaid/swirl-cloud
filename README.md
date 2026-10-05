@@ -71,6 +71,7 @@ Specialized procedures:
 - [Repository onboarding](./docs/guides/repository-onboarding.md) and the [application onboarding contract](./docs/guides/application-onboarding.md)
 - [Compliance evidence](./docs/guides/compliance-evidence.md) for NIS2, ISO/IEC 27001, DORA, GDPR and CIS
 - [Cost showback](./docs/guides/cost-showback.md) per environment, namespace and workload
+- [Alert runbooks](./docs/guides/alert-runbooks.md) for every platform alert
 
 ## Roadmap
 
