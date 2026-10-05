@@ -78,6 +78,9 @@ data:
             raise duplicate_user.errors.full_messages.join(", ") if duplicate_user.errors.any?
           end
 
+          # No Service Ping or version checks leave the installation.
+          ApplicationSetting.current.update!(usage_ping_enabled: false, version_check_enabled: false)
+
           puts "Linked Keycloak #{sso_username} to canonical GitLab administrator #{canonical_username}."
         '; then
           exit 0

@@ -156,6 +156,8 @@ spec:
               print("Reconciled the Portainer SSO administrator role and credential.")
 
               oauth_body = json.dumps({
+                  # No anonymous statistics leave the installation.
+                  "EnableTelemetry": False,
                   "AuthenticationMethod": 3,
                   "OAuthSettings": {
                       "ClientID": "portainer",

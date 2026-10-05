@@ -95,6 +95,7 @@ case "$SERVICE" in
             --set defaultSettings.concurrentAutomaticEngineUpgradePerNodeLimit=1 \
             --set defaultSettings.storageMinimalAvailablePercentage=20 \
             --set defaultSettings.storageOverProvisioningPercentage=110 \
+            --set defaultSettings.upgradeChecker=false \
             --wait --timeout "${LONGHORN_HELM_TIMEOUT:-$DEFAULT_LONGHORN_HELM_TIMEOUT}"
         kubectl patch storageclass longhorn -p \
             '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'

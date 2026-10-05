@@ -108,6 +108,7 @@ the pieces fit together.
 
 ## Compliance Evidence
 
+- inventory of every external service the platform contacts, with the data each receives; vendor telemetry and update checks switched off in GitLab, Grafana, Kibana, SonarQube, Portainer, Longhorn, Traefik and Odoo
 - control catalog mapped to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS, evaluated continuously in Prometheus
 - Compliance Evidence dashboard and a drift alert when a control starts failing or loses its evidence
 - `./install.sh --compliance` report and a hashed, optionally SSH-signed evidence pack that auditors verify offline

@@ -1,5 +1,9 @@
 # Native Kubernetes Ingress keeps routing and discovery owned by each repository.
 fullnameOverride: traefik
+# No version checks or usage statistics leave the installation.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
 image:
   registry: docker.io
   repository: library/traefik

@@ -386,7 +386,7 @@ controls:
       dora: [Art. 28]
       gdpr: [Art. 28]
     manual:
-      - Inventory of external services the platform uses, the data each receives and its jurisdiction.
+      - Inventory of external services the platform uses, the data each receives and its jurisdiction (docs/guides/external-services.md, plus the applications' own services).
       - Supplier assessments and data processing agreements.
 
   - id: awareness-and-hr

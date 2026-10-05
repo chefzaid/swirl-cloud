@@ -76,6 +76,7 @@ Specialized procedures:
 - [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance kept for 13 months
 - [Capacity planning](./docs/guides/capacity-planning.md): requested and used capacity, server-loss headroom and what to add
 - [Security detection](./docs/guides/security-detection.md): alerts on suspicious logins, permission changes and Secret access
+- [External services](./docs/guides/external-services.md): every outside service the platform contacts and what it receives
 
 ## Roadmap
 

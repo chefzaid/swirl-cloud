@@ -352,6 +352,9 @@ spec:
         ports:
         - containerPort: 9000
         env:
+        # No usage statistics leave the installation (docs/guides/external-services.md).
+        - name: SONAR_TELEMETRY_ENABLE
+          value: "false"
         - name: SONAR_JDBC_URL
           value: "jdbc:postgresql://postgres.__INTERNAL_DNS_ZONE__:5432/sonarqube"
         - name: SONAR_JDBC_USERNAME

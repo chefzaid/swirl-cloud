@@ -366,6 +366,11 @@ spec:
                   provider.write(provider_values)
               else:
                   env['auth.oauth.provider'].sudo().create(provider_values)
+              # The publisher-warranty cron reports the database UUID, user
+              # counts and installed apps to Odoo SA daily; keep it off.
+              update_notification = env.ref('mail.ir_cron_module_update_notification', raise_if_not_found=False)
+              if update_notification and update_notification.active:
+                  update_notification.sudo().active = False
               env.cr.commit()
               PY
           env:
