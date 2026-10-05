@@ -603,7 +603,8 @@ preference. Uninstall the module in Odoo before removing its files.
 
 ## Common Incidents
 
-Every alert links to its section of the [alert runbooks](guides/alert-runbooks.md)
+Record incidents and gather their evidence with the [incident response](guides/incident-response.md)
+guide. Every alert links to its section of the [alert runbooks](guides/alert-runbooks.md)
 (`runbook_url`) and carries an `owner` label (`platform`, `security` or
 `application`). The incidents below cover situations that span several alerts.
 

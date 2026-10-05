@@ -11,13 +11,14 @@
 #   ./install.sh --support-bundle        private troubleshooting archive (secrets redacted)
 #   ./install.sh --compliance [--evidence-pack]  control status for NIS2/ISO 27001/DORA/GDPR/CIS
 #   ./install.sh --access-review [--output-dir DIR]  who has access to what, with findings
+#   ./install.sh --incident-report --start TIME [--end TIME] [--aware TIME]  evidence and NIS2 drafts
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,13s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,14s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -78,6 +79,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/access-review.py" "$@"
+        ;;
+    --incident-report)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/incident-report.py" "$@"
         ;;
     -h|--help)
         usage

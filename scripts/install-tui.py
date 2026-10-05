@@ -57,6 +57,7 @@ GUIDES = """Files and commands
   Support bundle ./install.sh --support-bundle
   Compliance     ./install.sh --compliance [--evidence-pack]
   Access review  ./install.sh --access-review [--output-dir DIR]
+  Incident       ./install.sh --incident-report --start TIME [--aware TIME]
 
 Guides
 

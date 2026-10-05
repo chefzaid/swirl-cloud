@@ -426,8 +426,16 @@ spec:
               # password is generated in the cluster (security-detection.yaml).
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*"],"privileges":["read"]},{"names":["security-detection-state"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
+                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*"],"privileges":["read"]},{"names":["security-detection-state","security-findings-*"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/security_detection" >/dev/null
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"policy":{"phases":{"hot":{"min_age":"0ms","actions":{}},"delete":{"min_age":"400d","actions":{"delete":{}}}}}}' \
+                "${endpoint}/_ilm/policy/swirl-cloud-security-findings" >/dev/null
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"index_patterns":["security-findings-*"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0,"index.lifecycle.name":"swirl-cloud-security-findings"},"mappings":{"dynamic_templates":[{"strings":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":1024}}}],"properties":{"@timestamp":{"type":"date"},"description":{"type":"text"},"summary":{"type":"text"}}}}}' \
+                "${endpoint}/_index_template/security-findings" >/dev/null
               if [ -n "${SECURITY_DETECTION_PASSWORD:-}" ]; then
                 put_user security_detection "$SECURITY_DETECTION_PASSWORD" '["security_detection"]' 'Security Detection Reader'
               fi

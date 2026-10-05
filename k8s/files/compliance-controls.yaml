@@ -374,8 +374,8 @@ controls:
       dora: [Art. 17, Art. 19]
       gdpr: [Art. 33]
     manual:
-      - Incident response procedure with roles, the national CSIRT contact and the 24-hour, 72-hour and final report templates.
-      - Incident register for the period with post-incident reviews.
+      - Incident response procedure with roles and the national CSIRT contact (docs/guides/incident-response.md covers the reports and deadlines).
+      - Incident register for the period (GitLab incidents from the Incident template) with evidence reports and post-incident reviews.
 
   - id: supply-chain
     title: Supplier and supply-chain security

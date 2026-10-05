@@ -195,6 +195,17 @@ data:
       const response = await fetch(`${alertmanager}/api/v2/alerts`, { method: "POST",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(alerts) });
       if (!response.ok) failures.push(`Alertmanager: HTTP ${response.status}`);
+      // Keep a findings history for incident timelines (one document per
+      // finding and hour, so the five-minute reruns do not duplicate it).
+      const hour = new Date(now).toISOString().slice(0, 13);
+      const index = `security-findings-${hour.slice(0, 7).replace("-", ".")}`;
+      const bulk = findings.flatMap(({ summary, description, ...labels }) => [
+        // "create" keeps the first sighting; later runs in the hour conflict harmlessly.
+        JSON.stringify({ create: { _index: index, _id: `${Object.values(labels).join("|")}@${hour}` } }),
+        JSON.stringify({ "@timestamp": new Date(now).toISOString(), ...labels, summary, description })]).join("\n") + "\n";
+      const stored = await fetch(`${elasticsearch}/_bulk`, { method: "POST",
+        headers: { Authorization: esAuth, "Content-Type": "application/x-ndjson" }, body: bulk });
+      if (!stored.ok) failures.push(`findings history: HTTP ${stored.status}`);
     }
     console.log(`${findings.length} finding(s): ${findings.map((f) => f.alertname).join(", ") || "none"}`);
     if (failures.length) {

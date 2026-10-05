@@ -87,6 +87,7 @@ the pieces fit together.
 
 ## Security Detection
 
+- GitLab incident template and `./install.sh --incident-report` with an evidence timeline, NIS2/GDPR due times and report drafts
 - alerts for a successful login after repeated failures, RBAC changes outside GitOps, Secret reads by new identities and new platform administrators, every five minutes
 
 ## Host Security

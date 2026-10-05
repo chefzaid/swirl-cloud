@@ -77,6 +77,7 @@ Specialized procedures:
 - [Capacity planning](./docs/guides/capacity-planning.md): requested and used capacity, server-loss headroom and what to add
 - [Security detection](./docs/guides/security-detection.md): alerts on suspicious logins, permission changes and Secret access
 - [External services](./docs/guides/external-services.md): every outside service the platform contacts and what it receives
+- [Incident response](./docs/guides/incident-response.md): incident record, evidence report and NIS2/GDPR deadlines
 
 ## Roadmap
 
