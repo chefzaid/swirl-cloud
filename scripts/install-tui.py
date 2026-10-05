@@ -390,6 +390,7 @@ def maintenance(dialog, values):
                 ("logs", "Earlier run logs"),
                 ("bundle", "Create a support bundle (secrets redacted)"),
                 ("compliance", "Compliance report and evidence pack"),
+                ("cost", "Record this server's monthly cost (cost showback)"),
                 ("kit", "Export the encrypted recovery kit"),
                 ("kit-verify", "Verify a recovery kit against the current keys")])
         except Cancelled:
@@ -442,6 +443,14 @@ def maintenance(dialog, values):
                                     text=True, timeout=900)
             dialog.message(("Support bundle written:\n\n" + result.stdout) if result.returncode == 0 else
                            "The support bundle failed:\n\n" + result.stderr[-2000:], 12)
+        elif choice == "cost":
+            amount = dialog.text("Monthly cost of this server (for example 89.90); rent, or purchase price spread "
+                                 "over its service life plus hosting", values.get("SERVER_MONTHLY_COST", ""))
+            if amount:
+                currency = dialog.text("Currency (ISO 4217 code)", values.get("COST_CURRENCY") or "EUR")
+                if currency:
+                    run_logged("Server cost", [str(ROOT / "scripts/configure-node-cost.sh"), "--monthly-cost", amount,
+                                               "--currency", currency])
         elif choice == "compliance":
             run_logged("Compliance report", [sys.executable, str(ROOT / "scripts/compliance-report.py"), "--evidence-pack"])
         elif choice == "units":

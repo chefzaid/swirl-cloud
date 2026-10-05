@@ -70,6 +70,7 @@ Specialized procedures:
 - [Platform migration to Traefik and upstream images](./docs/guides/platform-migration.md)
 - [Repository onboarding](./docs/guides/repository-onboarding.md) and the [application onboarding contract](./docs/guides/application-onboarding.md)
 - [Compliance evidence](./docs/guides/compliance-evidence.md) for NIS2, ISO/IEC 27001, DORA, GDPR and CIS
+- [Cost showback](./docs/guides/cost-showback.md) per environment, namespace and workload
 
 ## Roadmap
 

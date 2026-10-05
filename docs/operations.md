@@ -30,6 +30,8 @@ use the access controls described in [security and identity](security.md).
 | Kafbat UI | `https://kafka.<your-domain>` | Kafka administration |
 | Trivy reports | `https://grafana.<your-domain>/d/trivy-security/trivy-security-reports` | Current workload and cluster findings |
 | Lynis reports | `https://kibana.<your-domain>/app/dashboards#/view/lynis-security-audits` | Host audit history |
+| Compliance evidence | `https://grafana.<your-domain>/d/compliance-evidence` | Control status per framework ([guide](guides/compliance-evidence.md)) |
+| Cost showback | `https://grafana.<your-domain>/d/cost-showback` | Cost per environment, namespace and workload ([guide](guides/cost-showback.md)) |
 
 ## Cluster status
 
@@ -699,3 +701,5 @@ the ban with `sudo fail2ban-client set sshd unbanip <address>` or
 - [Data model](data-model.md)
 - [Testing](testing.md)
 - [High availability](guides/high-availability.md)
+- [Compliance evidence](guides/compliance-evidence.md)
+- [Cost showback](guides/cost-showback.md)

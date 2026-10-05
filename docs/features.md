@@ -104,6 +104,11 @@ the pieces fit together.
 - Compliance Evidence dashboard and a drift alert when a control starts failing or loses its evidence
 - `./install.sh --compliance` report and a hashed, optionally SSH-signed evidence pack that auditors verify offline
 
+## Cost Showback
+
+- each server's monthly cost allocated to environments, namespaces and workloads by the larger of requests and usage
+- idle capacity, shared costs and a rightsizing view of requested versus used CPU and memory in Grafana
+
 ## Administration And Corporate Tools
 
 - Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery

@@ -165,6 +165,11 @@ INPUTS = (
                                  ("OVH_CONSUMER_KEY", "OVHcloud API consumer key", "secret"),
                                  ("OVH_VRACK_SERVICE_NAME", "OVHcloud vRack service name (pn-...)", "text"),
                                  ("OVH_CONTROL_PLANE_SERVICE_NAME", "This server's OVHcloud service name", "text"))),
+    Input("SERVER_MONTHLY_COST", "Nodes", "Monthly cost of this server for cost showback (optional)",
+          pattern=re.compile(r"[0-9]{1,9}(?:[.][0-9]{1,2})?\Z"),
+          help="Rent, or purchase price spread over its service life plus hosting. Blank skips cost showback."),
+    Input("COST_CURRENCY", "Nodes", "Currency of server costs (ISO 4217 code)", pattern=re.compile(r"[A-Z]{3}\Z"),
+          default="EUR", when=lambda v: bool(v.get("SERVER_MONTHLY_COST"))),
     Input("HIGH_AVAILABILITY_ENABLED", "Nodes", "Activate the opt-in high-availability profile?", kind="bool", default="false",
           help="Refused until three control planes exist; see docs/guides/high-availability.md."),
     # Components

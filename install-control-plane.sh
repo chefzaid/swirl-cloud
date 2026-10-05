@@ -149,6 +149,8 @@ KEYCLOAK_SSO_BOOTSTRAP_PASSWORD="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-}"
 ROTATE_LOCAL_ADMIN_PASSWORDS="${ROTATE_LOCAL_ADMIN_PASSWORDS:-}"
 LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-}"
 CONFIGURE_OFFSITE_BACKUPS="${CONFIGURE_OFFSITE_BACKUPS:-}"
+SERVER_MONTHLY_COST="${SERVER_MONTHLY_COST:-}"
+COST_CURRENCY="${COST_CURRENCY:-EUR}"
 BACKUP_S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-}"
 BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
 BACKUP_S3_REGION="${BACKUP_S3_REGION:-}"
@@ -1169,6 +1171,11 @@ if [[ -x "$SECURITY_HARDEN_SCRIPT" ]]; then
     "$SECURITY_HARDEN_SCRIPT" --apply --server-exposure "$SERVER_EXPOSURE" --node-role control-plane
 else
     warn "Host security script not found at $SECURITY_HARDEN_SCRIPT"
+fi
+
+if [[ -n "$SERVER_MONTHLY_COST" ]]; then
+    step "Recording this server's monthly cost for cost showback..."
+    "$SCRIPT_DIR/scripts/configure-node-cost.sh" --monthly-cost "$SERVER_MONTHLY_COST" --currency "$COST_CURRENCY"
 fi
 
 # ---------- Infrastructure section ---------------------------------------------
