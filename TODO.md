@@ -696,7 +696,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [x] Incident register and NIS2 workflow: GitLab **Incident** template (awareness time, significance test, deadlines, timeline, post-incident review) and `./install.sh --incident-report` with endpoint impact, a timeline of alerts and security findings, changes, restarts, logins and audit activity, NIS2/GDPR due times and drafts of the three NIS2 reports ([incident response](docs/guides/incident-response.md)); detection findings kept 13 months. *(2026-10-05)*
 - [x] Vulnerability deadlines (Critical 15 days, High 30 days from first sighting in a running image): hourly first/last-seen tracking per image and vulnerability, open and past-deadline counts in the **Platform Report**, `./install.sh --vulnerability-report` listing overdue items ([platform reports](docs/guides/platform-reports.md)). *(2026-10-05; tracking starts now, so the first deadlines fall due mid-October)*
 - [ ] Record triaged vulnerability exceptions as data (image, vulnerability, owner, expiry) so the deadline report and `TrivyNewCriticalVulnerability` subtract them.
-- [ ] Secret rotation: dynamic or scheduled rotation for database credentials (Vault database engine), registry and GitLab tokens and API keys; report the age of every credential and alert past its limit.
+- [x] Credential age report: every Vault KV secret with version, last write and age against a limit, metadata only (`./install.sh --credential-age`; [security](docs/security.md#credential-age)). *(2026-10-05: 37 secrets, oldest 35 days)*
+- [ ] Dynamic or scheduled rotation for database credentials (Vault database engine), registry and GitLab tokens and API keys, and an alert when a credential passes its age limit.
 
 ### 37. Security operations
 

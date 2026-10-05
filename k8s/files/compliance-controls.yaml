@@ -247,7 +247,7 @@ controls:
 
   - id: secrets-management
     title: Secrets management
-    objective: Credentials live in Vault, are delivered to workloads by External Secrets and never stored in Git.
+    objective: Credentials live in Vault, are delivered to workloads by External Secrets, are never stored in Git, and are rotated before they age past the limit.
     frameworks:
       nis2: ["21(2)(h)"]
       iso27001: [A.5.17, A.8.24]
@@ -263,6 +263,8 @@ controls:
         description: Every ExternalSecret is synchronized from Vault.
         present: externalsecret_status_condition
         failing: ALERTS{alertname="ExternalSecretNotReady",alertstate="firing"}
+    manual:
+      - Credential age report for the period (./install.sh --credential-age) and the rotations performed.
 
   - id: encryption-in-transit
     title: Encryption in transit

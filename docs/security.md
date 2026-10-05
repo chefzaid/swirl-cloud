@@ -200,6 +200,16 @@ a year. Only lines from the `keycloak` container in `infra` are accepted. In Kib
 and filter, for example, on `keycloak.type : LOGIN_ERROR`. Admin events log the
 realm of the acting administrator; the target is in `keycloak.resourcePath`.
 
+## Credential age
+
+`./install.sh --credential-age` lists every secret in Vault's KV mounts with its
+current version and when it was last written, oldest first, and exits non-zero
+when one is older than `--max-age-days` (default 365). It reads only metadata,
+never values, with the bootstrap token passed to the Vault pod on standard
+input. Rotate local administrator passwords with
+`scripts/rotate-local-admin-passwords.sh`; application and registry credentials
+rotate through their onboarding flows.
+
 ## Vulnerability triage
 
 Prometheus raises `TrivyNewCriticalVulnerability` when a running image gains
