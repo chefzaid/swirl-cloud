@@ -14,6 +14,11 @@ REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-htt
 REMOVED_REGISTRY_HOSTS="${K3S_REMOVED_REGISTRY_HOSTS:-${PLATFORM_DOMAIN:+gitlab.$PLATFORM_DOMAIN}}"
 RETAIN_LEGACY_REGISTRY="${K3S_RETAIN_LEGACY_REGISTRY:-false}"
 REGISTRY_CONFIG="${K3S_REGISTRY_CONFIG:-/etc/rancher/k3s/registries.yaml}"
+# Containerd keeps each pulled layer twice: compressed and unpacked. Dropping
+# the compressed copy after unpacking roughly halves image storage; nodes then
+# cannot serve or export those layers, which K3s does not need here.
+DISCARD_UNPACKED_LAYERS="${K3S_DISCARD_UNPACKED_LAYERS:-true}"
+CONTAINERD_DROPIN="${K3S_CONTAINERD_DROPIN:-/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/20-swirl-cloud-images.toml}"
 sudo_command=()
 
 info() { printf '[INFO] %s\n' "$*"; }
@@ -22,6 +27,10 @@ error() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 case "$RETAIN_LEGACY_REGISTRY" in
     true|false) ;;
     *) error "K3S_RETAIN_LEGACY_REGISTRY must be true or false" ;;
+esac
+case "$DISCARD_UNPACKED_LAYERS" in
+    true|false) ;;
+    *) error "K3S_DISCARD_UNPACKED_LAYERS must be true or false" ;;
 esac
 [[ -n "$REGISTRY_HOST" ]] || error "Set PLATFORM_DOMAIN or K3S_REGISTRY_HOST."
 
@@ -87,10 +96,18 @@ if [[ "$RETAIN_LEGACY_REGISTRY" == "false" ]]; then
     done
 fi
 
+# K3s imports config-v3.toml.d/*.toml into its generated containerd config.
+images_config="$(printf "version = 3\n\n[plugins.'io.containerd.cri.v1.images']\n  discard_unpacked_layers = %s\n" "$DISCARD_UNPACKED_LAYERS")"
+if [[ "$("${sudo_command[@]}" cat "$CONTAINERD_DROPIN" 2>/dev/null)" != "$images_config" ]]; then
+    "${sudo_command[@]}" install -d -o root -g root -m 0755 "${CONTAINERD_DROPIN%/*}"
+    printf '%s\n' "$images_config" | "${sudo_command[@]}" install -o root -g root -m 0644 /dev/stdin "$CONTAINERD_DROPIN"
+    changed=true
+fi
+
 if [[ "$changed" == "true" ]]; then
     for service_name in k3s k3s-agent; do
         if "${sudo_command[@]}" systemctl is-active --quiet "$service_name" 2>/dev/null; then
-            info "Restarting $service_name to load the $REGISTRY_HOST mirror"
+            info "Restarting $service_name to load the $REGISTRY_HOST mirror and image settings"
             "${sudo_command[@]}" systemctl restart "$service_name"
             if [[ "$service_name" == "k3s" ]] && command -v kubectl >/dev/null 2>&1; then
                 for attempt in $(seq 1 30); do

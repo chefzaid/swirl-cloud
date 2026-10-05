@@ -342,6 +342,14 @@ volume's requested capacity is not its physical disk usage. Reducing a capacity
 request does not reclaim deleted-file blocks; reclaim unused data and trim the
 filesystem through Longhorn.
 
+Containerd keeps only the unpacked image layers:
+[configure-k3s-registry-mirror.sh](../scripts/configure-k3s-registry-mirror.sh)
+installs a `config-v3.toml.d` drop-in with `discard_unpacked_layers = true` on
+every node, which roughly halves image storage. Nodes therefore cannot export
+or re-serve pulled layers; keep recovery images in the off-host archive rather
+than relying on a node's image store. Set `K3S_DISCARD_UNPACKED_LAYERS=false`
+before running the script to keep compressed layers.
+
 The recurring trim in
 [longhorn-maintenance.yaml](../k8s/platform/longhorn-maintenance.yaml) processes
 one volume at a time in the `default` and `swirl-cloud` groups. Detached volumes
