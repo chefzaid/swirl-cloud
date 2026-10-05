@@ -380,6 +380,16 @@ controls:
       - Incident response procedure with roles and the national CSIRT contact (docs/guides/incident-response.md covers the reports and deadlines).
       - Incident register for the period (GitLab incidents from the Incident template) with evidence reports and post-incident reviews.
 
+  - id: records-of-processing
+    title: Records of processing activities
+    objective: Every processing of personal data is recorded with its purposes, data, recipients, storage and retention.
+    frameworks:
+      gdpr: [Art. 30]
+      iso27001: [A.5.34]
+      nis2: ["21(2)(i)"]
+    manual:
+      - Completed records of processing (draft with ./install.sh --processing-records) reviewed for the period.
+
   - id: supply-chain
     title: Supplier and supply-chain security
     objective: External services and software suppliers are inventoried, assessed and covered by agreements.

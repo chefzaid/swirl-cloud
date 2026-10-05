@@ -15,13 +15,14 @@
 #   ./install.sh --vulnerability-report [--all]  Critical/High vulnerabilities past their deadline
 #   ./install.sh --credential-age [--max-age-days N]  when every Vault secret was last written
 #   ./install.sh --policy-report         application workloads that break admission policies
+#   ./install.sh --processing-records    draft GDPR Article 30 records from the running platform
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,17s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,18s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -102,6 +103,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/policy-report.py" "$@"
+        ;;
+    --processing-records)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/processing-records.py" "$@"
         ;;
     -h|--help)
         usage

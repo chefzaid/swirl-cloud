@@ -107,6 +107,19 @@ Keycloak's stored login events (90 days), so it becomes reliable 90 days after
 event storage started. Vault policies and Grafana roles follow the Keycloak
 groups shown in the sheet.
 
+## Records of processing
+
+`./install.sh --processing-records > records.md` drafts the GDPR Article 30
+register from the running platform. For each application deployed through Argo
+CD it lists environments, the `swirl-cloud.io/owner` and
+`swirl-cloud.io/data-classification` labels, public endpoints, the data services
+and external processors found in its credential names (never values) and its
+persistent volumes; it adds the platform's own activities (identity, GitLab,
+logs and audit, Odoo), where processing runs and the retention the platform
+applies. Purposes, data subjects, legal bases, recipients and erasure deadlines
+are left in brackets for the controller. Regenerate it when applications change
+and keep the completed version with the period's evidence.
+
 ### Verify a pack
 
 An auditor needs the archive, the signer's public key and Python 3.12 or later:
