@@ -1329,6 +1329,37 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#sloavailabilitybudgetburnslow
               summary: Endpoint is steadily burning its availability budget
               description: '{{ $labels.instance }} failed {{ $value | humanizePercentage }} of probes over six hours; the month''s 0.5 % budget lasts about five days at this rate.'
+      # Service indicators that endpoint probes do not cover (docs/guides/service-levels.md).
+      - name: swirl-cloud.sli
+        rules:
+          - record: swirl_cloud_sli:datastore_up
+            expr: |
+              label_replace(
+                max by (job) (pg_up or mongodb_up or redis_up or (kafka_brokers >= bool 1)),
+                "service", "$1", "job", "(.*)"
+              )
+          # CI failures caused by the platform (runner, system, timeouts), not by
+          # job scripts or cancellations, over all jobs in the window.
+          - record: swirl_cloud_sli:ci_platform_failures:ratio_rate6h
+            expr: |
+              (sum(increase(gitlab_runner_failed_jobs_total{failure_reason!~"script_failure|job_canceled"}[6h])) or vector(0))
+              / clamp_min(sum(increase(gitlab_runner_jobs_total[6h])), 1)
+          - record: swirl_cloud_sli:ci_queue_seconds:p90_6h
+            expr: histogram_quantile(0.9, sum by (le) (rate(gitlab_runner_job_queue_duration_seconds_bucket[6h])))
+          - record: swirl_cloud_sli:argocd_sync_failures:ratio_rate6h
+            expr: |
+              (sum(increase(argocd_app_sync_total{phase=~"Error|Failed"}[6h])) or vector(0))
+              / clamp_min(sum(increase(argocd_app_sync_total[6h])), 1)
+          - alert: CIJobsQueueingLong
+            expr: swirl_cloud_sli:ci_queue_seconds:p90_6h > 600
+            for: 1h
+            labels:
+              severity: warning
+              owner: platform
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#cijobsqueueinglong
+              summary: CI jobs wait more than ten minutes for a runner
+              description: 'Nine in ten CI jobs started within {{ $value | humanizeDuration }} over six hours; raise runner concurrency or add capacity.'
       # Capacity planning (docs/guides/capacity-planning.md): requests reserve
       # schedulable capacity whether used or not, so plan on requests and keep
       # usage in view. Targets keep requests below 70 % and survive a server loss.
@@ -4146,6 +4177,77 @@ data:
               "mode": "multi"
             }
           }
+        },
+        {
+          "id": 13,
+          "type": "table",
+          "title": "Service indicators",
+          "description": "Average over the period of hourly values: data store availability, CI queue time (p90, seconds), CI failures caused by the platform and Argo CD sync failures.",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 44
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "elasticsearch",
+                "uid": "platform-reports"
+              },
+              "query": "kind:sli",
+              "metrics": [
+                {
+                  "id": "1",
+                  "type": "avg",
+                  "field": "value"
+                }
+              ],
+              "bucketAggs": [
+                {
+                  "id": "2",
+                  "type": "terms",
+                  "field": "indicator",
+                  "settings": {
+                    "min_doc_count": "1",
+                    "size": "50",
+                    "order": "asc",
+                    "orderBy": "_term"
+                  }
+                }
+              ],
+              "timeField": "@timestamp"
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 3
+            },
+            "overrides": []
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "renameByName": {
+                  "indicator": "Indicator",
+                  "Average value": "Average"
+                }
+              }
+            }
+          ]
         }
       ]
     }
@@ -4798,10 +4900,325 @@ data:
               "mode": "multi"
             }
           }
+        },
+        {
+          "id": 8,
+          "type": "table",
+          "title": "Data stores",
+          "description": "Shared PostgreSQL, MongoDB, Redis and Kafka as seen by their exporters.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 26
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_sli:datastore_up",
+              "format": "table",
+              "instant": true
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "avg_over_time(swirl_cloud_sli:datastore_up[$__range])",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Now"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Down",
+                            "color": "red"
+                          },
+                          "1": {
+                            "text": "Up",
+                            "color": "green"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Availability"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "service": "Data store",
+                  "Value #A": "Now",
+                  "Value #B": "Availability"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "stat",
+          "title": "CI queue time (p90, 6 h)",
+          "description": "Time nine in ten CI jobs waited for a runner.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 4,
+            "x": 12,
+            "y": 26
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_sli:ci_queue_seconds:p90_6h",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 300
+                  },
+                  {
+                    "color": "red",
+                    "value": 600
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 10,
+          "type": "stat",
+          "title": "CI failures caused by the platform (6 h)",
+          "description": "Runner, system and timeout failures; job script failures are excluded.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 4,
+            "x": 16,
+            "y": 26
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_sli:ci_platform_failures:ratio_rate6h",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.02
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.05
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 11,
+          "type": "stat",
+          "title": "Argo CD sync failures (6 h)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 4,
+            "x": 20,
+            "y": 26
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_sli:argocd_sync_failures:ratio_rate6h",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.05
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.2
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
         }
       ]
     }
-
 ---
 apiVersion: v1
 kind: ConfigMap

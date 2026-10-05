@@ -16,6 +16,7 @@ into a monthly report.
 | `compliance` | `control`, `status`, `passing` (1 or 0) | [compliance evidence](compliance-evidence.md) |
 | `compliance_framework` | `framework`, `ratio` (share of automated controls passing) | compliance evidence |
 | `vulnerabilities` | `severity`, `open`, `past_deadline`, `deadline_days` | Trivy findings in running images |
+| `sli` | `indicator` (`datastore:<service>`, `ci_queue_p90_seconds`, `ci_platform_failure_ratio`, `argocd_sync_failure_ratio`), `value` | [service indicators](service-levels.md#other-indicators) |
 
 The vulnerability counts rest on `platform-reports-vulnerability-tracking`, which
 keeps, without lifecycle deletion, when each image and vulnerability pair

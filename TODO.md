@@ -716,7 +716,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 - [x] Availability SLO (99.5 %) for every public endpoint (portal, Git, Registry, Argo CD, SSO, Odoo and every application host, discovered from Ingresses) measured by blackbox probes over the public path; multi-window burn-rate alerts; Grafana **Service Levels** with availability and budget left per endpoint ([service levels](docs/guides/service-levels.md)). *(live, 2026-10-05: 25 endpoints probed, all up)*
 - [x] Monthly availability per endpoint in Grafana **Platform Report** from the hourly snapshots, independent of Prometheus retention.
-- [ ] SLIs that probes do not cover: CI job success and queue time, Registry push/pull, Argo CD sync latency and data-service availability. These define the managed-service SLA.
+- [x] Indicators beyond probes: data-store availability, CI queue time (p90) and platform-caused CI failures, Argo CD sync failures; `CIJobsQueueingLong` alert; on **Service Levels** and monthly in the **Platform Report** ([other indicators](docs/guides/service-levels.md#other-indicators)). *(2026-10-05: CI queue p90 about 4 minutes with one concurrent job)*
+- [ ] Registry push/pull probes and per-service SLA targets for the managed service.
 - [x] Every alert rule carries an `owner` label (`platform`, `security`, or `application` for application namespaces) and a `runbook_url` to its section of [alert runbooks](docs/guides/alert-runbooks.md); validation rejects an alert without both. *(2026-10-05, 44 alerts)*
 - [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.

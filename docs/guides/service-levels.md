@@ -43,6 +43,21 @@ Both carry `owner: application` for endpoints in application namespaces and
 | `swirl_cloud_slo:probe_success:ratio_rate5m` (also `30m`, `1h`, `6h`) | Share of successful probes per endpoint |
 | `swirl_cloud_slo:objective` | The availability objective (0.995) |
 
+## Other indicators
+
+Probes cover what users reach over HTTPS. These indicators cover the rest:
+
+| Series | Meaning |
+| --- | --- |
+| `swirl_cloud_sli:datastore_up{service}` | Shared PostgreSQL, MongoDB, Redis and Kafka reachable by their exporters (1 or 0) |
+| `swirl_cloud_sli:ci_queue_seconds:p90_6h` | Time nine in ten CI jobs waited for a runner over six hours |
+| `swirl_cloud_sli:ci_platform_failures:ratio_rate6h` | CI jobs that failed because of the runner, the system or a timeout; job script failures and cancellations are excluded |
+| `swirl_cloud_sli:argocd_sync_failures:ratio_rate6h` | Argo CD sync operations that failed |
+
+[`CIJobsQueueingLong`](alert-runbooks.md#cijobsqueueinglong) fires when the CI
+queue time stays above ten minutes for an hour; data stores already alert
+through [`DatastoreDown`](alert-runbooks.md#datastoredown).
+
 ## Dashboard and reports
 
 Grafana's **Service Levels** dashboard (Applications folder) lists every

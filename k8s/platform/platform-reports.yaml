@@ -37,7 +37,9 @@ data:
             "severity": {"type": "keyword"},
             "open": {"type": "long"},
             "past_deadline": {"type": "long"},
-            "deadline_days": {"type": "long"}
+            "deadline_days": {"type": "long"},
+            "indicator": {"type": "keyword"},
+            "value": {"type": "double"}
           }
         }
       }
@@ -128,6 +130,16 @@ data:
         add(`cost:${scope}:${metric.currency}`, { kind: "cost", scope, currency: metric.currency, monthly_cost: value });
       }
     }
+    for (const [indicator, expr] of [
+      ["datastore", "avg by (service) (avg_over_time(swirl_cloud_sli:datastore_up[1h]))"],
+      ["ci_queue_p90_seconds", "swirl_cloud_sli:ci_queue_seconds:p90_6h"],
+      ["ci_platform_failure_ratio", "swirl_cloud_sli:ci_platform_failures:ratio_rate6h"],
+      ["argocd_sync_failure_ratio", "swirl_cloud_sli:argocd_sync_failures:ratio_rate6h"]]) {
+      for (const { metric, value } of await query(expr)) {
+        const name = metric.service ? `${indicator}:${metric.service}` : indicator;
+        add(`sli:${name}`, { kind: "sli", indicator: name, value });
+      }
+    }
     const usage = new Map();
     for (const [field, expr] of [["cpu_cores", "sum by (namespace) (swirl_cloud_cost_pod_cpu_cores)"],
                                  ["memory_bytes", "sum by (namespace) (swirl_cloud_cost_pod_memory_bytes)"]]) {
@@ -146,6 +158,13 @@ data:
 
     await elastic("/_ilm/policy/swirl-cloud-platform-reports", "PUT", await readFile("/opt/platform-reports/ilm-policy.json"));
     await elastic("/_index_template/platform-reports", "PUT", await readFile("/opt/platform-reports/index-template.json"));
+    // Templates apply when an index is created; add new fields to this month's
+    // index too (adding fields is allowed, existing ones are unchanged).
+    const template = JSON.parse(await readFile("/opt/platform-reports/index-template.json", "utf8"));
+    const mapping = await fetch(`${elasticsearch}/${index}/_mapping`, { method: "PUT",
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: template.template.mappings.properties }) });
+    if (!mapping.ok && mapping.status !== 404) throw new Error(`mapping: HTTP ${mapping.status} ${(await mapping.text()).slice(0, 200)}`);
     await elastic("/_index_template/platform-reports-vulnerability-tracking", "PUT",
       await readFile("/opt/platform-reports/vulnerability-template.json"));
 

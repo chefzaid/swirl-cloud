@@ -386,6 +386,16 @@ and the network policies between `infra` and its namespace.
 
 ## Service levels
 
+### CIJobsQueueingLong
+
+Over six hours, one CI job in ten waited more than ten minutes before a runner
+picked it up. Pipelines and deployments slow down for every team.
+
+- Check `gitlab_runner_concurrent` and the queue on Grafana **Service Levels**;
+  the shared runner runs one job at a time by default.
+- Raise the runner's `concurrent` setting and per-job limits within the capacity
+  shown on **Capacity Planning** (TODO §26), or add a runner on another server.
+
 ### SLOAvailabilityBudgetBurnFast
 
 An endpoint failed more than 7.2 % of its availability probes over the last
