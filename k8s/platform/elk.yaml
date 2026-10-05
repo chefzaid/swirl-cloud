@@ -426,7 +426,7 @@ spec:
               # password is generated in the cluster (security-detection.yaml).
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*"],"privileges":["read"]},{"names":["security-detection-state","security-findings-*"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
+                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*"],"privileges":["read"]},{"names":["security-detection-state","security-findings-*","access-grants"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/security_detection" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
@@ -436,6 +436,10 @@ spec:
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"index_patterns":["security-findings-*"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0,"index.lifecycle.name":"swirl-cloud-security-findings"},"mappings":{"dynamic_templates":[{"strings":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":1024}}}],"properties":{"@timestamp":{"type":"date"},"description":{"type":"text"},"summary":{"type":"text"}}}}}' \
                 "${endpoint}/_index_template/security-findings" >/dev/null
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"index_patterns":["access-grants"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0},"mappings":{"dynamic":false,"properties":{"@timestamp":{"type":"date"},"user":{"type":"keyword"},"realm":{"type":"keyword"},"reason":{"type":"text"},"requested_by":{"type":"keyword"},"approved_by":{"type":"keyword"},"granted_at":{"type":"date"},"expires_at":{"type":"date"},"ended_at":{"type":"date"},"ended_by":{"type":"keyword"},"state":{"type":"keyword"}}}}}' \
+                "${endpoint}/_index_template/access-grants" >/dev/null
               # Single-document state index; one shard and no replica like every
               # other platform index, so a single node stays green.
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \

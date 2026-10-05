@@ -178,9 +178,37 @@ data:
           + "confirm the grant was approved." }));
     }
 
+    // Just-in-time administration (scripts/admin-access.py): end temporary
+    // platform-admins memberships whose time is up. Permanent members have no
+    // grant record and are never touched.
+    async function expireTemporaryAdministrators() {
+      const due = await search("access-grants", { size: 100, query: { bool: { filter: [
+        { term: { state: "active" } }, { range: { expires_at: { lte: new Date(now).toISOString() } } }] } } });
+      if (!due.hits.hits.length) return [];
+      const token = await keycloakToken();
+      const call = async (method, path) => {
+        const response = await fetch(`${keycloak}/admin/realms/${path}`, { method, headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok && response.status !== 404) throw new Error(`Keycloak ${method} ${path}: HTTP ${response.status}`);
+        return response.status === 204 || method !== "GET" ? null : response.json();
+      };
+      const group = (await call("GET", `${realm}/groups?search=platform-admins&exact=true`)).find((g) => g.name === "platform-admins");
+      for (const hit of due.hits.hits) {
+        const grant = hit._source;
+        const users = await call("GET", `${realm}/users?username=${encodeURIComponent(grant.user)}&exact=true`);
+        if (users?.[0] && group) await call("DELETE", `${realm}/users/${users[0].id}/groups/${group.id}`);
+        const update = await fetch(`${elasticsearch}/access-grants/_update/${encodeURIComponent(hit._id)}`, { method: "POST",
+          headers: { Authorization: esAuth, "Content-Type": "application/json" },
+          body: JSON.stringify({ doc: { state: "expired", ended_at: new Date(now).toISOString(), ended_by: "security-detection" } }) });
+        if (!update.ok) throw new Error(`access-grants update: HTTP ${update.status}`);
+        console.log(`Ended temporary platform administration for ${grant.user}.`);
+      }
+      return [];
+    }
+
     const findings = [];
     const failures = [];
-    for (const rule of [bruteForceThenSuccess, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators]) {
+    for (const rule of [bruteForceThenSuccess, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
+                        expireTemporaryAdministrators]) {
       try {
         findings.push(...await rule());
       } catch (error) {
