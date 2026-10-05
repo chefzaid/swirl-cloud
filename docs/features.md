@@ -77,6 +77,7 @@ the pieces fit together.
 
 - Prometheus, Alertmanager to GitLab alerts, Grafana dashboards for Kubernetes, delivery and security
 - every alert labelled with an owner and linked to its runbook section
+- availability probes for every Ingress host, a 99.5 % objective with multi-window burn-rate alerts and a Service Levels dashboard
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
 - generated per-application Grafana and Kibana dashboards from namespace labels
 - Trivy Operator vulnerability, configuration, RBAC, secret and compliance reports

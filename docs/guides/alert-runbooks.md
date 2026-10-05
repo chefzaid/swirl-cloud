@@ -317,6 +317,29 @@ Prometheus has not scraped a target for ten minutes, so its alerts cannot fire.
 Check the target pod or exporter (`kubectl get pods -A -o wide | grep <instance>`)
 and the network policies between `infra` and its namespace.
 
+## Service levels
+
+### SLOAvailabilityBudgetBurnFast
+
+An endpoint failed more than 7.2 % of its availability probes over the last
+hour and is still failing: at this rate it uses the month's 0.5 % error budget
+in about two days. Users see errors now.
+
+- Open Grafana **Service Levels** and the endpoint's probe result:
+  `curl -sSI https://<host>/` shows the status code or TLS error.
+- A 5xx points at the service behind the Ingress (see
+  [KubernetesDeploymentUnavailable](#kubernetesdeploymentunavailable)); a
+  Cloudflare 52x error at Traefik or the origin; a TLS error at the certificate
+  ([TLSCertificateExpiryCritical](#tlscertificateexpirycritical)).
+- Roll back a release that caused it, then record the incident.
+
+### SLOAvailabilityBudgetBurnSlow
+
+An endpoint failed more than 3 % of its probes over six hours and is still
+failing: the month's budget lasts about five days at this rate. Look for
+intermittent failures (restarts, OOM kills, a flapping dependency) on the
+**Service Levels** dashboard and fix them before they become an outage.
+
 ## Compliance
 
 ### ComplianceControlRegressed

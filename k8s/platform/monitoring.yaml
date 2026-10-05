@@ -44,6 +44,10 @@ rules:
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["get", "list", "watch"]
+  # Ingress hosts are discovered as availability probe targets.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
 
@@ -308,6 +312,107 @@ spec:
             path: /
 
 ---
+# Availability probes for every public Ingress host (docs/guides/service-levels.md).
+# Requests travel the public path (DNS, Cloudflare, Traefik) like a user's.
+# Login redirects and 401/403/404 answers count as available; 5xx, TLS and
+# connection errors do not.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: infra
+data:
+  blackbox.yml: |
+    modules:
+      https_available:
+        prober: http
+        timeout: 10s
+        http:
+          preferred_ip_protocol: ip4
+          follow_redirects: false
+          fail_if_not_ssl: true
+          valid_status_codes: [200, 201, 202, 204, 301, 302, 303, 307, 308, 401, 403, 404]
+          headers:
+            User-Agent: swirl-cloud-availability-probe
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: infra
+  labels:
+    app: blackbox-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        app: blackbox-exporter
+      annotations:
+        swirl-cloud.io/config-version: "1"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: blackbox-exporter
+          image: quay.io/prometheus/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
+          args:
+            - --config.file=/etc/blackbox/blackbox.yml
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 9115
+          readinessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/blackbox
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: blackbox-exporter-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: infra
+  labels:
+    app: blackbox-exporter
+spec:
+  selector:
+    app: blackbox-exporter
+  ports:
+    - name: http
+      port: 9115
+      targetPort: http
+
+---
 # Cluster health and node statistics through a monitor-only Elasticsearch user.
 apiVersion: apps/v1
 kind: Deployment
@@ -546,6 +651,30 @@ data:
             target_label: pod
           - source_labels: [__meta_kubernetes_pod_node_name]
             target_label: node
+
+      # One probe per public Ingress host through the blackbox exporter.
+      - job_name: availability-probes
+        metrics_path: /probe
+        params:
+          module: [https_available]
+        scrape_interval: 30s
+        scrape_timeout: 15s
+        kubernetes_sd_configs:
+          - role: ingress
+        relabel_configs:
+          # Skip wildcard and host-less rules.
+          - source_labels: [__address__]
+            action: drop
+            regex: '(\*.*)?'
+          - source_labels: [__address__]
+            target_label: __param_target
+            replacement: https://$1/
+          - source_labels: [__param_target]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - target_label: __address__
+            replacement: blackbox-exporter.__INTERNAL_DNS_ZONE__:9115
 
       - job_name: argocd
         kubernetes_sd_configs:
@@ -1160,6 +1289,46 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#compliancecontrolregressed
               summary: A compliance control started failing or lost its evidence
               description: 'Control {{ $labels.control }} is now {{ if eq $value 0.0 }}failing{{ else }}without evidence{{ end }}. Open the Compliance Evidence dashboard or run ./install.sh --compliance.'
+      # Service levels (docs/guides/service-levels.md): every public endpoint
+      # targets 99.5 % availability (error budget 0.5 %) measured by probes.
+      # Burn-rate alerts follow the multi-window method of the Google SRE
+      # workbook: 14.4x over 1 h and 5 m pages, 6x over 6 h and 30 m warns.
+      - name: swirl-cloud.slo
+        rules:
+          - record: swirl_cloud_slo:probe_success:ratio_rate5m
+            expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[5m]))
+          - record: swirl_cloud_slo:probe_success:ratio_rate30m
+            expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[30m]))
+          - record: swirl_cloud_slo:probe_success:ratio_rate1h
+            expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[1h]))
+          - record: swirl_cloud_slo:probe_success:ratio_rate6h
+            expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[6h]))
+          - record: swirl_cloud_slo:objective
+            expr: vector(0.995)
+          - alert: SLOAvailabilityBudgetBurnFast
+            expr: |
+              (1 - swirl_cloud_slo:probe_success:ratio_rate1h) > 14.4 * (1 - 0.995)
+              and (1 - swirl_cloud_slo:probe_success:ratio_rate5m) > 14.4 * (1 - 0.995)
+            for: 2m
+            labels:
+              severity: critical
+              owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#sloavailabilitybudgetburnfast
+              summary: Endpoint is burning its availability budget fast
+              description: '{{ $labels.instance }} failed {{ $value | humanizePercentage }} of probes over the last hour; at this rate the month''s 0.5 % budget is gone in about two days.'
+          - alert: SLOAvailabilityBudgetBurnSlow
+            expr: |
+              (1 - swirl_cloud_slo:probe_success:ratio_rate6h) > 6 * (1 - 0.995)
+              and (1 - swirl_cloud_slo:probe_success:ratio_rate30m) > 6 * (1 - 0.995)
+            for: 15m
+            labels:
+              severity: warning
+              owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#sloavailabilitybudgetburnslow
+              summary: Endpoint is steadily burning its availability budget
+              description: '{{ $labels.instance }} failed {{ $value | humanizePercentage }} of probes over six hours; the month''s 0.5 % budget lasts about five days at this rate.'
       # Cost showback (docs/guides/cost-showback.md): each server's monthly cost,
       # published by scripts/configure-node-cost.sh, is split 65 % CPU / 35 %
       # memory and allocated to running pods by the larger of request and usage.
@@ -2015,6 +2184,659 @@ spec:
         - name: grafana-logs
           emptyDir:
             sizeLimit: 256Mi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-service-levels-dashboard
+  namespace: infra
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: swirl-cloud
+data:
+  service-levels.json: |
+    {
+      "uid": "service-levels",
+      "title": "Service Levels",
+      "description": "Availability of every public endpoint from probes over the real path (DNS, Cloudflare, Traefik), against a 99.5 % objective. Ranges beyond Prometheus retention show only the retained part.",
+      "tags": [
+        "slo",
+        "availability",
+        "provisioned"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 41,
+      "version": 1,
+      "refresh": "1m",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "templating": {
+        "list": []
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Endpoints up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(probe_success{job=\"availability-probes\"})",
+              "legendFormat": "up",
+              "instant": true
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(probe_success{job=\"availability-probes\"})",
+              "legendFormat": "probed",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Availability over the selected range",
+          "description": "Share of successful probes across all endpoints.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "avg(avg_over_time(probe_success{job=\"availability-probes\"}[$__range]))",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 3,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.99
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.995
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Budget-burn alerts firing",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(ALERTS{alertname=~\"SLOAvailabilityBudgetBurn.*\",alertstate=\"firing\"}) or vector(0)",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Objective",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "swirl_cloud_slo:objective",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 1,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "type": "table",
+          "title": "Endpoints",
+          "description": "Budget left is the share of the 0.5 % error budget not yet used in the selected range.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 4
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (instance, namespace) (probe_success{job=\"availability-probes\"})",
+              "format": "table",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "avg by (instance, namespace) (avg_over_time(probe_success{job=\"availability-probes\"}[$__range]))",
+              "format": "table",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "1 - (1 - avg by (instance, namespace) (avg_over_time(probe_success{job=\"availability-probes\"}[$__range]))) / (1 - 0.995)",
+              "format": "table",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "D",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "avg by (instance, namespace) (avg_over_time(probe_duration_seconds{job=\"availability-probes\"}[$__range]))",
+              "format": "table",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "E",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (instance, namespace) (probe_http_status_code{job=\"availability-probes\"})",
+              "format": "table",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "F",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "min by (instance, namespace) (probe_ssl_earliest_cert_expiry{job=\"availability-probes\"} - time()) / 86400",
+              "format": "table",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            },
+            "sortBy": [
+              {
+                "displayName": "Availability",
+                "desc": false
+              }
+            ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "filterable": true,
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Now"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "Down",
+                            "color": "red",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "Up",
+                            "color": "green",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 90
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Availability"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 3
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Budget left"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 0
+                  },
+                  {
+                    "id": "min",
+                    "value": 0
+                  },
+                  {
+                    "id": "max",
+                    "value": 1
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "red",
+                          "value": null
+                        },
+                        {
+                          "color": "orange",
+                          "value": 0.25
+                        },
+                        {
+                          "color": "green",
+                          "value": 0.5
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Probe time"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 3
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Certificate days"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "none"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "instance": 0,
+                  "namespace": 1,
+                  "Value #A": 2,
+                  "Value #B": 3,
+                  "Value #C": 4,
+                  "Value #D": 5,
+                  "Value #E": 6,
+                  "Value #F": 7
+                },
+                "renameByName": {
+                  "instance": "Endpoint",
+                  "namespace": "Namespace",
+                  "Value #A": "Now",
+                  "Value #B": "Availability",
+                  "Value #C": "Budget left",
+                  "Value #D": "Probe time",
+                  "Value #E": "HTTP status",
+                  "Value #F": "Certificate days"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Failing endpoints",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "count(probe_success{job=\"availability-probes\"} == 0) or vector(0)",
+              "legendFormat": "failing"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "min": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "red"
+              },
+              "custom": {
+                "drawStyle": "bars",
+                "fillOpacity": 60
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          }
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Probe time by endpoint",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "avg by (instance) (probe_duration_seconds{job=\"availability-probes\"})",
+              "legendFormat": "{{instance}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 0
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "mean",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        }
+      ]
+    }
 
 ---
 apiVersion: v1

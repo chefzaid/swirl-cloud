@@ -32,6 +32,7 @@ use the access controls described in [security and identity](security.md).
 | Lynis reports | `https://kibana.<your-domain>/app/dashboards#/view/lynis-security-audits` | Host audit history |
 | Compliance evidence | `https://grafana.<your-domain>/d/compliance-evidence` | Control status per framework ([guide](guides/compliance-evidence.md)) |
 | Cost showback | `https://grafana.<your-domain>/d/cost-showback` | Cost per environment, namespace and workload ([guide](guides/cost-showback.md)) |
+| Service levels | `https://grafana.<your-domain>/d/service-levels` | Availability and error budget per public endpoint ([guide](guides/service-levels.md)) |
 
 ## Cluster status
 

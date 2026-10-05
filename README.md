@@ -72,6 +72,7 @@ Specialized procedures:
 - [Compliance evidence](./docs/guides/compliance-evidence.md) for NIS2, ISO/IEC 27001, DORA, GDPR and CIS
 - [Cost showback](./docs/guides/cost-showback.md) per environment, namespace and workload
 - [Alert runbooks](./docs/guides/alert-runbooks.md) for every platform alert
+- [Service levels](./docs/guides/service-levels.md): availability objectives and burn-rate alerts for every public endpoint
 
 ## Roadmap
 

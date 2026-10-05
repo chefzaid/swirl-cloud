@@ -306,6 +306,22 @@ controls:
       - Disaster recovery plan with recovery point and recovery time objectives.
       - Record of the latest restore drill with measured recovery time and data checks.
 
+  - id: service-availability
+    title: Service availability objectives
+    objective: Every public endpoint is probed continuously against a 99.5 % availability objective, and fast or sustained budget burn alerts an operator.
+    frameworks:
+      nis2: ["21(2)(c)"]
+      iso27001: [A.8.14, A.8.16]
+      dora: [Art. 9, Art. 11]
+      gdpr: [Art. 32(1)(b)]
+    checks:
+      - id: endpoint-budget
+        description: No public endpoint is burning its availability budget.
+        present: probe_success{job="availability-probes"}
+        failing: ALERTS{alertname=~"SLOAvailabilityBudgetBurn.*",alertstate="firing"}
+    manual:
+      - Agreed service levels per service and the monthly availability report.
+
   - id: change-management
     title: Change and configuration management
     objective: Platform and application changes are applied from reviewed Git revisions and live state does not drift.
