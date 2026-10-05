@@ -661,7 +661,9 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Role model across every service: platform administrator, security auditor (read-only everywhere plus compliance views), project owner, developer and viewer; covers Grafana, Kibana, Argo CD, GitLab, Vault, DBGate, Kafka UI and Portainer (replaces the all-or-nothing access in §18).
 - [ ] Self-service data services through claims or the portal: a PostgreSQL database (shared server or dedicated CloudNativePG cluster), Redis ACL user, Kafka topics, S3 bucket. Credentials land in the project's Vault path; backups, metrics and alerts come with the claim; deletion keeps a retention period.
 - [ ] In-cluster S3-compatible object storage for applications and platform services, on the implementation chosen in §31, with per-project buckets, quotas and backups.
-- [ ] Cost showback: per-project CPU, memory, storage, backup and traffic usage priced from the actual hardware and provider bills, with a monthly report per project and a comparison against equivalent hyperscaler list prices with stated assumptions.
+- [x] Cost showback from each server's recorded monthly cost (`scripts/configure-node-cost.sh`, installer input `SERVER_MONTHLY_COST`, hub Maintenance): allocation by the larger of requests and usage (65 % CPU / 35 % memory, capped at server cost), idle and shared costs, Grafana **Cost Showback** per environment, namespace and workload with a rightsizing view ([cost showback](docs/guides/cost-showback.md)). *(live, 2026-10-05: allocation series for 90 pods)*
+- [ ] **Operator action:** record `swirlit-node-01`'s monthly cost (and shared costs such as backup storage) with `scripts/configure-node-cost.sh` so the dashboard shows money, not only shares.
+- [ ] Monthly showback report per project (exported from the recorded series, like the compliance evidence pack) and a comparison against equivalent hyperscaler list prices with stated assumptions; add backup and traffic usage once those are measured per project.
 
 ### 35. Developer portal and golden paths
 
