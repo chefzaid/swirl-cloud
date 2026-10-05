@@ -1,0 +1,32 @@
+# Key for encrypted Longhorn volumes (StorageClass longhorn-encrypted, created
+# with the Longhorn release). The key lives in Vault at infra/longhorn and must
+# never change: encrypted volumes and their backups cannot be opened without it.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: longhorn-volume-encryption
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: longhorn-volume-encryption
+    # Not owned: removing the ExternalSecret must never remove the key.
+    creationPolicy: Orphan
+    template:
+      data:
+        CRYPTO_KEY_VALUE: "{{ .key }}"
+        CRYPTO_KEY_PROVIDER: secret
+        CRYPTO_KEY_CIPHER: aes-xts-plain64
+        CRYPTO_KEY_HASH: sha256
+        CRYPTO_KEY_SIZE: "256"
+        CRYPTO_PBKDF: argon2i
+  data:
+    - secretKey: key
+      remoteRef:
+        key: infra/longhorn
+        property: volume_encryption_key

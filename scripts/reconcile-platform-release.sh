@@ -103,6 +103,32 @@ case "$SERVICE" in
             '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' 2>/dev/null || true
         kubectl wait --for=condition=ready pod -l app=longhorn-manager \
             -n "$NAMESPACE" --timeout="${LONGHORN_POD_WAIT_TIMEOUT:-$DEFAULT_LONGHORN_POD_WAIT_TIMEOUT}"
+        # Opt-in encrypted volumes; the key Secret comes from Vault through the
+        # longhorn-volume-encryption ExternalSecret in infra (docs/security.md).
+        kubectl apply -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-encrypted
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "$LONGHORN_REPLICA_COUNT"
+  staleReplicaTimeout: "30"
+  fsType: ext4
+  dataLocality: best-effort
+  encrypted: "true"
+  csi.storage.k8s.io/provisioner-secret-name: longhorn-volume-encryption
+  csi.storage.k8s.io/provisioner-secret-namespace: infra
+  csi.storage.k8s.io/node-publish-secret-name: longhorn-volume-encryption
+  csi.storage.k8s.io/node-publish-secret-namespace: infra
+  csi.storage.k8s.io/node-stage-secret-name: longhorn-volume-encryption
+  csi.storage.k8s.io/node-stage-secret-namespace: infra
+  csi.storage.k8s.io/node-expand-secret-name: longhorn-volume-encryption
+  csi.storage.k8s.io/node-expand-secret-namespace: infra
+EOF
         ;;
     vault)
         if [[ "$HIGH_AVAILABILITY_ENABLED" == true ]]; then

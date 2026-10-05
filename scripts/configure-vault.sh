@@ -309,6 +309,14 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/grafana >/dev
   vault_cmd_auth "$root_token" kv put secret/infra/grafana admin_password="$(generate_secret)" >/dev/null
 fi
 
+# Encrypts longhorn-encrypted volumes. Created once and never rotated: volumes
+# and their backups cannot be opened without it (docs/security.md).
+if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/longhorn >/dev/null 2>&1; then
+  info "Seeding Vault secret: infra/longhorn"
+  vault_cmd_auth "$root_token" kv put secret/infra/longhorn \
+    volume_encryption_key="$(openssl rand -base64 48 | tr -d '\n')" >/dev/null
+fi
+
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/monitoring >/dev/null 2>&1; then
   info "Seeding Vault secret: infra/monitoring"
   vault_cmd_auth "$root_token" kv put secret/infra/monitoring \

@@ -29,6 +29,7 @@ the pieces fit together.
 
 ## Storage And Recovery
 
+- opt-in encrypted Longhorn volumes (`longhorn-encrypted`) with the key held in Vault
 - Longhorn default StorageClass, weekly filesystem trim and optional S3 volume backups
 - daily root-only recovery archive with datastore snapshot, K3s credentials, Vault Raft snapshot, PostgreSQL and MongoDB dumps, and restore instructions
 - optional restic encryption and upload with daily/weekly/monthly retention

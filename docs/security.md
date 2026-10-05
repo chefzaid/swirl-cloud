@@ -221,6 +221,28 @@ Argo CD show the warning, and the API audit log records it. `./install.sh
 and lists every violation. Once an environment reports none, its binding can
 move to `Deny`, starting with `prod`.
 
+## Encrypted volumes
+
+Volumes created with the StorageClass `longhorn-encrypted` are encrypted with
+dm-crypt (LUKS2, `aes-xts-plain64`, Argon2i key derivation) on every node, so
+replicas, snapshots and Longhorn backups hold only ciphertext. Applications opt
+in per claim:
+
+```yaml
+spec:
+  storageClassName: longhorn-encrypted
+```
+
+The key is created once in Vault at `infra/longhorn` (`volume_encryption_key`)
+and reaches Longhorn through the `longhorn-volume-encryption` Secret in `infra`,
+which removing its ExternalSecret does not delete. **Never change or delete the
+key**: every encrypted volume and backup needs it; it is part of Vault's
+recovery archives and the recovery kit. Hosts load the `dm_crypt` module through
+`scripts/configure-longhorn-host.sh`, and the Longhorn release creates the
+StorageClass with the cluster's replica count. Existing volumes stay
+unencrypted; move data by restoring it into a new encrypted claim. Disk
+encryption of the host itself is a separate, provider-dependent choice.
+
 ## Credential age
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its

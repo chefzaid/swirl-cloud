@@ -12,4 +12,8 @@ if command -v multipathd >/dev/null 2>&1; then
   sudo systemctl reload multipathd 2>/dev/null || sudo multipathd reconfigure
 fi
 
+# Encrypted volumes (StorageClass longhorn-encrypted) use dm-crypt.
+echo dm_crypt | sudo tee /etc/modules-load.d/swirl-cloud-longhorn.conf >/dev/null
+sudo modprobe dm_crypt
+command -v cryptsetup >/dev/null 2>&1 || echo "Install cryptsetup before using encrypted Longhorn volumes." >&2
 echo "Longhorn host storage prerequisites configured."
