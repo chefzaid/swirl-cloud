@@ -101,6 +101,7 @@ the pieces fit together.
 
 ## Kubernetes Security
 
+- application policy pack (pinned digests, platform Registry, resources, app and ownership labels) in warn and audit mode, with a report for existing workloads
 - Pod Security Admission levels per namespace
 - admission policies denying hostPath and gitRepo volumes
 - mutating admission hardening for K3s and Longhorn system controllers

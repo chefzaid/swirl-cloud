@@ -14,13 +14,14 @@
 #   ./install.sh --incident-report --start TIME [--end TIME] [--aware TIME]  evidence and NIS2 drafts
 #   ./install.sh --vulnerability-report [--all]  Critical/High vulnerabilities past their deadline
 #   ./install.sh --credential-age [--max-age-days N]  when every Vault secret was last written
+#   ./install.sh --policy-report         application workloads that break admission policies
 set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,16s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,17s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -96,6 +97,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/credential-age.py" "$@"
+        ;;
+    --policy-report)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/policy-report.py" "$@"
         ;;
     -h|--help)
         usage

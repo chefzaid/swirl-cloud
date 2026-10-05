@@ -237,6 +237,7 @@ Statuses:
 - [ADR 0024: Serve Environments From Registered Targets With Isolated Shared Data](./adr/0024-deployment-environments.md)
 - [ADR 0025: Isolate Host Agents So `infra` Can Enforce Baseline Pod Security](./adr/0025-host-agent-namespace-and-infra-pod-security.md)
 - [ADR 0026: Drive Installation From One Versioned Input File](./adr/0026-installer-input-file.md)
+- [ADR 0027: Native Admission Policy Packs, Audit First](./adr/0027-native-admission-policy-packs.md)
 
 ## Superseded ADRs
 

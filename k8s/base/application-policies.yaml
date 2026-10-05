@@ -1,0 +1,69 @@
+# Application policy pack (ADR 0027): rules for workloads in application
+# namespaces, bound in Warn and Audit mode so nothing is rejected yet.
+# scripts/policy-report.py evaluates existing workloads with server-side dry runs.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: swirl-cloud-application-workloads
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["cronjobs"]
+  variables:
+    - name: template
+      expression: "object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template : object.spec.template"
+    - name: containers
+      expression: >-
+        variables.template.spec.containers +
+        (has(variables.template.spec.initContainers) ? variables.template.spec.initContainers : [])
+  validations:
+    - expression: "variables.containers.all(c, c.image.contains('@sha256:'))"
+      messageExpression: >-
+        'images must be pinned by digest (image@sha256:...): ' +
+        variables.containers.filter(c, !c.image.contains('@sha256:')).map(c, c.name).join(', ')
+      reason: Invalid
+    - expression: "variables.containers.all(c, c.image.startsWith('registry.__PUBLIC_DOMAIN__/'))"
+      messageExpression: >-
+        'images must come from the platform Registry registry.__PUBLIC_DOMAIN__: ' +
+        variables.containers.filter(c, !c.image.startsWith('registry.__PUBLIC_DOMAIN__/')).map(c, c.name).join(', ')
+      reason: Invalid
+    - expression: >-
+        variables.containers.all(c, has(c.resources) &&
+          has(c.resources.requests) && 'cpu' in c.resources.requests && 'memory' in c.resources.requests &&
+          has(c.resources.limits) && 'memory' in c.resources.limits)
+      messageExpression: >-
+        'containers must request CPU and memory and limit memory: ' +
+        variables.containers.filter(c, !(has(c.resources) &&
+          has(c.resources.requests) && 'cpu' in c.resources.requests && 'memory' in c.resources.requests &&
+          has(c.resources.limits) && 'memory' in c.resources.limits)).map(c, c.name).join(', ')
+      reason: Invalid
+    - expression: "has(variables.template.metadata.labels) && 'app' in variables.template.metadata.labels"
+      message: "pods must carry an app label (used for cost showback, discovery and dashboards)"
+      reason: Invalid
+    - expression: >-
+        has(object.metadata.labels) && 'swirl-cloud.io/owner' in object.metadata.labels &&
+        object.metadata.labels['swirl-cloud.io/data-classification'] in ['public', 'internal', 'confidential', 'restricted']
+      message: >-
+        workloads must carry the labels swirl-cloud.io/owner and swirl-cloud.io/data-classification
+        (public, internal, confidential or restricted)
+      reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: swirl-cloud-application-workloads
+spec:
+  policyName: swirl-cloud-application-workloads
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        swirl-cloud.io/application-workloads: "true"

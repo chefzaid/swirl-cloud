@@ -200,6 +200,27 @@ a year. Only lines from the `keycloak` container in `infra` are accepted. In Kib
 and filter, for example, on `keycloak.type : LOGIN_ERROR`. Admin events log the
 realm of the acting administrator; the target is in `keycloak.resourcePath`.
 
+## Application policies
+
+The application policy pack ([ADR 0027](adr/0027-native-admission-policy-packs.md),
+[`k8s/base/application-policies.yaml`](../k8s/base/application-policies.yaml))
+checks Deployments, StatefulSets, DaemonSets and CronJobs in application
+namespaces when they are created or changed:
+
+| Rule | Why |
+| --- | --- |
+| Images pinned by digest (`image@sha256:...`) | The running code is exactly what was scanned and released. |
+| Images from `registry.<domain>` | Images pass through the platform Registry and its scanning. |
+| CPU and memory requests and a memory limit | Scheduling, capacity planning and cost showback depend on them. |
+| An `app` pod label | Cost showback, discovery and dashboards group by it. |
+| `swirl-cloud.io/owner` and `swirl-cloud.io/data-classification` (`public`, `internal`, `confidential`, `restricted`) workload labels | Accountability and the records of processing. |
+
+The pack runs in **Warn and Audit** mode: changes are admitted, `kubectl` and
+Argo CD show the warning, and the API audit log records it. `./install.sh
+--policy-report` checks existing workloads with unchanged server-side dry runs
+and lists every violation. Once an environment reports none, its binding can
+move to `Deny`, starting with `prod`.
+
 ## Credential age
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its

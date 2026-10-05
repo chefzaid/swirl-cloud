@@ -342,6 +342,7 @@ controls:
         failing: ALERTS{alertname=~"ArgoCDApplicationOutOfSync|ArgoCDApplicationUnhealthy",alertstate="firing"}
     manual:
       - Merge request approval rules for protected branches and production deployments.
+      - Application policy report for the period (./install.sh --policy-report) and the plan to enforce clean environments.
 
   - id: capacity
     title: Capacity management
