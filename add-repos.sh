@@ -19,7 +19,10 @@ usage() {
 Import GitHub repositories into GitLab, configure two-way commit/tag sync,
 then configure and deploy selected repositories through their onboarding contracts.
 
-Usage: ./add-repos.sh [--yes] [--inputs FILE] [--state-dir DIR]
+Usage: ./add-repos.sh [--yes] [--gitlab] [--inputs FILE] [--state-dir DIR]
+
+--gitlab deploys projects that already live in the platform GitLab group, with
+no GitHub source or mirroring (REPOSITORY_SOURCE=gitlab does the same).
 
 Interactive: enter your GitHub username, a hidden personal access token, and
 comma-separated repository names (owner/name is also accepted). The deployment
@@ -29,6 +32,7 @@ Automation (--yes never prompts):
   GITHUB_USERNAME         GitHub login (GITHUB_OWNER is accepted as a default)
   GITHUB_ADMIN_TOKEN      GitHub PAT; never pass it as a command-line argument
   GITHUB_REPOSITORIES     Comma-separated names or owner/name entries
+  GITLAB_PROJECTS         With --gitlab: comma-separated project names in GITLAB_GROUP_PATH
   GITLAB_PUBLIC_URL       Public HTTPS GitLab URL; defaults from PLATFORM_DOMAIN
   PLATFORM_DOMAIN        Public zone; otherwise read from the installed platform
   INTERNAL_DNS_ZONE      Private service zone; discovered, never guessed from public DNS
@@ -55,6 +59,7 @@ non_interactive=false
 while (( $# > 0 )); do
     case "$1" in
         --yes) non_interactive=true ;;
+        --gitlab) REPOSITORY_SOURCE=gitlab ;;
         --inputs)
             [[ $# -ge 2 ]] || fail "--inputs requires a JSON file"
             REPOSITORY_INPUTS_FILE="$2"; export REPOSITORY_INPUTS_FILE; shift ;;
@@ -76,6 +81,10 @@ for command_name in curl date git jq python3; do
 done
 python3 -c 'import yaml, ctypes.util; assert ctypes.util.find_library("sodium")' 2>/dev/null || \
     fail "Install python3-yaml and libsodium23 (Ubuntu/Debian) before replication."
+
+REPOSITORY_SOURCE="${REPOSITORY_SOURCE:-github}"
+[[ "$REPOSITORY_SOURCE" =~ ^(github|gitlab)$ ]] || fail "REPOSITORY_SOURCE must be github or gitlab."
+export REPOSITORY_SOURCE
 
 cleanup() {
     gitlab_revoke_ephemeral_admin_token
@@ -101,7 +110,18 @@ for setting in PLATFORM_DOMAIN INTERNAL_DNS_ZONE KEYCLOAK_REALM GITLAB_PUBLIC_UR
     fi
 done
 
-if [[ "$non_interactive" == false ]]; then
+if [[ "$REPOSITORY_SOURCE" == gitlab ]]; then
+    GITLAB_PROJECTS="${GITLAB_PROJECTS:-}"
+    if [[ "$non_interactive" == false ]]; then
+        installer_prompt_section "Deploy GitLab projects" \
+            "Projects already in the platform GitLab group are deployed through their onboarding contracts."
+        installer_prompt_value GITLAB_PUBLIC_URL "Public GitLab HTTPS URL" "$GITLAB_PUBLIC_URL"
+        installer_prompt_value GITLAB_GROUP_PATH "GitLab group" "$GITLAB_GROUP_PATH"
+        installer_prompt_value GITLAB_PROJECTS "Projects to deploy (comma separated)" "$GITLAB_PROJECTS"
+    fi
+    [[ -n "$GITLAB_PROJECTS" ]] || fail "GITLAB_PROJECTS is required with --gitlab."
+    export GITLAB_PROJECTS GITLAB_PUBLIC_URL GITLAB_GROUP_PATH
+elif [[ "$non_interactive" == false ]]; then
     installer_prompt_section "Replicate GitHub repositories" \
         "Repositories are copied to GitLab and kept in sync in both directions."
     installer_prompt_value GITHUB_USERNAME "GitHub username" "$GITHUB_USERNAME"
@@ -119,9 +139,11 @@ EOF
     installer_prompt_value GITLAB_PUBLIC_URL "Public GitLab HTTPS URL" "$GITLAB_PUBLIC_URL"
     installer_prompt_value GITLAB_GROUP_PATH "Destination GitLab group" "$GITLAB_GROUP_PATH"
 fi
-[[ -n "$GITHUB_USERNAME" && -n "${GITHUB_ADMIN_TOKEN:-}" && -n "$GITHUB_REPOSITORIES" ]] || \
-    fail "GITHUB_USERNAME, GITHUB_ADMIN_TOKEN, and GITHUB_REPOSITORIES are required."
-export GITHUB_USERNAME GITHUB_ADMIN_TOKEN GITHUB_REPOSITORIES GITLAB_PUBLIC_URL GITLAB_GROUP_PATH
+if [[ "$REPOSITORY_SOURCE" == github ]]; then
+    [[ -n "$GITHUB_USERNAME" && -n "${GITHUB_ADMIN_TOKEN:-}" && -n "$GITHUB_REPOSITORIES" ]] || \
+        fail "GITHUB_USERNAME, GITHUB_ADMIN_TOKEN, and GITHUB_REPOSITORIES are required."
+    export GITHUB_USERNAME GITHUB_ADMIN_TOKEN GITHUB_REPOSITORIES GITLAB_PUBLIC_URL GITLAB_GROUP_PATH
+fi
 python3 "$SCRIPT_DIR/scripts/onboard-repositories.py" --check-inputs
 export REPOSITORY_NONINTERACTIVE="$non_interactive"
 # Concurrent runs must not revoke one another's short-lived administrator token.

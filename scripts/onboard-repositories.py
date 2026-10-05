@@ -172,7 +172,13 @@ def names(value):
     return result
 
 
+def gitlab_only():
+    return os.environ.get("REPOSITORY_SOURCE", "github") == "gitlab"
+
+
 def inputs():
+    if gitlab_only():
+        return gitlab_inputs()
     username = os.environ["GITHUB_USERNAME"]
     if not NAME.fullmatch(username):
         raise ReplicationError("Invalid GitHub username.")
@@ -183,6 +189,14 @@ def inputs():
     repositories = list(dict.fromkeys(repositories))
     if len({name.split("/")[1].lower() for name in repositories}) != len(repositories):
         raise ReplicationError("Different source owners cannot import the same name into one GitLab group.")
+    group, url = gitlab_target()
+    selection = os.environ.get("DEPLOY_REPOSITORIES")
+    if selection:
+        select_repositories(selection, repositories)
+    return repositories, group, url
+
+
+def gitlab_target():
     group = os.environ["GITLAB_GROUP_PATH"]
     if any(not NAME.fullmatch(part) for part in group.split("/")):
         raise ReplicationError("Invalid GitLab group path.")
@@ -191,10 +205,26 @@ def inputs():
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
             or parsed.path or parsed.query or parsed.fragment):
         raise ReplicationError("GITLAB_PUBLIC_URL must be a public HTTPS origin without credentials or a path.")
+    return group, url
+
+
+def gitlab_inputs():
+    """Existing projects in the platform group; no GitHub source or mirroring."""
+    group, url = gitlab_target()
+    owner = group.split("/")[-1]
+    repositories = []
+    for name in names(os.environ.get("GITLAB_PROJECTS", "")):
+        if "/" in name:
+            if not name.startswith(group + "/") or "/" in name.removeprefix(group + "/"):
+                raise ReplicationError(f"GitLab project '{name}' must be directly in the group {group}.")
+            name = name.removeprefix(group + "/")
+        repositories.append(f"{owner}/{name}")
+    if not repositories:
+        raise ReplicationError("Set GITLAB_PROJECTS to the existing project names to deploy.")
     selection = os.environ.get("DEPLOY_REPOSITORIES")
     if selection:
         select_repositories(selection, repositories)
-    return repositories, group, url
+    return list(dict.fromkeys(repositories)), group, url
 
 
 def select_repositories(value, repositories):
@@ -249,7 +279,7 @@ class Replicator:
         self.public_url = public_url
         self.namespace = os.environ.get("GITLAB_NAMESPACE", "infra")
         self.internal_zone = os.environ.get("INTERNAL_DNS_ZONE", "")
-        self.github = API("https://api.github.com", {
+        self.github = None if gitlab_only() else API("https://api.github.com", {
             "Authorization": f"Bearer {os.environ['GITHUB_ADMIN_TOKEN']}",
             "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
         # The sync runner needs the public URL. Control-plane API access can use
@@ -315,6 +345,17 @@ class Replicator:
             raise ReplicationError("Synchronization finished without a GitLab default branch.")
         return project
 
+    def existing_project(self, slug):
+        path = f"{self.group}/{slug.split('/')[1]}"
+        project = self.gitlab.call("GET", f"projects/{quote(path, safe='')}", missing=True)
+        if project is None:
+            raise ReplicationError(f"GitLab project {path} does not exist; create and push it first.")
+        if project.get("archived"):
+            raise ReplicationError("GitLab project is archived.")
+        if not project.get("default_branch"):
+            raise ReplicationError(f"GitLab project {path} has no default branch; push it first.")
+        return project
+
     def file(self, project_id, path, ref):
         value = self.gitlab.call("GET", f"projects/{project_id}/repository/files/{quote(path, safe='')}?"
                                  + urlencode({"ref": ref}), missing=True)
@@ -350,15 +391,17 @@ def main():
 
 def replicate(repositories, group, public_url):
     replicator = Replicator(group, public_url)
-    user = replicator.github.call("GET", "user")
-    if user["login"].lower() != os.environ["GITHUB_USERNAME"].lower():
-        raise ReplicationError("GitHub token belongs to a different username; use owner/name for organization repositories.")
-    group_id = replicator.ensure_group()
+    if not gitlab_only():
+        user = replicator.github.call("GET", "user")
+        if user["login"].lower() != os.environ["GITHUB_USERNAME"].lower():
+            raise ReplicationError("GitHub token belongs to a different username; use owner/name for organization repositories.")
+    group_id = None if gitlab_only() else replicator.ensure_group()
     imported, failures = {}, []
     for slug in repositories:
-        print(f"[IMPORT] {slug} -> {group}/{slug.split('/')[1]}", flush=True)
+        print(f"[{'PROJECT' if gitlab_only() else 'IMPORT'}] {slug} -> {group}/{slug.split('/')[1]}", flush=True)
         try:
-            imported[slug] = replicator.import_repository(slug, group_id)
+            imported[slug] = (replicator.existing_project(slug) if gitlab_only()
+                              else replicator.import_repository(slug, group_id))
         except (ReplicationError, subprocess.CalledProcessError, yaml.YAMLError, OSError, UnicodeError) as error:
             print(f"[FAILED] {slug}: {error}", file=sys.stderr, flush=True)
             failures.append(slug)
@@ -380,9 +423,11 @@ def replicate(repositories, group, public_url):
         try:
             replicator.deploy(slug, imported[slug])
         except (ReplicationError, OnboardingError, ServiceError, yaml.YAMLError, OSError, UnicodeError, subprocess.SubprocessError) as error:
-            print(f"[CANNOT DEPLOY] {slug}: {error}. Repository remains imported and synchronized.", file=sys.stderr, flush=True)
+            kept = "remains in GitLab" if gitlab_only() else "remains imported and synchronized"
+            print(f"[CANNOT DEPLOY] {slug}: {error}. Repository {kept}.", file=sys.stderr, flush=True)
             failures.append(slug)
-    print(f"[INFO] Imported and synchronized {len(imported)} repository/repositories; {len(set(failures))} need attention.")
+    action = "Found" if gitlab_only() else "Imported and synchronized"
+    print(f"[INFO] {action} {len(imported)} repository/repositories; {len(set(failures))} need attention.")
     return 1 if failures else 0
 
 

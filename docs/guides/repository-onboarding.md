@@ -48,6 +48,24 @@ The app's release job reapplies its committed Application after publishing image
 restoring its sync policy. First deployment is also owned by that release job;
 onboarding does not start application workloads ahead of it.
 
+## Projects without GitHub
+
+Projects that already live in the platform GitLab group deploy without any
+GitHub account, import or mirroring:
+
+```bash
+./add-repos.sh --gitlab
+GITLAB_PROJECTS=billing,portal DEPLOY_REPOSITORIES=all ./add-repos.sh --yes --gitlab
+```
+
+`GITLAB_PROJECTS` names projects directly in `GITLAB_GROUP_PATH` (discovered from
+the installed platform). Each must exist with a pushed default branch and its
+`infra/onboarding.json`; the rest of the flow (contract checks, credentials, DNS,
+delivery and verification) is the same as for imported repositories.
+Contracts that substitute `{{GITHUB_OWNER}}` and `{{GITHUB_REPOSITORY}}` receive
+the GitLab group's last path segment and the project name. Missing projects are
+reported and skipped.
+
 ## Environment deployment
 
 Swirl Demo App uses contract version 2. First [register the local or remote environments](../deployment.md#application-deployment-clusters)
