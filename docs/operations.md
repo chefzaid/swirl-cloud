@@ -363,13 +363,13 @@ Retention is declared with the component that owns the data:
 | Container and application logs | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), Elasticsearch ILM policy |
 | Lynis audit indices | [elk.yaml](../k8s/platform/elk.yaml), separate ILM policy |
 | Shared Prometheus metrics | [monitoring.yaml](../k8s/platform/monitoring.yaml), time and size limits |
-| GitLab's internal metrics | [gitlab.yaml](../k8s/platform/gitlab.yaml), embedded Prometheus flags |
 | Images and packages | [GitLab retention job](../k8s/platform/gitlab-registry-retention.yaml) |
 | CI artifacts | Each application's pipeline retention settings |
 
 Read the configured values before changing retention. Update existing ILM
 policies in place so already managed indices receive the change. GitLab's
-embedded Prometheus expires its own blocks after a normal configuration rollout.
+bundled Prometheus is disabled; the shared Prometheus scrapes GitLab's
+`/-/metrics` endpoint.
 During log maintenance, remove only closed, processed archives outside the
 chosen retention window; preserve current logs, unprocessed `.u` files, and
 audit records. Use GitLab's supported cleanup paths for registry and artifact
