@@ -785,15 +785,15 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §29 |
 | P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §22 |
 | P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §24 |
-| P2 | Licensing ADR and product releases | Per-component licence review; signed bundles, SBOM, offline install and a green N-1 → N upgrade qualification | §32 |
-| P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh, GitHub optional; strict profile installs with no external call reported | §33 |
+| P2 | Licensing ADR and release pipeline | Per-component licence review; bundles built and signed in CI, offline install and a green N-1 → N upgrade qualification (bundle, SBOM and signature tooling done) | §32 |
+| P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh; strict profile installs with no external call reported (GitHub optional, telemetry off and external-service inventory done) | §33 |
 | P2 | Tenancy, roles and self-service data | `infra` isolation (§6) first; cross-project access denied in tests; claims include backups and alerts | §34 |
-| P2 | Compliance policy packs and periodic evidence | Policy packs in audit, then enforced; monthly evidence packs archived | §36 |
-| P2 | SLOs, runbooks, status page and on-call | Every alert has a runbook; external status page; burn-rate alerts tested | §38 |
+| P2 | Policy enforcement and periodic evidence | Application pack moved from audit to `Deny` per clean environment; signed evidence packs archived monthly | §36 |
+| P2 | Status page and on-call | External status page fed by an outside check; paging with acknowledgement (SLOs, burn-rate alerts and runbooks done) | §38 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
 | P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
 | P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §30–31 |
 | P3 | Developer portal, platform API, golden paths and preview environments | Platform API first; measured template-to-URL time | §35 |
 | P3 | Fleet console and customer-approved support access | Licensing ADR; outbound-only agent; approved, recorded and expiring session tested | §39 |
-| P3 | Runtime detection, JIT administration, encryption at rest and penetration test | Detection rules fire on simulated attacks; pentest findings closed | §37 |
+| P3 | Runtime detection, session recording and penetration test | Runtime rules fire on simulated attacks; pentest findings closed (audit-based detection, JIT administration and encrypted volumes done) | §37 |
 | P3 | Module catalog, workplace and business modules, AI gateway | Module install/uninstall with restore test; capacity and GPU sizing | §40–41 |
