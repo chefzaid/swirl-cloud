@@ -59,6 +59,7 @@ controls:
       iso27001: [A.5.18, A.8.2]
       dora: [Art. 9]
     manual:
+      - Just-in-time administrator grants for the period (./install.sh --admin-access list).
       - Signed access review sheet for the period (./install.sh --access-review --output-dir DIR covers Keycloak, GitLab, Kubernetes RBAC, Argo CD and local administrators; add Vault and Grafana role mappings).
 
   - id: audit-logging

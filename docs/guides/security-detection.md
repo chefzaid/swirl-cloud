@@ -23,6 +23,8 @@ failed run (for example Elasticsearch unavailable) raises
 `security-monitoring` control of the [compliance evidence](compliance-evidence.md)
 fails when no run succeeded for 30 minutes.
 
+The job also ends expired [just-in-time administrator grants](../security.md#just-in-time-administration).
+
 ## Data and access
 
 The job reads `identity-audit-*` ([identity events](../security.md#identity-events))

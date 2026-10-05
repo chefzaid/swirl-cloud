@@ -179,6 +179,25 @@ The [compliance evidence guide](guides/compliance-evidence.md) maps the controls
 on this page to NIS2, ISO/IEC 27001, DORA, GDPR and CIS requirements, evaluates
 them continuously and exports signed evidence packs.
 
+## Just-in-time administration
+
+Day-to-day users do not need permanent `platform-admins` membership. Grant it
+for a limited time, with a reason and an approver who is not the user:
+
+```bash
+./install.sh --admin-access grant --user alice --hours 4 \
+  --reason "INC-42: restore the billing database" --approved-by bob
+./install.sh --admin-access list
+./install.sh --admin-access revoke --user alice
+```
+
+Grants last 1 to 24 hours. Each is recorded in the Elasticsearch index
+`access-grants` (user, reason, operator, approver, start, end and how it
+ended). The security detection job removes the membership within five minutes
+of expiry and records it; `NewPlatformAdministrator` reports the grant like any
+other new administrator. Members added directly in Keycloak have no grant and
+are never removed automatically: keep that list to the break-glass accounts.
+
 ## Identity events
 
 `keycloak-sso-reconcile` turns on event storage in every Keycloak realm on each

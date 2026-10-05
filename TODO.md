@@ -712,7 +712,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Document a disk-encryption option for hosts in rented data centers, and move applications holding personal data to encrypted claims (application repositories).
 - [ ] Two default StorageClasses: K3s re-marks `local-path` as default when it reapplies its bundled manifests; disable K3s local-storage or skip its manifest so only `longhorn` is default.
 - [ ] Ransomware-resilient backups: off-site copies under retention lock, written with credentials that cannot delete or overwrite retained data, so a compromised cluster cannot destroy its backups (§16).
-- [ ] Just-in-time administration: time-limited `platform-admins` membership requested, approved and recorded, replacing permanent membership for daily users; recorded `kubectl` and SSH sessions (with §29's Nexterm or an equivalent).
+- [x] Just-in-time administration: `./install.sh --admin-access grant|revoke|list` grants `platform-admins` for 1–24 hours with a reason and a separate approver, recorded in `access-grants`; the detection job ends expired grants ([security](docs/security.md#just-in-time-administration)). *(live, 2026-10-05: grant, automatic expiry and removal verified with a test user)*
+- [ ] Recorded `kubectl` and SSH sessions (with §29's Nexterm or an equivalent), and moving daily users from permanent to just-in-time membership.
 - [ ] External penetration test of a reference installation before the first customer, repeated per major release; publish a vulnerability disclosure policy and a `security.txt` contact for the platform.
 
 ### 38. Reliability, SLOs and observability depth

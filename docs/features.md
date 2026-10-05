@@ -53,6 +53,7 @@ the pieces fit together.
 
 - Keycloak realm reconciled declaratively with password and brute-force policy
 - sign-in and account pages in English and French, following the browser language
+- just-in-time platform administration: approved, recorded grants of 1–24 hours that end automatically
 - login and admin events stored in every Keycloak realm (90 days) and kept a year in `identity-audit-*` indices
 - single sign-on to GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo through native OIDC
 - OAuth2 Proxy gate for DBGate, Kibana, Longhorn, SonarQube and the portal
