@@ -78,6 +78,7 @@ Specialized procedures:
 - [Security detection](./docs/guides/security-detection.md): alerts on suspicious logins, permission changes and Secret access
 - [External services](./docs/guides/external-services.md): every outside service the platform contacts and what it receives
 - [Incident response](./docs/guides/incident-response.md): incident record, evidence report and NIS2/GDPR deadlines
+- [Releases](./docs/guides/releases.md): versioning, changelog, SBOM and signed release bundles
 
 ## Roadmap
 

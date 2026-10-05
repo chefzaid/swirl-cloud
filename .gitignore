@@ -22,3 +22,6 @@ __pycache__/
 *.log
 *.retry
 .DS_Store
+
+# Release bundles from scripts/release.py
+/dist/

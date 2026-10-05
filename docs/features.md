@@ -7,6 +7,7 @@ the pieces fit together.
 
 ## Installation And Reconciliation
 
+- semantic platform releases with a generated changelog, a CycloneDX SBOM of every pinned image, chart and tool, and SSH-signed release bundles
 - guided installer with grouped prompts and a recommended component bundle
 - unattended installation (`--yes`) with validated environment inputs
 - Ansible installation and idempotent reconciliation playbooks sharing the same contract
