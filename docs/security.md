@@ -332,6 +332,18 @@ Debian bookworm status of the PostgreSQL and DBGate findings
 | CVE-2025-7458 | SQLite | No DSA, minor | PostgreSQL and DBGate do not use SQLite for data |
 | CVE-2026-6653 | libxml2 | Postponed, minor (fixed only in 2.11) | PostgreSQL XML functions; reachable only by authenticated database clients (denial of service) |
 
+### Exposed-secret findings
+
+Triage of 2026-10-05 for Trivy's exposed-secret reports. None is a usable
+credential; each is accepted until 2026-11-05.
+
+| Image | Finding | Evidence |
+| --- | --- | --- |
+| GitLab CE 19.4.1 | SSH host keys in `/etc/ssh` | Build-time keys of the image (`root@buildkitsandbox`, ED25519 `SHA256:sIkAlv…`). At start GitLab replaces them with the installation's own keys from `/etc/gitlab`, which sshd uses (`HostKey /etc/gitlab/…`, ED25519 `SHA256:dpjMii…`, generated 2026-03-08), so the shipped keys are never served. |
+| GitLab CE 19.4.1 | GitLab tokens in `config/gitleaks*.toml` and `diffblue_cover.rb` | Secret-detection rule examples and a masked form placeholder marked `gitleaks:allow`. |
+| GitLab CE 19.4.1 | JWTs and private keys in `aws-sdk-core`, `chef`, `chef-zero` and `fog-aws` gems | Test fixtures and documentation examples in bundled gem sources. |
+| PostgreSQL 18.6 (Debian) | `/etc/ssl/private/ssl-cert-snakeoil.key` | Debian's self-signed placeholder certificate; the platform's PostgreSQL does not enable TLS with it. |
+
 ## Administrator sign-in
 
 Normal browser access uses the administrator login selected during installation.
