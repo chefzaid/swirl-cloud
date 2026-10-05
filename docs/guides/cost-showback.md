@@ -1,9 +1,12 @@
 # Cost Showback
 
-Swirl Cloud runs on servers with a fixed monthly cost. Cost showback divides
-that cost among the environments, namespaces and workloads that use the
-servers, so each team or customer project sees what it costs and where capacity
-sits idle. Prometheus computes it from data the platform already collects; no
+Swirl Cloud runs on servers rented or owned at a fixed monthly price; the
+provider's bill does not change with CPU, memory or traffic. Cost showback
+divides that fixed price among the environments, namespaces and workloads that
+use the servers, so each team or customer project sees its share and where
+capacity sits idle. The amounts are an internal allocation, not usage billing:
+idle capacity is paid for all the same, and the total never exceeds the recorded
+price. Prometheus computes it from data the platform already collects; no
 billing service or external account is involved.
 
 ## Record server costs
@@ -69,8 +72,9 @@ platform), per namespace and per workload, and how allocation and idle cost
 change over time. Two panels work without recorded costs: each namespace's
 share of cluster CPU, and a rightsizing table comparing requested with used CPU
 and memory. Large gaps between requested and used are candidates for smaller
-requests, which lowers both the namespace's charge and the capacity a new
-server must provide.
+requests. That moves cost from the namespace to idle capacity and lowers the
+capacity a new server must provide; the server's price stays the same until a
+server is added, resized or removed.
 
 ## Related Guides
 

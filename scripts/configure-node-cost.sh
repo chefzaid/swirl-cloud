@@ -6,10 +6,12 @@
 #   configure-node-cost.sh --remove
 #
 # Writes node-exporter textfile metrics that Prometheus allocates to workloads
-# (see docs/guides/cost-showback.md). Use the server's rent, or its purchase
-# price spread over its service life plus hosting and power. --shared records
-# platform costs not tied to a server (backup storage, domains, licences); give
-# them on one server only so they are not counted twice.
+# (see docs/guides/cost-showback.md). Use the server's fixed monthly price
+# including tax: its rent, or its purchase price spread over its service life
+# plus hosting and power. Showback shares that price out; it is not usage
+# billing. --shared records platform costs not tied to a server (backup
+# storage, domains, licences); give them on one server only so they are not
+# counted twice.
 set -Eeuo pipefail
 
 METRICS_DIR=/var/lib/node_exporter/textfile_collector
@@ -17,7 +19,7 @@ METRICS_FILE="$METRICS_DIR/swirl_cloud_cost.prom"
 AMOUNT='^[0-9]{1,9}([.][0-9]{1,2})?$'
 
 error() { echo "[ERROR] $*" >&2; exit 1; }
-usage() { sed -n '2,12s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,14s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; }
 
 monthly_cost=""
 currency=EUR

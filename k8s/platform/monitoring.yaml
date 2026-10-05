@@ -5343,7 +5343,7 @@ data:
     {
       "uid": "cost-showback",
       "title": "Cost Showback",
-      "description": "Monthly platform cost allocated to environments, namespaces and workloads from each server's recorded cost (scripts/configure-node-cost.sh). Pods are charged for the larger of their requests and usage; 65 % of a server's cost is priced as CPU and 35 % as memory.",
+      "description": "Each server's fixed monthly price (scripts/configure-node-cost.sh) shared out among environments, namespaces and workloads. This is an internal allocation, not usage billing: the price does not change with load. Pods are charged for the larger of their requests and usage; 65 % of a server's cost is priced as CPU and 35 % as memory.",
       "tags": [
         "cost",
         "capacity",

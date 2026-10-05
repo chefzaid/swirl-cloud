@@ -669,7 +669,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] Self-service data services through claims or the portal: a PostgreSQL database (shared server or dedicated CloudNativePG cluster), Redis ACL user, Kafka topics, S3 bucket. Credentials land in the project's Vault path; backups, metrics and alerts come with the claim; deletion keeps a retention period.
 - [ ] In-cluster S3-compatible object storage for applications and platform services, on the implementation chosen in §31, with per-project buckets, quotas and backups.
 - [x] Cost showback from each server's recorded monthly cost (`scripts/configure-node-cost.sh`, installer input `SERVER_MONTHLY_COST`, hub Maintenance): allocation by the larger of requests and usage (65 % CPU / 35 % memory, capped at server cost), idle and shared costs, Grafana **Cost Showback** per environment, namespace and workload with a rightsizing view ([cost showback](docs/guides/cost-showback.md)). *(live, 2026-10-05: allocation series for 90 pods)*
-- [x] `swirlit-node-01` costs EUR 12 a month (EUR 10 plus EUR 2 VAT), recorded with `scripts/configure-node-cost.sh`. *(2026-10-05)*
+- [x] `swirlit-node-01` costs EUR 12 a month (EUR 10 plus EUR 2 VAT), a fixed monthly price (not usage billing), recorded with `scripts/configure-node-cost.sh` and shared out by showback. *(2026-10-05)*
 - [x] Monthly showback per namespace and workload in Grafana **Platform Report**, from hourly snapshots kept 13 months in Elasticsearch `platform-reports-*` ([platform reports](docs/guides/platform-reports.md)). *(live, 2026-10-05: first snapshot indexed)*
 - [ ] Comparison against equivalent hyperscaler list prices with stated assumptions; add backup and traffic usage once those are measured per project.
 
