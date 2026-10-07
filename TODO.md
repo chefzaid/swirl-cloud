@@ -460,7 +460,7 @@ and the wiring. CRM and Live Chat serve only the company website
 - [x] Lead intake on the JSON-2 API: `scripts/configure-odoo-intake.py` creates the website's portal integration user in a dedicated group and stores its key in Vault `apps/<website>/odoo`; the key can only call the idempotent `crm.lead/platform_intake_submit` (one lead per reference, also under concurrent retries; it cannot read, write or create leads directly or list contacts). *(live, 2026-10-07; contract tested on a disposable Odoo 19)*
 - [x] In-cluster path: Odoo admits only `apps` pods labelled `swirl-cloud.io/odoo-crm-intake: "true"`, on port 8069; the chat bus stays behind Traefik. *(live, 2026-10-07)*
 - [x] Public Live Chat for the website: `/platform_crm_intake/chat/<id>` runs Odoo's widget on Odoo's origin, framable only by the recorded website origin (`frame-ancestors`), and reports open/closed state to it, so the website keeps a strict Content Security Policy. *(live, 2026-10-07: French and English, desktop and phone, close and reopen, no CSP violations)*
-- [ ] Apply the Cloudflare rate limit that adds chat session starts to the login rule: run `scripts/configure-cloudflare.sh` with `CLOUDFLARE_API_TOKEN` (the change is committed; no token is stored on the host).
+- [x] Cloudflare login rate limit also covers chat session starts (`/im_livechat/get_session`, `/im_livechat/cors/get_session`). *(live, 2026-10-07: rule updated to the script's definition and read back)*
 
 ### 23. Installer: TUI, central `.env`, reruns, verification and email
 
