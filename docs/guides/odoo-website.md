@@ -115,11 +115,14 @@ styles, which a strict Content Security Policy rightly blocks. The website
 therefore shows the chat in a frame served from Odoo's own origin:
 
 ```text
-https://odoo.<domain>/platform_crm_intake/chat/<channel id>?lang=<fr|en>
+https://odoo.<domain>/platform_crm_intake/chat/<channel id>?lang=<fr|en>[&open=1]
 ```
 
-The page loads the widget, opens the chat once Odoo has restored the visitor's
-windows, and reports to the website whether a chat window is open:
+The page loads the widget and reports to the website whether a chat window is
+open. With `open=1`, sent when the visitor clicks the website's chat button, it
+also opens the chat once Odoo has restored the visitor's windows; without it,
+it only restores a conversation the visitor left open, for example on the next
+page they visit.
 
 | Message | Direction | Meaning |
 | --- | --- | --- |
