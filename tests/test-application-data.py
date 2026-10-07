@@ -203,15 +203,22 @@ class DataContract(unittest.TestCase):
                 self.assertEqual(1, paths.count("/opt/swirl-cloud"))
 
 
+ORIGIN = "https://example.test"
+
+
 class OdooIntake(unittest.TestCase):
     def test_integration_names_and_stored_credentials_are_scoped_to_the_website(self):
         for application in ("bad/path", "Swirl Website", "x" * 32):
             with self.assertRaises(odoo.ServiceError):
-                odoo.parameters(application, None)
+                odoo.parameters(application, ORIGIN, None)
+        # The origin is written into the chat frame's script and frame-ancestors.
+        for origin in ("http://example.test", "https://example.test/", "https://example.test\";alert(1)//", "*"):
+            with self.assertRaises(odoo.ServiceError):
+                odoo.parameters("swirl-website", origin, None)
         for stored in ({"login": "integration-other", "apiKey": "a" * 40},
                        {"login": "integration-swirl-website", "apiKey": "bad"}):
             with self.assertRaises(odoo.ServiceError):
-                odoo.parameters("swirl-website", stored)
+                odoo.parameters("swirl-website", ORIGIN, stored)
 
     def test_api_keys_never_reach_process_arguments_or_error_messages(self):
         stored, issued = "c" * 40, "d" * 40
@@ -225,7 +232,7 @@ class OdooIntake(unittest.TestCase):
             return subprocess.CompletedProcess(args, 0, "log line\n" + odoo.MARKER + json.dumps(result) + "\n", "")
 
         with patch.object(odoo.subprocess, "run", side_effect=run):
-            result = odoo.provision(odoo.parameters("swirl-website", {
+            result = odoo.provision(odoo.parameters("swirl-website", ORIGIN, {
                 "login": "integration-swirl-website", "apiKey": stored}, rotate=True))
             odoo.verify(result["key"])
         self.assertEqual(issued, result["key"])
@@ -237,7 +244,7 @@ class OdooIntake(unittest.TestCase):
                                                "Traceback " + stored + "\n" + odoo.FAILURE + "reason")
 
         with patch.object(odoo.subprocess, "run", side_effect=fail), self.assertRaises(odoo.ServiceError) as raised:
-            odoo.provision(odoo.parameters("swirl-website", None))
+            odoo.provision(odoo.parameters("swirl-website", ORIGIN, None))
         self.assertTrue(str(raised.exception).endswith(": reason"))
         self.assertNotIn(issued, str(raised.exception))
         self.assertNotIn(stored, str(raised.exception))

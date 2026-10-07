@@ -5,6 +5,7 @@ Commands use the current central-platform kubeconfig. The integration user can
 only submit leads through crm.lead/platform_intake_submit, in the main company,
 with the application name as UTM source. Its API key crosses process boundaries
 only through stdin/stdout and is stored at Vault apps/<application>/odoo.
+The website origin is the only page allowed to frame the Live Chat window.
 See docs/guides/odoo-website.md.
 """
 import argparse
@@ -16,6 +17,7 @@ import sys
 from lib.onboarding_services import ServiceError, Services
 
 APPLICATION = re.compile(r"[a-z][a-z0-9-]{0,30}\Z")
+ORIGIN = re.compile(r"https://[a-z0-9.-]+(:[0-9]{1,5})?\Z")
 API_KEY = re.compile(r"[0-9a-f]{40}\Z")
 MARKER = "PLATFORM_ODOO_RESULT "
 FAILURE = "PLATFORM_ODOO_ERROR "
@@ -31,6 +33,7 @@ p = json.loads(PARAMS)
 Users = env['res.users'].sudo().with_context(no_reset_password=True, active_test=False)
 group = env.ref('platform_crm_intake.group_crm_intake')
 company = env.ref('base.main_company')
+env['ir.config_parameter'].sudo().set_param('platform_crm_intake.website_origin', p['websiteOrigin'])
 Source = env['utm.source'].sudo()
 source = Source.search([('name', '=', p['source'])], limit=1) or Source.create({'name': p['source']})
 values = {'name': p['displayName'], 'login': p['login'], 'active': True,
@@ -95,14 +98,16 @@ def kubectl(*args):
     return json.loads(value) if value else {}
 
 
-def parameters(application, stored, *, rotate=False, revoke_previous=False):
+def parameters(application, website_origin, stored, *, rotate=False, revoke_previous=False):
     if not APPLICATION.fullmatch(application):
         raise ServiceError("Use the website's application name (a DNS label)")
+    if not ORIGIN.fullmatch(website_origin):
+        raise ServiceError("Use the website's HTTPS origin, such as https://example.com")
     login = f"integration-{application}"
     key = stored.get("apiKey") if stored else None
     if stored and (stored.get("login") != login or not API_KEY.fullmatch(key or "")):
         raise ServiceError("Existing Vault Odoo credentials belong to another integration or are malformed")
-    return {"login": login, "source": application, "displayName": f"{application} CRM intake",
+    return {"login": login, "source": application, "websiteOrigin": website_origin, "displayName": f"{application} CRM intake",
             "keyName": f"platform {application}", "key": key, "rotate": rotate, "revokePrevious": revoke_previous}
 
 
@@ -134,6 +139,7 @@ def verify(key):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--application", required=True, help="The website's application name, as in its Vault apps/<name>/ paths")
+    parser.add_argument("--website-origin", required=True, help="The website's public HTTPS origin, allowed to frame the chat")
     keys = parser.add_mutually_exclusive_group()
     keys.add_argument("--rotate", action="store_true", help="Issue a new key; the previous key stays valid until --revoke-previous")
     keys.add_argument("--revoke-previous", action="store_true", help="Revoke every key except the one stored in Vault")
@@ -145,7 +151,7 @@ def main():
                         "GITLAB_PROJECT_ID": "odoo", "GITLAB_PROJECT_PATH": "odoo-intake"})
     with services._vault() as api:
         stored, version = Services._kv_get(api, path)
-        params = parameters(args.application, stored, rotate=args.rotate, revoke_previous=args.revoke_previous)
+        params = parameters(args.application, args.website_origin, stored, rotate=args.rotate, revoke_previous=args.revoke_previous)
         result = provision(params)
         key = result["key"] or params["key"]
         verify(key)

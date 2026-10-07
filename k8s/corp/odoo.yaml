@@ -123,7 +123,8 @@ data:
             return super()._auth_oauth_signin(provider, validation, params)
 
 ---
-# Website CRM lead intake and Live Chat language; see docs/guides/odoo-website.md.
+# Website CRM lead intake and the website's Live Chat frame; see
+# docs/guides/odoo-website.md.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -131,7 +132,7 @@ metadata:
   namespace: corp
 data:
   __init__.py: |
-    from . import models
+    from . import controllers, models
   __manifest__.py: |
     {
         "name": "Platform CRM Intake",
@@ -140,10 +141,52 @@ data:
         "author": "Platform",
         "license": "LGPL-3",
         "depends": ["crm", "im_livechat"],
-        "data": ["data.xml"],
+        "data": ["data.xml", "templates.xml"],
+        "assets": {
+            # Loaded with every external chat embed; it acts only inside the
+            # website's chat frame, where the page sets platformWebsiteOrigin.
+            "im_livechat.assets_embed_external": ["platform_crm_intake/static/src/website_frame_service.js"],
+        },
         "installable": True,
         "application": False,
     }
+  controllers.py: |
+    import json
+    import re
+
+    from markupsafe import Markup
+    from werkzeug.exceptions import NotFound
+
+    from odoo import http
+    from odoo.http import request
+
+    ORIGIN = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?")
+
+
+    class WebsiteChat(http.Controller):
+        @http.route("/platform_crm_intake/chat/<int:channel_id>", type="http", auth="public", methods=["GET"])
+        def chat(self, channel_id, lang=None, **_kwargs):
+            """Live Chat page for the website to frame, so the widget runs on Odoo's
+            origin instead of under the website's Content Security Policy."""
+            origin = request.env["ir.config_parameter"].sudo().get_param("platform_crm_intake.website_origin")
+            channel = request.env["im_livechat.channel"].sudo().browse(channel_id).exists()
+            if not origin or not ORIGIN.fullmatch(origin) or not channel:
+                raise NotFound()
+            language = request.env["res.lang"].sudo().search(
+                ["|", ("url_code", "=", lang or ""), ("code", "=", lang or "")], limit=1)
+            response = request.render("platform_crm_intake.website_chat", {
+                "channel": channel,
+                # Validated above, so it is safe to place in the page script.
+                "website_origin": Markup(json.dumps(origin)),
+            })
+            # Only the website may frame this page; it reports chat state to it alone.
+            response.headers["Content-Security-Policy"] = f"frame-ancestors {origin}"
+            response.headers["Cache-Control"] = "no-store"
+            if language:
+                # Answer in the language of the page the visitor came from.
+                response.set_cookie("frontend_lang", language.code, max_age=86400 * 30,
+                                    secure=True, samesite="Lax")
+            return response
   data.xml: |
     <?xml version="1.0" encoding="utf-8"?>
     <odoo>
@@ -268,6 +311,82 @@ data:
                 # cannot see it; Odoo replays the request in a new transaction.
                 raise ConcurrencyError("Concurrent intake submission for the same reference") from None
             return {"id": lead.id, "created": True}
+  templates.xml: |
+    <?xml version="1.0" encoding="utf-8"?>
+    <odoo>
+        <template id="website_chat" name="Website Live Chat frame">
+            &lt;!DOCTYPE html&gt;
+            <html>
+                <head>
+                    <meta charset="utf-8"/>
+                    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                    <meta name="robots" content="noindex"/>
+                    <title t-esc="channel.name"/>
+                    <style>html, body { margin: 0; background: transparent; }</style>
+                    <script>
+                        window.odoo ??= {};
+                        window.odoo.csrf_token = "<t t-out="request.csrf_token(None)"/>";
+                        // Read by static/src/website_frame_service.js.
+                        window.odoo.platformWebsiteOrigin = <t t-out="website_origin"/>;
+                    </script>
+                    <t t-out="channel.script_external"/>
+                </head>
+                <body/>
+            </html>
+        </template>
+    </odoo>
+  static__src__website_frame_service.js: |
+    import { browser } from "@web/core/browser/browser";
+    import { registry } from "@web/core/registry";
+
+    /**
+     * Runs only in the chat page that the company website frames
+     * (/platform_crm_intake/chat). It opens the chat once Odoo has restored its
+     * windows, reopens it when the website asks, and tells the website whether a
+     * chat window is open so the website can show or hide the frame.
+     */
+    export const websiteFrameService = {
+        dependencies: ["im_livechat.livechat", "mail.store"],
+        start(env, { "im_livechat.livechat": livechat, "mail.store": store }) {
+            const website = window.odoo?.platformWebsiteOrigin;
+            if (!website || window.parent === window) {
+                return;
+            }
+            const post = (data) => window.parent.postMessage({ type: "odoo-livechat", ...data }, website);
+            const open = async () => {
+                await store.isReady;
+                await store.chatHub.initPromise;
+                if (!store.livechat_available) {
+                    return post({ open: false, failed: true });
+                }
+                const folded = store.chatHub.folded[0];
+                const thread = store.activeVisitorLivechats[0];
+                if (folded) {
+                    await folded.open({ focus: true });
+                } else if (thread) {
+                    await thread.openChatWindow({ focus: true });
+                } else if (!(await livechat.open())) {
+                    post({ open: false, failed: true });
+                }
+            };
+            let reported;
+            browser.setInterval(() => {
+                const isOpen = store.chatHub.opened.length > 0;
+                if (isOpen !== reported) {
+                    reported = isOpen;
+                    post({ open: isOpen });
+                }
+            }, 250);
+            browser.addEventListener("message", (event) => {
+                if (event.origin === website && event.data?.type === "odoo-livechat-open") {
+                    open().catch(() => post({ open: false, failed: true }));
+                }
+            });
+            open().catch(() => post({ open: false, failed: true }));
+        },
+    };
+
+    registry.category("services").add("platform_crm_intake.website_frame", websiteFrameService);
 
 ---
 apiVersion: v1
@@ -325,7 +444,7 @@ spec:
       labels:
         app: odoo
       annotations:
-        identity.__PUBLIC_DOMAIN__/config-revision: "4"
+        identity.__PUBLIC_DOMAIN__/config-revision: "5"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -529,8 +648,9 @@ spec:
                   if env['res.lang']._lang_get('fr_FR'):
                       for step, (_kind, english, french) in zip(script.script_step_ids.sorted('sequence'), steps):
                           step.update_field_translations('message', {'fr_FR': {english: french}})
-                  # Open the chat as soon as the website loads it. The bot answers
-                  # only while no agent is online and turns the request into a lead.
+                  # Open the chat as soon as a wide page loads it (the website's narrow
+                  # frame opens it itself). The bot answers only while no agent is
+                  # online and turns the request into a lead.
                   channel.rule_ids = [(0, 0, {'action': 'auto_popup', 'auto_popup_timer': 0, 'chatbot_script_id': script.id,
                                                'chatbot_enabled_condition': 'only_if_no_operator'})]
                   params.set_param('swirl_cloud.livechat_initialized', 'true')
@@ -695,6 +815,21 @@ spec:
         - name: odoo-crm-intake-addon
           configMap:
             name: odoo-crm-intake-addon
+            items:
+            - key: __init__.py
+              path: __init__.py
+            - key: __manifest__.py
+              path: __manifest__.py
+            - key: controllers.py
+              path: controllers.py
+            - key: data.xml
+              path: data.xml
+            - key: models.py
+              path: models.py
+            - key: templates.xml
+              path: templates.xml
+            - key: static__src__website_frame_service.js
+              path: static/src/website_frame_service.js
         - name: odoo-dark-mode-addon
           configMap:
             name: odoo-dark-mode-addon

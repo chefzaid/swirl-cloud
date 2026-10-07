@@ -45,6 +45,13 @@ SSH must originate from the declared control-plane address before the
 provider-facing path is closed. See [host policy](#host-policy) for controls
 and [host audits](#host-audits), and [node enrollment](guides/node-enrollment.md) for role-specific setup.
 
+Odoo is not behind Cloudflare Access. Besides its login page, its Live Chat
+endpoints and the website's chat frame (`/platform_crm_intake/chat/<id>`) are
+public by design. Chat session starts share the login rate limit, and only the
+website's origin may frame the chat page. The website reaches Odoo's lead
+intake API in-cluster with a key that can only create leads; see
+[Odoo website integration](guides/odoo-website.md).
+
 ## Host policy
 
 Installer and Ansible use [configure-node-security.sh](../scripts/configure-node-security.sh).
