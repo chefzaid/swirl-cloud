@@ -461,6 +461,9 @@ and the wiring. CRM and Live Chat serve only the company website
 - [x] In-cluster path: Odoo admits only `apps` pods labelled `swirl-cloud.io/odoo-crm-intake: "true"`, on port 8069; the chat bus stays behind Traefik. *(live, 2026-10-07)*
 - [x] Public Live Chat for the website: `/platform_crm_intake/chat/<id>` runs Odoo's widget on Odoo's origin, framable only by the recorded website origin (`frame-ancestors`), and reports open/closed state to it, so the website keeps a strict Content Security Policy. *(live, 2026-10-07: French and English, desktop and phone, close and reopen, no CSP violations)*
 - [x] Cloudflare login rate limit also covers chat session starts (`/im_livechat/get_session`, `/im_livechat/cors/get_session`). *(live, 2026-10-07: rule updated to the script's definition and read back)*
+- [x] Chat by email: new visitor messages are emailed to the team after a pause; a reply to that email is posted in the chat as the chat's agent and emailed to a visitor who has left, whose own reply returns to the chat. Signed plus-addresses and an allowlist of senders; Odoo sends through the website's Resend account; chatbot leads no longer trigger Odoo's assignment email. *(live, 2026-10-07: all three emails sent, replies posted, a stranger's reply refused)*
+- [x] Chatbot persona from the website's `chat-persona.json` (name, avatar, English/French texts), applied by `configure-odoo-intake.py`; the default chatbot no longer says that nobody is available. *(live, 2026-10-07)*
+- [ ] Deploy the Cloudflare Email Worker and its routing rule for `chat@<domain>` (`configure-odoo-intake.py --email-worker`); needs a Cloudflare token with Workers Scripts and Email Routing Rules edit rights. Until then, emailed replies do not reach Odoo.
 
 ### 23. Installer: TUI, central `.env`, reruns, verification and email
 
