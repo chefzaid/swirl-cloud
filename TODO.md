@@ -450,19 +450,17 @@ and availability of a compatible upstream image must be checked separately.
 - [x] Non-blocking CI job `report:platform-artifacts` scans the vendored chart archives (embedded misconfiguration checks against chart defaults; the rendered manifests are audited live by Trivy Operator) and the pinned CI Alpine image through the in-cluster Trivy server; reports are kept 30 days as job artifacts. The GitHub workflow uses no third-party actions. *(pipeline 2026-10-04 passed)*
 - [ ] Hand application image findings to the owning repositories (2026-10-04 scan): TravelMapster `1.8.1` has 4 critical Debian bookworm findings (Perl, zlib minizip, the same accepted classes as PostgreSQL); `postgres:18.6-bookworm` is used by Thoughty's `postgres-backup` CronJob and Indezy's `wait-for-db` init container. No other application image has critical findings. Not yet recorded in those repositories; TravelMapster's checkout has an unpushed local commit, so it was left untouched.
 
-### 22. Odoo API for applications (CRM leads and Live Chat)
+### 22. Odoo for the company website (CRM leads and Live Chat)
 
-Applications own their UI changes in their own repositories; the platform owns
-Odoo and the wiring. CRM and Live Chat serve only the company website, so this
-section waits until the website is linked to Odoo; scope it to the website then.
-A generic implementation (CRM intake add-on, scoped keys, sandbox company, Live
-Chat, rate limit) is parked on the local branch `park/odoo-crm-livechat`.
+The website owns its form, consent text and chat button; the platform owns Odoo
+and the wiring. CRM and Live Chat serve only the company website
+([Odoo website integration](docs/guides/odoo-website.md)).
 
-- [ ] Install and configure Odoo `crm` (contact forms become CRM leads) and `im_livechat` (support chat) in the Odoo bootstrap.
-- [ ] Choose and verify the API supported by the pinned self-hosted Odoo build. Create a dedicated integration user per application/environment with model ACLs and record rules for the intended lead/chat operations; API keys inherit user permissions ([Odoo API access rights](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html#access-rights)). Store rotating keys in Vault under the existing app/env contract and keep them out of browsers.
-- [ ] Permit local app→Odoo traffic on 8069 in both `corp` ingress and environment egress policies; the current environment egress allowlist does not include `corp`. Define a separate authenticated path for remote app clusters rather than assuming cross-cluster Service DNS works.
-- [ ] Verify the public Live Chat loader and session/WebSocket flow (existing `/websocket` route to 8072), approved origins and edge rate limits. Preserve staff authentication while keeping required public chat endpoints usable without Access.
-- [ ] Document fields, errors, retry/idempotency behavior, consent/retention and a sandbox integration. Prove duplicate retries create one lead and non-production apps cannot modify production CRM data; application repositories own forms and chat UI.
+- [x] Odoo bootstrap installs `crm`, `im_livechat` and the managed `platform_crm_intake` add-on, enables Leads, names the chat channel after the organization with the administrator as agent, and adds an English/French chatbot that, while no agent is online, collects the visitor's email and request and creates a lead. *(live, 2026-10-07)*
+- [x] Lead intake on the JSON-2 API: `scripts/configure-odoo-intake.py` creates the website's portal integration user in a dedicated group and stores its key in Vault `apps/<website>/odoo`; the key can only call the idempotent `crm.lead/platform_intake_submit` (one lead per reference, also under concurrent retries; it cannot read, write or create leads directly or list contacts). *(live, 2026-10-07; contract tested on a disposable Odoo 19)*
+- [x] In-cluster path: Odoo admits only `apps` pods labelled `swirl-cloud.io/odoo-crm-intake: "true"`, on port 8069; the chat bus stays behind Traefik. *(live, 2026-10-07)*
+- [x] Public Live Chat for the website: `/platform_crm_intake/chat/<id>` runs Odoo's widget on Odoo's origin, framable only by the recorded website origin (`frame-ancestors`), and reports open/closed state to it, so the website keeps a strict Content Security Policy. *(live, 2026-10-07: French and English, desktop and phone, close and reopen, no CSP violations)*
+- [ ] Apply the Cloudflare rate limit that adds chat session starts to the login rule: run `scripts/configure-cloudflare.sh` with `CLOUDFLARE_API_TOKEN` (the change is committed; no token is stored on the host).
 
 ### 23. Installer: TUI, central `.env`, reruns, verification and email
 
@@ -785,7 +783,6 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | API/host/HTTP audit coverage and remote-cluster telemetry | Scoped collection/retention; remote telemetry required before remote production use | §4, §14, §19, §20 |
 | P2 | Mailbox/directory migration and SSO roles | Provider ADR, verified DNS/account linking, deprovisioning and local recovery access | §27 |
 | P2 | Mattermost, Nexterm and human password manager | Capacity and service ADRs; offsite restore and independent emergency access | §29 |
-| P2 | Odoo CRM and Live Chat integration | Scoped identities, both sides of network policy, public-chat and retry checks | §22 |
 | P2 | Deployment UI | Existing app pipeline contracts and protected promotion; exact revision/rollout verification | §24 |
 | P2 | Licensing ADR and release pipeline | Per-component licence review; bundles built and signed in CI, offline install and a green N-1 → N upgrade qualification (bundle, SBOM and signature tooling done) | §32 |
 | P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh; strict profile installs with no external call reported (GitHub optional, telemetry off and external-service inventory done) | §33 |
