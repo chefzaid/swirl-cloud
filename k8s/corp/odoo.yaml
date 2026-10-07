@@ -968,11 +968,22 @@ spec:
 
               env.ref('base.main_company').write({'name': os.environ['ORGANIZATION_NAME']})
               admin = env.ref('base.user_admin')
-              admin.write({
-                  'login': os.environ['SSO_PRIMARY_EMAIL'],
-                  'email': os.environ['SSO_PRIMARY_EMAIL'],
-                  'password': os.environ['ODOO_ADMIN_PASSWORD'],
-              })
+              # Write only what differs: Odoo emails a security notice for every
+              # login or password write, which would repeat on each restart.
+              from odoo.exceptions import AccessDenied
+              credentials = {}
+              if admin.login != os.environ['SSO_PRIMARY_EMAIL']:
+                  credentials['login'] = os.environ['SSO_PRIMARY_EMAIL']
+              if admin.email != os.environ['SSO_PRIMARY_EMAIL']:
+                  credentials['email'] = os.environ['SSO_PRIMARY_EMAIL']
+              try:
+                  admin.with_user(admin)._check_credentials(
+                      {'type': 'password', 'login': admin.login, 'password': os.environ['ODOO_ADMIN_PASSWORD']},
+                      {'interactive': False})
+              except AccessDenied:
+                  credentials['password'] = os.environ['ODOO_ADMIN_PASSWORD']
+              if credentials:
+                  admin.write(credentials)
               params = env['ir.config_parameter'].sudo()
               # Seed the requested preference once; later user choices survive restarts.
               if not params.get_param('swirl_cloud.dark_mode_initialized'):
