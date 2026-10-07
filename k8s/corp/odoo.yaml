@@ -123,6 +123,153 @@ data:
             return super()._auth_oauth_signin(provider, validation, params)
 
 ---
+# Website CRM lead intake and Live Chat language; see docs/guides/odoo-website.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odoo-crm-intake-addon
+  namespace: corp
+data:
+  __init__.py: |
+    from . import models
+  __manifest__.py: |
+    {
+        "name": "Platform CRM Intake",
+        "summary": "Idempotent CRM lead intake for the company website",
+        "version": "19.0.1.0.0",
+        "author": "Platform",
+        "license": "LGPL-3",
+        "depends": ["crm", "im_livechat"],
+        "data": ["data.xml"],
+        "installable": True,
+        "application": False,
+    }
+  data.xml: |
+    <?xml version="1.0" encoding="utf-8"?>
+    <odoo>
+        <record id="group_crm_intake" model="res.groups">
+            <field name="name">Website CRM intake integration</field>
+            <field name="comment">The website's integration user. Members can only submit leads through crm.lead/platform_intake_submit.</field>
+        </record>
+    </odoo>
+  models.py: |
+    import re
+
+    import psycopg2.errors
+
+    from odoo import api, fields, models
+    from odoo.exceptions import AccessError, ConcurrencyError, ValidationError
+    from odoo.http import request
+    from odoo.tools import plaintext2html
+    from odoo.tools.misc import get_lang
+
+    REFERENCE = re.compile(r"[A-Za-z0-9._:-]{8,128}")
+    EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+    LANGUAGE = re.compile(r"[a-z]{2,3}(_[A-Z]{2})?")
+    # Field -> maximum length. Everything else (stage, salesperson, company,
+    # tags, scoring) stays under CRM staff control.
+    FIELDS = {
+        "name": 256,
+        "contact_name": 256,
+        "partner_name": 256,
+        "email_from": 256,
+        "phone": 64,
+        "description": 10000,
+        "lang": 8,
+    }
+
+
+    class ResUsers(models.Model):
+        _inherit = "res.users"
+
+        platform_intake_source_id = fields.Many2one(
+            "utm.source", string="CRM intake source", copy=False,
+            help="Source set on leads submitted by this integration user.")
+
+
+    class ChatbotScript(models.Model):
+        _inherit = "chatbot.script"
+
+        def _get_chatbot_language(self):
+            # The chat embedded in the website sends no Odoo cookie. Follow the
+            # visitor's browser language, as the widget's own interface does.
+            if request and not request.httprequest.cookies.get("frontend_lang") and request.best_lang:
+                return get_lang(self.env, lang_code=request.best_lang).code
+            return super()._get_chatbot_language()
+
+
+    class CrmLead(models.Model):
+        _inherit = "crm.lead"
+
+        platform_intake_user_id = fields.Many2one("res.users", string="Intake integration", readonly=True, copy=False, index=True)
+        platform_intake_reference = fields.Char(string="Intake reference", readonly=True, copy=False)
+
+        _platform_intake_unique = models.Constraint(
+            "UNIQUE(platform_intake_user_id, platform_intake_reference)",
+            "An integration reference can create only one lead.",
+        )
+
+        @api.model
+        def platform_intake_submit(self, reference, values):
+            """Create one lead per (integration user, reference); retries return the same lead."""
+            user = self.env.user
+            if not user.has_group("platform_crm_intake.group_crm_intake"):
+                raise AccessError(self.env._("This user is not a CRM intake integration."))
+            if not isinstance(reference, str) or not REFERENCE.fullmatch(reference):
+                raise ValidationError(self.env._("reference must be 8-128 characters of A-Z, a-z, 0-9, '.', '_', ':' or '-'."))
+            if not isinstance(values, dict) or set(values) - set(FIELDS):
+                raise ValidationError(self.env._("values accepts only: %s.", ", ".join(sorted(FIELDS))))
+            for key, value in values.items():
+                if not isinstance(value, str) or len(value) > FIELDS[key]:
+                    raise ValidationError(self.env._("%(field)s must be a string of at most %(size)s characters.", field=key, size=FIELDS[key]))
+            if not (values.get("name") or "").strip():
+                raise ValidationError(self.env._("name is required."))
+            if values.get("email_from") and not EMAIL.fullmatch(values["email_from"]):
+                raise ValidationError(self.env._("email_from is not a valid email address."))
+            if values.get("lang") and not LANGUAGE.fullmatch(values["lang"]):
+                raise ValidationError(self.env._("lang must be a language code such as fr_FR."))
+
+            company = user.company_id
+            Lead = self.sudo().with_company(company).with_context(mail_create_nosubscribe=True)
+            domain = [("platform_intake_user_id", "=", user.id), ("platform_intake_reference", "=", reference)]
+            existing = Lead.with_context(active_test=False).search(domain, limit=1)
+            if existing:
+                return {"id": existing.id, "created": False}
+            lead_values = dict(values)
+            # An inactive or unknown language is dropped rather than failing the lead.
+            language = lead_values.pop("lang", "")
+            if language:
+                lang = self.env["res.lang"].sudo().search([("code", "=", language)], limit=1)
+                if lang:
+                    lead_values["lang_id"] = lang.id
+            if "description" in lead_values:
+                lead_values["description"] = plaintext2html(lead_values["description"])
+            # The integration user is not an employee, so follow the company's
+            # Leads setting (granted to internal users) rather than its own groups.
+            use_leads = self.env.ref("crm.group_use_lead") in self.env.ref("base.group_user").sudo().all_implied_ids
+            medium = self.env.ref("utm.utm_medium_website", raise_if_not_found=False)
+            # Without a team the lead would be missing from every team pipeline.
+            team = self.env["crm.team"].sudo().search([("company_id", "in", [company.id, False])], order="sequence, id", limit=1)
+            lead_values.update({
+                "team_id": team.id,
+                "type": "lead" if use_leads else "opportunity",
+                "company_id": company.id,
+                "user_id": False,
+                "source_id": user.platform_intake_source_id.id,
+                "medium_id": medium.id if medium else False,
+                "platform_intake_user_id": user.id,
+                "platform_intake_reference": reference,
+            })
+            try:
+                with self.env.cr.savepoint():
+                    lead = Lead.create(lead_values)
+            except psycopg2.errors.UniqueViolation:
+                # A concurrent retry committed first. This transaction's snapshot
+                # cannot see it; Odoo replays the request in a new transaction.
+                raise ConcurrencyError("Concurrent intake submission for the same reference") from None
+            return {"id": lead.id, "created": True}
+
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -178,7 +325,7 @@ spec:
       labels:
         app: odoo
       annotations:
-        identity.__PUBLIC_DOMAIN__/config-revision: "3"
+        identity.__PUBLIC_DOMAIN__/config-revision: "4"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -319,11 +466,12 @@ spec:
                   --stop-after-init
               fi
 
-              echo "Installing the managed Keycloak OAuth integration and dark theme..."
+              echo "Installing the managed Keycloak OAuth integration, dark theme, CRM and Live Chat..."
               odoo \
                 --config=/etc/odoo-generated/odoo.conf \
                 --database=odoo \
-                --init=auth_oauth,odoo_keycloak_sso,web_dark_mode \
+                --init=auth_oauth,odoo_keycloak_sso,web_dark_mode,crm,im_livechat,platform_crm_intake \
+                --update=platform_crm_intake \
                 --without-demo \
                 --stop-after-init
 
@@ -345,6 +493,47 @@ spec:
               if not params.get_param('swirl_cloud.dark_mode_initialized'):
                   admin.write({'dark_mode': True, 'dark_mode_device_dependent': False})
                   params.set_param('swirl_cloud.dark_mode_initialized', 'true')
+              # Seed CRM and Live Chat once; later staff changes survive restarts.
+              if not params.get_param('swirl_cloud.crm_initialized'):
+                  # Website inquiries arrive as leads to qualify, not opportunities.
+                  env['res.config.settings'].create({'group_use_lead': True}).execute()
+                  params.set_param('swirl_cloud.crm_initialized', 'true')
+              if not params.get_param('swirl_cloud.livechat_initialized'):
+                  # active_test=False: the installing system user is archived,
+                  # and set() would otherwise keep it as an agent.
+                  channel = env.ref('im_livechat.im_livechat_channel_data').with_context(active_test=False)
+                  channel.write({
+                      'name': os.environ['ORGANIZATION_NAME'],
+                      'user_ids': [(6, 0, [admin.id])],
+                  })
+                  organization = os.environ['ORGANIZATION_NAME']
+                  team = env['crm.team'].search([('company_id', 'in', [env.company.id, False])], order='sequence, id', limit=1)
+                  # English source text with French translations; the add-on
+                  # answers each visitor in their browser language.
+                  steps = [
+                      ('text', "Hello, and thank you for visiting %s." % organization,
+                       "Bonjour et merci de votre visite chez %s." % organization),
+                      ('question_email', "Nobody is available to chat right now. Leave your email address and we will get back to you quickly.",
+                       "Personne n'est disponible pour discuter pour le moment. Laissez votre adresse e-mail et nous vous répondrons rapidement."),
+                      ('free_input_multi', "How can we help you?", "Comment pouvons-nous vous aider ?"),
+                      ('create_lead', "Thank you, your request has been recorded. We will reply by email.",
+                       "Merci, votre demande a bien été enregistrée. Nous vous répondrons par e-mail."),
+                  ]
+                  script = env['chatbot.script'].create({
+                      'title': organization,
+                      'script_step_ids': [(0, 0, {'step_type': kind, 'message': english, 'sequence': index,
+                                                  **({'crm_team_id': team.id} if kind == 'create_lead' else {})})
+                                          for index, (kind, english, _french) in enumerate(steps)],
+                  })
+                  script.source_id.name = organization + ' Live Chat'
+                  if env['res.lang']._lang_get('fr_FR'):
+                      for step, (_kind, english, french) in zip(script.script_step_ids.sorted('sequence'), steps):
+                          step.update_field_translations('message', {'fr_FR': {english: french}})
+                  # Open the chat as soon as the website loads it. The bot answers
+                  # only while no agent is online and turns the request into a lead.
+                  channel.rule_ids = [(0, 0, {'action': 'auto_popup', 'auto_popup_timer': 0, 'chatbot_script_id': script.id,
+                                               'chatbot_enabled_condition': 'only_if_no_operator'})]
+                  params.set_param('swirl_cloud.livechat_initialized', 'true')
               params.set_param('web.base.url', 'https://odoo.__PUBLIC_DOMAIN__')
               params.set_param('web.base.url.freeze', 'True')
               params.set_param('auth_oauth.authorization_header', 'True')
@@ -425,6 +614,9 @@ spec:
             - name: odoo-keycloak-sso-addon
               mountPath: /mnt/extra-addons/odoo_keycloak_sso
               readOnly: true
+            - name: odoo-crm-intake-addon
+              mountPath: /mnt/extra-addons/platform_crm_intake
+              readOnly: true
             - name: odoo-dark-mode-addon
               mountPath: /mnt/extra-addons/web_dark_mode
               readOnly: true
@@ -482,6 +674,9 @@ spec:
             - name: odoo-keycloak-sso-addon
               mountPath: /mnt/extra-addons/odoo_keycloak_sso
               readOnly: true
+            - name: odoo-crm-intake-addon
+              mountPath: /mnt/extra-addons/platform_crm_intake
+              readOnly: true
             - name: odoo-dark-mode-addon
               mountPath: /mnt/extra-addons/web_dark_mode
               readOnly: true
@@ -497,6 +692,9 @@ spec:
         - name: odoo-keycloak-sso-addon
           configMap:
             name: odoo-keycloak-sso-addon
+        - name: odoo-crm-intake-addon
+          configMap:
+            name: odoo-crm-intake-addon
         - name: odoo-dark-mode-addon
           configMap:
             name: odoo-dark-mode-addon
@@ -612,6 +810,19 @@ spec:
           port: 8069
         - protocol: TCP
           port: 8072
+    # The website's server calls the lead intake API in-cluster with its scoped
+    # key (docs/guides/odoo-website.md). Only pods that carry the opt-in label
+    # may connect, and only to the HTTP port; the chat bus stays edge-only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              swirl-cloud.io/odoo-crm-intake: "true"
+      ports:
+        - protocol: TCP
+          port: 8069
 
 ---
 apiVersion: networking.k8s.io/v1

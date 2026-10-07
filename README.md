@@ -79,6 +79,7 @@ Specialized procedures:
 - [External services](./docs/guides/external-services.md): every outside service the platform contacts and what it receives
 - [Incident response](./docs/guides/incident-response.md): incident record, evidence report and NIS2/GDPR deadlines
 - [Releases](./docs/guides/releases.md): versioning, changelog, SBOM and signed release bundles
+- [Odoo website integration](./docs/guides/odoo-website.md): contact inquiries as CRM leads and Live Chat with an out-of-hours chatbot
 
 ## Roadmap
 

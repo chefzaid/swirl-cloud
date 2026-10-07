@@ -21,6 +21,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("application_data", ROOT / "scripts/configure-application-data.py")
 data = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(data)
+odoo_spec = importlib.util.spec_from_file_location("odoo_intake", ROOT / "scripts/configure-odoo-intake.py")
+odoo = importlib.util.module_from_spec(odoo_spec)
+odoo_spec.loader.exec_module(odoo)
 ha_spec = importlib.util.spec_from_file_location("ha_profile", ROOT / "scripts/resolve-ha-profile.py")
 ha_profile = importlib.util.module_from_spec(ha_spec)
 ha_spec.loader.exec_module(ha_profile)
@@ -198,6 +201,49 @@ class DataContract(unittest.TestCase):
                 pod = item["spec"]["template"]["spec"]
                 paths = [mount["mountPath"] for mount in pod["containers"][0]["volumeMounts"]]
                 self.assertEqual(1, paths.count("/opt/swirl-cloud"))
+
+
+class OdooIntake(unittest.TestCase):
+    def test_integration_names_and_stored_credentials_are_scoped_to_the_website(self):
+        for application in ("bad/path", "Swirl Website", "x" * 32):
+            with self.assertRaises(odoo.ServiceError):
+                odoo.parameters(application, None)
+        for stored in ({"login": "integration-other", "apiKey": "a" * 40},
+                       {"login": "integration-swirl-website", "apiKey": "bad"}):
+            with self.assertRaises(odoo.ServiceError):
+                odoo.parameters("swirl-website", stored)
+
+    def test_api_keys_never_reach_process_arguments_or_error_messages(self):
+        stored, issued = "c" * 40, "d" * 40
+        calls = []
+
+        def run(args, input=None, **_kwargs):
+            calls.append(args)
+            if args[-1] == odoo.VERIFY:
+                return subprocess.CompletedProcess(args, 0, "200 403\n", "")
+            result = {"userId": 7, "company": "Org", "key": issued, "revoked": 1}
+            return subprocess.CompletedProcess(args, 0, "log line\n" + odoo.MARKER + json.dumps(result) + "\n", "")
+
+        with patch.object(odoo.subprocess, "run", side_effect=run):
+            result = odoo.provision(odoo.parameters("swirl-website", {
+                "login": "integration-swirl-website", "apiKey": stored}, rotate=True))
+            odoo.verify(result["key"])
+        self.assertEqual(issued, result["key"])
+        self.assertNotIn(stored, str(calls))
+        self.assertNotIn(issued, str(calls))
+
+        def fail(args, input=None, **_kwargs):
+            return subprocess.CompletedProcess(args, 1, odoo.MARKER + json.dumps({"key": issued}),
+                                               "Traceback " + stored + "\n" + odoo.FAILURE + "reason")
+
+        with patch.object(odoo.subprocess, "run", side_effect=fail), self.assertRaises(odoo.ServiceError) as raised:
+            odoo.provision(odoo.parameters("swirl-website", None))
+        self.assertTrue(str(raised.exception).endswith(": reason"))
+        self.assertNotIn(issued, str(raised.exception))
+        self.assertNotIn(stored, str(raised.exception))
+        with patch.object(odoo.subprocess, "run", side_effect=lambda args, **_: subprocess.CompletedProcess(args, 0, "200 200\n", "")):
+            with self.assertRaisesRegex(odoo.ServiceError, "must not read CRM records"):
+                odoo.verify(issued)
 
 
 @unittest.skipUnless(os.environ.get("BM_TEST_DATA_DOCKER") == "1", "set BM_TEST_DATA_DOCKER=1 for disposable PostgreSQL/Redis checks")

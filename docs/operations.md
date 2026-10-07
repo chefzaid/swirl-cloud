@@ -610,6 +610,13 @@ validate and test an authenticated `/odoo` page. Confirm that dark CSS loads and
 the switch works both ways. Users can select dark mode, light mode or their device
 preference. Uninstall the module in Odoo before removing its files.
 
+The bootstrap also installs CRM, Live Chat and the managed `platform_crm_intake`
+add-on, upgrades that add-on on every start, and seeds Leads, the chat channel
+and its out-of-hours chatbot once. The [Odoo website integration](guides/odoo-website.md)
+guide covers the website's integration key, rotation and the chat widget. Take a
+database dump before changing the add-on; uninstalling CRM does not restore the
+earlier schema, so recovery means restoring that dump.
+
 ## Common Incidents
 
 Record incidents and gather their evidence with the [incident response](guides/incident-response.md)

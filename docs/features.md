@@ -130,6 +130,7 @@ the pieces fit together.
 - Portainer, DBGate and Kafbat UI behind SSO; DBGate also signs in with Keycloak (`platform-admins`)
 - Descheduler for manual rebalancing
 - Odoo ERP with SSO and a persistent dark mode
+- Odoo CRM and Live Chat for the company website: idempotent lead intake with a scoped key, and an English/French chatbot that turns out-of-hours chats into leads ([guide](guides/odoo-website.md))
 
 ## High Availability Readiness
 

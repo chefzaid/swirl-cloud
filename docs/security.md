@@ -423,6 +423,7 @@ Vault's `secret` KV engine also holds these recovery and automation fields:
 | GitLab | `infra/gitlab` | `root_password` |
 | SonarQube | `infra/sonarqube` | `admin_password`, `admin_token` |
 | Longhorn origin login | `infra/platform-ui` | `password` |
+| Website's Odoo lead intake | `apps/<website>/odoo` | `apiKey` (only creates leads; [guide](guides/odoo-website.md)) |
 
 Use Vault's authenticated UI to read those fields. During an SSO outage, reach
 Vault locally with `kubectl port-forward -n infra service/vault 8200:8200` and

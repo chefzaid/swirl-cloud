@@ -498,11 +498,13 @@ configure_edge_rules() {
     if [[ "$ENABLE_RATE_LIMIT" == "true" ]]; then
         step "Reconciling the Swirl Cloud login rate limit"
         rule_file="$WORK_DIR/rule-rate-limit.json"
+        # One rule fits every Cloudflare plan; the description is its identity.
+        # Odoo Live Chat session starts are public and each one writes records.
         jq -n '{
             action:"block",
             description:"swirl-cloud: rate limit interactive login endpoints",
             enabled:true,
-            expression:"(http.request.uri.path in {\"/web/login\" \"/users/sign_in\"})",
+            expression:"(http.request.uri.path in {\"/web/login\" \"/users/sign_in\" \"/im_livechat/get_session\" \"/im_livechat/cors/get_session\"})",
             ratelimit:{
                 characteristics:["cf.colo.id","ip.src"],
                 period:10,
