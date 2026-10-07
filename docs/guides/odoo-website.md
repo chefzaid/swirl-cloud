@@ -146,6 +146,54 @@ until the visitor opens the chat.
 The chat endpoints are public. The Cloudflare login rate limit also covers chat
 session starts (`/im_livechat/get_session` and `/im_livechat/cors/get_session`).
 
+## Chat by email
+
+The team does not need Odoo open to answer the website chat. New visitor
+messages are emailed to the team, a reply to that email appears in the chat,
+and a visitor who has left receives the answer by email and can reply to it.
+
+```bash
+python3 scripts/configure-odoo-intake.py --application <website> \
+  --website-origin https://<website host> \
+  --notify team@<domain> --reply-sender team@<domain> --reply-sender person@mail.example \
+  --timezone Europe/Paris --chat-persona <website repo>/infra/odoo/chat-persona.json \
+  --resend-key-path apps/<website>/contact [--email-worker]
+```
+
+| Option | Effect |
+| --- | --- |
+| `--notify` | Receives one email per chat once the visitor has paused for 45 seconds, with the new messages, the recent conversation, and links to the chat and its CRM lead. Messages an agent already read in Odoo are not emailed. |
+| `--reply-sender` | Addresses whose replies are accepted; defaults to the `--notify` addresses. List every address you actually reply from, such as the mailbox a forwarding address delivers to. |
+| `--chat-from` | Sender of chat emails, `chat@<website host>` by default. Its plus-addresses receive replies. |
+| `--notify-lang`, `--timezone` | Language (`fr` or `en`) and time zone of the team's emails. |
+| `--chat-persona` | JSON file naming the chatbot, its PNG avatar and its messages (`type`, `en`, `fr` per step, in the order of the bootstrap's chatbot steps). |
+| `--resend-key-path` | Vault path whose `RESEND_API_KEY` becomes Odoo's outgoing mail server (`smtp.resend.com`, limited to the sender's domain). Odoo also gets that domain as its mail domain, so its own emails can be sent too. |
+| `--email-worker` | Deploys the Cloudflare Email Worker and its routing rule (below). Needs `CLOUDFLARE_API_TOKEN` with **Workers Scripts: Edit** and **Email Routing Rules: Edit**. |
+
+Every chat email has a Reply-To of the form
+`chat+<chat id>.<t|v>.<signature>@<domain>`, where `t` marks the team's copy, `v`
+the visitor's, and the signature is an HMAC of both with a secret kept in Odoo.
+Cloudflare Email Routing hands `chat@<domain>`, including its plus-addresses, to
+the `platform-chat-email` Worker ([source](../../scripts/lib/chat_email_worker.js)),
+which posts the raw email to `https://odoo.<domain>/platform_crm_intake/mail/inbound`
+with a shared secret (Vault `apps/<website>/odoo`, field `inboundSecret`). Odoo
+then:
+
+- ignores an unknown or wrongly signed address;
+- refuses a sender that may not answer that copy (not a listed team sender, or
+  not the visitor's own address); the Worker bounces it, so a mistaken sender
+  learns about it;
+- removes the quoted conversation and signature (Gmail, Outlook, Apple Mail, in
+  English and French), then posts the rest in the chat: the team's reply as the
+  chat's agent (the chatbot persona when nobody was online), the visitor's as the
+  visitor;
+- emails the team's reply to the visitor when they are no longer on the website,
+  using the address they gave the chatbot.
+
+An Odoo outage makes the Worker fail temporarily, so the sending mail server
+retries. Chatbot leads no longer trigger Odoo's separate "You have been
+assigned" email, because the chat email already links the lead.
+
 ## Changes and recovery
 
 Take a database dump before changing the add-on or the CRM configuration

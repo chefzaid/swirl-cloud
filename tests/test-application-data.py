@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 import uuid
 import yaml
@@ -252,6 +253,60 @@ class OdooIntake(unittest.TestCase):
             with self.assertRaisesRegex(odoo.ServiceError, "must not read CRM records"):
                 odoo.verify(issued)
 
+
+    def chat_args(self, **overrides):
+        values = {"chat_from": "chat@example.test", "notify": ["team@example.test"], "reply_sender": ["team@example.test"],
+                  "notify_lang": "fr", "timezone": "Europe/Paris", "chat_persona": None}
+        values.update(overrides)
+        return SimpleNamespace(**values)
+
+    def test_chat_options_are_validated_before_reaching_odoo(self):
+        for overrides in ({"notify": ["not an address"]}, {"reply_sender": ["Team <team@example.test>"]},
+                          {"chat_from": "chat+x@example.test"}, {"timezone": "Mars/Olympus"}):
+            with self.assertRaises(odoo.ServiceError):
+                odoo.chat_parameters(self.chat_args(**overrides))
+        params = odoo.chat_parameters(self.chat_args(), "re_secret")
+        self.assertEqual(("chat@example.test", "re_secret", "Europe/Paris"),
+                         (params["chatFrom"], params["smtpPassword"], params["timezone"]))
+
+    def test_persona_files_need_messages_and_a_png_avatar(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / "face.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+            (folder / "face.jpg").write_bytes(b"\xff\xd8\xff" + b"0" * 32)
+            message = {"type": "text", "en": "Hi", "fr": "Bonjour"}
+            for name, persona in (("ok", {"name": "Chloé", "avatar": "face.png", "messages": [message]}),
+                                  ("jpeg", {"name": "Chloé", "avatar": "face.jpg", "messages": [message]}),
+                                  ("step", {"name": "Chloé", "avatar": "face.png", "messages": [dict(message, type="forward")]})):
+                (folder / f"{name}.json").write_text(json.dumps(persona))
+            params = odoo.chat_parameters(self.chat_args(chat_persona=str(folder / "ok.json")))
+            self.assertEqual("Chloé", params["persona"]["name"])
+            self.assertTrue(base64.b64decode(params["persona"]["avatar"]).startswith(b"\x89PNG"))
+            for name in ("jpeg", "step"):
+                with self.assertRaises(odoo.ServiceError):
+                    odoo.chat_parameters(self.chat_args(chat_persona=str(folder / f"{name}.json")))
+
+    def test_email_worker_routes_the_chat_address_and_keeps_the_secret_in_a_binding(self):
+        calls = []
+
+        def cloudflare(token, method, path, body=None, content_type="application/json"):
+            calls.append((method, path, body))
+            if path.startswith("/zones?name="):
+                return [{"id": "zone", "account": {"id": "account"}}]
+            if path.endswith("/email/routing/rules?per_page=50"):
+                return [{"id": "rule-1", "name": odoo.ROUTING_RULE}]
+            return {}
+
+        with patch.object(odoo, "cloudflare", side_effect=cloudflare):
+            odoo.deploy_email_worker("token", "chat@example.test", "https://odoo.example.test/platform_crm_intake/mail/inbound", "s3cret")
+        upload = next(body for method, path, body in calls if path == "/accounts/account/workers/scripts/platform-chat-email")
+        self.assertIn(b'{"type": "secret_text", "name": "INBOUND_SECRET", "text": "s3cret"}', upload)
+        self.assertIn(b"export default", upload)
+        method, path, rule = calls[-1]
+        self.assertEqual(("PUT", "/zones/zone/email/routing/rules/rule-1"), (method, path))
+        self.assertEqual([{"type": "literal", "field": "to", "value": "chat@example.test"}], rule["matchers"])
+        self.assertEqual([{"type": "worker", "value": ["platform-chat-email"]}], rule["actions"])
+        self.assertNotIn("s3cret", json.dumps(rule))
 
 @unittest.skipUnless(os.environ.get("BM_TEST_DATA_DOCKER") == "1", "set BM_TEST_DATA_DOCKER=1 for disposable PostgreSQL/Redis checks")
 class LiveDataIsolation(unittest.TestCase):

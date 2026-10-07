@@ -49,8 +49,11 @@ Odoo is not behind Cloudflare Access. Besides its login page, its Live Chat
 endpoints and the website's chat frame (`/platform_crm_intake/chat/<id>`) are
 public by design. Chat session starts share the login rate limit, and only the
 website's origin may frame the chat page. The website reaches Odoo's lead
-intake API in-cluster with a key that can only create leads; see
-[Odoo website integration](guides/odoo-website.md).
+intake API in-cluster with a key that can only create leads. Emailed chat
+replies reach `/platform_crm_intake/mail/inbound` only from the Cloudflare
+Email Worker, with a shared secret, and are posted only for a correctly signed
+reply address and an allowed sender; see
+[Odoo website integration](guides/odoo-website.md#chat-by-email).
 
 ## Host policy
 

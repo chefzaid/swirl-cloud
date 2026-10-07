@@ -31,7 +31,7 @@ flowchart LR
 | `secret/infra/application-redis` | Platform Redis administrator password | Platform only; never applications |
 | `secret/apps/<app>/registry` | Verified `read_registry`/`read_repository` deploy token | Application pulls and Argo CD repository credentials |
 | `secret/apps/<app>/<env>/{database,redis,kafka}` | Environment-scoped data credentials | Environment secret store (`kubernetes-<env>` auth mount) |
-| `secret/apps/<website>/odoo` | Odoo URL, database, integration login and lead-intake API key ([guide](guides/odoo-website.md)) | The website's ExternalSecret |
+| `secret/apps/<website>/odoo` | Odoo URL, database, integration login and lead-intake API key, plus `inboundSecret` for emailed chat replies ([guide](guides/odoo-website.md)) | The website's ExternalSecret; the Cloudflare Email Worker |
 | `secret/apps/<app>/...` | Other values declared by the onboarding contract | Application ExternalSecrets |
 
 Policies: `external-secrets-policy` reads `infra/*` and `apps/*`; environment
