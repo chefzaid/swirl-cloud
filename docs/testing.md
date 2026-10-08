@@ -37,7 +37,8 @@ Run from the repository root before changing installation or deployment behavior
 ```
 
 The first command is offline and requires Bash, Git, ShellCheck, Python 3 with
-PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, and `flock`. CI installs
+PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock`, and the
+time zone database (`tzdata`). CI installs
 these tools. Missing dependencies fail validation rather than silently skipping
 deployment checks. It checks syntax, documentation links, manifest inventories,
 workload policy and platform-owned image digests. Nine installer/GitOps render

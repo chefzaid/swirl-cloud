@@ -26,7 +26,7 @@ validate:repository:
     policy: pull-push
   before_script:
     - mkdir -p "$APK_CACHE_DIR"
-    - apk add --cache-dir "$APK_CACHE_DIR" ansible-core bash coreutils findutils git grep helm jq nodejs openssl py3-yaml python3 shellcheck sqlite util-linux
+    - apk add --cache-dir "$APK_CACHE_DIR" ansible-core bash coreutils findutils git grep helm jq nodejs openssl py3-yaml python3 shellcheck sqlite tzdata util-linux
   script:
     - bash scripts/validate-repository.sh
 
