@@ -393,6 +393,7 @@ Decisions marked **ADR** need a record in [`docs/adr/`](docs/adr/) first (see th
 proposed list in [architecture](docs/architecture.md#proposed-adrs-for-roadmap-work)).
 
 - [ ] Keep services versions updated *(perpetual; never marked done)*.
+- [ ] Integrate Renovate for version bumps across the whole cluster and all apps: platform images, charts and K3s in this repository, plus the application repositories (Swirl Demo App, Indezy, Thoughty, Swirl Website).
 
 ### 20. Remediate Lynis findings (light-touch, non-blocking)
 
