@@ -52,6 +52,7 @@ export K3S_PRIVATE_INTERFACE=eno2
 export K3S_NODE_NETWORK_CIDR=10.40.0.0/24
 export K3S_CONTROL_PLANE_IPS=10.40.0.11,10.40.0.12
 export K3S_WORKER_IPS=10.40.0.20
+export K3S_API_VIP=10.40.0.5
 export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
 ```
 
@@ -115,6 +116,7 @@ export K3S_PRIVATE_ADDRESS=192.168.10.10
 export K3S_NODE_NETWORK_CIDR=192.168.10.0/24
 export K3S_CONTROL_PLANE_IPS=192.168.10.11,192.168.10.12
 export K3S_WORKER_IPS=192.168.10.20
+export K3S_API_VIP=192.168.10.5
 export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
 ```
 
@@ -171,6 +173,8 @@ Run these commands on a registered control plane with its local K3s kubeconfig:
 `--count` means additional nodes and retains interactive per-node prompts.
 The final control-plane count must be odd. The plan is checked before any
 datastore conversion; each new server joins sequentially and must become Ready.
+Control-plane enrollment then serves the [Kubernetes API endpoint](#kubernetes-api-endpoint)
+from every server; on vRack and LAN it needs `--api-vip` until the endpoint is recorded.
 
 Remote enrollment loads the installed platform domain and derives its registry
 hostname. It forwards registry settings to the new host; explicit `PLATFORM_DOMAIN`,
@@ -189,7 +193,7 @@ For unattended enrollment, supply the role, mode, transport and targets:
 # These vRack addresses must already be configured:
 ./add-node.sh --role control-plane --mode remote --transport vrack \
   --ips 10.40.0.12,10.40.0.13 --server-url https://10.40.0.10:6443 \
-  --node-network-cidr 10.40.0.0/24 --ssh-user admin \
+  --node-network-cidr 10.40.0.0/24 --api-vip 10.40.0.5 --ssh-user admin \
   --control-plane-schedulable preserve --non-interactive
 
 ./add-node.sh --role worker --mode remote --transport vrack \
@@ -231,11 +235,70 @@ fails if a private node cannot be reached. It does not restart K3s.
 
 `--server-url` may point to another registered control plane's private IP;
 `--control-plane-ip` identifies the enrollment host's actual SSH source. Both
-are checked against control-plane membership. Existing K3s agents learn all API
-server addresses through their
-[built-in client load balancer](https://docs.k3s.io/architecture#how-agent-node-registration-works).
-External kubectl clients still select a reachable server; no floating API
-endpoint is installed.
+are checked against control-plane membership. Once the
+[API endpoint](#kubernetes-api-endpoint) is recorded and answers from the
+enrolling control plane, new nodes register through it instead. Registered K3s
+agents learn all API server addresses through their
+[built-in client load balancer](https://docs.k3s.io/architecture#how-agent-node-registration-works);
+kubectl clients use the endpoint.
+
+## Kubernetes API endpoint
+
+With three or more control planes, every control plane serves one private API
+address, so kubectl and joining nodes keep working while any one server is down
+([ADR 0028](../adr/0028-kubernetes-api-endpoint.md)):
+
+| Transport | Endpoint | Failover |
+| --- | --- | --- |
+| vRack, LAN | `K3S_API_VIP`, an unused node-network address held by keepalived | Unicast VRRP moves the VIP when its holder stops or its `/readyz` fails |
+| Tailscale | Tailscale Service `svc:<mesh>-api`, `https://<mesh>-api.<tailnet>.ts.net:6443` | Tailscale routes to hosts still advertising it; a server drains the Service while its API is not ready |
+
+Control-plane enrollment sets it up after the joins. On vRack and LAN, supply
+the VIP with `--api-vip` or `K3S_API_VIP`; the installer asks for it when it
+adds control planes. Tailscale needs Tailscale Services on the tailnet and
+Tailscale 1.86 or later on control planes. Enrollment creates the Service,
+auto-approves the control-plane tag as its host and grants tailnet admins,
+control planes and workers TCP 6443. Every server certificate lists the
+endpoint. A server that is missing it restarts only while a fresh etcd majority
+remains, one server at a time. `kube-system/swirl-cloud-api-endpoint` records
+the endpoint for later enrollments.
+
+Write an administrator kubeconfig that uses the endpoint, then copy it to a
+trusted device over a private channel; it holds cluster-administrator
+credentials:
+
+```bash
+./scripts/configure-k3s-api-endpoint.sh --kubeconfig ~/cluster-admin.yaml
+```
+
+The vRack or LAN VIP is reachable only inside the node network. From elsewhere,
+forward it through a control plane you can reach, for example
+`ssh -L 6443:10.40.0.5:6443 admin@<control plane>`, and set the kubeconfig
+server to `https://127.0.0.1:6443`, which every server certificate covers.
+Tailscale clients older than 1.94 need `tailscale set --accept-routes` to reach
+Services.
+
+`./scripts/configure-k3s-api-endpoint.sh --verify` checks the endpoint from a
+control plane. A Tailscale Service host may not reach its own Service, so on
+Tailscale also run `kubectl get --raw /readyz` from an administrator device.
+Before relying on failover, repeat that check with each control plane stopped
+in turn, as part of the [HA drill](high-availability.md#verify-before-relying-on-ha).
+
+After removing or replacing a control plane, or on a cluster enrolled before
+the endpoint existed, reconcile it from a control plane:
+
+```bash
+./scripts/configure-k3s-api-endpoint.sh --reconcile --transport lan \
+  --address 192.168.10.5 --node-network-cidr 192.168.10.0/24 \
+  --control-plane-ip 192.168.10.10 --ssh-user admin
+```
+
+Recorded values fill omitted endpoint options. To create the Tailscale Service
+for an existing cluster, run
+`printf '%s\n' "$TAILSCALE_API_TOKEN" | ./scripts/configure-tailscale.sh --role control-plane --api-service --api-token-stdin`
+with the cluster's [Tailscale inputs](#tailscale). It prints the Service IPv4
+and name for `--transport tailscale --address <IPv4> --hostname <name>
+--service svc:<mesh>-api`.
 
 ## Scheduling and storage
 
@@ -323,6 +386,10 @@ kubectl wait --for=condition=Ready node --all --timeout=5m
 ./scripts/reconcile-cluster-topology.sh \
   --control-plane-schedulable preserve --update-longhorn-helm
 ```
+
+After local control-plane joins, also run the
+[API endpoint reconciliation](#kubernetes-api-endpoint) so the new servers
+serve the endpoint and the VRRP peers include them.
 
 Run `./add-node.sh --help`, or append `--help` after both role and mode for the
 complete options. For initial multi-node planning see [installation](../deployment.md#topology-and-scheduling);

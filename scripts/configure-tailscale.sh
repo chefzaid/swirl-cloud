@@ -77,6 +77,8 @@ Options:
   --verify-account         Read-only check of the API token and selected tailnet
   --create-auth-key        Reconcile policy and print one tagged auth key to stdout
   --tag-ip IP              Reconcile policy and apply the role tag to this device IP
+  --api-service            Create the cluster's Kubernetes API Tailscale Service,
+                           let control planes host it, and print its IPv4 and name
   --non-interactive        Fail instead of prompting for a missing API token
   -h, --help               Show this help
 
@@ -136,6 +138,7 @@ while [[ $# -gt 0 ]]; do
         --create-auth-key) MODE="create-auth-key" ;;
         --tag-ip) shift; [[ $# -gt 0 ]] || error "Missing value for --tag-ip"; TAG_IP="$1"; MODE="tag-ip" ;;
         --tag-ip=*) TAG_IP="${1#*=}"; MODE="tag-ip" ;;
+        --api-service) MODE="api-service" ;;
         --non-interactive) NON_INTERACTIVE=true ;;
         -h|--help) usage; exit 0 ;;
         *) error "Unknown option: $1 (use --help)" ;;
@@ -171,6 +174,7 @@ WORKER_TAG="${WORKER_TAG:-tag:${MESH_NAME}-worker}"
 [[ "$CONTROL_PLANE_TAG" =~ ^tag:[a-z0-9][a-z0-9-]*$ ]] || error "Invalid control-plane tag: $CONTROL_PLANE_TAG"
 [[ "$WORKER_TAG" =~ ^tag:[a-z0-9][a-z0-9-]*$ ]] || error "Invalid worker tag: $WORKER_TAG"
 [[ "$CONTROL_PLANE_TAG" != "$WORKER_TAG" ]] || error "Control-plane and worker tags must differ."
+API_SERVICE_NAME="svc:${MESH_NAME}-api"
 [[ "$AUTH_KEY_EXPIRY_SECONDS" =~ ^[0-9]+$ ]] || error "Auth-key expiry must be a positive number of seconds."
 (( AUTH_KEY_EXPIRY_SECONDS >= 60 && AUTH_KEY_EXPIRY_SECONDS <= 7776000 )) || \
     error "Auth-key expiry must be between 60 seconds and 90 days."
@@ -275,6 +279,8 @@ reconcile_policy() {
     jq \
         --arg cp "$CONTROL_PLANE_TAG" \
         --arg worker "$WORKER_TAG" \
+        --arg svc "$API_SERVICE_NAME" \
+        --argjson api_service "$([[ "$MODE" == api-service ]] && echo true || echo false)" \
         --argjson peer "$managed_ports" \
         --argjson fresh "$fresh_default" '
         def managed_grant:
@@ -293,6 +299,15 @@ reconcile_policy() {
             {src:[$worker], dst:[$cp], ip:($peer + ["tcp:6443"] | unique)},
             {src:[$worker], dst:[$worker], ip:$peer}
         ]) |
+        # Other modes leave an existing API Service grant untouched.
+        if $api_service then
+            .autoApprovers = (.autoApprovers // {}) |
+            .autoApprovers.services = (.autoApprovers.services // {}) |
+            .autoApprovers.services[$svc] = [$cp] |
+            .grants = ([.grants[] | select((.dst // []) != [$svc])] + [
+                {src:["autogroup:admin",$cp,$worker], dst:[$svc], ip:["tcp:6443"]}
+            ])
+        else . end |
         if $fresh then
             .acls = [((.acls // [])[]) | select(
                 (((.src // .users // []) == ["*"]) and
@@ -350,6 +365,37 @@ tag_device_ip() {
     printf '%s\n' '{"keyExpiryDisabled":true}' > "$key_payload"
     api_request POST "device/$device_id/key" "$response" "$headers" "$key_payload"
     info "Applied $tag to Tailscale device $ip and disabled node-key expiry for this tagged server."
+}
+
+# Tailscale Services give the K3s API one tailnet address; every control plane
+# hosts it (scripts/configure-k3s-api-endpoint.sh). Prints "IPv4 [MagicDNS name]".
+ensure_api_service() {
+    local body="$TEMP_DIR/service.json" headers="$TEMP_DIR/service.headers" payload="$TEMP_DIR/service-request.json"
+    local status address suffix=""
+    status="$(curl --config "$CURL_CONFIG" --request GET --url "$API_BASE/tailnet/$TAILNET/services/$API_SERVICE_NAME" \
+        --output "$body" --dump-header "$headers" --write-out '%{http_code}' --header 'Accept: application/json')" || \
+        error "Tailscale API request failed: GET services/$API_SERVICE_NAME"
+    if [[ "$status" == 404 ]]; then
+        jq -n --arg name "$API_SERVICE_NAME" --arg mesh "$MESH_NAME" \
+            '{name:$name, comment:("Kubernetes API of the " + $mesh + " K3s cluster"), ports:["tcp:6443"]}' > "$payload"
+        api_request PUT "tailnet/$TAILNET/services/$API_SERVICE_NAME" "$body" "$headers" "$payload"
+        info "Created Tailscale Service $API_SERVICE_NAME for the Kubernetes API."
+    elif [[ "$status" =~ ^2 ]]; then
+        if ! jq -e '(.ports // []) | index("tcp:6443")' "$body" >/dev/null; then
+            jq '{name, displayName, comment, addrs, tags, ports:((.ports // []) + ["tcp:6443"] | unique)} | with_entries(select(.value != null))' \
+                "$body" > "$payload"
+            api_request PUT "tailnet/$TAILNET/services/$API_SERVICE_NAME" "$body" "$headers" "$payload"
+        fi
+    else
+        error "Tailscale returned HTTP $status for $API_SERVICE_NAME; the tailnet must allow Tailscale Services."
+    fi
+    address="$(jq -r '[.addrs[]? | select(test("^[0-9]+(\\.[0-9]+){3}$"))][0] // empty' "$body")"
+    tailscale_ipv4 "$address" || error "Tailscale Service $API_SERVICE_NAME has no IPv4 address."
+    if command -v tailscale >/dev/null 2>&1; then
+        suffix="$("${SUDO[@]}" tailscale status --json 2>/dev/null | \
+            jq -r 'if .CurrentTailnet.MagicDNSEnabled then (.MagicDNSSuffix // empty) else empty end' || true)"
+    fi
+    printf '%s %s\n' "$address" "${suffix:+${API_SERVICE_NAME#svc:}.$suffix}"
 }
 
 ensure_tailscale_installed() {
@@ -413,6 +459,8 @@ if [[ -n "$API_TOKEN" ]]; then
         jq -e 'type == "object"' "$verification_body" >/dev/null || error "Tailscale returned an invalid policy document."
         info "Tailscale API token and tailnet access are valid."
     else
+        # Grants and auto-approval may only name a Service that exists.
+        [[ "$MODE" != api-service ]] || API_SERVICE_RESULT="$(ensure_api_service)"
         reconcile_policy
     fi
 fi
@@ -427,6 +475,9 @@ case "$MODE" in
         ;;
     verify-account)
         :
+        ;;
+    api-service)
+        printf '%s\n' "$API_SERVICE_RESULT"
         ;;
     ensure-node)
         ensure_local_node

@@ -68,6 +68,7 @@ to the application repository.
 ## What Healthy Looks Like
 
 - Every node is `Ready`, and `kubectl get applications -n infra` shows `swirl-cloud` `Synced` and `Healthy` at the current `main` commit.
+- With three or more control planes, `./scripts/configure-k3s-api-endpoint.sh --verify` passes on a control plane, and an administrator kubeconfig reaches the [API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint) (on Tailscale, check from an administrator device).
 - `kubectl get externalsecrets -A` reports every ExternalSecret `Ready`.
 - `swirl-cloud-vault-unseal.timer` is active and Vault reports `Sealed: false`.
 - `swirl-cloud-k3s-backup.service` last `Result=success`, with a fresh archive under `/var/backups/swirl-cloud/k3s`.

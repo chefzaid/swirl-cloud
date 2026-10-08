@@ -904,6 +904,10 @@ configure_ufw() {
       info "Restricting the K3s API, embedded etcd, Flannel, and kubelet traffic to $K3S_NODE_NETWORK_CIDR on $cluster_interface..."
       sudo ufw allow in on "$cluster_interface" from "$K3S_NODE_NETWORK_CIDR" to any port 6443 proto tcp >/dev/null
       sudo ufw allow in on "$cluster_interface" from "$K3S_NODE_NETWORK_CIDR" to any port 2379:2380 proto tcp comment 'K3s embedded etcd peers' >/dev/null
+      # keepalived moves the API VIP between control planes (configure-k3s-api-endpoint.sh).
+      if [[ "$cluster_interface" != tailscale0 ]]; then
+        sudo ufw allow in on "$cluster_interface" from "$K3S_NODE_NETWORK_CIDR" to any proto vrrp comment 'Kubernetes API VIP (VRRP)' >/dev/null
+      fi
     else
       info "Restricting worker Flannel and kubelet traffic to $K3S_NODE_NETWORK_CIDR on $cluster_interface..."
     fi

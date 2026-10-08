@@ -81,6 +81,17 @@ class InstallInputs(unittest.TestCase):
             self.assertIn(expected, result.stderr)
         self.assertNotIn("leakcheck", result.stdout + result.stderr)
 
+    def test_api_vip_must_be_a_free_node_network_address(self):
+        lan = {**VALID, "CONTROL_PLANE_COUNT": "3", "CLUSTER_NODE_COUNT": "3", "K3S_NODE_TRANSPORT": "lan",
+               "K3S_PRIVATE_ADDRESS": "192.168.10.10", "K3S_NODE_NETWORK_CIDR": "192.168.10.0/24",
+               "K3S_CONTROL_PLANE_IPS": "192.168.10.11,192.168.10.12", install_inputs.VERSION_KEY: "1"}
+        vip_problems = lambda values: [p for p in install_inputs.validate(values) if p.startswith("K3S_API_VIP")]
+        self.assertTrue(vip_problems(lan), "multi-server LAN installs need a VIP before anything changes")
+        self.assertEqual([], vip_problems({**lan, "K3S_API_VIP": "192.168.10.5"}))
+        for taken in ("192.168.10.11", "192.168.11.5", "192.168.10.255"):
+            self.assertTrue(vip_problems({**lan, "K3S_API_VIP": taken}), taken)
+        self.assertEqual([], vip_problems({**lan, "K3S_NODE_TRANSPORT": "tailscale"}))
+
     def test_written_files_are_private_and_round_trip(self):
         values = {**VALID, "ORGANIZATION_NAME": 'A "quoted" \\ name $(x)'}
         path = self.dir / "nested/install.env"

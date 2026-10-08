@@ -52,6 +52,12 @@ K3S_HA_SCRIPT="$SCRIPT_DIR/configure-k3s-ha.sh"
 HA_CONTROL_PLANE_CONFIGURATOR="$SCRIPT_DIR/configure-ha-control-planes.sh"
 K3S_AUDIT_CONFIGURATOR="$SCRIPT_DIR/configure-k3s-audit.sh"
 K3S_AUDIT_POLICY="$SCRIPT_DIR/../config/host/k3s-audit-policy.yaml"
+API_ENDPOINT_SCRIPT="$SCRIPT_DIR/configure-k3s-api-endpoint.sh"
+API_VIP="${K3S_API_VIP:-}"
+API_ENDPOINT_TRANSPORT=""
+API_ENDPOINT_ADDRESS=""
+API_ENDPOINT_HOSTNAME=""
+API_ENDPOINT_SERVICE=""
 WORKER_IPS="${K3S_WORKER_IPS:-}"
 WORKER_HOSTS="${K3S_WORKER_HOSTS:-}"
 REQUESTED_WORKER_COUNT="${K3S_WORKER_COUNT:-}"
@@ -66,6 +72,7 @@ EXPECTED_CONTROL_PLANE_COUNT="${CONTROL_PLANE_COUNT:-}"
 CONTROL_PLANE_SCHEDULABLE="${CONTROL_PLANE_SCHEDULABLE:-}"
 NODE_TRANSPORT="${K3S_NODE_TRANSPORT:-}"
 SERVER_URL=""
+JOIN_URL=""
 CONTROL_PLANE_IP="${K3S_PRIVATE_ADDRESS:-}"
 CONTROL_PLANE_SSH_IPS=""
 CONTROL_PLANE_ACCESS_RECONCILER="$SCRIPT_DIR/reconcile-control-plane-access.sh"
@@ -134,6 +141,8 @@ Control-plane options:
                             Scheduling mode (default: inherit existing mode)
   --transport MODE          vrack (OVHcloud-only), tailscale (hybrid) or lan (existing LAN)
   --server-url URL          Any registered control plane's private IPv4 join endpoint
+  --api-vip IP              Unused node-network address for the Kubernetes API VIP
+                            (vRack/LAN; required until the endpoint is recorded)
   --control-plane-ip IP    This host's private SSH source (detected by default)
   --node-network-cidr CIDR  Trusted RFC1918 subnet or Tailscale 100.64.0.0/10
   --ssh-user USER           Default SSH user; requires passwordless sudo or root
@@ -154,6 +163,9 @@ Control-plane options:
 The final control-plane count must be odd. After validating that plan, an
 existing SQLite server is backed up and converted to embedded etcd if needed.
 Existing etcd membership is preserved; external datastores are not converted.
+After the joins, every control plane serves one Kubernetes API endpoint: a
+keepalived VIP on vRack/LAN or a Tailscale Service, listed in each server's
+certificate (scripts/configure-k3s-api-endpoint.sh).
 Server joins use the existing server token and exact version,
 disable Traefik, enable secrets encryption, and remain private. Already joined
 nodes with matching names, roles, and private IPs are checked and reused.
@@ -246,6 +258,8 @@ while [[ $# -gt 0 ]]; do
         --control-plane-ip=*) CONTROL_PLANE_IP="${1#*=}" ;;
         --server-url)       shift; [[ $# -gt 0 ]] || error "Missing value for --server-url"; SERVER_URL="$1" ;;
         --server-url=*)     SERVER_URL="${1#*=}" ;;
+        --api-vip)          shift; [[ $# -gt 0 ]] || error "Missing value for --api-vip"; API_VIP="$1" ;;
+        --api-vip=*)        API_VIP="${1#*=}" ;;
         --ssh-user)         shift; [[ $# -gt 0 ]] || error "Missing value for --ssh-user"; SSH_USER="$1" ;;
         --ssh-user=*)       SSH_USER="${1#*=}" ;;
         --ssh-port)         shift; [[ $# -gt 0 ]] || error "Missing value for --ssh-port"; SSH_PORT="$1" ;;
@@ -290,6 +304,7 @@ done
 [[ -x "$TAILSCALE_CONFIGURATOR" ]] || error "Tailscale configurator not found or not executable: $TAILSCALE_CONFIGURATOR"
 [[ -x "$OVH_VRACK_CONFIGURATOR" ]] || error "OVHcloud vRack configurator not found or not executable: $OVH_VRACK_CONFIGURATOR"
 [[ -x "$CLUSTER_TOPOLOGY_RECONCILER" ]] || error "Cluster topology reconciler not found or not executable: $CLUSTER_TOPOLOGY_RECONCILER"
+[[ -x "$API_ENDPOINT_SCRIPT" ]] || error "API endpoint configurator not found or not executable: $API_ENDPOINT_SCRIPT"
 [[ -z "$REQUESTED_WORKER_COUNT" || "$REQUESTED_WORKER_COUNT" =~ ^[1-9][0-9]*$ ]] || error "Requested $ENROLLMENT_ROLE count must be a positive integer."
 command -v ssh >/dev/null 2>&1 || error "ssh is required."
 command -v scp >/dev/null 2>&1 || error "scp is required."
@@ -313,6 +328,13 @@ fi
 [[ "$HIGH_AVAILABILITY_ENABLED" == true || "$HIGH_AVAILABILITY_ENABLED" == false ]] || error "Invalid HA mode"
 [[ "$stored_ha_mode" != true || "$HIGH_AVAILABILITY_ENABLED" == true ]] || error "Cannot disable persisted HA while adding nodes"
 export HIGH_AVAILABILITY_ENABLED
+api_endpoint_record="$(kubectl -n kube-system get configmap swirl-cloud-api-endpoint --ignore-not-found -o json)"
+if [[ -n "$api_endpoint_record" ]]; then
+    API_ENDPOINT_TRANSPORT="$(jq -r '.data.transport // empty' <<< "$api_endpoint_record")"
+    API_ENDPOINT_ADDRESS="$(jq -r '.data.address // empty' <<< "$api_endpoint_record")"
+    API_ENDPOINT_HOSTNAME="$(jq -r '.data.hostname // empty' <<< "$api_endpoint_record")"
+    API_ENDPOINT_SERVICE="$(jq -r '.data.service // empty' <<< "$api_endpoint_record")"
+fi
 if [[ -z "$CONTROL_PLANE_SCHEDULABLE" ]]; then
     if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
         CONTROL_PLANE_SCHEDULABLE=preserve
@@ -476,6 +498,9 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
         fi
         installer_prompt_value NODE_NETWORK_CIDR "Trusted LAN node CIDR (every address in it reaches cluster ports)" "$NODE_NETWORK_CIDR"
     fi
+    if [[ "$ENROLLMENT_ROLE" == control-plane && "$NODE_TRANSPORT" != tailscale && -z "$API_ENDPOINT_ADDRESS" ]]; then
+        installer_prompt_value API_VIP "Unused node-network IPv4 for the Kubernetes API VIP (moves between control planes)" "$API_VIP"
+    fi
     installer_prompt_value COMMON_LABELS "Labels for every new node, comma-separated (optional)" "$COMMON_LABELS"
     installer_prompt_value COMMON_TAINTS "Additional taints for every new node, comma-separated (optional)" "$COMMON_TAINTS"
     if [[ "$ENROLLMENT_ROLE" == "worker" ]]; then
@@ -519,6 +544,19 @@ control_plane_address_member "$CONTROL_PLANE_SSH_IPS" "$SERVER_PRIVATE_IP" || \
     error "The K3s join endpoint must belong to a registered control plane"
 control_plane_address_member "$CONTROL_PLANE_SSH_IPS" "$CONTROL_PLANE_IP" || \
     error "The local SSH source must belong to a registered control plane"
+# Settle the Kubernetes API endpoint before any host or tailnet change.
+[[ "$NODE_TRANSPORT" != tailscale || -z "$API_VIP" ]] || \
+    error "--api-vip applies to vRack and LAN; Tailscale clusters use a Tailscale Service."
+if [[ -n "$API_ENDPOINT_ADDRESS" ]]; then
+    [[ "$API_ENDPOINT_TRANSPORT" == "$NODE_TRANSPORT" ]] || \
+        error "The recorded Kubernetes API endpoint uses $API_ENDPOINT_TRANSPORT, not $NODE_TRANSPORT."
+    [[ -z "$API_VIP" || "$API_VIP" == "$API_ENDPOINT_ADDRESS" ]] || \
+        error "The Kubernetes API VIP is already $API_ENDPOINT_ADDRESS; change it with scripts/configure-k3s-api-endpoint.sh --reconcile --address before enrolling."
+elif [[ "$ENROLLMENT_ROLE" == control-plane && "$NODE_TRANSPORT" != tailscale ]]; then
+    [[ -n "$API_VIP" ]] || error "Set --api-vip (K3S_API_VIP) to an unused address in $NODE_NETWORK_CIDR for the Kubernetes API."
+    "$API_ENDPOINT_SCRIPT" --validate-vip "$API_VIP" "$NODE_NETWORK_CIDR" "$(kubectl get nodes -o json | \
+        jq -r --arg planned "$WORKER_IPS" '[.items[].status.addresses[]? | select(.type == "InternalIP") | .address] + ($planned | split(",")) | join(",")')"
+fi
 CONTROL_PLANE_CLUSTER_INTERFACE="$(interface_owning_ip "$CONTROL_PLANE_IP")"
 [[ -n "$CONTROL_PLANE_CLUSTER_INTERFACE" ]] || \
     error "Control-plane SSH source $CONTROL_PLANE_IP is not assigned to a local interface. Run this mode on the control-plane node."
@@ -545,6 +583,9 @@ if command -v ufw >/dev/null 2>&1 && "${LOCAL_SUDO[@]}" ufw status | grep -q '^S
     "${LOCAL_SUDO[@]}" ufw allow in on "$CONTROL_PLANE_CLUSTER_INTERFACE" from "$NODE_NETWORK_CIDR" to any port 6443 proto tcp >/dev/null
     if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
         "${LOCAL_SUDO[@]}" ufw allow in on "$CONTROL_PLANE_CLUSTER_INTERFACE" from "$NODE_NETWORK_CIDR" to any port 2379:2380 proto tcp comment 'K3s embedded etcd' >/dev/null
+        if [[ "$CONTROL_PLANE_CLUSTER_INTERFACE" != tailscale0 ]]; then
+            "${LOCAL_SUDO[@]}" ufw allow in on "$CONTROL_PLANE_CLUSTER_INTERFACE" from "$NODE_NETWORK_CIDR" to any proto vrrp comment 'Kubernetes API VIP (VRRP)' >/dev/null
+        fi
     fi
     "${LOCAL_SUDO[@]}" ufw allow in on "$CONTROL_PLANE_CLUSTER_INTERFACE" from "$NODE_NETWORK_CIDR" to any port 8472 proto udp >/dev/null
     "${LOCAL_SUDO[@]}" ufw allow in on "$CONTROL_PLANE_CLUSTER_INTERFACE" from "$NODE_NETWORK_CIDR" to any port 10250 proto tcp >/dev/null
@@ -823,6 +864,35 @@ prepare_control_plane_datastore() {
     [[ -n "$JOIN_TOKEN" ]] || error "The server token is empty after embedded-etcd preparation."
 }
 
+# Creates or confirms the API endpoint; this server serves it from its next start.
+prepare_api_endpoint() {
+    local result
+    [[ "$ENROLLMENT_ROLE" == control-plane ]] || return 0
+    if [[ -z "$API_ENDPOINT_ADDRESS" ]]; then
+        if [[ "$NODE_TRANSPORT" == tailscale ]]; then
+            result="$(printf '%s\n' "$TAILSCALE_API_TOKEN" | "$TAILSCALE_CONFIGURATOR" --role control-plane \
+                --tailnet "$TAILSCALE_TAILNET" --mesh-name "$TAILSCALE_MESH_NAME" --api-service --api-token-stdin)" || \
+                error "Could not prepare the Kubernetes API Tailscale Service; no control planes were enrolled."
+            read -r API_ENDPOINT_ADDRESS API_ENDPOINT_HOSTNAME <<< "$result"
+            API_ENDPOINT_SERVICE="svc:${TAILSCALE_MESH_NAME}-api"
+        else
+            API_ENDPOINT_ADDRESS="$API_VIP"
+        fi
+        API_ENDPOINT_TRANSPORT="$NODE_TRANSPORT"
+    fi
+    "$API_ENDPOINT_SCRIPT" --write-sans "$API_ENDPOINT_ADDRESS${API_ENDPOINT_HOSTNAME:+,$API_ENDPOINT_HOSTNAME}"
+}
+
+# Nodes register through the endpoint once it is recorded and answers here;
+# otherwise through the verified control plane in --server-url.
+select_join_url() {
+    JOIN_URL="$SERVER_URL"
+    if [[ -n "$api_endpoint_record" ]] && "$API_ENDPOINT_SCRIPT" --verify >/dev/null 2>&1; then
+        JOIN_URL="https://$API_ENDPOINT_ADDRESS:6443"
+        info "New nodes register through the Kubernetes API endpoint $JOIN_URL."
+    fi
+}
+
 install_worker() {
     local target="$1" node_name="$2" node_ip="$3" labels="$4" taints="$5" control_plane_ip="$6"
     local remote_dir="" remote_installer="" remote_hardener=""
@@ -835,7 +905,7 @@ install_worker() {
         --non-interactive
         --node-role "$ENROLLMENT_ROLE"
         --transport "$NODE_TRANSPORT"
-        --server-url "$SERVER_URL"
+        --server-url "$JOIN_URL"
         --token-stdin
         --node-name "$node_name"
         --ssh-port "$SSH_PORT"
@@ -846,6 +916,7 @@ install_worker() {
     [[ "$node_name" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ && ${#node_name} -le 253 ]] || \
         error "Invalid Kubernetes node name: $node_name"
     [[ "$node_ip" != "$CONTROL_PLANE_IP" ]] || error "The bootstrap control plane cannot enroll itself."
+    [[ "$node_ip" != "$API_ENDPOINT_ADDRESS" ]] || error "$node_ip is the Kubernetes API endpoint address, not a node."
     existing_node="$(kubectl get nodes -o json | jq -c --arg name "$node_name" --arg ip "$node_ip" '
         [.items[] | select(.metadata.name == $name or any(.status.addresses[]?; .type == "InternalIP" and .address == $ip))]')"
     if [[ "$(jq length <<< "$existing_node")" -gt 0 ]]; then
@@ -868,7 +939,8 @@ install_worker() {
         fi
     fi
     if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
-        worker_args+=(--control-plane-schedulable "$JOIN_CONTROL_PLANE_SCHEDULABLE")
+        worker_args+=(--control-plane-schedulable "$JOIN_CONTROL_PLANE_SCHEDULABLE"
+            --api-endpoint-sans "$API_ENDPOINT_ADDRESS${API_ENDPOINT_HOSTNAME:+,$API_ENDPOINT_HOSTNAME}")
     fi
     [[ -z "${PLATFORM_DOMAIN:-}" ]] || worker_args+=(--domain "$PLATFORM_DOMAIN")
 
@@ -892,7 +964,7 @@ install_worker() {
     scp "${scp_options[@]}" "$LONGHORN_HOST_CONFIGURATOR" "$target:$remote_dir/scripts/"
     scp "${scp_options[@]}" "$LONGHORN_MULTIPATH_CONFIG" "$target:$remote_dir/config/host/"
     if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
-        scp "${scp_options[@]}" "$LYNIS_SCHEDULER" "$NODE_AUDITOR" "${HA_CONTROL_PLANE_CONFIGURATOR:-$SCRIPT_DIR/configure-ha-control-planes.sh}" "$K3S_AUDIT_CONFIGURATOR" "$target:$remote_dir/scripts/"
+        scp "${scp_options[@]}" "$LYNIS_SCHEDULER" "$NODE_AUDITOR" "${HA_CONTROL_PLANE_CONFIGURATOR:-$SCRIPT_DIR/configure-ha-control-planes.sh}" "$K3S_AUDIT_CONFIGURATOR" "$API_ENDPOINT_SCRIPT" "$target:$remote_dir/scripts/"
         scp "${scp_options[@]}" "$K3S_AUDIT_POLICY" "$target:$remote_dir/config/host/"
         ssh "${ssh_options[@]}" "$target" "chmod 700 $(printf '%q' "$remote_dir/scripts/configure-lynis-schedule.sh") $(printf '%q' "$remote_dir/scripts/audit-cluster-nodes.sh") $(printf '%q' "$remote_dir/scripts/configure-k3s-audit.sh")"
     fi
@@ -953,7 +1025,9 @@ DEFAULT_WORKER_SSH_PORT="$SSH_PORT"
 DEFAULT_WORKER_IDENTITY_FILE="$IDENTITY_FILE"
 
 preflight_control_plane_count
+prepare_api_endpoint
 prepare_control_plane_datastore
+select_join_url
 
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
     if [[ "$NODE_TRANSPORT" == "tailscale" ]]; then
@@ -1100,6 +1174,14 @@ if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
         error "Enrollment left $final_control_planes control planes; complete the remaining joins to restore an odd etcd membership."
     [[ "$final_control_planes" -eq "$EXPECTED_CONTROL_PLANE_COUNT" ]] || \
         error "Expected $EXPECTED_CONTROL_PLANE_COUNT control planes after enrollment, found $final_control_planes."
+    endpoint_args=(--reconcile --transport "$NODE_TRANSPORT" --address "$API_ENDPOINT_ADDRESS"
+        --node-network-cidr "$NODE_NETWORK_CIDR" --control-plane-ip "$CONTROL_PLANE_IP"
+        --ssh-user "$SSH_USER" --ssh-port "$SSH_PORT")
+    [[ -z "$API_ENDPOINT_HOSTNAME" ]] || endpoint_args+=(--hostname "$API_ENDPOINT_HOSTNAME")
+    [[ -z "$API_ENDPOINT_SERVICE" ]] || endpoint_args+=(--service "$API_ENDPOINT_SERVICE")
+    [[ -z "$IDENTITY_FILE" ]] || endpoint_args+=(--identity-file "$IDENTITY_FILE")
+    info "Serving the Kubernetes API endpoint from every control plane..."
+    "$API_ENDPOINT_SCRIPT" "${endpoint_args[@]}"
 fi
 if [[ "$DEFER_TOPOLOGY" != "true" ]]; then
     "$CLUSTER_TOPOLOGY_RECONCILER" \

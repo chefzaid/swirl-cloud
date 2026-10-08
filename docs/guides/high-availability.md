@@ -9,7 +9,7 @@ hosts and changing scheduling.
 
 | Component | Opt-in behavior and limits |
 | --- | --- |
-| K3s | Three or more control planes with an odd embedded-etcd membership; a majority must remain available |
+| K3s | Three or more control planes with an odd embedded-etcd membership; a majority must remain available. kubectl and joining nodes use the [floating API endpoint](node-enrollment.md#kubernetes-api-endpoint) |
 | Public ingress | Independent [Traefik/Tunnel pairs](../dns.md#ha-public-ingress) on control planes; public DNS targets the tunnel |
 | PostgreSQL | CloudNativePG primary and two standbys on different hosts; each commit requires one synchronous standby, and the canonical Service follows the primary |
 | Kafka | Three native KRaft controllers and brokers, replicated topics and an enforced minimum in-sync replica count after migration |
@@ -50,7 +50,8 @@ than treating a PVC size as allocated disk space. See
 
 Verify [administrative access](node-enrollment.md#control-plane-administration)
 through a surviving control plane, including its private API and SSH account
-with passwordless sudo, before testing a failure.
+with passwordless sudo, and kubectl through the
+[API endpoint](node-enrollment.md#kubernetes-api-endpoint), before testing a failure.
 
 ## Activate in order
 
@@ -186,7 +187,8 @@ exercise remains necessary. These checks do not enable HA or power off hosts.
 
 Then perform a controlled one-host failure drill,
 including the original control plane and a current database/consensus leader.
-Check public requests, authenticated sessions, database writes, Kafka
+Check kubectl through the API endpoint from an administrator device, public
+requests, authenticated sessions, database writes, Kafka
 production/consumption and Vault access through surviving instances. Exercise
 singleton recovery only after verified fencing. Test one failure at a time and
 restore healthy quorum and storage replicas between drills.

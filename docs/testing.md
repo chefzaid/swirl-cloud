@@ -72,6 +72,7 @@ source inputs and rendered deployment output, then runs only these safety suites
 | Retained suite | Failure it guards against |
 | --- | --- |
 | `test-k3s-backups.sh` | Unrestorable archives, stale SQLite backups after etcd migration, missing recovery tokens, and Vault keys dropped from archives without a matching recovery kit. |
+| `test-k3s-api-endpoint.sh` | An API VIP that a node already holds or that lies outside the node network, a VIP held by a server whose API is not ready, multicast VRRP fallback, and a certificate restart that would leave no fresh etcd majority. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover, and restarting an obsolete writer. Includes an optional isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
 | `test-vault-unseal.py` | Recovery keys leaking into process arguments, false unseal success, and a recovery kit that cannot be decrypted, misses keys or is accepted after the keys changed. |

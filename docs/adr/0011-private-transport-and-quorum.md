@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-23
-- Amended: 2026-09-06, 2026-09-09, 2026-10-04
+- Amended: 2026-09-06, 2026-09-09, 2026-10-04, 2026-10-08
 
 ## Context
 
@@ -36,6 +36,7 @@ a remote host.
 
 Tailscale adds a coordination-service dependency and temporary API tokens that
 operators must revoke. LAN traffic is unencrypted and the node CIDR is trusted,
-so the LAN must be dedicated or narrowly scoped. There is no floating API endpoint; external clients must
-select a reachable server. Application clusters are separate K3s clusters, not
-worker pools ([ADR 0024](0024-deployment-environments.md)).
+so the LAN must be dedicated or narrowly scoped. Clients reach the API through
+a floating control-plane endpoint ([ADR 0028](0028-kubernetes-api-endpoint.md)).
+Application clusters are separate K3s clusters, not worker pools
+([ADR 0024](0024-deployment-environments.md)).

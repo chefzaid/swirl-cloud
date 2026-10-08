@@ -67,6 +67,11 @@ def transport(values):
     return values.get("K3S_NODE_TRANSPORT", "")
 
 
+def control_planes(values):
+    count = values.get("CONTROL_PLANE_COUNT", "")
+    return int(count) if re.fullmatch(r"[0-9]{1,9}", count) else 1
+
+
 def cloudflare(values):
     exposure = values.get("SERVER_EXPOSURE") or "internet"
     return flag(values, "CONFIGURE_CLOUDFLARE", "true" if exposure == "internet" else "false") \
@@ -155,6 +160,9 @@ INPUTS = (
           when=lambda v: transport(v) in ("vrack", "lan"), required=lambda v: transport(v) == "vrack"),
     Input("K3S_NODE_NETWORK_CIDR", "Nodes", "Trusted private node CIDR (every address in it reaches cluster ports)",
           express=True, when=lambda v: transport(v) in ("vrack", "lan"), required=lambda v: True),
+    Input("K3S_API_VIP", "Nodes", "Unused node-network IPv4 for the Kubernetes API VIP", express=True,
+          when=lambda v: transport(v) in ("vrack", "lan") and control_planes(v) > 1, required=lambda v: True,
+          help="keepalived moves it to a control plane whose API is ready; it must not be a node address."),
     Input("K3S_PRIVATE_INTERFACE", "Nodes", "Private NIC name (vRack)", when=lambda v: transport(v) == "vrack"),
     Input("K3S_PRIVATE_INTERFACE_MAC", "Nodes", "Expected private NIC MAC address (vRack)",
           pattern=re.compile(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\Z"), when=lambda v: transport(v) == "vrack"),
@@ -356,7 +364,7 @@ def validate(values):
         problems.append("CONTROL_PLANE_COUNT: must be odd (1, 3, 5, ...)")
     if counts.get("CLUSTER_NODE_COUNT", 10**9) < counts.get("CONTROL_PLANE_COUNT", 0):
         problems.append("CLUSTER_NODE_COUNT: must be at least CONTROL_PLANE_COUNT")
-    for name in ("K3S_CONTROL_PLANE_IPS", "K3S_WORKER_IPS", "K3S_PRIVATE_ADDRESS"):
+    for name in ("K3S_CONTROL_PLANE_IPS", "K3S_WORKER_IPS", "K3S_PRIVATE_ADDRESS", "K3S_API_VIP"):
         for part in filter(None, values.get(name, "").split(",")):
             try:
                 ipaddress.IPv4Address(part)
@@ -367,12 +375,28 @@ def validate(values):
             ipaddress.IPv4Network(values["K3S_NODE_NETWORK_CIDR"])
         except ValueError:
             problems.append("K3S_NODE_NETWORK_CIDR: is not an IPv4 CIDR")
+    problems.extend(api_vip_problems(values))
     for left, right in (("K3S_CONTROL_PLANE_HOSTS", "K3S_CONTROL_PLANE_IPS"), ("K3S_WORKER_HOSTS", "K3S_WORKER_IPS")):
         if values.get(left) and values.get(right):
             problems.append(f"{left}/{right}: use only one")
     if values.get("INTERNAL_DNS_ZONE") and values.get("INTERNAL_DNS_ZONE") == values.get("PLATFORM_DOMAIN"):
         problems.append("INTERNAL_DNS_ZONE: must differ from PLATFORM_DOMAIN")
     return problems
+
+
+def api_vip_problems(values):
+    """The API VIP floats between control planes, so it must be a usable host
+    address of the node network that no node already holds."""
+    try:
+        vip = ipaddress.IPv4Address(values.get("K3S_API_VIP", ""))
+        network = ipaddress.IPv4Network(values.get("K3S_NODE_NETWORK_CIDR", ""))
+    except ValueError:
+        return []
+    if vip not in network or (network.prefixlen < 31 and vip in (network.network_address, network.broadcast_address)):
+        return [f"K3S_API_VIP: must be a host address inside {network}"]
+    nodes = {part for name in ("K3S_CONTROL_PLANE_IPS", "K3S_WORKER_IPS", "K3S_PRIVATE_ADDRESS")
+             for part in values.get(name, "").split(",") if part}
+    return [f"K3S_API_VIP: {vip} is already a node address"] if str(vip) in nodes else []
 
 
 def parse(text):

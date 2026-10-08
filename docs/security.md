@@ -35,8 +35,14 @@ Known gaps are tracked as open items in [TODO.md](../TODO.md).
 | Node | Inbound access |
 | --- | --- |
 | First control plane | Default local or internet exposure; direct public HTTP/HTTPS is restricted to Cloudflare networks. HA ingress uses an outbound Tunnel instead of public ServiceLB |
-| Additional control plane | Private SSH from verified control planes, Kubernetes API TCP 6443 and etcd TCP 2379–2380 plus node peers; HA adds an outbound Tunnel with local ingress, without public ServiceLB advertisement |
+| Additional control plane | Private SSH from verified control planes, Kubernetes API TCP 6443 and etcd TCP 2379–2380 plus node peers, and VRRP from the node network on vRack/LAN; HA adds an outbound Tunnel with local ingress, without public ServiceLB advertisement |
 | Worker | Private SSH from verified control planes and required K3s/Longhorn peer traffic; no inbound server API, etcd or public ingress |
+
+Every control plane serves the private [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint):
+on vRack/LAN a keepalived VIP inside the node network (UFW accepts VRRP only
+from that network on the cluster interface), on Tailscale a Service that only
+tailnet admins, control planes and workers may reach on TCP 6443. Its readiness
+probe uses the K3s scheduler client certificate, not administrator credentials.
 
 Added nodes use default-deny inbound UFW. Both host input and forwarded
 Docker/Kubernetes traffic are restricted on non-cluster interfaces for IPv4

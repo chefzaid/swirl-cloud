@@ -17,6 +17,7 @@ CONTROL_PLANE_SSH_IPS="${CONTROL_PLANE_SSH_IPS:-}"
 K3S_VERSION=""
 ENROLLMENT_ROLE="${K3S_ENROLLMENT_ROLE:-worker}"
 CONTROL_PLANE_SCHEDULABLE="${CONTROL_PLANE_SCHEDULABLE:-}"
+API_ENDPOINT_SANS=""
 HARDENING_SSH_PORT=""
 NODE_TRANSPORT="${K3S_NODE_TRANSPORT:-}"
 TAILSCALE_READY=false
@@ -109,7 +110,8 @@ version, and run through private SSH from the bootstrap control plane:
 Required server token: sudo cat /var/lib/rancher/k3s/server/token
   --control-plane-schedulable true|false  Whether this control plane accepts workloads
 
-  --server-url URL           Private IPv4 API endpoint of the bootstrap server
+  --server-url URL           Private IPv4 API endpoint (cluster VIP/Service or a server)
+  --api-endpoint-sans LIST   Cluster API endpoint ADDRESS[,HOSTNAME] for this server's certificate
   --token-stdin              Read the existing server token from stdin
   --node-name NAME           Unique Kubernetes node name
   --node-ip IP               This server's private IPv4
@@ -208,6 +210,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --server-url)       shift; [[ $# -gt 0 ]] || error "Missing value for --server-url"; SERVER_URL="$1" ;;
         --server-url=*)     SERVER_URL="${1#*=}" ;;
+        --api-endpoint-sans) shift; [[ $# -gt 0 ]] || error "Missing value for --api-endpoint-sans"; API_ENDPOINT_SANS="$1" ;;
+        --api-endpoint-sans=*) API_ENDPOINT_SANS="${1#*=}" ;;
         --token-stdin)      TOKEN_STDIN=true ;;
         --node-name)        shift; [[ $# -gt 0 ]] || error "Missing value for --node-name"; NODE_NAME="$1" ;;
         --node-name=*)      NODE_NAME="${1#*=}" ;;
@@ -403,9 +407,9 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
         if [[ "$NODE_TRANSPORT" == "vrack" ]]; then
             installer_prompt_value NODE_IP "This node's unique OVHcloud vRack RFC1918 address"
         elif [[ "$NODE_TRANSPORT" == "lan" ]]; then
-            installer_prompt_value NODE_IP "This node's fixed LAN RFC1918 address" "$(detect_node_ip "$SERVER_PRIVATE_IP")"
+            installer_prompt_value NODE_IP "This node's fixed LAN RFC1918 address" "$(detect_node_ip "${CONTROL_PLANE_IP:-$SERVER_PRIVATE_IP}")"
         else
-            installer_prompt_value NODE_IP "This node's Tailscale IPv4 address" "$(detect_node_ip "$SERVER_PRIVATE_IP")"
+            installer_prompt_value NODE_IP "This node's Tailscale IPv4 address" "$(detect_node_ip "${CONTROL_PLANE_IP:-$SERVER_PRIVATE_IP}")"
         fi
     fi
     [[ -n "$NODE_LABELS" ]] || installer_prompt_value NODE_LABELS "Initial labels, comma-separated (optional)"
@@ -433,7 +437,9 @@ NODE_NAME="${NODE_NAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 valid_node_name "$NODE_NAME" || error "Invalid node name '$NODE_NAME'. Use lower-case DNS characters and a unique name."
 [[ -n "$NODE_NETWORK_CIDR" ]] || error "A trusted node network CIDR is required for the worker firewall."
 trusted_private_cidr "$NODE_NETWORK_CIDR" || error "Node network must be RFC1918 or Tailscale 100.64.0.0/10: $NODE_NETWORK_CIDR"
-NODE_IP="${NODE_IP:-$(detect_node_ip "$SERVER_PRIVATE_IP")}"
+# Routes follow the verified control plane: a VIP or Tailscale Service address
+# in the join URL may not exist in this host's routing table yet.
+NODE_IP="${NODE_IP:-$(detect_node_ip "$CONTROL_PLANE_IP")}"
 trusted_private_ipv4 "$NODE_IP" || error "Worker node IP must be RFC1918 or Tailscale: ${NODE_IP:-unavailable}"
 if [[ "$NODE_TRANSPORT" == "vrack" && -z "$(interface_owning_ip "$NODE_IP")" ]]; then
     [[ -x "$OVH_VRACK_CONFIGURATOR" ]] || \
@@ -464,8 +470,8 @@ if [[ "$NODE_TRANSPORT" == "lan" ]]; then
     [[ -n "$(interface_owning_ip "$NODE_IP")" ]] || \
         error "LAN address $NODE_IP is not configured on this host. Assign the fixed address first; LAN transport does not change host networking."
 fi
-NODE_INTERFACE="$(detect_node_interface "$SERVER_PRIVATE_IP")"
-[[ -n "$NODE_INTERFACE" ]] || error "Could not determine the private interface used to reach $SERVER_PRIVATE_IP"
+NODE_INTERFACE="$(detect_node_interface "$CONTROL_PLANE_IP")"
+[[ -n "$NODE_INTERFACE" ]] || error "Could not determine the private interface used to reach $CONTROL_PLANE_IP"
 [[ "$NODE_INTERFACE" == "tailscale0" ]] || [[ ! "$NODE_INTERFACE" =~ ^(lo|docker|br-|cni|flannel|veth) ]] || \
     error "The route to the control plane uses unsupported virtual interface $NODE_INTERFACE."
 if [[ "$NODE_INTERFACE" == "tailscale0" ]]; then
@@ -475,9 +481,9 @@ if [[ "$NODE_INTERFACE" == "tailscale0" ]]; then
 elif [[ "$NODE_TRANSPORT" == "tailscale" ]]; then
     error "Refusing to configure worker UFW: Tailscale must be connected and route to the control plane through tailscale0 first."
 fi
-ROUTE_NODE_IP="$(detect_node_ip "$SERVER_PRIVATE_IP")"
+ROUTE_NODE_IP="$(detect_node_ip "$CONTROL_PLANE_IP")"
 [[ "$NODE_IP" == "$ROUTE_NODE_IP" ]] || \
-    error "Entered worker IP $NODE_IP is not the local route source to $SERVER_PRIVATE_IP (detected: ${ROUTE_NODE_IP:-none})."
+    error "Entered worker IP $NODE_IP is not the local route source to $CONTROL_PLANE_IP (detected: ${ROUTE_NODE_IP:-none})."
 cidr_contains_ip "$NODE_NETWORK_CIDR" "$SERVER_PRIVATE_IP" || error "K3s server address $SERVER_PRIVATE_IP is outside $NODE_NETWORK_CIDR"
 cidr_contains_ip "$NODE_NETWORK_CIDR" "$CONTROL_PLANE_IP" || error "Control-plane SSH source $CONTROL_PLANE_IP is outside $NODE_NETWORK_CIDR"
 cidr_contains_ip "$NODE_NETWORK_CIDR" "$NODE_IP" || error "Worker node IP $NODE_IP is outside $NODE_NETWORK_CIDR"
@@ -539,6 +545,10 @@ if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
     "$K3S_NETWORK_CONFIGURATOR" --private-ip "$NODE_IP" --private-interface "$NODE_INTERFACE" --private-only
     if [[ "${HIGH_AVAILABILITY_ENABLED:-false}" == true ]]; then
         bash "$SCRIPT_DIR/configure-ha-control-planes.sh" --prepare-local
+    fi
+    # Serve the cluster API endpoint's names from this server's first start.
+    if [[ -n "$API_ENDPOINT_SANS" ]]; then
+        bash "$SCRIPT_DIR/configure-k3s-api-endpoint.sh" --write-sans "$API_ENDPOINT_SANS"
     fi
     # Every API server audits; the drop-in is in place before K3s first starts.
     bash "$SCRIPT_DIR/configure-k3s-audit.sh"

@@ -61,34 +61,6 @@ restart_pending_local() {
     [[ "$changed" =~ ^[0-9]+$ && "$changed" -ge "$started" ]]
 }
 
-fresh_majority() {
-    local excluded="$1" nodes leases
-    nodes="$(kubectl --request-timeout=10s get nodes -o json)"
-    leases="$(kubectl --request-timeout=10s get leases -n kube-node-lease -o json)"
-    python3 - "$excluded" "$nodes" "$leases" "${FLEET_MEMBERSHIP:-}" <<'PY'
-import datetime,json,sys
-excluded,nodes,leases=sys.argv[1],json.loads(sys.argv[2]),json.loads(sys.argv[3])
-planes=[n for n in nodes['items'] if any(k in n['metadata'].get('labels',{}) for k in
- ('node-role.kubernetes.io/control-plane','node-role.kubernetes.io/master'))]
-if len(planes)<3 or len(planes)%2!=1: raise SystemExit('An odd membership of at least three control planes is required')
-if sys.argv[4] and {n['metadata']['name']:n['metadata']['uid'] for n in planes} != json.loads(sys.argv[4]):
- raise SystemExit('Control-plane membership changed during storage-policy reconciliation')
-now=datetime.datetime.now(datetime.timezone.utc)
-by_name={l['metadata']['name']:l for l in leases['items']}
-count=0
-for n in planes:
- m=n['metadata']; lease=by_name.get(m['name'],{})
- if m['name']==excluded or m.get('deletionTimestamp'): continue
- if not any(c['type']=='Ready' and c['status']=='True' for c in n['status'].get('conditions',[])): continue
- if not any(o.get('kind')=='Node' and o.get('uid')==m['uid'] for o in lease.get('metadata',{}).get('ownerReferences',[])): continue
- if lease.get('spec',{}).get('holderIdentity')!=m['name']: continue
- try: age=(now-datetime.datetime.fromisoformat(lease['spec']['renewTime'].replace('Z','+00:00'))).total_seconds()
- except (KeyError,ValueError,TypeError): continue
- if 0<=age<60: count+=1
-if count<len(planes)//2+1: raise SystemExit('A fresh Ready etcd majority must survive the next controller restart')
-PY
-}
-
 main() {
     local mode="${1:---help}" cidr="${K3S_NODE_NETWORK_CIDR:-}" source_ip="${K3S_PRIVATE_ADDRESS:-}"
     local account="${K3S_NODE_SSH_USER:-${USER:-}}" port="${K3S_NODE_SSH_PORT:-22}" identity="${K3S_NODE_SSH_IDENTITY_FILE:-${K3S_NODE_IDENTITY_FILE:-}}"
@@ -104,9 +76,9 @@ main() {
         *) error "Unknown mode: $mode" ;;
     esac
     [[ "${HIGH_AVAILABILITY_ENABLED:-false}" == true ]] || return 0
-    local option nodes addresses name address uid recorded_user target_user connection actual_source actual_target actual_port attempt
+    local option nodes addresses name address uid recorded_user target_user connection actual_source actual_target actual_port
     local FLEET_MEMBERSHIP
-    local target remote_dir command started current annotation_patch
+    local target remote_dir command current annotation_patch
     while (( $# )); do
         option="$1"; shift; (( $# )) || error "Missing value for $option"
         case "$option" in
@@ -120,6 +92,8 @@ main() {
     source "$SCRIPT_DIR/lib/network.sh"
     # shellcheck source=lib/control-plane-access.sh
     source "$SCRIPT_DIR/lib/control-plane-access.sh"
+    # shellcheck source=lib/control-plane-restart.sh
+    source "$SCRIPT_DIR/lib/control-plane-restart.sh"
     [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || error "Invalid SSH port"
     [[ -z "$identity" || -f "$identity" ]] || error "SSH identity file is missing"
     nodes="$(kubectl --request-timeout=10s get nodes -o json)"
@@ -168,15 +142,8 @@ main() {
             ssh -n "${ssh_options[@]}" "$target" "rm -rf -- $(printf '%q' "$remote_dir")"
         fi
         # A post-restart heartbeat is required before considering another host.
-        started="$(date -u +%s)"
-        for (( attempt=0; attempt<60; attempt++ )); do
-            if kubectl --request-timeout=10s get node "$name" -o json | jq -e --arg uid "$uid" \
-                '.metadata.uid == $uid and any(.status.conditions[]?; .type == "Ready" and .status == "True")' >/dev/null && \
-                kubectl --request-timeout=10s get lease "$name" -n kube-node-lease -o json | \
-                jq -e --argjson after "$started" '(.spec.renewTime | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601) >= $after' >/dev/null; then break; fi
-            sleep 5
-        done
-        (( attempt < 60 )) || error "Control plane $name has not returned with a fresh Ready heartbeat"
+        wait_fresh_ready "$name" "$uid" "$(date -u +%s)" || \
+            error "Control plane $name has not returned with a fresh Ready heartbeat"
         current="$(kubectl --request-timeout=10s get node "$name" -o json)"
         annotation_patch="$(jq -cn --arg uid "$uid" --arg key "$POLICY_KEY" --argjson current "$current" '
             [{op:"test",path:"/metadata/uid",value:$uid},

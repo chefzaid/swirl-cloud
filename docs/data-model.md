@@ -76,6 +76,7 @@ Capacity requests are not physical usage; see [storage and retention](operations
 | --- | --- | --- |
 | `infra/swirl-cloud-identity` | Domain, internal zone, organization, GitLab, realm, TLS and Cloudflare names | Installer rendering |
 | `infra/swirl-cloud-topology` | Schedulable policy, expected and ready node counts, Longhorn replicas, availability mode | [`reconcile-cluster-topology.sh`](../scripts/reconcile-cluster-topology.sh) |
+| `kube-system/swirl-cloud-api-endpoint` | Kubernetes API endpoint transport, address, Tailscale name and Service | [`configure-k3s-api-endpoint.sh`](../scripts/configure-k3s-api-endpoint.sh) |
 | `infra/deployment-environments` | Verified environment targets (cluster, namespace, domain, ingress, quota, secret store) | [`configure-deployment-environments.py`](../scripts/configure-deployment-environments.py) |
 | `infra/postgres-ha-state`, `infra/kafka-ha-state` | Migration phase and full active HA profile | HA migration helpers |
 | `infra/swirl-cloud-public-ingress` | Tunnel mode, tunnel ID and domain | Cloudflare configurator in HA |
@@ -94,6 +95,7 @@ Capacity requests are not physical usage; see [storage and retention](operations
 | `/etc/swirl-cloud/backup.env` | Offsite backup credentials (when configured) |
 | `/var/lib/swirl-cloud/backups/` | Vault HA migration snapshots and archived controllers |
 | `/var/log/lynis-reports/` | Control-plane audit reports |
+| `/etc/rancher/k3s/config.yaml.d/25-swirl-cloud-api-endpoint.yaml`, `/etc/keepalived/keepalived.conf` | Control-plane certificate names and VIP configuration for the Kubernetes API endpoint |
 | `~/.local/state/swirl-cloud/repositories` | Onboarding journals |
 
 ## Change Rules

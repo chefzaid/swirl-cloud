@@ -152,7 +152,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] CoreDNS private zone: `<service>.<internal zone>` → `infra` Services, exact aliases such as Longhorn, preserved headless labels.
 - [x] Containerd routes `registry.<domain>` to the fixed internal Registry ClusterIP `10.43.255.251:5050` (`configure-k3s-registry-mirror.sh`).
 - [ ] Only one host exists. Every service, the datastore and all backups share one physical failure domain (see §15 and §16).
-- [ ] Provide a stable private Kubernetes API endpoint with certificate SANs and tested failover (§25); a DNS alias alone does not detect or route around a failed server.
+- [x] Stable private Kubernetes API endpoint ([ADR 0028](docs/adr/0028-kubernetes-api-endpoint.md)): keepalived VIP on vRack/LAN or a Tailscale Service, held only while the server's `/readyz` succeeds; endpoint TLS SANs, node registration and `--kubeconfig` through it (`configure-k3s-api-endpoint.sh`). Failover drill in §25. *(not live: one control plane)*
 
 ### 6. Kubernetes security baseline and admission
 
@@ -511,7 +511,7 @@ stays as a lightweight control plane; no replacement migration is needed.
 - [ ] Move workloads with an explicit drain/restart plan, singleton maintenance windows, PDB handling and verified volume attachment on the destination. `NoSchedule` does not move existing pods, and replica eviction alone does not relocate a workload. Rebalance only after data checks and healthy storage copies.
 - [ ] Ingress: direct Traefik is pinned to the bootstrap node (`svccontroller.k3s.cattle.io/enablelb`) and every DNS record points to its public IP. Either keep ingress there, move the label and update platform and application DNS, or activate Tunnel ingress (§15).
 - [ ] **Public ingress alias:** extend the platform configurator and legacy onboarding path to use one origin hostname or the HA tunnel target, preserving DNS ownership, apex behavior, TLS coverage and origin firewall rules. Reuse existing environment hostname/CNAME support (§19); rehearse explicit A→CNAME migration because onboarding rejects conflicting records.
-- [ ] **Private API endpoint:** choose a reachable private DNS name plus a health-checked load balancer/VIP or documented manual failover, add K3s TLS SANs, and update join/kubeconfig consumers. Keep API endpoint failover separate from public Cloudflare ingress; prove access when the original server is down.
+- [ ] **Private API endpoint:** phase 1 enrollment sets up the endpoint (a Tailscale Service, or a VIP from `--api-vip` on vRack) (ADR 0028). Write an admin kubeconfig with `configure-k3s-api-endpoint.sh --kubeconfig` and prove kubectl through it from an administrator device with the original server down, then with each new server down in turn.
 - [ ] Distribute Vault recovery material to the new control planes (`sync-vault-recovery.sh`) and install the unseal and backup timers there.
 - [ ] Apply host security to the new servers' public interfaces (UFW, Fail2ban, CrowdSec) and confirm only the private transport carries cluster traffic.
 - [ ] **Before phase 2, ADR and rehearsal:** extend odd-quorum enrollment guards, topology, HA verification, recovery distribution and backups to distinguish etcd members, API servers and eligible workload/storage hosts. Specify a supported member replacement/rejoin sequence that preserves healthy quorum at every step; current helpers reject a four-control-plane target.

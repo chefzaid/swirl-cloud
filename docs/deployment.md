@@ -255,6 +255,7 @@ Other installation inputs are:
 | `K3S_CONTROL_PLANE_IPS`, `K3S_WORKER_IPS` | Comma-separated prepared vRack or LAN addresses; exclude the first host. |
 | `K3S_CONTROL_PLANE_HOSTS`, `K3S_WORKER_HOSTS` | Comma-separated Tailscale bootstrap SSH targets such as `admin@host`; private addresses are discovered. |
 | `K3S_CONTROL_PLANE_SSH_USER`, `K3S_WORKER_SSH_USER` | SSH users for address-based enrollment. |
+| `K3S_API_VIP` | vRack or LAN with more than one control plane: an unused node-network address for the [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint). Tailscale uses a Tailscale Service instead. |
 | `CLOUDFLARE_NODE_DNS_LABEL` | Public administration label, independent of the Kubernetes node name; defaults to `node-01`. |
 | `CLOUDFLARE_PUBLISH_APEX` | `false`; opt in only if the platform should manage apex DNS. |
 

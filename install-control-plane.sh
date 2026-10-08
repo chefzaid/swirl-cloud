@@ -954,6 +954,19 @@ if [[ "$ADD_K3S_WORKERS" == "true" || "$ADD_K3S_CONTROL_PLANES" == "true" ]]; th
         K3S_PRIVATE_INTERFACE="$("$OVH_VRACK_SCRIPT" "${vrack_node_args[@]}")"
         export K3S_PRIVATE_INTERFACE K3S_PRIVATE_INTERFACE_MAC K3S_VRACK_VLAN_ID
     fi
+    # vRack/LAN control planes share a keepalived VIP for the Kubernetes API;
+    # an already recorded endpoint is reused by enrollment.
+    if [[ "$ADD_K3S_CONTROL_PLANES" == true && "$K3S_NODE_TRANSPORT" != tailscale ]] && \
+        ! kubectl -n kube-system get configmap swirl-cloud-api-endpoint >/dev/null 2>&1; then
+        if [[ -z "${K3S_API_VIP:-}" && "$AUTO_APPROVE" != true ]]; then
+            installer_prompt_value K3S_API_VIP \
+                "Unused node-network IPv4 for the Kubernetes API VIP (moves between control planes)"
+        fi
+        [[ -n "${K3S_API_VIP:-}" ]] || error "K3S_API_VIP is required when adding vRack or LAN control planes."
+        cidr_contains_ip "$K3S_NODE_NETWORK_CIDR" "$K3S_API_VIP" && [[ "$K3S_API_VIP" != "$K3S_PRIVATE_ADDRESS" ]] || \
+            error "K3S_API_VIP must be an unused address inside $K3S_NODE_NETWORK_CIDR."
+        export K3S_API_VIP
+    fi
 fi
 
 configure_platform_component_selection

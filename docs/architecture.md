@@ -47,7 +47,7 @@ flowchart LR
 
 | Layer | Components | Installed by |
 | --- | --- | --- |
-| Kubernetes | K3s `v1.36.4+k3s1` with secrets encryption, SQLite or embedded etcd, CoreDNS private zone | Installer and [node enrollment](guides/node-enrollment.md) |
+| Kubernetes | K3s `v1.36.4+k3s1` with secrets encryption, SQLite or embedded etcd, CoreDNS private zone, floating API endpoint (keepalived VIP or Tailscale Service) | Installer and [node enrollment](guides/node-enrollment.md) |
 | Storage | Longhorn 1.13.0, weekly trim, optional S3 backups, opt-in encrypted volumes | Shared Helm helper |
 | Ingress and edge | Traefik 3.7 (direct LoadBalancer or HA DaemonSet with `cloudflared`), Cloudflare DNS/TLS/WAF/Access | [`configure-ingress.sh`](../scripts/configure-ingress.sh), [`configure-cloudflare.sh`](../scripts/configure-cloudflare.sh) |
 | Secrets | Vault 2.1 (Raft), External Secrets 2.9 | Shared Helm helper and [`configure-vault.sh`](../scripts/configure-vault.sh) |
@@ -88,7 +88,8 @@ uses the first control plane until [HA activation](guides/high-availability.md#a
 switches it to independent Tunnel connectors. Adding nodes alone does not change
 that route. See [scheduling and storage](guides/node-enrollment.md#scheduling-and-storage)
 for workload placement and [control-plane administration](guides/node-enrollment.md#control-plane-administration)
-for private SSH and API access.
+for private SSH and API access. With three or more control planes, the
+[Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint) follows healthy servers.
 
 ### Namespaces
 
@@ -238,6 +239,7 @@ Statuses:
 - [ADR 0025: Isolate Host Agents So `infra` Can Enforce Baseline Pod Security](./adr/0025-host-agent-namespace-and-infra-pod-security.md)
 - [ADR 0026: Drive Installation From One Versioned Input File](./adr/0026-installer-input-file.md)
 - [ADR 0027: Native Admission Policy Packs, Audit First](./adr/0027-native-admission-policy-packs.md)
+- [ADR 0028: Serve The Kubernetes API From A Floating Control-Plane Endpoint](./adr/0028-kubernetes-api-endpoint.md)
 
 ## Superseded ADRs
 

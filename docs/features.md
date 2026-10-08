@@ -21,6 +21,7 @@ the pieces fit together.
 
 - K3s at a pinned version with secrets encryption and the bundled ingress disabled
 - odd control-plane quorum planning, SQLite-to-embedded-etcd conversion with backup
+- floating private Kubernetes API endpoint (keepalived VIP or Tailscale Service) that follows ready control planes
 - remote or local enrollment of control planes and workers (`add-node.sh`)
 - OVHcloud vRack, Tailscale or existing-LAN private transport, including API-driven attachment and tagged mesh keys
 - schedulable or controller-only control planes, with topology-driven Longhorn replicas
