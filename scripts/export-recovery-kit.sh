@@ -71,8 +71,12 @@ fingerprints() {
 if [[ "$mode" == verify ]]; then
     [[ -r "$output" ]] || error "Cannot read $output"
     read_passphrase "Recovery kit passphrase"
-    printf '%s' "$passphrase" | openssl enc -d -aes-256-cbc -pbkdf2 -iter "$ITERATIONS" -pass stdin \
-        -in "$output" -out "$workdir/kit.tar" 2>/dev/null || error "Wrong passphrase or damaged kit."
+    # A wrong passphrase occasionally passes the cipher's padding check, so
+    # also require a readable archive before trusting the decryption.
+    if ! printf '%s' "$passphrase" | openssl enc -d -aes-256-cbc -pbkdf2 -iter "$ITERATIONS" -pass stdin \
+            -in "$output" -out "$workdir/kit.tar" 2>/dev/null || ! tar -tf "$workdir/kit.tar" >/dev/null 2>&1; then
+        error "Wrong passphrase or damaged kit."
+    fi
     tar -C "$workdir" -xf "$workdir/kit.tar" kit/fingerprints.json
     current="$(fingerprints)"
     if jq -e --argjson current "$current" '. == $current' "$workdir/kit/fingerprints.json" >/dev/null; then

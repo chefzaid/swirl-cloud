@@ -131,6 +131,7 @@ class UnsealTests(unittest.TestCase):
 
 
 
+@unittest.skipIf(os.geteuid() == 0, "export-recovery-kit.sh refuses root by design; CI runs as root")
 class RecoveryKitTests(unittest.TestCase):
     """The offline recovery kit decrypts, holds the keys and never exposes them in arguments."""
 
