@@ -464,7 +464,7 @@ and the wiring. CRM and Live Chat serve only the company website
 - [x] Cloudflare login rate limit also covers chat session starts (`/im_livechat/get_session`, `/im_livechat/cors/get_session`). *(live, 2026-10-07: rule updated to the script's definition and read back)*
 - [x] Chat by email: new visitor messages are emailed to the team after a pause; a reply to that email is posted in the chat as the chat's agent and emailed to a visitor who has left, whose own reply returns to the chat. Signed plus-addresses and an allowlist of senders; Odoo sends through the website's Resend account; chatbot leads no longer trigger Odoo's assignment email. *(live, 2026-10-07: all three emails sent, replies posted, a stranger's reply refused)*
 - [x] Chatbot persona from the website's `chat-persona.json` (name, avatar, English/French texts), applied by `configure-odoo-intake.py`; the default chatbot no longer says that nobody is available. *(live, 2026-10-07)*
-- [ ] Deploy the Cloudflare Email Worker and its routing rule for `chat@<domain>` (`configure-odoo-intake.py --email-worker`); needs a Cloudflare token with Workers Scripts and Email Routing Rules edit rights. Until then, emailed replies do not reach Odoo.
+- [x] Cloudflare Email Worker `platform-chat-email`, the `chat@<domain>` routing rule and zone subaddressing, deployed by `configure-odoo-intake.py --email-worker`. *(live, 2026-10-08: real replies sent through Cloudflare reached the chat from both the team and the visitor)*
 
 ### 23. Installer: TUI, central `.env`, reruns, verification and email
 

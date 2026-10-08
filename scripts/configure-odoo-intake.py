@@ -260,6 +260,9 @@ def deploy_email_worker(token, chat_from, inbound_url, inbound_secret):
     ) + f"--{boundary}--\r\n".encode()
     cloudflare(token, "PUT", f"/accounts/{account}/workers/scripts/{WORKER_NAME}", body,
                f"multipart/form-data; boundary={boundary}")
+    # Reply addresses are plus-addresses of chat@; without subaddressing the
+    # zone rejects them as unknown recipients.
+    cloudflare(token, "PATCH", f"/zones/{zone}/email/routing", {"support_subaddress": True})
     rule = {"name": ROUTING_RULE, "enabled": True, "priority": 0,
             "matchers": [{"type": "literal", "field": "to", "value": chat_from}],
             "actions": [{"type": "worker", "value": [WORKER_NAME]}]}

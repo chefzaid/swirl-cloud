@@ -173,8 +173,8 @@ python3 scripts/configure-odoo-intake.py --application <website> \
 Every chat email has a Reply-To of the form
 `chat+<chat id>.<t|v>.<signature>@<domain>`, where `t` marks the team's copy, `v`
 the visitor's, and the signature is an HMAC of both with a secret kept in Odoo.
-Cloudflare Email Routing hands `chat@<domain>`, including its plus-addresses, to
-the `platform-chat-email` Worker ([source](../../scripts/lib/chat_email_worker.js)),
+Cloudflare Email Routing hands `chat@<domain>`, including its plus-addresses
+(the script turns on the zone's subaddressing), to the `platform-chat-email` Worker ([source](../../scripts/lib/chat_email_worker.js)),
 which posts the raw email to `https://odoo.<domain>/platform_crm_intake/mail/inbound`
 with a shared secret (Vault `apps/<website>/odoo`, field `inboundSecret`). Odoo
 then:

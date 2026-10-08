@@ -302,6 +302,7 @@ class OdooIntake(unittest.TestCase):
         upload = next(body for method, path, body in calls if path == "/accounts/account/workers/scripts/platform-chat-email")
         self.assertIn(b'{"type": "secret_text", "name": "INBOUND_SECRET", "text": "s3cret"}', upload)
         self.assertIn(b"export default", upload)
+        self.assertIn(("PATCH", "/zones/zone/email/routing", {"support_subaddress": True}), calls)
         method, path, rule = calls[-1]
         self.assertEqual(("PUT", "/zones/zone/email/routing/rules/rule-1"), (method, path))
         self.assertEqual([{"type": "literal", "field": "to", "value": "chat@example.test"}], rule["matchers"])
