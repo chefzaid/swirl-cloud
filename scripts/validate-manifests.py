@@ -291,7 +291,8 @@ def alert_policy(resources):
 def source_inputs():
     files = {ROOT / name for name in run("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0") if name}
     for path in sorted(files):
-        if not path.is_file() or path.suffix == ".tgz":
+        # Packaged charts and vendored images are not text sources.
+        if not path.is_file() or path.suffix in {".tgz", ".png"}:
             continue
         text = path.read_text()
         if path.suffix == ".py":

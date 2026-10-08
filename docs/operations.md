@@ -602,12 +602,18 @@ need to change.
 
 #### Odoo
 
-[Odoo](../k8s/corp/odoo.yaml) vendors OCA's `web_dark_mode` module with source,
-translations, tests and AGPL license. Bootstrap and the application mount it
-read-only at `/mnt/extra-addons`; startup needs no download.
+Odoo's add-ons live as plain files under
+[`k8s/files/odoo-addons/`](../k8s/files/odoo-addons/): the managed
+`odoo_keycloak_sso` and `platform_crm_intake`, and OCA's vendored `web_dark_mode`
+with source, translations, tests and AGPL license. The chart turns each folder
+into a ConfigMap that bootstrap and the application mount read-only at
+`/mnt/extra-addons/<module>` ([`_odoo_addons.tpl`](../k8s/templates/_odoo_addons.tpl));
+startup needs no download. The pod carries a checksum of every add-on file, so
+any change restarts Odoo and its bootstrap upgrades the module.
 
-Check Odoo compatibility, update provenance and the Deployment revision, then
-validate and test an authenticated `/odoo` page. Confirm that dark CSS loads and
+To update the dark theme, replace the folder with the new upstream revision
+(keep it byte-identical) and its provenance in `_odoo_addons.tpl`, check Odoo
+compatibility, then validate and test an authenticated `/odoo` page. Confirm that dark CSS loads and
 the switch works both ways. Users can select dark mode, light mode or their device
 preference. Uninstall the module in Odoo before removing its files.
 

@@ -6,3 +6,7 @@
 *.env text eol=lf
 *.service text eol=lf
 *.timer text eol=lf
+
+# Vendored upstream add-on: kept byte-identical to its source revision.
+k8s/files/odoo-addons/web_dark_mode/** -whitespace conflict-marker-size=100
+*.png binary

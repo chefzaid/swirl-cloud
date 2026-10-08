@@ -13,6 +13,12 @@
 {{- if eq $path "platform/monitoring.yaml" -}}
 {{- $content = replace "      # swirl-cloud:compliance-evidence-rules" (include "swirl-cloud.compliance-rule-groups" $root | indent 6) $content -}}
 {{- end -}}
+{{- if eq $path "corp/odoo.yaml" -}}
+{{- $content = replace "# swirl-cloud:odoo-addon-configmaps" (include "swirl-cloud.odoo-addon-configmaps" $root) $content -}}
+{{- $content = replace "            # swirl-cloud:odoo-addon-mounts" (include "swirl-cloud.odoo-addon-mounts" $root | trim | indent 12) $content -}}
+{{- $content = replace "        # swirl-cloud:odoo-addon-volumes" (include "swirl-cloud.odoo-addon-volumes" $root | trim | indent 8) $content -}}
+{{- $content = replace "swirl-cloud.io/odoo-addons: pending" (printf "swirl-cloud.io/odoo-addons: %s" (include "swirl-cloud.odoo-addon-checksum" $root)) $content -}}
+{{- end -}}
 {{- $content = replace "swirl-cloud.io/application-data: disabled" (printf "swirl-cloud.io/application-data: %s" (toJson ($root.Values.applicationData | default dict) | sha256sum)) $content -}}
 {{- range $token, $value := (include "swirl-cloud.identity" $root | fromJson) -}}
 {{- $content = replace $token $value $content -}}

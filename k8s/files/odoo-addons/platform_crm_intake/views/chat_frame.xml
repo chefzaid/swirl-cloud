@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="website_chat" name="Website Live Chat frame">
+        &lt;!DOCTYPE html&gt;
+        <html>
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta name="robots" content="noindex"/>
+                <title t-esc="channel.name"/>
+                <style>html, body { margin: 0; background: transparent; }</style>
+                <script>
+                    window.odoo ??= {};
+                    window.odoo.csrf_token = "<t t-out="request.csrf_token(None)"/>";
+                    // Read by static/src/website_frame_service.js.
+                    window.odoo.platformWebsiteOrigin = <t t-out="website_origin"/>;
+                </script>
+                <t t-out="channel.script_external"/>
+            </head>
+            <body/>
+        </html>
+    </template>
+</odoo>

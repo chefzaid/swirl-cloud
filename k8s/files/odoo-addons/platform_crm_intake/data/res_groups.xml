@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_crm_intake" model="res.groups">
+        <field name="name">Website CRM intake integration</field>
+        <field name="comment">The website's integration user. Members can only submit leads through crm.lead/platform_intake_submit.</field>
+    </record>
+</odoo>
