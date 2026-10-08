@@ -30,11 +30,15 @@ application cache credential contract.
 
 Platform host inventories live in [config/platform.env](../config/platform.env).
 The configurator reconciles their proxied DNS, Origin CA TLS, DNSSEC, WAF/cache
-rules and Keycloak-backed Access for administration. Application names are not
+rules and Keycloak-backed Access for administration. It also enables Smart
+Tiered Cache for the whole zone, so applications' cacheable responses fill from
+one upper tier near the origin. Application names are not
 part of that inventory. Apex DNS publication is disabled by default; set
 `CLOUDFLARE_PUBLISH_APEX=true` only when the platform should manage that record.
 Applications own their public DNS records, Ingress resources and redirects,
-including apex/`www` behavior when applicable.
+including apex/`www` behavior when applicable. They also own any cache rules for
+their hosts in the zone's cache ruleset and the purges that refresh them after a
+release; the configurator reconciles only its own rule in that ruleset.
 
 Homepage is published at `cloud.<your-domain>` and protected by Cloudflare
 Access. Its Ingress, allowed hosts and links share that hostname. The retired

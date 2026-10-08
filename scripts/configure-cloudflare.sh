@@ -289,13 +289,13 @@ require_success() {
     fi
 }
 
-set_zone_setting() {
-    local setting_id="$1"
+set_zone_value() {
+    local path="$1"
     local desired_value="$2"
     local description="$3"
     local setting_file response current_value
 
-    response="$(cf_request GET "/zones/$ZONE_ID/settings/$setting_id")"
+    response="$(cf_request GET "/zones/$ZONE_ID/$path")"
     require_success "$response" "Reading $description"
     current_value="$(jq -c '.result.value' <<< "$response")"
     if [[ "$current_value" == "$(jq -cn --arg value "$desired_value" '$value')" ]]; then
@@ -303,11 +303,15 @@ set_zone_setting() {
         return 0
     fi
 
-    setting_file="$WORK_DIR/setting-$setting_id.json"
+    setting_file="$WORK_DIR/setting-${path//\//-}.json"
     jq -n --arg value "$desired_value" '{value:$value}' > "$setting_file"
-    response="$(cf_request PATCH "/zones/$ZONE_ID/settings/$setting_id" "$setting_file")"
+    response="$(cf_request PATCH "/zones/$ZONE_ID/$path" "$setting_file")"
     require_success "$response" "Setting $description"
     info "Set $description to $desired_value."
+}
+
+set_zone_setting() {
+    set_zone_value "settings/$1" "$2" "$3"
 }
 
 reconcile_ruleset_rule() {
@@ -1253,6 +1257,10 @@ set_zone_setting http3 on "HTTP/3"
 set_zone_setting opportunistic_encryption on "opportunistic encryption"
 set_zone_setting websockets on "WebSockets"
 set_zone_setting early_hints on "Early Hints"
+# Edge locations fill from the upper tier nearest the origin instead of each
+# contacting the origin, which raises the hit ratio for cacheable responses.
+set_zone_value argo/tiered_caching on "Tiered Cache"
+set_zone_value cache/tiered_cache_smart_topology_enable on "Smart Tiered Cache topology"
 set_zone_setting ipv6 on "IPv6 compatibility"
 # This zone serves REST APIs, Git webhooks, CLIs, and CI agents in addition to
 # browsers. Browser Integrity Check challenges legitimate non-browser clients;
@@ -1371,6 +1379,7 @@ echo "  TLS 1.3:       enabled (0-RTT disabled)"
 echo "  HTTPS redirect: enabled"
 echo "  HSTS:          $([[ "$ENABLE_HSTS" == "true" ]] && echo enabled || echo disabled)"
 echo "  HTTP/3/Brotli: enabled"
+echo "  Tiered Cache:  enabled (smart topology)"
 echo "  WAF baseline:  $([[ "$ENABLE_WAF" == "true" ]] && echo enabled || echo disabled)"
 echo "  Login limit:   $([[ "$ENABLE_RATE_LIMIT" == "true" ]] && echo enabled || echo disabled)"
 echo "  Cache safety:  $([[ "$ENABLE_CACHE_RULES" == "true" ]] && echo enabled || echo disabled)"

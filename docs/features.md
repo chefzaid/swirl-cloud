@@ -36,7 +36,7 @@ the pieces fit together.
 
 ## Edge, Ingress And DNS
 
-- Cloudflare DNS, Origin CA TLS, DNSSEC, WAF, login rate limiting, cache rules and Access
+- Cloudflare DNS, Origin CA TLS, DNSSEC, WAF, login rate limiting, cache rules, Smart Tiered Cache and Access
 - origin firewall that accepts web traffic only from Cloudflare
 - platform-owned Traefik with native Ingress, ForwardAuth SSO, body limits and forwarded-header normalization
 - application DNS ownership through onboarding, with direct A records or Tunnel CNAMEs

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-13
-- Amended: 2026-09-06, 2026-09-10, 2026-09-23
+- Amended: 2026-09-06, 2026-09-10, 2026-09-23, 2026-10-08
 
 ## Context
 
@@ -21,13 +21,17 @@ Reconcile the zone with [`configure-cloudflare.sh`](../../scripts/configure-clou
   TLS, TLS 1.3, HTTP/3, DNSSEC with registrar verification
 - WAF rules, login rate limits and cache rules; bot challenges disabled only where
   Registry clients cannot answer them
+- Smart Tiered Cache for the whole zone, so edge locations fill from one upper
+  tier near the origin (2026-10-08)
 - Cloudflare Access applications backed by a Keycloak IdP for administration hosts
 - a request-header transform that removes visitor-supplied `X-Forwarded-For`
 - host firewall rules that accept HTTP/HTTPS only from Cloudflare ranges
 - in HA, outbound Cloudflare Tunnel connectors instead of a public origin IP
 
 Applications own their own records; onboarding publishes them without adding
-names to this repository.
+names to this repository. Applications may also add cache rules for their own
+hosts to the zone's cache ruleset and purge those hosts after a release; the
+configurator reconciles only its own rule there (2026-10-08).
 
 ## Rationale
 
