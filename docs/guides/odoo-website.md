@@ -9,7 +9,8 @@ chatbot.
 ## What the Odoo bootstrap configures
 
 The `bootstrap-database` init container in [the Odoo manifest](../../k8s/corp/odoo.yaml)
-installs CRM, Live Chat and the managed `platform_crm_intake` add-on, and
+installs CRM, Live Chat and the managed
+[`platform_crm_intake`](../../k8s/files/odoo-addons/platform_crm_intake/) add-on, and
 upgrades the add-on on every start. On the first start after installation it
 also:
 
@@ -38,7 +39,7 @@ Run from the platform host with the platform kubeconfig, naming the website's
 application (its Vault `apps/<name>/` prefix):
 
 ```bash
-python3 scripts/configure-odoo-intake.py --application <website> \
+python3 scripts/configure-odoo-website.py --application <website> \
   --website-origin https://<website host>
 ```
 
@@ -131,7 +132,7 @@ page they visit.
 | `{type: "odoo-livechat-open"}` | website → Odoo | Reopen the chat, or start a new one |
 
 Messages are exchanged only with the website origin given to
-`configure-odoo-intake.py --website-origin`. The page sends
+`configure-odoo-website.py --website-origin`. The page sends
 `Content-Security-Policy: frame-ancestors <website origin>`, so no other site can
 frame it, and returns `404` until that origin is set. `lang` selects the
 language of the chatbot and is kept in Odoo's `frontend_lang` cookie.
@@ -153,7 +154,7 @@ messages are emailed to the team, a reply to that email appears in the chat,
 and a visitor who has left receives the answer by email and can reply to it.
 
 ```bash
-python3 scripts/configure-odoo-intake.py --application <website> \
+python3 scripts/configure-odoo-website.py --application <website> \
   --website-origin https://<website host> \
   --notify team@<domain> --reply-sender team@<domain> --reply-sender person@mail.example \
   --timezone Europe/Paris --chat-persona <website repo>/infra/odoo/chat-persona.json \

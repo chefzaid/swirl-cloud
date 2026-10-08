@@ -1,4 +1,4 @@
-// Cloudflare Email Worker deployed by scripts/configure-odoo-intake.py.
+// Cloudflare Email Worker deployed by scripts/configure-odoo-website.py.
 // Relays replies to website chats (chat+<chat>.<audience>.<signature>@domain)
 // to Odoo, which checks the signature and the sender before posting them.
 export default {

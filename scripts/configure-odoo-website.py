@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Provision the website's scoped Odoo CRM intake integration.
+"""Provision the company website's Odoo integration: CRM lead intake, the chat
+frame, and answering chats by email.
 
 Commands use the current central-platform kubeconfig. The integration user can
 only submit leads through crm.lead/platform_intake_submit, in the main company,
@@ -39,17 +40,26 @@ WORKER_NAME = "platform-chat-email"
 WORKER_SOURCE = Path(__file__).resolve().parent / "lib" / "chat_email_worker.js"
 ROUTING_RULE = "Website chat replies to Odoo"
 
-# Runs inside `odoo shell`; PARAMS is substituted as a JSON string literal.
-PROGRAM = r'''
-import json, sys
+# Prepended to every program run in `odoo shell`; odoo_program() fills in
+# PARAMS (a JSON string literal), FAILURE and MARKER.
+PROGRAM_HEADER = r'''
+import json, secrets, sys
+from odoo.addons.platform_crm_intake.tools import PARAM_PREFIX
 def fail(reason):
     print(FAILURE + reason, file=sys.stderr)
     sys.exit(1)
+def report(result):
+    print(MARKER + json.dumps(result))
 p = json.loads(PARAMS)
+params = env['ir.config_parameter'].sudo()
+'''
+
+# The website's integration user and its API key.
+PROGRAM = r'''
 Users = env['res.users'].sudo().with_context(no_reset_password=True, active_test=False)
 group = env.ref('platform_crm_intake.group_crm_intake')
 company = env.ref('base.main_company')
-env['ir.config_parameter'].sudo().set_param('platform_crm_intake.website_origin', p['websiteOrigin'])
+params.set_param(PARAM_PREFIX + 'website_origin', p['websiteOrigin'])
 Source = env['utm.source'].sudo()
 source = Source.search([('name', '=', p['source'])], limit=1) or Source.create({'name': p['source']})
 values = {'name': p['displayName'], 'login': p['login'], 'active': True,
@@ -78,25 +88,18 @@ env.cr.execute('SELECT id, index FROM res_users_apikeys WHERE user_id = %s', [us
 stale = [row[0] for row in env.cr.fetchall() if row[1] not in keep]
 Keys.browse(stale)._remove()
 env.cr.commit()
-print(MARKER + json.dumps({'userId': user.id, 'company': company.name, 'key': key, 'revoked': len(stale)}))
+report({'userId': user.id, 'company': company.name, 'key': key, 'revoked': len(stale)})
 '''
 
-# Runs inside `odoo shell`: chat notifications, persona and outgoing mail.
+# Chat notifications, outgoing mail and the chatbot persona.
 CHAT_PROGRAM = r'''
-import json, secrets, sys
-def fail(reason):
-    print(FAILURE + reason, file=sys.stderr)
-    sys.exit(1)
-p = json.loads(PARAMS)
-params = env['ir.config_parameter'].sudo()
 for name in ('reply_secret', 'inbound_secret'):
-    if not params.get_param('platform_crm_intake.' + name):
-        params.set_param('platform_crm_intake.' + name, secrets.token_hex(32))
-params.set_param('platform_crm_intake.chat_from', p['chatFrom'])
-params.set_param('platform_crm_intake.chat_notify_emails', ','.join(p['notify']))
-params.set_param('platform_crm_intake.chat_reply_senders', ','.join(p['replySenders']))
-params.set_param('platform_crm_intake.chat_notify_lang', p['notifyLang'])
-params.set_param('platform_crm_intake.chat_timezone', p['timezone'])
+    if not params.get_param(PARAM_PREFIX + name):
+        params.set_param(PARAM_PREFIX + name, secrets.token_hex(32))
+for name, value in {'chat_from': p['chatFrom'], 'chat_notify_emails': ','.join(p['notify']),
+                    'chat_reply_senders': ','.join(p['replySenders']), 'chat_notify_lang': p['notifyLang'],
+                    'chat_timezone': p['timezone']}.items():
+    params.set_param(PARAM_PREFIX + name, value)
 # Odoo's own emails need a sender domain; reuse the chat sender's.
 domain = p['chatFrom'].partition('@')[2]
 Domains = env['mail.alias.domain'].sudo()
@@ -127,8 +130,7 @@ if persona:
         step.with_context(lang='en_US').message = message['en']
         step.update_field_translations('message', {'fr_FR': {message['en']: message['fr']}})
 env.cr.commit()
-print(MARKER + json.dumps({'inboundSecret': params.get_param('platform_crm_intake.inbound_secret'),
-                           'baseUrl': params.get_param('web.base.url')}))
+report({'inboundSecret': params.get_param(PARAM_PREFIX + 'inbound_secret'), 'baseUrl': params.get_param('web.base.url')})
 '''
 
 # Runs inside the Odoo container; the key arrives on stdin.
@@ -178,8 +180,8 @@ def parameters(application, website_origin, stored, *, rotate=False, revoke_prev
 
 
 def odoo_program(params, program=PROGRAM):
-    return (program.replace("PARAMS", repr(json.dumps(params)), 1)
-            .replace("FAILURE + reason", repr(FAILURE) + " + reason", 1).replace("MARKER", repr(MARKER), 1))
+    return ((PROGRAM_HEADER + program).replace("PARAMS", repr(json.dumps(params)), 1)
+            .replace("FAILURE + reason", repr(FAILURE) + " + reason", 1).replace("MARKER + ", repr(MARKER) + " + ", 1))
 
 
 def odoo_shell(program):
@@ -191,8 +193,23 @@ def odoo_shell(program):
     return json.loads(lines[0][len(MARKER):])
 
 
+def load_persona(file):
+    """Read the chatbot persona: a name, a PNG avatar beside the file and one message per chatbot step."""
+    path = Path(file)
+    persona = json.loads(path.read_text())
+    messages = persona.get("messages")
+    if (not isinstance(persona.get("name"), str) or not persona["name"].strip() or not isinstance(messages, list)
+            or not all(isinstance(m, dict) and m.get("type") in STEP_TYPES and isinstance(m.get("en"), str)
+                       and isinstance(m.get("fr"), str) for m in messages)):
+        raise ServiceError("The persona file needs a name and messages with type, en and fr")
+    avatar = (path.parent / persona["avatar"]).read_bytes()
+    if not avatar.startswith(b"\x89PNG\r\n\x1a\n") or len(avatar) > 1024 * 1024:
+        raise ServiceError("The persona avatar must be a PNG of at most 1 MiB")
+    return {"name": persona["name"].strip(), "messages": messages, "avatar": base64.b64encode(avatar).decode()}
+
+
 def chat_parameters(args, smtp_password=None):
-    """Validate chat options; the persona file's avatar is embedded as base64."""
+    """Validate the chat options for CHAT_PROGRAM."""
     addresses = [args.chat_from, *args.notify, *args.reply_sender]
     if not all(EMAIL.fullmatch(address) for address in addresses):
         raise ServiceError("Chat addresses must be plain lowercase email addresses")
@@ -205,18 +222,7 @@ def chat_parameters(args, smtp_password=None):
     params = {"chatFrom": args.chat_from, "notify": args.notify, "replySenders": args.reply_sender,
               "notifyLang": args.notify_lang, "timezone": args.timezone, "smtpPassword": smtp_password}
     if args.chat_persona:
-        path = Path(args.chat_persona)
-        persona = json.loads(path.read_text())
-        messages = persona.get("messages")
-        if (not isinstance(persona.get("name"), str) or not persona["name"].strip() or not isinstance(messages, list)
-                or not all(isinstance(m, dict) and m.get("type") in STEP_TYPES and isinstance(m.get("en"), str)
-                           and isinstance(m.get("fr"), str) for m in messages)):
-            raise ServiceError("The persona file needs a name and messages with type, en and fr")
-        avatar = (path.parent / persona["avatar"]).read_bytes()
-        if not avatar.startswith(b"\x89PNG\r\n\x1a\n") or len(avatar) > 1024 * 1024:
-            raise ServiceError("The persona avatar must be a PNG of at most 1 MiB")
-        params["persona"] = {"name": persona["name"].strip(), "messages": messages,
-                             "avatar": base64.b64encode(avatar).decode()}
+        params["persona"] = load_persona(args.chat_persona)
     return params
 
 
@@ -274,7 +280,24 @@ def deploy_email_worker(token, chat_from, inbound_url, inbound_secret):
         cloudflare(token, "POST", f"/zones/{zone}/email/routing/rules", rule)
 
 
+def configure_chat(api, services, args, path, stored, version, token):
+    """Apply the chat options to Odoo, keep the inbound secret in Vault and deploy the Email Worker."""
+    smtp_password = None
+    if args.resend_key_path:
+        mail, _ = Services._kv_get(api, services._path(args.resend_key_path))
+        smtp_password = mail.get("RESEND_API_KEY") or None
+        if not smtp_password:
+            raise ServiceError(f"Vault {args.resend_key_path} has no RESEND_API_KEY")
+    result = odoo_shell(odoo_program(chat_parameters(args, smtp_password), CHAT_PROGRAM))
+    if stored.get("inboundSecret") != result["inboundSecret"]:
+        Services._kv_write(api, path, dict(stored, inboundSecret=result["inboundSecret"]), version)
+    if args.email_worker:
+        deploy_email_worker(token, args.chat_from, result["baseUrl"].rstrip("/") + "/platform_crm_intake/mail/inbound",
+                            result["inboundSecret"])
+
+
 def provision(params):
+    """Create or update the integration user and return its new API key, if one was issued."""
     result = odoo_shell(odoo_program(params))
     if result["key"] is not None and not API_KEY.fullmatch(result["key"]):
         raise ServiceError("Odoo returned a malformed API key")
@@ -318,7 +341,7 @@ def main():
         raise ServiceError("Odoo must be installed and Ready")
     path = f"apps/{args.application}/odoo"
     services = Services(None, kubectl, {"APPLICATION_NAME": args.application,
-                        "GITLAB_PROJECT_ID": "odoo", "GITLAB_PROJECT_PATH": "odoo-intake"})
+                        "GITLAB_PROJECT_ID": "odoo", "GITLAB_PROJECT_PATH": "odoo-website"})
     with services._vault() as api:
         stored, version = Services._kv_get(api, path)
         params = parameters(args.application, args.website_origin, stored, rotate=args.rotate, revoke_previous=args.revoke_previous)
@@ -330,18 +353,7 @@ def main():
             Services._kv_write(api, path, stored, version)
             stored, version = Services._kv_get(api, path)
         if chat_requested:
-            smtp_password = None
-            if args.resend_key_path:
-                mail, _ = Services._kv_get(api, services._path(args.resend_key_path))
-                smtp_password = mail.get("RESEND_API_KEY") or None
-                if not smtp_password:
-                    raise ServiceError(f"Vault {args.resend_key_path} has no RESEND_API_KEY")
-            chat_result = odoo_shell(odoo_program(chat_parameters(args, smtp_password), CHAT_PROGRAM))
-            if stored.get("inboundSecret") != chat_result["inboundSecret"]:
-                Services._kv_write(api, path, dict(stored, inboundSecret=chat_result["inboundSecret"]), version)
-            if args.email_worker:
-                deploy_email_worker(token, args.chat_from, chat_result["baseUrl"].rstrip("/")
-                                    + "/platform_crm_intake/mail/inbound", chat_result["inboundSecret"])
+            configure_chat(api, services, args, path, stored, version, token)
     action = "issued a new key" if result["key"] else "kept the stored key"
     print(f"Odoo CRM intake for {args.application}: company {result['company']}, "
           f"{action}, revoked {result['revoked']} other key(s). Vault: {path}")
