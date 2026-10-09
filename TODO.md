@@ -71,7 +71,7 @@ not separate implementations. Close operational items only with a dated result
 - [x] Offline validator `scripts/validate-repository.sh`: ShellCheck, Python/Ansible syntax, doc-link checks, manifest inventories, workload policy, image-digest pinning, nine installer/GitOps render combinations (HA, Odoo scope, PostgreSQL staging/cutover, Kafka phases, fencing, authenticated app data), Service selectors, named ports, Ingress backends, RBAC and installer/GitOps parity, patch whitespace and credential scan. *(Passes locally on 2026-09-27.)*
 - [x] Live validator `validate-repository.sh --live`: server-side dry-run of every rendered profile against the active cluster, no mutation.
 - [x] `validate-repository.sh --live` passes against the current cluster again. The earlier Job conflict only occurred while an Argo CD sync hook was running; objects that need `cnpg-system` or CloudNativePG APIs before HA activation are now counted as not validated instead of failing. *(live, 2026-10-04: 8 objects reported)*
-- [x] Thirteen retained safety suites in `tests/` (K3s backups, K3s API endpoint, PostgreSQL HA, Kafka HA, Vault unseal, Vault HA, node fencing, application clusters, application data, environment onboarding, installation inputs, Odoo website integration, platform mail).
+- [x] Fourteen retained safety suites in `tests/` (K3s backups, K3s API endpoint, PostgreSQL HA, Kafka HA, Vault unseal, Vault HA, node fencing, application clusters, application data, environment onboarding, installation inputs, Odoo website integration, platform mail, outage watch).
 - [x] Documentation follows the shared application-repository layout ([ADR 0001](docs/adr/0001-documentation-structure.md)): `features`, `architecture` (overview + ADR index), `data-model`, `development`, `testing`, `code-quality`, `deployment`, `operations`, `security`, `dns`, plus eight procedures under `docs/guides/`; Mermaid topology and delivery diagrams.
 - [x] 25 ADRs in `docs/adr/` reconstructed from the Git history, including three superseded decisions (ingress-nginx, Jenkins/Nexus, private rebuilt images).
 - [x] The Ansible hardening step is named "Reconcile hardened system controller templates"; private image overrides were retired in Chart 2.
@@ -316,7 +316,7 @@ not separate implementations. Close operational items only with a dated result
 - [ ] Not scraped: cloudflared (only runs in HA Tunnel mode).
 - [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
 - [ ] Define recoverable Elasticsearch log/audit retention and configure a snapshot repository if that history must survive volume loss (§16).
-- [ ] Add an external availability check and notification path that still works when the only cluster or GitLab is down. Test a synthetic failure and recovery notification; SMTP/chat routing (§27, §29) alone does not monitor an unavailable cluster.
+- [x] Outage watch from outside the cluster ([ADR 0030](docs/adr/0030-outage-watch-outside-the-cluster.md), [guide](docs/guides/service-levels.md#outage-watch)): a Cloudflare Worker deployed by `scripts/configure-outage-watch.py` (and the installer) checks every origin-reaching public host every five minutes and emails each down and recovery change through the platform mail relay (§27). State lives in a Durable Object; the Worker has no route and stays off `workers.dev` (the account's `swirlit` subdomain was created because Durable Objects require one). *(live, 2026-10-09: 13 endpoints; status report, then a drill's down and recovery emails delivered 10 minutes apart)*
 
 The historical Trivy snapshot was **119 critical / 924 high findings across 90
 image reports**, plus 11 critical exposed-secret findings in the GitLab image
@@ -727,7 +727,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [x] Indicators beyond probes: data-store availability, CI queue time (p90) and platform-caused CI failures, Argo CD sync failures; `CIJobsQueueingLong` alert; on **Service Levels** and monthly in the **Platform Report** ([other indicators](docs/guides/service-levels.md#other-indicators)). *(2026-10-05: CI queue p90 about 4 minutes with one concurrent job)*
 - [ ] Registry push/pull probes and per-service SLA targets for the managed service.
 - [x] Every alert rule carries an `owner` label (`platform`, `security`, or `application` for application namespaces) and a `runbook_url` to its section of [alert runbooks](docs/guides/alert-runbooks.md); validation rejects an alert without both. *(2026-10-05, 44 alerts)*
-- [ ] Status page hosted outside the platform, fed by the external availability check (§14), with incident updates.
+- [ ] Status page hosted outside the platform, fed by the outage watch (§14), with incident updates; decide first which endpoints may be shown publicly.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications.
 - [ ] OpenTelemetry: a collector, a trace backend and automatic instrumentation for Java and Node applications; correlate traces with logs and metrics in Grafana. Decide in the ADR whether logs stay in Elasticsearch.
 - [x] Capacity planning: requested and used CPU/memory per server, requests after losing the largest server, cores and memory to add to stay below 70 %, days until filesystems and volumes fill; `ClusterCapacityRequestsHigh` and `ClusterCannotSurviveNodeLoss` alerts; Grafana **Capacity Planning** ([capacity planning](docs/guides/capacity-planning.md)); per-namespace history in the platform reports. *(2026-10-05: CPU requests at 96 % of allocatable with 15 % used; about 3 cores to add or to release by rightsizing)*
@@ -775,7 +775,6 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P0 | Current platform health | Root Application and maintenance jobs healthy after the discovery/retention fixes | §12–13 |
 | P0 | Offsite archives, current Longhorn backup integration and separate recovery keys | Target outside the failure domain; fresh uploads and successful archive/volume restores | §8, §16 |
 | P0 | GitLab and full-platform recovery coverage | Native backups plus configuration/secrets; isolated rebuild with measured RPO/RTO | §12, §16 |
-| P1 | Independent outage detection (alert email and transactional SMTP done) | Synthetic failure/recovery delivered even if GitLab/the cluster is down | §14, §27 |
 | P1 | Private/key-only SSH and administrator MFA | Tested second session/console and break-glass login; recovery prerequisites complete | §4, §11 |
 | P1 | `infra` network isolation and PSA enforcement | Dependency allowlists and host-agent placement validated before enforcement | §6 |
 | P1 | Fresh vulnerability triage | Verified upstream fixes and new scans | §21 |
@@ -793,7 +792,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Sovereignty mode | Edge without Cloudflare, self-hosted mesh; strict profile installs with no external call reported (GitHub optional, telemetry off and external-service inventory done) | §33 |
 | P2 | Tenancy, roles and self-service data | `infra` isolation (§6) first; cross-project access denied in tests; claims include backups and alerts | §34 |
 | P2 | Policy enforcement and periodic evidence | Application pack moved from audit to `Deny` per clean environment; signed evidence packs archived monthly | §36 |
-| P2 | Status page and on-call | External status page fed by an outside check; paging with acknowledgement (SLOs, burn-rate alerts and runbooks done) | §38 |
+| P2 | Status page and on-call | External status page fed by the outage watch; paging with acknowledgement (SLOs, burn-rate alerts, runbooks, alert email and the outage watch done) | §38 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
 | P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
 | P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §30–31 |
