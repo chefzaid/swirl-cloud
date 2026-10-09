@@ -1,0 +1,21 @@
+.o-platform-ChatWindow-title > div {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.2;
+}
+
+.o-platform-ChatWindow-status {
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    opacity: 0.85;
+}
+
+.o-platform-ChatWindow-online {
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}

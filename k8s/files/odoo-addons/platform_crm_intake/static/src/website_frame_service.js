@@ -36,13 +36,14 @@ export const websiteFrameService = {
             }
         };
         let reported;
+        // Frequent enough that the website shows the chat as soon as it opens.
         browser.setInterval(() => {
             const isOpen = store.chatHub.opened.length > 0;
             if (isOpen !== reported) {
                 reported = isOpen;
                 post({ open: isOpen });
             }
-        }, 250);
+        }, 100);
         browser.addEventListener("message", (event) => {
             if (event.origin === website && event.data?.type === "odoo-livechat-open") {
                 open().catch(() => post({ open: false, failed: true }));

@@ -131,6 +131,10 @@ page they visit.
 | `{type: "odoo-livechat", open: false, failed: true}` | Odoo → website | The chat cannot start; offer another contact path |
 | `{type: "odoo-livechat-open"}` | website → Odoo | Reopen the chat, or start a new one |
 
+Inside the frame, the chat window shows its correspondent (the chatbot or an
+agent) as online under their name, in the `lang` of the page, and the page
+reports an opened chat to the website within 100 ms.
+
 Messages are exchanged only with the website origin given to
 `configure-odoo-website.py --website-origin`. The page sends
 `Content-Security-Policy: frame-ancestors <website origin>`, so no other site can

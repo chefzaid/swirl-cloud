@@ -2,7 +2,7 @@
 <odoo>
     <template id="website_chat" name="Website Live Chat frame">
         &lt;!DOCTYPE html&gt;
-        <html>
+        <html t-att-lang="html_lang">
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>

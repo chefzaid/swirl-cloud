@@ -12,9 +12,14 @@
         "views/chat_emails.xml",
     ],
     "assets": {
-        # Loaded with every external chat embed; it acts only inside the
+        # Loaded with every external chat embed; they act only inside the
         # website's chat frame, where the page sets platformWebsiteOrigin.
-        "im_livechat.assets_embed_external": ["platform_crm_intake/static/src/website_frame_service.js"],
+        "im_livechat.assets_embed_external": [
+            "platform_crm_intake/static/src/website_frame_service.js",
+            "platform_crm_intake/static/src/chat_window_status.js",
+            "platform_crm_intake/static/src/chat_window_status.xml",
+            "platform_crm_intake/static/src/chat_window_status.scss",
+        ],
     },
     "installable": True,
     "application": False,

@@ -26,6 +26,8 @@ class WebsiteChat(http.Controller):
             ["|", ("url_code", "=", lang or ""), ("code", "=", lang or "")], limit=1)
         response = request.render("platform_crm_intake.website_chat", {
             "channel": channel,
+            # Read by static/src/chat_window_status.js for the status label.
+            "html_lang": language.iso_code if language else "en",
             # Validated above, so it is safe to place in the page script.
             "website_origin": Markup(json.dumps(origin)),
         })

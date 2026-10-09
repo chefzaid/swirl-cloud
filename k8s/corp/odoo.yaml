@@ -338,8 +338,8 @@ spec:
                       ('question_email', "So we can answer you even if you leave this page, what is your email address?",
                        "Pour pouvoir vous répondre même si vous quittez la page, quelle est votre adresse e-mail ?"),
                       ('free_input_multi', "Thank you! How can we help you?", "Merci ! Comment pouvons-nous vous aider ?"),
-                      ('create_lead', "Noted. We will reply to you by email very soon.",
-                       "C'est noté. Nous vous répondons très vite par e-mail."),
+                      ('create_lead', "Noted. We'll get back to you as soon as we can.",
+                       "C'est noté. Nous revenons vers vous au plus vite."),
                   ]
                   script = env['chatbot.script'].create({
                       'title': organization,
