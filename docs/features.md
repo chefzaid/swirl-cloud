@@ -84,6 +84,7 @@ the pieces fit together.
 - platform email through one SMTP relay: critical and warning alerts by email, Keycloak password resets, GitLab notifications and Odoo's outgoing mail ([guide](guides/platform-mail.md))
 - every alert labelled with an owner and linked to its runbook section
 - availability probes for every Ingress host, a 99.5 % objective with multi-window burn-rate alerts and a Service Levels dashboard
+- an outage watch on Cloudflare that checks the public endpoints from outside the cluster and emails when one goes down or recovers ([guide](guides/service-levels.md#outage-watch))
 - hourly snapshots of availability, cost and compliance kept 13 months in Elasticsearch for the monthly Platform Report
 - capacity planning on requests and usage, headroom after losing the largest server, capacity to add, and days until storage fills
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
@@ -146,7 +147,7 @@ the pieces fit together.
 - The live platform is one host; HA profiles and fencing have not been activated.
 - Offsite backups are optional and not configured on the live installation.
 - GitLab native backups are not automated.
-- Alerts reach GitLab and, once platform mail is configured, email; there is no chat or paging receiver, and no check that works while the cluster is down.
+- Alerts reach GitLab and, once platform mail is configured, email; there is no chat or paging receiver and no public status page.
 - `infra` has no default-deny network policy or enforced Pod Security level.
 - Remote application clusters lack central telemetry.
 

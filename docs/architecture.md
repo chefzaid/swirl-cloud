@@ -241,6 +241,7 @@ Statuses:
 - [ADR 0027: Native Admission Policy Packs, Audit First](./adr/0027-native-admission-policy-packs.md)
 - [ADR 0028: Serve The Kubernetes API From A Floating Control-Plane Endpoint](./adr/0028-kubernetes-api-endpoint.md)
 - [ADR 0029: Send Platform Email Through One Operator-Supplied SMTP Relay](./adr/0029-platform-transactional-mail.md)
+- [ADR 0030: Watch Public Endpoints From Outside The Cluster](./adr/0030-outage-watch-outside-the-cluster.md)
 
 ## Superseded ADRs
 

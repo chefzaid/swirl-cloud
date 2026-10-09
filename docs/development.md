@@ -38,7 +38,7 @@ The ownership boundaries and declarative source follow Kubernetes'
 ## Toolchain
 
 Offline validation requires Bash, Git, ShellCheck, Python 3 with PyYAML, Helm,
-Ansible, Node.js, jq, SQLite's `sqlite3` CLI and `flock`. Live validation adds
+Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock` and OpenSSL. Live validation adds
 `kubectl` and access to a cluster with the platform CRDs. The platform CI job
 installs the same tools on a digest-pinned Alpine image. Missing tools fail
 validation instead of silently skipping checks.

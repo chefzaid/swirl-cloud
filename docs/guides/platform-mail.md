@@ -82,6 +82,8 @@ message per alert name, sent a minute after the first alert, batched every 15
 minutes while it changes, repeated once a day while it fires, and followed by a
 resolution message. `AlertNotificationsFailing` fires when every notification
 through one receiver failed for an hour; it still reaches the other receiver.
+Alertmanager stops with the cluster: the [outage watch](service-levels.md#outage-watch)
+checks the public endpoints from outside and mails through the same relay.
 
 ## Verify
 
@@ -128,7 +130,8 @@ password or key at the provider as well.
 
 Vault `infra/smtp` is the source. External Secrets copies it into the
 `platform-mail` Secrets in `infra` and `corp` and into the rendered
-`alertmanager-config` Secret. Keycloak keeps it in its realm settings, GitLab in
+`alertmanager-config` Secret, and the [outage watch](service-levels.md#outage-watch)
+holds it as a Cloudflare Worker secret. Keycloak keeps it in its realm settings, GitLab in
 its generated configuration on the `gitlab-data` volume, and Odoo in its
 database, so the nightly recovery archive holds it in the Vault snapshot and the
 database dumps. If any copy is exposed, rotate the password at the provider and

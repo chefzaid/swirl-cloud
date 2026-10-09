@@ -64,6 +64,8 @@ basic Bot Fight Mode, which has no hostname exceptions, and skips Super Bot
 Fight Mode only for the Registry hostname. Other WAF, rate-limit and TLS
 controls remain enabled. The token therefore needs **Bot Management Read** and
 **Edit**, in addition to the other permissions printed by the configurator.
+The optional [outage watch](guides/service-levels.md#outage-watch) and the
+website chat's Email Worker also need Account **Workers Scripts Edit**.
 
 ### Origin behind NAT
 

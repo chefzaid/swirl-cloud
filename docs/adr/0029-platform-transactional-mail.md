@@ -49,4 +49,5 @@ Odoo messages ([external services](../guides/external-services.md)). Its
 sending limits are shared with anything else using the same account. A changed
 setting reaches Alertmanager and Keycloak through the configurator; GitLab and
 Odoo read it only when they restart. Alert email stops when the cluster or the
-relay is down, so the outage check in TODO §14 is still needed.
+relay is down; the outage watch ([ADR 0030](0030-outage-watch-outside-the-cluster.md))
+reports a down cluster from outside.

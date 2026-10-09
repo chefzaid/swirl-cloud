@@ -16,6 +16,7 @@ goes. Applications add their own external services in their repositories.
 | OVHcloud API | OVH SAS (France) | Optional vRack attachment of new servers | Server and vRack service names | Attach servers manually |
 | S3-compatible backup target | Chosen by the operator | Encrypted off-node recovery archives and volume backups | Archives encrypted before upload (restic) | Keep archives on another host you control |
 | SMTP relay | Chosen by the operator | Optional [platform mail](platform-mail.md): alerts, Keycloak account emails, GitLab notifications and Odoo mail | Message content and recipient addresses; the relay login | Leave platform mail off, or run your own mail server |
+| Cloudflare Workers | Cloudflare, Inc. (United States) | Optional [outage watch](service-levels.md#outage-watch) checking public endpoints from outside the cluster | The public endpoint list, the relay login (as a Worker secret) and the outage emails it sends | Leave the outage watch undeployed |
 
 ## Software and update sources
 

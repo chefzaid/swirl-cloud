@@ -20,9 +20,44 @@ Access-protected hosts count as available. It fails on 5xx, Cloudflare origin
 errors, TLS errors, timeouts and DNS failures.
 
 In-cluster probes cannot report an outage of the whole cluster or of its
-network, because Prometheus and Alertmanager fail with it. A check from outside
-the platform is planned in [TODO.md](../../TODO.md) (independent outage
-detection).
+network, because Prometheus and Alertmanager fail with it; the
+[outage watch](#outage-watch) checks from outside.
+
+## Outage watch
+
+`scripts/configure-outage-watch.py` deploys a Cloudflare Worker that checks the
+public endpoints every five minutes from Cloudflare's network, outside the
+cluster ([ADR 0030](../adr/0030-outage-watch-outside-the-cluster.md)). It emails
+the alert recipients through the [platform mail](platform-mail.md) relay when an
+endpoint goes down and when it answers again, so it still reports when the
+cluster, its node or GitLab is down.
+
+- It watches every Ingress host of the platform, Odoo and production
+  applications that Cloudflare Access does not gate: Access answers at the edge
+  without reaching the origin. Environment hosts (`int`, `uat`) are left out.
+- An answer below 500 counts as up. A 5xx answer, a timeout or a failed
+  connection is a failed check, and two in a row mark the endpoint down. Each
+  change sends one email that also lists what is still down.
+- The Worker has no route and is kept off `workers.dev`, and it keeps its state
+  in a Durable Object; it fits Cloudflare's free plan. Cloudflare requires a
+  `workers.dev` subdomain on the account for Durable Objects, so the
+  configurator creates one named after the organization if there is none. The
+  watch keeps no history: the probes above remain the measurement.
+
+The installer deploys it when Cloudflare and platform mail are both configured.
+Otherwise, or after changing the relay or adding public hosts, run it on a
+control plane with `CLOUDFLARE_API_TOKEN` exported (the token also needs Account
+**Workers Scripts Edit**):
+
+```bash
+scripts/configure-outage-watch.py              # deploy, or update the hosts and relay
+scripts/configure-outage-watch.py --report     # email every endpoint's status after the next check
+scripts/configure-outage-watch.py --drill 20   # a simulated endpoint fails for 20 minutes
+scripts/configure-outage-watch.py --remove     # delete the Worker and its state
+```
+
+A drill sends a `[DOWN]` email within ten minutes and an `[UP]` email after the
+drill; rerun without `--drill` afterwards to drop the simulated endpoint.
 
 ## Alerts
 

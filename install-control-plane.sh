@@ -1606,6 +1606,14 @@ if [[ "$CONFIGURE_REPOSITORY_SYNC" == true ]]; then
     "$REPLICATE_REPO_SCRIPT" "${replication_args[@]}"
 fi
 
+# The outage watch (ADR 0030) runs on Cloudflare and mails through the platform
+# relay; deploy it once both exist and the public hosts are known.
+if [[ "$CONFIGURE_CLOUDFLARE" == true && "$CONFIGURE_PLATFORM_MAIL" == true ]]; then
+    step "Deploying the outage watch on Cloudflare..."
+    CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" python3 "$SCRIPT_DIR/scripts/configure-outage-watch.py" || \
+        warn "The outage watch was not deployed; rerun scripts/configure-outage-watch.py (docs/guides/service-levels.md#outage-watch)."
+fi
+
 if [[ "$RUN_K8S_FEATURES" == true ]]; then
     step "Verifying the installed platform..."
     # Endpoint probes stay warnings while new DNS records propagate; failures stop here.

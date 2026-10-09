@@ -37,7 +37,7 @@ Run from the repository root before changing installation or deployment behavior
 ```
 
 The first command is offline and requires Bash, Git, ShellCheck, Python 3 with
-PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock`, and the
+PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock`, OpenSSL and the
 time zone database (`tzdata`). CI installs
 these tools. Missing dependencies fail validation rather than silently skipping
 deployment checks. It checks syntax, documentation links, manifest inventories,
@@ -83,6 +83,7 @@ source inputs and rendered deployment output, then runs only these safety suites
 | `test-application-data.py` | Cross-environment data access, anonymous remote cache access and unsafe database adoption; optional disposable datastore checks. |
 | `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage, accepting a certificate that does not cover an environment hostname, and deploying a branch to `uat`/`prod` or a second concurrent run to one environment. |
 | `test-odoo-website.py` | The website's Odoo integration key or the inbound email secret reaching process arguments, error messages or routing rules, reuse of another integration's stored key, and an unvalidated origin, address or persona reaching Odoo's chat frame and settings. |
+| `test-outage-watch.py` | The relay password reaching Cloudflare outside a Worker secret, process arguments or output, watching Access-gated or environment hosts, recreating the Durable Object class on every deploy, and an outage watch whose SMTP client fails over implicit TLS or STARTTLS, emails a change twice or drops a change the relay refused. |
 | `test-platform-mail.py` | The relay password reaching process arguments, output or error messages, settings stored after the relay refused the login, services restarted when nothing changed, header/YAML/JSON injection through sender or recipient values, and a rendered Alertmanager configuration that breaks with mail on or off. |
 | `test-install-inputs.py` | Shell execution through the installation input file, inputs leaking in from the calling shell, readable credential files, secrets (including generated passwords and file references) in setup-hub process arguments, the input file, run logs or support bundles, and installs starting with unreported input problems. |
 
