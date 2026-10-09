@@ -240,6 +240,7 @@ Statuses:
 - [ADR 0026: Drive Installation From One Versioned Input File](./adr/0026-installer-input-file.md)
 - [ADR 0027: Native Admission Policy Packs, Audit First](./adr/0027-native-admission-policy-packs.md)
 - [ADR 0028: Serve The Kubernetes API From A Floating Control-Plane Endpoint](./adr/0028-kubernetes-api-endpoint.md)
+- [ADR 0029: Send Platform Email Through One Operator-Supplied SMTP Relay](./adr/0029-platform-transactional-mail.md)
 
 ## Superseded ADRs
 
@@ -255,7 +256,6 @@ Create decisions before implementing:
 - `infra` default-deny network policy
 - multi-factor authentication for platform administrators
 - alert routing, paging and missing platform alerts
-- platform SMTP relay
 - HTTP intrusion detection, API audit logging and host auditd
 - remote application-cluster telemetry
 - migration of version-1 applications to the environment contract

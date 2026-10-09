@@ -35,4 +35,5 @@ trails inside each tool.
 Keycloak and PostgreSQL availability gate administrative access; local recovery
 credentials remain in Vault for outages. `platform-admins` membership grants broad
 administration without a second factor. Odoo's bundled module requires the
-implicit flow. No SMTP server exists, so password-reset emails cannot be sent.
+implicit flow. Password-reset emails need the platform mail relay
+([ADR 0029](0029-platform-transactional-mail.md)).

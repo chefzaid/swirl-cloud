@@ -93,7 +93,8 @@ def render(organization, nodes, apps):
              "## Retention configured by the platform", "", "| Data | Kept |", "|---|---|"]
     lines += [f"| {data} | {kept} |" for data, kept in RETENTION]
     lines += ["", "External processors and data flows: see docs/guides/external-services.md (Cloudflare receives all"
-              " public web traffic when the edge is enabled; the off-site backup target receives encrypted archives).", ""]
+              " public web traffic when the edge is enabled; the off-site backup target receives encrypted archives;"
+              " the SMTP relay, when platform mail is on, receives alerts, account emails and Odoo messages).", ""]
     platform = [
         ("Identity and single sign-on (Keycloak)", "Staff and application users: usernames, names, e-mail addresses, group"
          " memberships, password hashes, login events with IP addresses."),

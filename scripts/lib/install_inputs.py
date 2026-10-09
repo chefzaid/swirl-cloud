@@ -82,8 +82,12 @@ def platform_services(values):
     return flag(values, "DEPLOY_PLATFORM_SERVICES", "true") or (values.get("INSTALL_SCOPE") or "apps") == "apps"
 
 
+def platform_mail(values):
+    return flag(values, "CONFIGURE_PLATFORM_MAIL")
+
+
 SECTIONS = ("Identity", "Repositories", "Exposure and scope", "Nodes", "Components",
-            "Backups", "Public access", "Administrators")
+            "Backups", "Email", "Public access", "Administrators")
 
 INPUTS = (
     # Identity
@@ -222,6 +226,25 @@ INPUTS = (
     Input("BACKUP_REPOSITORY_PASSWORD", "Backups", "Recovery-archive encryption password (16+ characters)", kind="secret",
           express=True, pattern=re.compile(r".{16,}\Z", re.S), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
           required=lambda v: True, help="Keep a copy outside this cluster; restores need it."),
+    # Email
+    Input("CONFIGURE_PLATFORM_MAIL", "Email", "Send platform email (alerts, password resets) through an SMTP relay?",
+          kind="bool", default="false", express=True,
+          help="Alerts, Keycloak password resets, GitLab and Odoo use it; see docs/guides/platform-mail.md."),
+    Input("PLATFORM_MAIL_HOST", "Email", "SMTP relay host", pattern=re.compile(r"[A-Za-z0-9.:-]+\Z"), express=True,
+          when=platform_mail, required=lambda v: True, help="For example smtp.example.com."),
+    Input("PLATFORM_MAIL_TLS", "Email", "SMTP TLS mode", kind="choice", choices=("ssl", "starttls"), default="ssl",
+          when=platform_mail, help="ssl is implicit TLS (usually port 465); starttls usually uses port 587."),
+    Input("PLATFORM_MAIL_PORT", "Email", "SMTP relay port", kind="int", when=platform_mail,
+          help="Defaults to 465 for ssl and 587 for starttls."),
+    Input("PLATFORM_MAIL_USERNAME", "Email", "SMTP username", express=True, when=platform_mail, required=lambda v: True),
+    Input("PLATFORM_MAIL_PASSWORD", "Email", "SMTP password or API key", kind="secret", express=True,
+          when=platform_mail, required=lambda v: True),
+    Input("PLATFORM_MAIL_FROM", "Email", "Sender address", pattern=EMAIL, when=platform_mail,
+          help="Defaults to cloud@<public domain>; the relay must accept it as a sender."),
+    Input("PLATFORM_MAIL_FROM_NAME", "Email", "Sender display name", when=platform_mail,
+          help="Defaults to '<organization> Cloud'."),
+    Input("PLATFORM_MAIL_ALERT_TO", "Email", "Alert recipients (comma-separated)", kind="list", when=platform_mail,
+          help="Critical and warning alerts are emailed here; defaults to the platform administrator's email."),
     # Public access
     Input("CONFIGURE_CLOUDFLARE", "Public access", "Configure Cloudflare public DNS, TLS and Access?", kind="bool",
           help="Defaults to true for internet-exposed servers."),

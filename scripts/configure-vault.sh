@@ -323,6 +323,16 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/monitoring >/
     gitlab_alert_token="$(openssl rand -hex 16)" >/dev/null
 fi
 
+# Platform mail stays off until configure-platform-mail.py stores the
+# operator's relay (ADR 0029). Every field exists so the platform-mail
+# ExternalSecrets sync on installations without mail.
+if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/smtp >/dev/null 2>&1; then
+  info "Seeding Vault secret: infra/smtp (platform mail off)"
+  vault_cmd_auth "$root_token" kv put secret/infra/smtp \
+    enabled=false host= port=465 tls=ssl username= password= \
+    from_address= from_name= alert_to= >/dev/null
+fi
+
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak >/dev/null 2>&1; then
   info "Seeding Vault secret: infra/keycloak"
   keycloak_admin_password="$(generate_secret)"

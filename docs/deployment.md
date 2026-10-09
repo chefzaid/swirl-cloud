@@ -114,7 +114,7 @@ another path outside the checkout). Nothing changes on the host until you choose
 | Check this host | OS, architecture, sudo, CPU, memory, free disk, ports, clock, K3s role, internet egress and domain resolution. |
 | Configure: express | Asks only for the company name and domain, GitOps URL, administrator login, the Cloudflare token and Access emails for internet-exposed servers, and optionally more servers, S3 backups and GitHub repositories. |
 | Configure: advanced | Every installer input by section; only inputs that apply to earlier answers are asked. |
-| Test credentials | Calls Cloudflare (token and zone), GitHub (token and repository admin access) and Tailscale with the entered tokens. OVHcloud and S3 keys are checked by the installer. |
+| Test credentials | Calls Cloudflare (token and zone), GitHub (token and repository admin access) and Tailscale with the entered tokens, and logs in to the SMTP relay without sending. OVHcloud and S3 keys are checked by the installer. |
 | Review / Save | Lists answers (secrets show as `(set)`) and problems; Save writes the file and runs the installer's `--validate-only` check. |
 | Plan | Each stage as installed, missing, drifted (chart or K3s version differs from `config/platform.env`, or the installed identity differs from the file) or failed, the action the next run takes, and the result of the last run. Install shows it before asking for confirmation. |
 | Install or update | Saves, rechecks the host, runs the engine with a private log under `~/.local/state/swirl-cloud/logs`, then shows the [verification report](#verify-the-result). |
@@ -291,6 +291,11 @@ credentials or generated cluster configuration.
   `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` and `BACKUP_REPOSITORY_PASSWORD`.
   Keep the password outside the cluster; see
   [backup and recovery](operations.md#backups-and-recovery).
+- **Platform mail:** set `CONFIGURE_PLATFORM_MAIL=true` with
+  `PLATFORM_MAIL_HOST`, `PLATFORM_MAIL_USERNAME` and `PLATFORM_MAIL_PASSWORD`;
+  the TLS mode, port, sender and alert recipients have defaults. The installer
+  checks the login and configures the relay after Vault starts; see
+  [platform mail](guides/platform-mail.md).
 - **Repository import and deployment:** set `CONFIGURE_REPOSITORY_SYNC=true`
   and supply the [onboarding automation inputs](guides/repository-onboarding.md#automation-and-reruns).
   With `REPOSITORY_SOURCE=gitlab` and `GITLAB_PROJECTS`, reruns deploy
@@ -772,6 +777,7 @@ nonzero exit when a check fails. Run the same read-only report at any time:
 | Vault | a Vault pod is sealed or not running | Vault is not installed |
 | Longhorn | a volume is `faulted` | a volume is `degraded` |
 | TLS secrets | a certificate in `infra`, `apps` or `corp` has expired | it expires within 30 days |
+| Platform mail | | [platform mail](guides/platform-mail.md) is off or not seeded, so alerts reach only GitLab |
 | Public endpoints | an Ingress host answers 5xx or fails TLS | DNS does not resolve yet or the request times out |
 | API audit log | | auditing is configured but not yet active, or not configured |
 | Disk headroom | the K3s filesystem is 85 % used (kubelet image GC) | less than 30 GiB is free for maintenance |

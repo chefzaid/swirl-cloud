@@ -225,6 +225,43 @@ spec:
         property: realm_export_json
 
 ---
+# Platform mail relay (ADR 0029) for Keycloak and GitLab. configure-vault.sh
+# seeds infra/smtp with mail off; scripts/configure-platform-mail.py stores the
+# operator's relay. Alertmanager and Odoo read the same Vault path.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: platform-mail
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: platform-mail
+    creationPolicy: Owner
+  data:
+    - secretKey: PLATFORM_MAIL_ENABLED
+      remoteRef: {key: infra/smtp, property: enabled}
+    - secretKey: PLATFORM_MAIL_HOST
+      remoteRef: {key: infra/smtp, property: host}
+    - secretKey: PLATFORM_MAIL_PORT
+      remoteRef: {key: infra/smtp, property: port}
+    - secretKey: PLATFORM_MAIL_TLS
+      remoteRef: {key: infra/smtp, property: tls}
+    - secretKey: PLATFORM_MAIL_USERNAME
+      remoteRef: {key: infra/smtp, property: username}
+    - secretKey: PLATFORM_MAIL_PASSWORD
+      remoteRef: {key: infra/smtp, property: password}
+    - secretKey: PLATFORM_MAIL_FROM
+      remoteRef: {key: infra/smtp, property: from_address}
+    - secretKey: PLATFORM_MAIL_FROM_NAME
+      remoteRef: {key: infra/smtp, property: from_name}
+
+---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

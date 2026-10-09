@@ -29,6 +29,7 @@ flowchart LR
 | `secret/infra/<service>` | Administrator, database and OIDC client credentials for `postgres`, `mongodb`, `keycloak`, `grafana`, `elasticsearch`, `sonarqube`, `gitlab`, `dbgate`, `kafka-ui`, `portainer`, `monitoring`, `platform-ui`, `odoo` | Platform ExternalSecrets in `infra` and `corp` |
 | `secret/infra/gitlab` | `root_password`, runner, retention and `sonar_discovery_api_token` tokens | GitLab bootstrap, runner, retention and discovery jobs |
 | `secret/infra/application-redis` | Platform Redis administrator password | Platform only; never applications |
+| `secret/infra/smtp` | Platform mail relay: `enabled`, host, port, TLS mode, login, sender and alert recipients; seeded with mail off ([guide](guides/platform-mail.md)) | `platform-mail` Secrets in `infra` and `corp`, Alertmanager's rendered configuration |
 | `secret/apps/<app>/registry` | Verified `read_registry`/`read_repository` deploy token | Application pulls and Argo CD repository credentials |
 | `secret/apps/<app>/<env>/{database,redis,kafka}` | Environment-scoped data credentials | Environment secret store (`kubernetes-<env>` auth mount) |
 | `secret/apps/<website>/odoo` | Odoo URL, database, integration login and lead-intake API key, plus `inboundSecret` for emailed chat replies ([guide](guides/odoo-website.md)) | The website's ExternalSecret; the Cloudflare Email Worker |

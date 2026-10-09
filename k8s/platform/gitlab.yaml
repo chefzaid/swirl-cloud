@@ -280,6 +280,31 @@ spec:
               'X-Forwarded-Proto' => 'https',
               'X-Forwarded-Ssl' => 'on'
             }
+            # Platform mail relay (ADR 0029), read when GitLab starts. Invalid
+            # or missing settings leave mail off instead of stopping GitLab.
+            mail_port = Integer(ENV.fetch('PLATFORM_MAIL_PORT', ''), exception: false)
+            mail_from = ENV.fetch('PLATFORM_MAIL_FROM', '')
+            if ENV.fetch('PLATFORM_MAIL_ENABLED', 'false') == 'true' && mail_port &&
+               !ENV.fetch('PLATFORM_MAIL_HOST', '').empty? && mail_from.include?('@')
+              implicit_tls = ENV.fetch('PLATFORM_MAIL_TLS', 'ssl') == 'ssl'
+              gitlab_rails['smtp_enable'] = true
+              gitlab_rails['smtp_address'] = ENV.fetch('PLATFORM_MAIL_HOST')
+              gitlab_rails['smtp_port'] = mail_port
+              gitlab_rails['smtp_user_name'] = ENV.fetch('PLATFORM_MAIL_USERNAME', '')
+              gitlab_rails['smtp_password'] = ENV.fetch('PLATFORM_MAIL_PASSWORD', '')
+              gitlab_rails['smtp_domain'] = mail_from.split('@').last
+              gitlab_rails['smtp_authentication'] = 'login'
+              gitlab_rails['smtp_tls'] = implicit_tls
+              gitlab_rails['smtp_enable_starttls_auto'] = !implicit_tls
+              gitlab_rails['smtp_openssl_verify_mode'] = 'peer'
+              gitlab_rails['gitlab_email_from'] = mail_from
+              mail_name = ENV.fetch('PLATFORM_MAIL_FROM_NAME', '')
+              gitlab_rails['gitlab_email_display_name'] = mail_name unless mail_name.empty?
+            end
+        envFrom:
+        - secretRef:
+            name: platform-mail
+            optional: true
         ports:
         - name: http
           containerPort: 80

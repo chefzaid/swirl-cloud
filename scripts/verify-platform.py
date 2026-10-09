@@ -54,6 +54,7 @@ HINTS = {
     "Host firewall": lambda d: "sudo ufw status verbose; rerun scripts/configure-node-security.sh --apply (it verifies UFW)",
     "API audit log": lambda d: "./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)",
     "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
+    "Platform mail": lambda d: "set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md",
 }
 
 
@@ -253,6 +254,20 @@ def check_ingress(report):
                failing + warning)
 
 
+def check_mail(report):
+    """Read only the enabled flag and sender of the platform-mail Secret, never the password."""
+    flags = kubectl("get", "secret", "platform-mail", "-n", "infra", "--ignore-not-found", "-o",
+                    "jsonpath={.data.PLATFORM_MAIL_ENABLED} {.data.PLATFORM_MAIL_FROM}").split()
+    if not flags:
+        report.add(WARN, "Platform mail", "not set up: the platform-mail Secret is missing (Vault infra/smtp)")
+        return
+    enabled, sender = (base64.b64decode(value).decode() for value in (flags + [""])[:2])
+    if enabled == "true":
+        report.add(PASS, "Platform mail", f"on: alerts, password resets, GitLab and Odoo send as {sender}")
+    else:
+        report.add(WARN, "Platform mail", "off: alerts reach only GitLab and Keycloak cannot send password reset emails")
+
+
 def check_disk(report):
     usage = shutil.disk_usage("/var/lib/rancher" if Path("/var/lib/rancher").exists() else "/")
     free, used = usage.free / 1024 ** 3, usage.used / usage.total
@@ -319,7 +334,7 @@ def main():
     args = parser.parse_args()
     report = Report()
     checks = [check_nodes, check_pods, check_external_secrets, check_applications, check_vault, check_longhorn,
-              check_tls_secrets] + ([] if args.skip_endpoints else [check_ingress])
+              check_tls_secrets, check_mail] + ([] if args.skip_endpoints else [check_ingress])
     for check in checks:
         try:
             check(report)

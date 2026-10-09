@@ -384,6 +384,18 @@ Prometheus has not scraped a target for ten minutes, so its alerts cannot fire.
 Check the target pod or exporter (`kubectl get pods -A -o wide | grep <instance>`)
 and the network policies between `infra` and its namespace.
 
+### AlertNotificationsFailing
+
+Every notification Alertmanager tried through one integration (`email` or
+`webhook`) failed in the last hour, so alerts reach only the other receiver.
+Read the reason in `kubectl -n infra logs deploy/alertmanager | grep -i notify`.
+For `email`, a revoked key, a changed password or the provider's sending limit
+are the usual causes: rerun `scripts/configure-platform-mail.py` with the relay
+settings, which checks the login and sender before storing anything
+([platform mail](platform-mail.md#troubleshooting)). For `webhook`, check that
+GitLab is up and that its alert integration token matches Vault
+`infra/monitoring`.
+
 ## Service levels
 
 ### CIJobsQueueingLong

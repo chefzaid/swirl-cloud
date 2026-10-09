@@ -157,6 +157,15 @@ BACKUP_S3_REGION="${BACKUP_S3_REGION:-}"
 BACKUP_S3_ACCESS_KEY="${BACKUP_S3_ACCESS_KEY:-}"
 BACKUP_S3_SECRET_KEY="${BACKUP_S3_SECRET_KEY:-}"
 BACKUP_REPOSITORY_PASSWORD="${BACKUP_REPOSITORY_PASSWORD:-}"
+CONFIGURE_PLATFORM_MAIL="${CONFIGURE_PLATFORM_MAIL:-}"
+PLATFORM_MAIL_HOST="${PLATFORM_MAIL_HOST:-}"
+PLATFORM_MAIL_PORT="${PLATFORM_MAIL_PORT:-}"
+PLATFORM_MAIL_TLS="${PLATFORM_MAIL_TLS:-ssl}"
+PLATFORM_MAIL_USERNAME="${PLATFORM_MAIL_USERNAME:-}"
+PLATFORM_MAIL_PASSWORD="${PLATFORM_MAIL_PASSWORD:-}"
+PLATFORM_MAIL_FROM="${PLATFORM_MAIL_FROM:-}"
+PLATFORM_MAIL_FROM_NAME="${PLATFORM_MAIL_FROM_NAME:-}"
+PLATFORM_MAIL_ALERT_TO="${PLATFORM_MAIL_ALERT_TO:-}"
 PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 INTERNAL_DNS_ZONE="${INTERNAL_DNS_ZONE:-}"
 CONTROL_PLANE_NODE_NAME="${CONTROL_PLANE_NODE_NAME:-}"
@@ -414,6 +423,42 @@ EOF
     export BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD
 }
 
+# Platform mail relay (ADR 0029): alerts, password resets, GitLab and Odoo.
+# configure-platform-mail.py validates the values and checks the login.
+configure_platform_mail() {
+    if [[ -z "$CONFIGURE_PLATFORM_MAIL" ]]; then
+        if [[ "$AUTO_APPROVE" == "true" ]]; then
+            [[ -n "$PLATFORM_MAIL_HOST" ]] && CONFIGURE_PLATFORM_MAIL=true || CONFIGURE_PLATFORM_MAIL=false
+        elif ask_with_default "Send platform email (alerts, password resets) through an SMTP relay?" "N"; then
+            CONFIGURE_PLATFORM_MAIL=true
+        else
+            CONFIGURE_PLATFORM_MAIL=false
+        fi
+    fi
+    case "${CONFIGURE_PLATFORM_MAIL,,}" in
+        1|true|yes|y) CONFIGURE_PLATFORM_MAIL=true ;;
+        0|false|no|n) CONFIGURE_PLATFORM_MAIL=false ;;
+        *) error "CONFIGURE_PLATFORM_MAIL must be true or false." ;;
+    esac
+    if [[ "$CONFIGURE_PLATFORM_MAIL" != "true" ]]; then
+        info "Platform mail is left as it is; see docs/guides/platform-mail.md to set it up later."
+        return
+    fi
+    if [[ "$AUTO_APPROVE" != "true" ]]; then
+        installer_prompt_value PLATFORM_MAIL_HOST "SMTP relay host" "$PLATFORM_MAIL_HOST"
+        installer_prompt_value PLATFORM_MAIL_TLS "TLS mode: ssl (implicit TLS) or starttls" "$PLATFORM_MAIL_TLS"
+        installer_prompt_value PLATFORM_MAIL_PORT "SMTP relay port (blank: 465 for ssl, 587 for starttls)" "$PLATFORM_MAIL_PORT"
+        installer_prompt_value PLATFORM_MAIL_USERNAME "SMTP username" "$PLATFORM_MAIL_USERNAME"
+        [[ -n "$PLATFORM_MAIL_PASSWORD" ]] || installer_prompt_secret PLATFORM_MAIL_PASSWORD "SMTP password or API key (input hidden)"
+        installer_prompt_value PLATFORM_MAIL_FROM "Sender address (blank: cloud@$PLATFORM_DOMAIN)" "$PLATFORM_MAIL_FROM"
+        installer_prompt_value PLATFORM_MAIL_ALERT_TO "Alert recipients, comma-separated (blank: the administrator)" "$PLATFORM_MAIL_ALERT_TO"
+    fi
+    [[ -n "$PLATFORM_MAIL_HOST" && -n "$PLATFORM_MAIL_USERNAME" && -n "$PLATFORM_MAIL_PASSWORD" ]] || \
+        error "Platform mail needs PLATFORM_MAIL_HOST, PLATFORM_MAIL_USERNAME and PLATFORM_MAIL_PASSWORD."
+    [[ "$PLATFORM_MAIL_TLS" == ssl || "$PLATFORM_MAIL_TLS" == starttls ]] || error "PLATFORM_MAIL_TLS must be ssl or starttls."
+    export CONFIGURE_PLATFORM_MAIL
+}
+
 prepare_rendered_configuration() {
     [[ -x "$RENDER_CONFIG_SCRIPT" ]] || error "Configuration renderer is not executable: $RENDER_CONFIG_SCRIPT"
     RENDERED_CONFIG_DIR="$(mktemp -d /tmp/swirl-cloud-rendered.XXXXXX)"
@@ -639,12 +684,14 @@ cleanup_private_credentials() {
     BACKUP_S3_ACCESS_KEY=""
     BACKUP_S3_SECRET_KEY=""
     BACKUP_REPOSITORY_PASSWORD=""
+    PLATFORM_MAIL_PASSWORD=""
     unset TAILSCALE_API_TOKEN OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY 2>/dev/null || true
     unset KEYCLOAK_SSO_BOOTSTRAP_USERNAME KEYCLOAK_SSO_BOOTSTRAP_PASSWORD 2>/dev/null || true
     unset LOCAL_ADMIN_PASSWORD LOCAL_ADMIN_PASSWORD_ERROR 2>/dev/null || true
     unset GITHUB_ADMIN_TOKEN 2>/dev/null || true
     unset CLOUDFLARE_API_TOKEN 2>/dev/null || true
     unset BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD 2>/dev/null || true
+    unset PLATFORM_MAIL_PASSWORD 2>/dev/null || true
     if declare -F gitlab_revoke_ephemeral_admin_token >/dev/null 2>&1; then
         gitlab_revoke_ephemeral_admin_token
     fi
@@ -983,6 +1030,7 @@ fi
 installer_prompt_section "Recovery and public access" \
     "Configure off-node backups and, for internet-facing clusters, public DNS and TLS."
 configure_backup_destination
+configure_platform_mail
 if [[ "$SERVER_EXPOSURE" == "internet" && "$AUTO_APPROVE" != true ]]; then
     decide CONFIGURE_CLOUDFLARE "Configure Cloudflare public DNS and Origin TLS?" "Y"
 elif [[ "$SERVER_EXPOSURE" != internet ]]; then
@@ -1399,6 +1447,19 @@ EOF
         done
     fi
 
+    if [[ "$CONFIGURE_PLATFORM_MAIL" == "true" ]]; then
+        step "Configuring the platform mail relay..."
+        platform_mail_args=(--host "$PLATFORM_MAIL_HOST" --tls "$PLATFORM_MAIL_TLS" \
+            --username "$PLATFORM_MAIL_USERNAME" --password-stdin --restart-services)
+        [[ -z "$PLATFORM_MAIL_PORT" ]] || platform_mail_args+=(--port "$PLATFORM_MAIL_PORT")
+        [[ -z "$PLATFORM_MAIL_FROM" ]] || platform_mail_args+=(--from "$PLATFORM_MAIL_FROM")
+        [[ -z "$PLATFORM_MAIL_FROM_NAME" ]] || platform_mail_args+=(--from-name "$PLATFORM_MAIL_FROM_NAME")
+        [[ -z "$PLATFORM_MAIL_ALERT_TO" ]] || platform_mail_args+=(--alert-to "$PLATFORM_MAIL_ALERT_TO")
+        printf '%s\n' "$PLATFORM_MAIL_PASSWORD" | \
+            "$SCRIPT_DIR/scripts/configure-platform-mail.py" "${platform_mail_args[@]}"
+        PLATFORM_MAIL_PASSWORD=""
+    fi
+
     if [[ "$DEPLOY_DATA_STORES" == "true" ]]; then
         step "Deploying core data stores..."
         if [[ -n "${PLATFORM_HA_VALUES_FILE:-}" ]]; then
@@ -1473,7 +1534,7 @@ EOF
     if [[ "$DEPLOY_ODOO" == "true" ]]; then
         step "Deploying Odoo in the corp namespace..."
         kubectl apply -f "$K8S_DIR/corp/odoo.yaml"
-        kubectl wait --for=condition=Ready externalsecret/odoo-secret -n corp \
+        kubectl wait --for=condition=Ready externalsecret/odoo-secret externalsecret/platform-mail -n corp \
             --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
         kubectl wait --for=condition=ready pod -l app=odoo -n corp \
             --timeout="$PLATFORM_WAIT_TIMEOUT"

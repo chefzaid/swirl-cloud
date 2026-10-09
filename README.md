@@ -80,6 +80,7 @@ Specialized procedures:
 - [Incident response](./docs/guides/incident-response.md): incident record, evidence report and NIS2/GDPR deadlines
 - [Releases](./docs/guides/releases.md): versioning, changelog, SBOM and signed release bundles
 - [Odoo website integration](./docs/guides/odoo-website.md): contact inquiries as CRM leads and Live Chat with an out-of-hours chatbot
+- [Platform mail](./docs/guides/platform-mail.md): alerts by email, Keycloak password resets, GitLab notifications and Odoo mail through one SMTP relay
 
 ## Roadmap
 

@@ -14,6 +14,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from platform_mail import MailError, check, default_port
+
 PASS, WARN, FAIL, INFO = "PASS", "WARN", "FAIL", "INFO"
 GIB = 1024 ** 3
 
@@ -156,6 +158,19 @@ def tailscale(token, tailnet):
             (FAIL, "Tailscale token", f"not accepted (HTTP {status})")]
 
 
+def smtp_relay(values):
+    """Log in to the platform mail relay and offer the sender; nothing is sent."""
+    tls = values.get("PLATFORM_MAIL_TLS") or "ssl"
+    sender = values.get("PLATFORM_MAIL_FROM") or f"cloud@{values.get('PLATFORM_DOMAIN') or 'localhost'}"
+    relay = {"host": values.get("PLATFORM_MAIL_HOST", ""), "port": values.get("PLATFORM_MAIL_PORT") or default_port(tls),
+             "tls": tls, "username": values.get("PLATFORM_MAIL_USERNAME", ""), "sender": sender}
+    try:
+        check(relay, values["PLATFORM_MAIL_PASSWORD"])
+    except MailError as error:
+        return [(FAIL, "SMTP relay", str(error))]
+    return [(PASS, "SMTP relay", f"login and sender {sender} accepted")]
+
+
 def credential_checks(values):
     results = []
     if values.get("CLOUDFLARE_API_TOKEN"):
@@ -164,10 +179,12 @@ def credential_checks(values):
         results += github(values.get("GITHUB_USERNAME"), values["GITHUB_ADMIN_TOKEN"], values.get("GITHUB_REPOSITORIES"))
     if values.get("TAILSCALE_API_TOKEN"):
         results += tailscale(values["TAILSCALE_API_TOKEN"], values.get("TAILSCALE_TAILNET"))
+    if values.get("PLATFORM_MAIL_PASSWORD") and values.get("PLATFORM_MAIL_HOST"):
+        results += smtp_relay(values)
     for name, label in (("OVH_APPLICATION_SECRET", "OVHcloud API keys"), ("BACKUP_S3_SECRET_KEY", "S3 backup keys")):
         if values.get(name):
             results.append((INFO, label, "checked by the installer when it runs (requests must be signed)"))
-    return results or [(INFO, "Credentials", "no Cloudflare, GitHub or Tailscale credentials entered yet")]
+    return results or [(INFO, "Credentials", "no Cloudflare, GitHub, Tailscale or SMTP credentials entered yet")]
 
 
 def render(results):

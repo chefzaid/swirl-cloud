@@ -81,6 +81,7 @@ the pieces fit together.
 ## Observability And Quality
 
 - Prometheus, Alertmanager to GitLab alerts, Grafana dashboards for Kubernetes, delivery and security
+- platform email through one SMTP relay: critical and warning alerts by email, Keycloak password resets, GitLab notifications and Odoo's outgoing mail ([guide](guides/platform-mail.md))
 - every alert labelled with an owner and linked to its runbook section
 - availability probes for every Ingress host, a 99.5 % objective with multi-window burn-rate alerts and a Service Levels dashboard
 - hourly snapshots of availability, cost and compliance kept 13 months in Elasticsearch for the monthly Platform Report
@@ -145,7 +146,7 @@ the pieces fit together.
 - The live platform is one host; HA profiles and fencing have not been activated.
 - Offsite backups are optional and not configured on the live installation.
 - GitLab native backups are not automated.
-- Alerts are delivered only to GitLab; no SMTP relay exists.
+- Alerts reach GitLab and, once platform mail is configured, email; there is no chat or paging receiver, and no check that works while the cluster is down.
 - `infra` has no default-deny network policy or enforced Pod Security level.
 - Remote application clusters lack central telemetry.
 

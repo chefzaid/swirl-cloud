@@ -15,6 +15,7 @@ goes. Applications add their own external services in their repositories.
 | GitHub | GitHub, Inc., Microsoft (United States) | Optional import and two-way branch and tag mirroring of application repositories | Repository content and history of mirrored projects | Leave repository import unconfigured |
 | OVHcloud API | OVH SAS (France) | Optional vRack attachment of new servers | Server and vRack service names | Attach servers manually |
 | S3-compatible backup target | Chosen by the operator | Encrypted off-node recovery archives and volume backups | Archives encrypted before upload (restic) | Keep archives on another host you control |
+| SMTP relay | Chosen by the operator | Optional [platform mail](platform-mail.md): alerts, Keycloak account emails, GitLab notifications and Odoo mail | Message content and recipient addresses; the relay login | Leave platform mail off, or run your own mail server |
 
 ## Software and update sources
 

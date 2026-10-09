@@ -26,7 +26,7 @@ FR = {
     "Check this host": "Vérifier ce serveur",
     "Configure: express (few questions)": "Configurer : express (quelques questions)",
     "Configure: advanced (every input by section)": "Configurer : avancé (tous les paramètres par section)",
-    "Test credentials (Cloudflare, GitHub, Tailscale)": "Tester les identifiants (Cloudflare, GitHub, Tailscale)",
+    "Test credentials (Cloudflare, GitHub, Tailscale, SMTP)": "Tester les identifiants (Cloudflare, GitHub, Tailscale, SMTP)",
     "Review answers and problems": "Relire les réponses et les problèmes",
     "Save the input file": "Enregistrer le fichier de paramètres",
     "Plan: installed, missing or drifted stages and the next run":
@@ -67,7 +67,7 @@ FR = {
     "Guides": "Guides",
     # Sections
     "Identity": "Identité", "Repositories": "Dépôts", "Exposure and scope": "Exposition et périmètre",
-    "Nodes": "Nœuds", "Components": "Composants", "Backups": "Sauvegardes", "Public access": "Accès public",
+    "Nodes": "Nœuds", "Components": "Composants", "Backups": "Sauvegardes", "Email": "E-mail", "Public access": "Accès public",
     "Administrators": "Administrateurs",
     # Inputs
     "Company or organization display name": "Nom affiché de l'entreprise ou de l'organisation",
@@ -146,6 +146,24 @@ FR = {
     "Recovery-archive encryption password (16+ characters)":
         "Mot de passe de chiffrement des archives de reprise (16 caractères ou plus)",
     "Keep a copy outside this cluster; restores need it.": "Gardez-en une copie hors de ce cluster ; les restaurations en ont besoin.",
+    "Send platform email (alerts, password resets) through an SMTP relay?":
+        "Envoyer les e-mails de la plateforme (alertes, réinitialisations de mot de passe) par un relais SMTP ?",
+    "Alerts, Keycloak password resets, GitLab and Odoo use it; see docs/guides/platform-mail.md.":
+        "Les alertes, les réinitialisations de mot de passe Keycloak, GitLab et Odoo l'utilisent ; voir docs/guides/platform-mail.md.",
+    "SMTP relay host": "Serveur du relais SMTP", "For example smtp.example.com.": "Par exemple smtp.example.com.",
+    "SMTP TLS mode": "Mode TLS SMTP",
+    "ssl is implicit TLS (usually port 465); starttls usually uses port 587.":
+        "ssl est le TLS implicite (en général port 465) ; starttls utilise en général le port 587.",
+    "SMTP relay port": "Port du relais SMTP",
+    "Defaults to 465 for ssl and 587 for starttls.": "Par défaut 465 pour ssl et 587 pour starttls.",
+    "SMTP username": "Identifiant SMTP", "SMTP password or API key": "Mot de passe SMTP ou clé d'API",
+    "Sender address": "Adresse d'expéditeur",
+    "Defaults to cloud@<public domain>; the relay must accept it as a sender.":
+        "Par défaut cloud@<domaine public> ; le relais doit l'accepter comme expéditeur.",
+    "Sender display name": "Nom d'expéditeur affiché", "Defaults to '<organization> Cloud'.": "Par défaut « <organisation> Cloud ».",
+    "Alert recipients (comma-separated)": "Destinataires des alertes (séparés par des virgules)",
+    "Critical and warning alerts are emailed here; defaults to the platform administrator's email.":
+        "Les alertes critiques et d'avertissement y sont envoyées ; par défaut l'e-mail de l'administrateur de la plateforme.",
     "Configure Cloudflare public DNS, TLS and Access?": "Configurer le DNS public, le TLS et Access de Cloudflare ?",
     "Defaults to true for internet-exposed servers.": "Par défaut oui pour les serveurs exposés à Internet.",
     "Cloudflare User API Token (cfut_...)": "Jeton d'API utilisateur Cloudflare (cfut_...)",
@@ -257,7 +275,7 @@ FR = {
     "OVHcloud API keys": "Clés d'API OVHcloud", "S3 backup keys": "Clés S3 de sauvegarde",
     "downloads are reachable": "les téléchargements sont joignables",
     "80, 443 and 6443 are free": "80, 443 et 6443 sont libres",
-    "no Cloudflare, GitHub or Tailscale credentials entered yet": "aucun identifiant Cloudflare, GitHub ou Tailscale saisi",
+    "no Cloudflare, GitHub, Tailscale or SMTP credentials entered yet": "aucun identifiant Cloudflare, GitHub, Tailscale ou SMTP saisi",
     "can list tailnet devices": "peut lister les appareils du tailnet",
     "accessible with admin rights": "accessible avec les droits d'administration",
 }

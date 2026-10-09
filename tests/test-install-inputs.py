@@ -138,8 +138,9 @@ class InstallInputs(unittest.TestCase):
         return install_inputs.read(output), [call["args"] for call in calls], [call["textbox"] for call in calls]
 
     def express_answers(self, token, password_answers):
+        # No repository import, internet exposure, one server, no off-site backups, no platform mail.
         return ([[0, "express"], [0, "Example Co"], [0, "example.com"], [0, VALID["GITOPS_REPOSITORY_URL"]], [1, ""],
-                 [0, "internet"], [1, ""], [1, ""], [0, "enter"], [0, token], [0, token], [0, "admin@example.com"],
+                 [0, "internet"], [1, ""], [1, ""], [1, ""], [0, "enter"], [0, token], [0, token], [0, "admin@example.com"],
                  [0, "platform-admin"]] + password_answers + [[0, "save"], [1, ""]])
 
     def test_tui_never_passes_secrets_as_process_arguments(self):

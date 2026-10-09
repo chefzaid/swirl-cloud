@@ -54,10 +54,10 @@ bash tests/test-k3s-backups.sh
 bash tests/test-k3s-api-endpoint.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
-             test-odoo-website.py; do
+             test-odoo-website.py test-platform-mail.py; do
     python3 "tests/$suite"
 done
-printf '[PASS] Twelve deployment and recovery safety suites\n'
+printf '[PASS] Thirteen deployment and recovery safety suites\n'
 
 if [[ "$LIVE" == true ]]; then
     command -v kubectl >/dev/null || { printf 'kubectl is required for --live.\n' >&2; exit 1; }

@@ -175,6 +175,34 @@ data:
       "defaultLocale":"en"
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
+    # The realm's mail server follows the platform mail relay (ADR 0029), so
+    # password reset and verification emails work while platform mail is on.
+    if [ "${PLATFORM_MAIL_ENABLED:-false}" = true ]; then
+      if [ "${PLATFORM_MAIL_TLS:-ssl}" = ssl ]; then
+        mail_ssl=true
+        mail_starttls=false
+      else
+        mail_ssl=false
+        mail_starttls=true
+      fi
+      mail_body='{"smtpServer":{
+        "host":"'"$(printf '%s' "$PLATFORM_MAIL_HOST" | json_escape)"'",
+        "port":"'"$(printf '%s' "$PLATFORM_MAIL_PORT" | json_escape)"'",
+        "from":"'"$(printf '%s' "$PLATFORM_MAIL_FROM" | json_escape)"'",
+        "fromDisplayName":"'"$(printf '%s' "$PLATFORM_MAIL_FROM_NAME" | json_escape)"'",
+        "ssl":"'"$mail_ssl"'",
+        "starttls":"'"$mail_starttls"'",
+        "auth":"true",
+        "authType":"basic",
+        "user":"'"$(printf '%s' "$PLATFORM_MAIL_USERNAME" | json_escape)"'",
+        "password":"'"$(printf '%s' "$PLATFORM_MAIL_PASSWORD" | json_escape)"'"
+      }}'
+      expect_success "$(request PUT "realms/$realm" "$mail_body")"
+      unset mail_body
+      echo "Keycloak realm '$realm' sends email through the platform mail relay."
+    else
+      expect_success "$(request PUT "realms/$realm" '{"smtpServer":{}}')"
+    fi
     # Sign-in and account pages follow the browser language (English or
     # French), with a language selector; the administration console too.
     expect_success "$(request PUT "realms/master" '{"internationalizationEnabled":true,"supportedLocales":["en","fr"],"defaultLocale":"en"}')"
@@ -649,6 +677,9 @@ spec:
                 name: keycloak-admin-secret
             - secretRef:
                 name: keycloak-sso-credentials
+            - secretRef:
+                name: platform-mail
+                optional: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -39,8 +39,8 @@ use the access controls described in [security and identity](security.md).
 ## Cluster status
 
 `./install.sh --status` prints a read-only PASS/WARN/FAIL report of nodes,
-workloads, ExternalSecrets, Argo CD, Vault, Longhorn, TLS certificates, public
-endpoints and the nightly backup ([checks](deployment.md#verify-the-result)),
+workloads, ExternalSecrets, Argo CD, Vault, Longhorn, TLS certificates, platform
+mail, public endpoints and the nightly backup ([checks](deployment.md#verify-the-result)),
 with a `Next:` command for each problem.
 
 `./install.sh --support-bundle` writes a private archive (mode `600`) under
@@ -120,8 +120,9 @@ failures, plus platform state: node NotReady, Vault sealed or failing audit
 writes, degraded or faulted Longhorn volumes, unavailable datastores, unhealthy or
 out-of-sync Argo CD applications and TLS certificates expiring within 14 days
 (critical within 3). Alertmanager sends firing and resolved events to the infrastructure
-project's **Monitor > Alerts** page in GitLab. GitLab and runner metrics appear
-in Grafana's **GitLab Delivery** dashboard.
+project's **Monitor > Alerts** page in GitLab and, once [platform mail](guides/platform-mail.md)
+is configured, emails critical and warning alerts to the alert recipients.
+GitLab and runner metrics appear in Grafana's **GitLab Delivery** dashboard.
 
 Prometheus also scrapes the platform releases by chart label and named port:
 jobs `traefik`, `vault`, `argocd` and `longhorn`. It scrapes the datastores through

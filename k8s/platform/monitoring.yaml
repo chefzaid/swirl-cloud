@@ -1259,6 +1259,24 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#prometheustargetdown
               summary: Prometheus target is down
               description: '{{ $labels.job }} target {{ $labels.instance }} has been unreachable for ten minutes.'
+          - alert: AlertNotificationsFailing
+            # Failures carry a reason label that the totals lack: aggregate each
+            # side by integration before comparing them.
+            expr: |
+              sum by (integration) (increase(alertmanager_notifications_failed_total[1h])) > 0
+              and
+              (
+                sum by (integration) (increase(alertmanager_notifications_total[1h]))
+                - sum by (integration) (increase(alertmanager_notifications_failed_total[1h]))
+              ) < 1
+            for: 5m
+            labels:
+              severity: critical
+              owner: platform
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#alertnotificationsfailing
+              summary: Alert notifications are not being delivered
+              description: 'Every {{ $labels.integration }} notification from Alertmanager failed in the last hour; alerts may reach only the other receiver.'
       # Helm replaces the next line with per-check rules generated from
       # k8s/files/compliance-controls.yaml (status 2 passing, 1 no evidence, 0 failing).
       # swirl-cloud:compliance-evidence-rules
@@ -1496,30 +1514,74 @@ data:
               or sum by (currency) (swirl_cloud_cost_node_monthly)
 
 ---
-apiVersion: v1
-kind: ConfigMap
+# Alertmanager's configuration, rendered by External Secrets from the platform
+# mail relay in Vault infra/smtp (ADR 0029). Every alert reaches GitLab; while
+# platform mail is on, critical and warning alerts are also emailed, grouped by
+# alert name and repeated daily. With mail off, the "email" receiver has no
+# target. scripts/configure-platform-mail.py restarts Alertmanager after a change.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
   name: alertmanager-config
   namespace: infra
-data:
-  alertmanager.yml: |
-    global:
-      resolve_timeout: 5m
-    route:
-      receiver: gitlab
-      group_by: [alertname, namespace]
-      group_wait: 30s
-      group_interval: 5m
-      repeat_interval: 4h
-    receivers:
-      - name: gitlab
-        webhook_configs:
-          - send_resolved: true
-            url: http://gitlab.__INTERNAL_DNS_ZONE__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/alerts/notify/cluster-prometheus/clusterprometheus.json
-            http_config:
-              authorization:
-                type: Bearer
-                credentials_file: /etc/alertmanager/secrets/token
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: alertmanager-config
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        alertmanager.yml: |
+          global:
+            resolve_timeout: 5m
+          {{- if eq .enabled "true" }}
+            smtp_smarthost: {{ printf "%s:%s" .host .port | quote }}
+            smtp_from: {{ if .from_name }}{{ printf "%s <%s>" (.from_name | quote) .from_address | quote }}{{ else }}{{ .from_address | quote }}{{ end }}
+            smtp_hello: {{ splitList "@" .from_address | last | quote }}
+            smtp_auth_username: {{ .username | quote }}
+            smtp_auth_password: {{ .password | quote }}
+            smtp_require_tls: true
+            smtp_force_implicit_tls: {{ eq .tls "ssl" }}
+          {{- end }}
+          route:
+            receiver: gitlab
+            group_by: [alertname, namespace]
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 4h
+            routes:
+              - receiver: gitlab
+                continue: true
+              - receiver: email
+                matchers: ['severity=~"critical|warning"']
+                group_by: [alertname]
+                group_wait: 1m
+                group_interval: 15m
+                repeat_interval: 24h
+          receivers:
+            - name: gitlab
+              webhook_configs:
+                - send_resolved: true
+                  url: http://gitlab.__INTERNAL_DNS_ZONE__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/alerts/notify/cluster-prometheus/clusterprometheus.json
+                  http_config:
+                    authorization:
+                      type: Bearer
+                      credentials_file: /etc/alertmanager/secrets/token
+            - name: email
+          {{- if and (eq .enabled "true") .alert_to }}
+              email_configs:
+                - to: {{ .alert_to | quote }}
+                  send_resolved: true
+          {{- end }}
+  dataFrom:
+    - extract:
+        key: infra/smtp
 
 ---
 apiVersion: v1
@@ -1550,6 +1612,11 @@ spec:
     metadata:
       labels:
         app: alertmanager
+      annotations:
+        # Delivery counters feed the AlertNotificationsFailing alert.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9093"
+        prometheus.io/path: /metrics
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -1562,7 +1629,7 @@ spec:
         - name: alertmanager
           image: quay.io/prometheus/alertmanager:v0.34.1@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
           args:
-            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --config.file=/etc/alertmanager/config/alertmanager.yml
             - --storage.path=/alertmanager
           ports:
             - name: http
@@ -1592,8 +1659,7 @@ spec:
               memory: 128Mi
           volumeMounts:
             - name: config
-              mountPath: /etc/alertmanager/alertmanager.yml
-              subPath: alertmanager.yml
+              mountPath: /etc/alertmanager/config
               readOnly: true
             - name: credentials
               mountPath: /etc/alertmanager/secrets
@@ -1602,8 +1668,11 @@ spec:
               mountPath: /alertmanager
       volumes:
         - name: config
-          configMap:
-            name: alertmanager-config
+          secret:
+            secretName: alertmanager-config
+            items:
+              - key: alertmanager.yml
+                path: alertmanager.yml
         - name: credentials
           secret:
             secretName: monitoring-alert-credentials
