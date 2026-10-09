@@ -86,19 +86,19 @@ through one receiver failed for an hour; it still reaches the other receiver.
 ## Verify
 
 - **Relay:** `--test-to` sends a message through the stored settings.
-- **Alerts:** post a test alert, then resolve it a few minutes later:
+- **Alerts:** post a test alert that ends after five minutes; the email arrives
+  about a minute later and the resolution message within 15 minutes:
 
   ```bash
   kubectl -n infra exec deploy/alertmanager -- amtool alert add PlatformMailTest \
-    severity=warning --annotation=summary='Platform mail test' \
-    --alertmanager.url=http://127.0.0.1:9093
-  kubectl -n infra exec deploy/alertmanager -- amtool alert add PlatformMailTest \
-    severity=warning --end="$(date -u -d '+1 minute' +%Y-%m-%dT%H:%M:%SZ)" \
+    severity=warning --annotation='summary="Platform mail test"' \
+    --end="$(date -u -d '+5 minutes' +%Y-%m-%dT%H:%M:%SZ)" \
     --alertmanager.url=http://127.0.0.1:9093
   ```
 
 - **Keycloak:** choose **Forgot password?** on the sign-in page, or **Test
-  connection** under **Realm settings → Email** in the administration console.
+  connection** under **Realm settings → Email** in the administration console
+  (it mails the signed-in administrator, who needs an email address).
 - **GitLab:**
 
   ```bash
