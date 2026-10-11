@@ -205,10 +205,10 @@ class PlatformMail(unittest.TestCase):
         receivers = {receiver["name"]: receiver for receiver in enabled["receivers"]}
         self.assertEqual("ops@example.com,lead@example.com", receivers["email"]["email_configs"][0]["to"])
         self.assertTrue(receivers["gitlab"]["webhook_configs"])
-        routes = enabled["route"]["routes"]
-        self.assertEqual({"receiver": "gitlab", "continue": True}, routes[0])
-        self.assertEqual("email", routes[1]["receiver"])
-        self.assertEqual(['severity=~"critical|warning"'], routes[1]["matchers"])
+        # Notifications are paused until the owner approves restoring them (TODO.md §14).
+        self.assertEqual({"name": "paused"}, receivers["paused"])
+        self.assertEqual("paused", enabled["route"]["receiver"])
+        self.assertNotIn("routes", enabled["route"])
         self.assertFalse([key for key in disabled["global"] if key.startswith("smtp_")])
         receivers = {receiver["name"]: receiver for receiver in disabled["receivers"]}
         self.assertEqual({"name": "email"}, receivers["email"])

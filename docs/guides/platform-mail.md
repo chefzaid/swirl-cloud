@@ -7,7 +7,7 @@ off until you configure it; the decision is recorded in
 
 | Service | Sends |
 | --- | --- |
-| Alertmanager | Critical and warning alerts, and their resolution, to the alert recipients. GitLab's alert list keeps receiving every alert. |
+| Alertmanager | Critical and warning alerts, and their resolution, to the alert recipients. GitLab's alert list keeps receiving every alert. Paused since 2026-10-11 (see [Alert email](#alert-email)). |
 | Keycloak | Password reset and email verification messages for the organization realm. |
 | GitLab | Notifications such as failed pipelines, merge requests and invitations. |
 | Odoo | Quotes, invoices and other messages through its "Platform mail" outgoing server. |
@@ -75,6 +75,12 @@ then:
 interrupted run.
 
 ## Alert email
+
+Alert notifications are paused since 2026-10-11: Alertmanager routes every alert
+to its `paused` receiver, which sends nothing, so neither GitLab nor email
+receives alerts. The `gitlab` and `email` receivers stay configured; restoring
+their routes waits for the owner's approval ([TODO](../../TODO.md)). Once
+restored, the delivery below applies.
 
 Every alert reaches GitLab's **Monitor → Alerts** as before. While platform mail
 is on, alerts with severity `critical` or `warning` are also emailed: one

@@ -1515,10 +1515,12 @@ data:
 
 ---
 # Alertmanager's configuration, rendered by External Secrets from the platform
-# mail relay in Vault infra/smtp (ADR 0029). Every alert reaches GitLab; while
-# platform mail is on, critical and warning alerts are also emailed, grouped by
-# alert name and repeated daily. With mail off, the "email" receiver has no
-# target. scripts/configure-platform-mail.py restarts Alertmanager after a change.
+# mail relay in Vault infra/smtp (ADR 0029). Notifications are paused since
+# 2026-10-11: every alert goes to the "paused" receiver, which sends nothing,
+# and stays visible in Alertmanager, Prometheus and Grafana. The GitLab and
+# email receivers stay defined; restoring their routes needs the owner's
+# approval (TODO.md §14). With mail off, the "email" receiver has no target.
+# scripts/configure-platform-mail.py restarts Alertmanager after a change.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -1550,21 +1552,13 @@ spec:
             smtp_force_implicit_tls: {{ eq .tls "ssl" }}
           {{- end }}
           route:
-            receiver: gitlab
+            receiver: paused
             group_by: [alertname, namespace]
             group_wait: 30s
             group_interval: 5m
             repeat_interval: 4h
-            routes:
-              - receiver: gitlab
-                continue: true
-              - receiver: email
-                matchers: ['severity=~"critical|warning"']
-                group_by: [alertname]
-                group_wait: 1m
-                group_interval: 15m
-                repeat_interval: 24h
           receivers:
+            - name: paused
             - name: gitlab
               webhook_configs:
                 - send_resolved: true

@@ -119,7 +119,10 @@ Prometheus alerts cover capacity, workload health, jobs, storage and scrape
 failures, plus platform state: node NotReady, Vault sealed or failing audit
 writes, degraded or faulted Longhorn volumes, unavailable datastores, unhealthy or
 out-of-sync Argo CD applications and TLS certificates expiring within 14 days
-(critical within 3). Alertmanager sends firing and resolved events to the infrastructure
+(critical within 3). Alert notifications are paused since 2026-10-11: Alertmanager
+routes every alert to a receiver that sends nothing, so alerts are visible only in
+Alertmanager, Prometheus and Grafana. When restored with the owner's approval
+([TODO](../TODO.md)), it sends firing and resolved events to the infrastructure
 project's **Monitor > Alerts** page in GitLab and, once [platform mail](guides/platform-mail.md)
 is configured, emails critical and warning alerts to the alert recipients.
 GitLab and runner metrics appear in Grafana's **GitLab Delivery** dashboard.
