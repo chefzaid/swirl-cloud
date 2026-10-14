@@ -57,7 +57,26 @@ Changes under `k8s/` deploy to the live cluster as soon as they reach `main`
 (the root Argo CD Application syncs automatically), so agents prepare each such
 change and ask the owner before pushing it.
 
-None open.
+- [ ] Which off-site S3-compatible target should hold the restic archives and Longhorn volume backups? Options: (a) OVHcloud Object Storage in another region; (b) Scaleway or Backblaze B2 (EU); (c) another provider. Please also give the monthly budget, and whether versioning or object lock is wanted (it must stay compatible with restic prune). Supply the endpoint, bucket and key through the setup hub (Configure, then Backups). *(task: §16 › Off-site backups, P0; asked by: Infra Agent)*
+  - Answer:
+- [ ] Export the recovery kit off the host: run `scripts/export-recovery-kit.sh --separate-archives` (or `./install.sh`, then Maintenance) on swirlit-node-01, store the kit and its passphrase in two separate off-host places, delete the local copy, check it with `--verify FILE`, and give the date here. *(task: §9 and §16 › Vault recovery keys, P0; asked by: Infra Agent)*
+  - Answer:
+- [ ] How should Vault unseal and the root token work from now on? Options: (a) keep the host-local unseal key for unattended reboots, revoke the standing root token and generate a short-lived one with `vault operator generate-root` when needed; (b) auto-unseal through a KMS or Transit outside this cluster (new dependency and cost); (c) manual unseal after every reboot with no key on the host; (d) keep today's model and record the accepted risk. *(task: §16 › Separate recovery keys, P0; asked by: Infra Agent)*
+  - Answer:
+- [ ] Should the nightly backup also run GitLab's native `gitlab-backup create`? Options: (a) database and repositories only (skipping Registry, artifacts, builds, packages and LFS) into the nightly archive after a free-space check against the 30 GiB floor; (b) wait for the off-site target above and archive storage off the root filesystem (§26); (c) a full backup including the Registry, uploaded to S3 by GitLab once a bucket exists. Meanwhile `/etc/gitlab` (secrets and host keys) can join the nightly archive without a decision. *(task: §12 › GitLab recovery coverage, P0; asked by: Infra Agent)*
+  - Answer:
+- [ ] Which SSH policy should internet-facing control planes use? Options: (a) key-only on public port 22, applied only after the script proves every allowed account has keys and the current session used one; (b) key-only and port 22 on `tailscale0` only, with the provider console as break-glass; (c) keep password login and accept the exposure behind Fail2ban and CrowdSec. Please also confirm that a console login to swirlit-node-01 works, since (a) and (b) depend on it. *(task: §4 › Key-only SSH, P1; asked by: Infra Agent)*
+  - Answer:
+- [ ] Which maintenance window should disruptive work use (host reboots, K3s, Vault or Traefik restarts, and `k8s/` pushes that restart services)? Options: (a) a weekly slot, for example Sunday 05:00–07:00 UTC; (b) a monthly slot; (c) ad hoc, with your approval each time. *(task: §4 › Maintenance windows, P1; asked by: Infra Agent)*
+  - Answer:
+- [ ] How should Trivy's node-collector keep working once `infra` enforces Pod Security `baseline`? Options: (a) exempt its service account in a K3s PodSecurity admission configuration under `config/host` (a K3s restart of about 15 seconds in a window); (b) turn off infra assessment (no restart, but node CIS checks and part of the compliance evidence are lost); (c) move trivy-operator to its own privileged namespace, as ADR 0025 did for host agents (no restart, larger change). The `enforce: baseline` label then follows as a separately approved push. *(task: §6 › PSA on infra, P1; asked by: Infra Agent)*
+  - Answer:
+- [ ] Which alert notifications should come back, and how often? Options: (a) critical alerts only, by email, repeated every 24 hours; (b) GitLab alerts for every alert plus email for critical only; (c) the previous setup after the noisy alerts are retuned (please name the ones that were too frequent); (d) keep them paused. *(task: §14 › Reactivate notifications, P1; asked by: Infra Agent)*
+  - Answer:
+- [ ] What recovery point do the PostgreSQL databases (Keycloak, SonarQube, Odoo, applications) need? Options: (a) accept up to 24 hours and record it; (b) more frequent `pg_dumpall` runs, for example every 6 hours (host script only, more root-filesystem use); (c) continuous WAL archiving with point-in-time recovery to the off-site target (needs the target, a live change and a drill). *(task: §10 › PostgreSQL RPO, P1; asked by: Infra Agent)*
+  - Answer:
+- [ ] For the expansion: may the two EPYC servers be ordered now (provider, offer, location, monthly budget, console access)? Which node transport: (a) all Tailscale, no code change but benchmarked first; (b) vRack between new servers and Tailscale to the current one; (c) move the current server to a vRack offer? And where should public ingress go: (a) stay on the current node; (b) move to a new server with a DNS cutover; (c) Cloudflare Tunnel once three nodes run connectors? *(task: §25 › Expansion, P1; asked by: Infra Agent)*
+  - Answer:
 
 ---
 
