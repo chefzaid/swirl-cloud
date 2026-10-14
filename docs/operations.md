@@ -406,12 +406,20 @@ before removing old data. Increasing PVC capacity is separate from cleanup.
 [configure-k3s-backups.sh](../scripts/configure-k3s-backups.sh) installs the
 backup timer and optional off-node storage. The root-only archives under
 `/var/backups/swirl-cloud/k3s` include a SQLite backup or embedded-etcd snapshot,
-server credentials, K3s configuration, and available Vault/shared-database
-backups. [backup-k3s.sh](../scripts/backup-k3s.sh) defines the contents and
-retention; inspect the archive and service result when verifying coverage.
+server credentials, K3s configuration, available Vault/shared-database backups
+and GitLab's configuration and secrets. [backup-k3s.sh](../scripts/backup-k3s.sh) defines the
+contents and retention; inspect the archive and service result when verifying
+coverage. The timer runs the copy installed as `/usr/local/sbin/swirl-cloud-k3s-backup`:
+a changed script takes effect when `./scripts/configure-k3s-backups.sh` is rerun
+on the control plane, which also starts a backup (the installer and
+[Ansible reconciliation](deployment.md#platform-reconciliation) run it too).
+**Maintenance → Run the recovery backup now** in `./install.sh` runs the installed
+copy without updating it.
 
-GitLab needs its own native data backup plus matching configuration and secrets.
-For a Registry using the metadata database, verify that the backup also contains
+Each archive's `gitlab/` holds GitLab's `/etc/gitlab` (`gitlab-secrets.json`, SSH
+host keys, `gitlab.rb`) and the version and image it ran. GitLab data still needs
+its own native backup, restored into that same version. For a Registry using the
+metadata database, verify that the backup also contains
 `db/registry_database.sql.gz`, or pair it with a verified PostgreSQL dump from the
 same write/GC freeze as the Registry files. `registry.tar.gz` alone does not cover
 that database. Check the installed [Registry backup configuration](https://docs.gitlab.com/omnibus/settings/backups/)
@@ -437,7 +445,8 @@ have not been measured yet; they need the restore drill in TODO §16.
 | PostgreSQL: Keycloak, SonarQube, Odoo and application databases | `pg_dumpall` in the nightly archive | Up to 24 h | No point-in-time recovery (TODO §10). |
 | MongoDB | `mongodump` in the nightly archive | Up to 24 h | |
 | Odoo filestore | `tar` in the nightly archive, taken after `pg_dumpall` | Up to 24 h, consistent with its database dump | |
-| GitLab repositories, issues, merge requests, CI artifacts, LFS, packages | `gitlab-data` Longhorn volume only, when off-node volume backups are active | None until then | Native GitLab backup is missing (TODO §12). Repositories mirrored to GitHub survive there. |
+| GitLab configuration and secrets (`/etc/gitlab`), version and image | `tar` of the running container in the nightly archive (`gitlab/`) | Up to 24 h | Restore before GitLab starts against restored data, with the same image. Added 2026-10-14; active once `./scripts/configure-k3s-backups.sh` is rerun. |
+| GitLab repositories, issues, merge requests, CI artifacts, LFS, packages | `gitlab-data` Longhorn volume only, when off-node volume backups are active | None until then | Native GitLab backup of repositories and database is missing; its scope waits on an owner decision ([Needs Input](../TODO.md#needs-input), TODO §12). Repositories mirrored to GitHub survive there. |
 | Container registry | Same `gitlab-data` volume | None until then | Images can be rebuilt from their pipelines; pinned upstream images are re-pulled. |
 | Grafana dashboards | Provisioned from Git; user-made dashboards on the `grafana-data` volume | Git: current; volume: none until volume backups | |
 | SonarQube analysis | Database in `pg_dumpall`; search index on its volume | Up to 24 h | Rebuildable: the index regenerates; rerun analyses for history. |
@@ -503,6 +512,8 @@ Vault, K3s or backup credentials change.
    and unseal it (`sudo systemctl start swirl-cloud-vault-unseal.service`).
 6. Restore PostgreSQL, MongoDB and the Odoo filestore from the archive's
    `application-data/`, then volumes from Longhorn backups where enabled.
+   Restore GitLab's `/etc/gitlab` from `gitlab/etc-gitlab.tar` before GitLab
+   starts against restored data, on the image in `gitlab/version.txt`.
 7. Run `./install.sh --status` and fix every `FAIL`, then re-export a recovery
    kit from the rebuilt host.
 
@@ -560,7 +571,7 @@ the selected releases, compatibility exceptions and recovery evidence.
 | --- | --- |
 | PostgreSQL and its helpers | Keep the same upstream Bookworm release. Restore globals and databases in isolation; check ownership, libc/ICU collation versions, locales and extensions. A matching major version alone is insufficient. |
 | Vault | Preserve its UID, Raft data and audit mounts. Follow [Vault upgrade and recovery](security.md#upgrade-and-recovery) for snapshots, unseal material and rollout. |
-| GitLab | Retain the matching GitLab version, configuration and secrets with its [native backup](#backups-and-recovery). |
+| GitLab | Retain the matching GitLab version, configuration and secrets with its [native backup](#backups-and-recovery); the nightly archive's `gitlab/` records all three. |
 | Keycloak | Preserve UID 1000 and writable augmentation paths. |
 | SonarQube | Preserve UID 1000/GID 0 and group access to bundled files. |
 | PostgreSQL / MongoDB | Preserve UID 999 and check existing volume ownership. Never recursively change ownership on active database volumes. |

@@ -51,7 +51,7 @@ staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
 install -d -m 0700 "$staging_dir/k3s-db" "$staging_dir/k3s-server" \
   "$staging_dir/k3s-config" "$staging_dir/vault" "$staging_dir/application-data" \
-  "$staging_dir/kubernetes"
+  "$staging_dir/kubernetes" "$staging_dir/gitlab"
 
 if [[ "$DATASTORE" == "etcd" ]]; then
   # Request a consistent snapshot from the local server into the protected
@@ -190,6 +190,39 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
     kubectl exec -n corp deployment/odoo -c odoo -- tar -C /var/lib/odoo -czf - filestore \
       > "$staging_dir/application-data/odoo-filestore.tar.gz"
   fi
+
+  # A GitLab data backup restores only into the same GitLab version and with
+  # this installation's /etc/gitlab (gitlab-secrets.json, SSH host keys,
+  # gitlab.rb) from the gitlab-config volume. Its native backup is separate.
+  if kubectl get deployment gitlab -n infra >/dev/null 2>&1; then
+    # Recreate rollouts leave one live pod; configuration, version and image
+    # all come from that pod.
+    gitlab_pod="$(kubectl get pods -n infra -l app=gitlab -o json | jq -c '[.items[] |
+      select(.status.phase == "Running" and .metadata.deletionTimestamp == null)] |
+      if length == 1 then .[0] else empty end')"
+    [[ -n "$gitlab_pod" ]] || { echo "GitLab has no single running pod to copy /etc/gitlab from." >&2; exit 1; }
+    gitlab_pod_name="$(jq -r '.metadata.name' <<< "$gitlab_pod")"
+    gitlab_config="$staging_dir/gitlab/etc-gitlab.tar"
+    kubectl exec -n infra "$gitlab_pod_name" -c gitlab -- tar -C /etc/gitlab -cf - . > "$gitlab_config"
+    # tar lists a stream cut between members without error; only a complete
+    # archive ends in zero blocks.
+    if [[ -n "$(tail -c 1024 "$gitlab_config" | tr -d '\0')" ]] ||
+      ! tar -tf "$gitlab_config" ./gitlab-secrets.json ./gitlab.rb ./ssh_host_ed25519_key >/dev/null ||
+      ! tar -xOf "$gitlab_config" ./gitlab-secrets.json | jq -e .gitlab_rails >/dev/null; then
+      echo "The /etc/gitlab copy is incomplete or lacks gitlab-secrets.json, gitlab.rb or its SSH host key." >&2
+      exit 1
+    fi
+    gitlab_version="$(kubectl exec -n infra "$gitlab_pod_name" -c gitlab -- cat /opt/gitlab/embedded/service/gitlab-rails/VERSION)"
+    gitlab_image="$(jq -r '.spec.containers[] | select(.name == "gitlab") | .image' <<< "$gitlab_pod")"
+    gitlab_image_id="$(jq -r '.status.containerStatuses[]? | select(.name == "gitlab") | .imageID' <<< "$gitlab_pod")"
+    # The version goes into RESTORE.txt, so accept only a single version token.
+    [[ "$gitlab_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9a-z]+)*$ && "$gitlab_image_id" == *sha256:* ]] || {
+      echo "Could not record the running GitLab version and image digest." >&2
+      exit 1
+    }
+    printf 'GitLab version: %s\nImage: %s\nRunning image: %s\n' \
+      "$gitlab_version" "$gitlab_image" "$gitlab_image_id" > "$staging_dir/gitlab/version.txt"
+  fi
 fi
 
 cat > "$staging_dir/RESTORE.txt" <<EOF
@@ -237,6 +270,18 @@ drop-in from the restored configuration; never leave old etcd data beside it.
 EOF
 fi
 printf '\nAfter startup, verify: k3s secrets-encrypt status\n' >> "$staging_dir/RESTORE.txt"
+if [[ -f "$staging_dir/gitlab/etc-gitlab.tar" ]]; then
+  cat >> "$staging_dir/RESTORE.txt" <<EOF
+
+GitLab $gitlab_version: gitlab/etc-gitlab.tar holds its /etc/gitlab (gitlab-secrets.json,
+SSH host keys, gitlab.rb) and gitlab/version.txt the exact image. Before GitLab
+starts against restored data, extract the tar as root into its gitlab-config
+volume (mounted at /etc/gitlab) and run that same image: GitLab data restores
+need the same version, and without these secrets CI variables, two-factor
+secrets and runner tokens cannot be decrypted. Repositories and the GitLab
+database are not in this archive.
+EOF
+fi
 
 tar -C "$staging_dir" -czf "$ARCHIVE" .
 chmod 0600 "$ARCHIVE"

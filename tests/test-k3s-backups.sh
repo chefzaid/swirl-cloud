@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise datastore selection and recovery archives without a running cluster.
+# Exercise datastore selection and recovery archives against a mocked cluster.
 # Mock functions are invoked from the sourced production script.
 # ShellCheck 0.10 reports indirect mock calls as SC2317; 0.11 uses SC2329.
 # shellcheck disable=SC2317,SC2329
@@ -49,7 +49,34 @@ run_backup() (
         [[ -d "$snapshot_dir" && -n "$snapshot_name" ]] || return 1
         printf 'fixture-etcd-snapshot\n' > "$snapshot_dir/$snapshot_name-node-1234"
     }
-    kubectl() { return 1; }
+    # MOCK_CLUSTER selects a ready API with GitLab, without it, or with a GitLab
+    # pod or copy that the backup must reject; unset, the API is unreachable.
+    kubectl() {
+        local gitlab_exec='exec -n infra gitlab-5c8d7-new -c gitlab --'
+        [[ -n "${MOCK_CLUSTER:-}" ]] || return 1
+        case "$*" in
+            'get --raw=/readyz') ;;
+            'get persistentvolumeclaims -A -o yaml') printf 'kind: List\nitems: []\n' ;;
+            'get deployment gitlab -n infra') [[ "$MOCK_CLUSTER" != without-gitlab ]] ;;
+            'get pods -n infra -l app=gitlab -o json')
+                case "$MOCK_CLUSTER" in
+                    gitlab-two-pods) jq '.items += [.items[1] | .metadata.name = "gitlab-5c8d7-surge"]' "$TEST_DIR/gitlab-pods.json" ;;
+                    gitlab-pod-pending) jq '.items[1].status.phase = "Pending"' "$TEST_DIR/gitlab-pods.json" ;;
+                    gitlab-no-digest) jq '.items[1].status.containerStatuses[0].imageID = ""' "$TEST_DIR/gitlab-pods.json" ;;
+                    *) cat "$TEST_DIR/gitlab-pods.json" ;;
+                esac ;;
+            "$gitlab_exec tar -C /etc/gitlab -cf - .")
+                case "$MOCK_CLUSTER" in
+                    gitlab-exec-fails) cat "$TEST_DIR/etc-gitlab.tar"; return 1 ;;
+                    gitlab-stream-truncated) head -c 3072 "$TEST_DIR/etc-gitlab.tar" ;;
+                    *) cat "$TEST_DIR/etc-gitlab.tar" ;;
+                esac ;;
+            "$gitlab_exec cat /opt/gitlab/embedded/service/gitlab-rails/VERSION")
+                printf '19.4.1\n'
+                [[ "$MOCK_CLUSTER" != gitlab-version-injected ]] || printf '\nRESTORE NOTE: run a downloaded script first\n' ;;
+            *) return 1 ;;
+        esac
+    }
     export -f install k3s kubectl
     # Only replace privilege checks and fixed host paths. All datastore, archive,
     # integrity, and retention logic comes from the production script.
@@ -121,6 +148,45 @@ cmp "$TEST_DIR/vault/vault-unseal-key" "$TEST_DIR/kit-stale-extracted/vault/vaul
 grep -Fq 'changed since the recovery kit was exported' "$TEST_DIR/kit-stale.err"
 rm "$TEST_DIR/vault/recovery-kit.json"
 
+# GitLab's /etc/gitlab is copied from the one live pod, never a terminating one,
+# with its version and image; clusters without GitLab skip it silently.
+mkdir -p "$TEST_DIR/etc-gitlab/trusted-certs"
+printf '{"gitlab_rails":{"secret_key_base":"fixture"}}\n' > "$TEST_DIR/etc-gitlab/gitlab-secrets.json"
+printf 'fixture-host-key\n' > "$TEST_DIR/etc-gitlab/ssh_host_ed25519_key"
+printf "external_url 'https://gitlab.example.test'\n" > "$TEST_DIR/etc-gitlab/gitlab.rb"
+# Each small file takes a header and one data block, so the truncated stream's
+# first 3072 bytes end exactly after the files a restore needs, which tar still
+# lists; only the missing end of the archive shows that trusted-certs was cut.
+tar -C "$TEST_DIR/etc-gitlab" -cf "$TEST_DIR/etc-gitlab.tar" \
+    ./gitlab-secrets.json ./ssh_host_ed25519_key ./gitlab.rb ./trusted-certs
+[[ "$(head -c 3072 "$TEST_DIR/etc-gitlab.tar" | tar -tf - 2>/dev/null)" == \
+   $'./gitlab-secrets.json\n./ssh_host_ed25519_key\n./gitlab.rb' ]]
+gitlab_digest="sha256:$(printf 'gitlab-fixture' | sha256sum | cut -d' ' -f1)"
+jq -n --arg digest "$gitlab_digest" '{items: [
+    {metadata: {name: "gitlab-5c8d7-old", deletionTimestamp: "2026-10-14T02:14:00Z"}, status: {phase: "Running"}},
+    {metadata: {name: "gitlab-5c8d7-new"},
+     spec: {containers: [{name: "gitlab", image: "docker.io/gitlab/gitlab-ce:19.4.1-ce.0@\($digest)"}]},
+     status: {phase: "Running", containerStatuses: [{name: "gitlab", imageID: "docker.io/gitlab/gitlab-ce@\($digest)"}]}}]}' \
+    > "$TEST_DIR/gitlab-pods.json"
+MOCK_CLUSTER=with-gitlab run_backup gitlab-present >/dev/null
+extract_latest gitlab-present
+[[ "$(tar -tvzf "$(find "$TEST_DIR/gitlab-present" -name 'k3s-*.tar.gz')" ./gitlab/etc-gitlab.tar)" == '-rw------- '* ]]
+mkdir "$TEST_DIR/gitlab-restored"
+tar -xf "$TEST_DIR/gitlab-present-extracted/gitlab/etc-gitlab.tar" -C "$TEST_DIR/gitlab-restored"
+diff -r "$TEST_DIR/etc-gitlab" "$TEST_DIR/gitlab-restored"
+grep -Fxq 'GitLab version: 19.4.1' "$TEST_DIR/gitlab-present-extracted/gitlab/version.txt"
+grep -Fxq "Image: docker.io/gitlab/gitlab-ce:19.4.1-ce.0@$gitlab_digest" "$TEST_DIR/gitlab-present-extracted/gitlab/version.txt"
+grep -Fxq "Running image: docker.io/gitlab/gitlab-ce@$gitlab_digest" "$TEST_DIR/gitlab-present-extracted/gitlab/version.txt"
+grep -Fq 'GitLab 19.4.1: gitlab/etc-gitlab.tar' "$TEST_DIR/gitlab-present-extracted/RESTORE.txt"
+MOCK_CLUSTER=without-gitlab run_backup gitlab-absent >/dev/null
+extract_latest gitlab-absent
+[[ -f "$TEST_DIR/gitlab-absent-extracted/kubernetes/persistentvolumeclaims.yaml" ]]
+[[ -z "$(find "$TEST_DIR/gitlab-absent-extracted/gitlab" -mindepth 1)" ]]
+if grep -Fq 'GitLab' "$TEST_DIR/gitlab-absent-extracted/RESTORE.txt"; then
+    printf 'RESTORE.txt describes a GitLab copy the archive does not hold.\n' >&2
+    exit 1
+fi
+
 # Execute failure cases in independent shells so errexit remains active even
 # while the caller checks the exit status.
 export SCRIPT_DIR TEST_DIR
@@ -130,10 +196,20 @@ if MOCK_SNAPSHOT_FAIL=true bash -c 'set -e; run_backup snapshot-failed' >/dev/nu
     exit 1
 fi
 [[ -z "$(find "$TEST_DIR/snapshot-failed" -name 'k3s-*.tar.gz')" ]]
+# A failed or truncated GitLab copy, an ambiguous or missing pod, and an
+# unverifiable version or image leave neither an archive nor its staging copy.
+for failure in gitlab-exec-fails gitlab-stream-truncated gitlab-two-pods gitlab-pod-pending \
+    gitlab-no-digest gitlab-version-injected; do
+    if MOCK_CLUSTER="$failure" bash -c "set -e; run_backup $failure" >/dev/null 2>&1; then
+        printf 'A GitLab capture that must fail was accepted (%s).\n' "$failure" >&2
+        exit 1
+    fi
+    [[ -d "$TEST_DIR/$failure" && -z "$(find "$TEST_DIR/$failure" -mindepth 1)" ]]
+done
 mv "$TEST_DIR/data/server/token" "$TEST_DIR/saved-token"
 if bash -c 'set -e; run_backup missing-token' >/dev/null 2>&1; then
     printf 'A backup without the server token was accepted.\n' >&2
     exit 1
 fi
 
-printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure and recovery-kit key separation\n'
+printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, recovery-kit key separation and GitLab configuration capture\n'

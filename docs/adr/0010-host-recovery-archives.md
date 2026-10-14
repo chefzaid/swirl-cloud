@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-13
-- Amended: 2026-09-07, 2026-09-20
+- Amended: 2026-09-07, 2026-09-20, 2026-10-14
 
 ## Context
 
@@ -20,6 +20,7 @@ to `/var/backups/swirl-cloud/k3s` containing:
 - server token, secrets-encryption configuration and K3s configuration
 - a Vault Raft snapshot and host recovery material
 - `pg_dumpall` and `mongodump` of the shared databases
+- GitLab's `/etc/gitlab` (secrets, SSH host keys, `gitlab.rb`) with its version and image
 - PVC and Longhorn volume inventories and a datastore-specific `RESTORE.txt`
 
 Keep seven local archives. When configured, restic encrypts and uploads them to
@@ -35,6 +36,7 @@ an object-storage account.
 ## Consequences
 
 Without offsite configuration, archives do not survive host or disk loss — the
-current live state. GitLab needs its own native backup, including the Registry
-metadata database; it is not part of this archive. Backup success is an exit
-status, not a verified restore. These gaps are open items in [TODO.md](../../TODO.md).
+current live state. GitLab data needs its own native backup, including the
+Registry metadata database; only its configuration and secrets are in this
+archive. Backup success is an exit status, not a verified restore. These gaps
+are open items in [TODO.md](../../TODO.md).
