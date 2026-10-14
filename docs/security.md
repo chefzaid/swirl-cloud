@@ -10,7 +10,7 @@ container updates and Trivy findings.
 
 | Layer | Implemented controls |
 | --- | --- |
-| Edge | Cloudflare proxied DNS, Full (strict) Origin CA TLS, DNSSEC, WAF and login rate limits, Access in front of administration hosts. See [DNS and ingress](dns.md#cloudflare). |
+| Edge | Cloudflare proxied DNS, Full (strict) Origin CA TLS, DNSSEC, WAF and login rate limits, Access in front of administration hosts. HSTS (subdomains, no preload) and `nosniff`, repeated by Traefik at the origin; apps own framing and Content Security Policy. See [DNS and ingress](dns.md#cloudflare). |
 | Host | UFW default deny, origin HTTP/HTTPS limited to Cloudflare, SSH hardening, Fail2ban, CrowdSec, Lynis and AppArmor for containerd. |
 | Cluster | Secrets encryption at rest, Pod Security Admission, admission policies denying hostPath and gitRepo volumes, hardened system controllers, default-deny ingress in application namespaces. |
 | Identity | Keycloak realm with brute-force protection and password policy; native OIDC or OAuth2 Proxy for every administrative UI. |

@@ -37,6 +37,9 @@ Missing tools fail validation instead of skipping checks. See
   `automountServiceAccountToken` and CPU/memory requests and limits for every container
 - every Ingress uses the `traefik` class and references an existing Service port
 - Ingress hostnames match `DEFAULT_CLOUDFLARE_HOST_LABELS`
+- Traefik entry points, alone and with the HA values layered, use only defined
+  Middlewares, and `websecure` carries the HSTS and `nosniff` policy that
+  `configure-cloudflare.sh` sets at the edge
 - every manifest in the `platform.env` inventories exists without duplicates
 - Service selectors, named ports, RBAC and chart file references resolve
 - installer and GitOps renders agree for nine profiles
@@ -59,6 +62,9 @@ Missing tools fail validation instead of skipping checks. See
   digest and follow [image updates](operations.md#image-updates).
 - `Ingress and public DNS inventories differ` means a hostname was added in one
   place only; update both the Ingress and `platform.env`.
+- `uses undefined middleware` or `HTTPS origin headers differ from the Cloudflare
+  edge policy` names the Traefik values profile; align `config/traefik-values.yaml`
+  with the edge as described in [ingress controller](dns.md#ingress-controller).
 - Render failures print the profile label; reproduce it with the
   [local render](development.md#render-locally).
 

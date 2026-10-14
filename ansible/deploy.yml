@@ -755,6 +755,10 @@
         TRAEFIK_CHART_VERSION: "{{ traefik_chart_version }}"
         INGRESS_HELM_TIMEOUT: "{{ ingress_helm_timeout }}"
         CLOUDFLARE_API_TOKEN: "{{ cloudflare_api_token }}"
+        # A local installation has no Cloudflare edge whose HSTS policy the origin repeats.
+        CLOUDFLARE_ENABLE_HSTS: >-
+          {{ (server_exposure_mode == 'local' and high_availability_mode != 'true') |
+             ternary('false', lookup('ansible.builtin.env', 'CLOUDFLARE_ENABLE_HSTS')) }}
         PLATFORM_DOMAIN: "{{ platform_domain }}"
       no_log: true
       when: ingress_effective

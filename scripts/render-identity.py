@@ -37,7 +37,8 @@ def render(root):
             except UnicodeDecodeError:
                 continue
             content = pattern.sub(lambda match: replacements[match[0]], source)
-            unresolved = set(re.findall(r"__[A-Z][A-Z0-9_]+__", content)) - {"__RUNNER_TOKEN__"}
+            # configure-ingress.sh resolves the origin HSTS max-age from the edge inputs.
+            unresolved = set(re.findall(r"__[A-Z][A-Z0-9_]+__", content)) - {"__RUNNER_TOKEN__", "__HSTS_MAX_AGE__"}
             if unresolved:
                 raise ValueError(f"Unresolved placeholders in {path}: {sorted(set(unresolved))}")
             path.write_text(content)

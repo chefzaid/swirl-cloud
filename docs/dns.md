@@ -147,6 +147,33 @@ window to reload that environment input. A GitLab installation without ingress
 uses private proxy defaults. The token needs Zone **Transform Rules Edit** in
 addition to the listed DNS/security permissions.
 
+The HTTPS entry point repeats the zone's Cloudflare header policy on routed
+responses: HSTS with `includeSubDomains` and no preload, and
+`X-Content-Type-Options: nosniff`. A header Traefik sends replaces the
+application's own value. `configure-ingress.sh` takes the max-age from
+`CLOUDFLARE_HSTS_MAX_AGE` (default in `config/platform.env`) and adds no HSTS when
+`CLOUDFLARE_ENABLE_HSTS=false`; give it the same values as the Cloudflare
+configurator. Without either input, a rerun keeps the deployed value. A local
+installation (`SERVER_EXPOSURE=local` without HA) has no edge, so the installer
+and Ansible send only `nosniff` there. Remote application clusters get the
+policy at [registration](deployment.md#register-an-environment), from the same
+inputs or else the platform's deployed value; rerun registration for each
+existing remote environment. Only HTTPS responses carry HSTS: the HTTP entry
+point only redirects, and cluster-only internal names bypass Traefik.
+Applications own framing and Content Security Policy; the website frames Odoo's
+chat page. Argo CD does not manage Traefik, so a change applies when
+`./scripts/configure-ingress.sh` (or the installer or Ansible ingress step) runs
+again. Cloudflare adds the same headers. Verify the origin on a host whose
+application sends no HSTS itself, such as Grafana (Keycloak does):
+
+```bash
+kubectl -n infra get middleware security-headers
+kubectl -n infra port-forward svc/traefik 8443:443 &
+curl -sSI --cacert config/cloudflare-origin-ca.pem \
+  --connect-to grafana.example.com:443:127.0.0.1:8443 https://grafana.example.com/login |
+  grep -iE '^(strict-transport-security|x-content-type-options):'
+```
+
 ### HA public ingress
 
 The [HA ingress profile](../config/traefik-ha-values.yaml) runs Traefik as a

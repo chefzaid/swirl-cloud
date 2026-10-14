@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-14
+- Amended: 2026-10-14
 - Supersedes: [ADR 0004](0004-ingress-nginx.md)
 
 ## Context
@@ -21,6 +22,8 @@ changing how applications own their routes.
   redirect, TLS ≥ 1.2 and 900 s timeouts.
 - Normalize forwarded headers in a shared middleware and publish trusted edge
   ranges in `infra/ingress-proxy-trust` for GitLab.
+- Repeat the Cloudflare zone's HSTS and `nosniff` response headers in a second
+  HTTPS entry-point middleware (2026-10-14).
 - Direct mode: K3s ServiceLB on the bootstrap control plane. HA mode: a DaemonSet
   with a co-located `cloudflared` per pod trusting only loopback.
 - Migrate existing clusters with a candidate release and a maintenance cutover.

@@ -288,6 +288,50 @@ def alert_policy(resources):
                 require(name.lower() in anchors, f"alert {name}: no section in {runbooks.relative_to(ROOT)}")
 
 
+def ingress_policy(contract):
+    """Entry-point middlewares of the separately installed Traefik release and its edge header policy."""
+    def layer(base, override):
+        # Helm merges maps across values files, replaces lists and drops nulls.
+        result = dict(base)
+        for key, value in override.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                result[key] = layer(result[key], value)
+            elif value is None:
+                result.pop(key, None)
+            else:
+                result[key] = value
+        return result
+
+    # The zone setting configure-cloudflare.sh applies; configure-ingress.sh renders its max-age (0 when disabled).
+    require(re.fullmatch(r"[0-9]+", contract.get("DEFAULT_CLOUDFLARE_HSTS_MAX_AGE", "")), "Invalid default HSTS max-age")
+    cloudflare = (ROOT / "scripts/configure-cloudflare.sh").read_text()
+    payload = re.search(r"strict_transport_security:\{enabled:\$enabled,max_age:\$max_age,"
+                        r"include_subdomains:(\$enabled|true|false),preload:(true|false),nosniff:(true|false)\}", cloudflare)
+    require(payload and 'ENABLE_HSTS="${CLOUDFLARE_ENABLE_HSTS:-true}"' in cloudflare
+            and 'HSTS_MAX_AGE="${CLOUDFLARE_HSTS_MAX_AGE:-$DEFAULT_CLOUDFLARE_HSTS_MAX_AGE}"' in cloudflare,
+            "scripts/configure-cloudflare.sh: HSTS inputs or security_header payload not recognized")
+    for path in ("scripts/configure-ingress.sh", "scripts/configure-deployment-environments.py"):
+        source = (ROOT / path).read_text()
+        require(all(name in source for name in ("__HSTS_MAX_AGE__", "CLOUDFLARE_ENABLE_HSTS", "DEFAULT_CLOUDFLARE_HSTS_MAX_AGE")),
+                f"{path}: origin HSTS is not rendered from the Cloudflare inputs")
+    headers = {"stsSeconds": "__HSTS_MAX_AGE__", "stsIncludeSubdomains": payload[1] != "false",
+               "stsPreload": payload[2] == "true", "contentTypeNosniff": payload[3] == "true"}
+    base = yaml.safe_load((ROOT / "config/traefik-values.yaml").read_text())
+    ha = layer(base, yaml.safe_load((ROOT / "config/traefik-ha-values.yaml").read_text()))
+    for profile, values in (("config/traefik-values.yaml", base), ("config/traefik-ha-values.yaml layered", ha)):
+        defined = {doc["metadata"]["name"]: doc for doc in values.get("extraObjects") or []
+                   if doc["kind"] == "Middleware" and doc["metadata"]["namespace"] == "infra"}
+        for entry, port in (values.get("ports") or {}).items():
+            for middleware in ((port or {}).get("http") or {}).get("middlewares") or []:
+                name = re.fullmatch(r"infra-(.+)@kubernetescrd", middleware)
+                require(name and name[1] in defined, f"{profile}: entry point {entry} uses undefined middleware {middleware}")
+        chain = (((values.get("ports") or {}).get("websecure") or {}).get("http") or {}).get("middlewares") or []
+        require(defined.get("security-headers", {}).get("spec") == {"headers": headers}
+                and [m for m in chain if m.startswith(("infra-forwarded-headers@", "infra-security-headers@"))]
+                == ["infra-forwarded-headers@kubernetescrd", "infra-security-headers@kubernetescrd"],
+                f"{profile}: HTTPS origin headers differ from the Cloudflare edge policy")
+
+
 def source_inputs():
     files = {ROOT / name for name in run("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0") if name}
     for path in sorted(files):
@@ -331,6 +375,7 @@ def source_inputs():
     hosts = {rule["host"].removesuffix(".__PUBLIC_DOMAIN__") for doc in resources if doc["kind"] == "Ingress"
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")
+    ingress_policy(contract)
     for path in (ROOT / ".github/workflows").glob("*.y*ml"):
         for action in re.findall(r"^\s+(?:- )?uses:\s*(\S+)", path.read_text(), re.M):
             require(action.startswith("./") or re.search(r"@[a-f0-9]{40}$|@sha256:[a-f0-9]{64}$", action), f"Unpinned action: {action}")

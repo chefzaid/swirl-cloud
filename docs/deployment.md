@@ -496,7 +496,10 @@ python3 scripts/configure-deployment-environments.py \
 
 Repeat for `uat` and `prod`. Supply `CLOUDFLARE_API_TOKEN` for origin certificates,
 or `--tls-cert` and `--tls-key` for a certificate covering the environment domain
-and its wildcard. Existing valid certificates are reused. Registration verifies
+and its wildcard. Existing valid certificates are reused. A remote target's
+Traefik repeats the zone's [HSTS policy](dns.md#ingress-controller): set
+`CLOUDFLARE_ENABLE_HSTS` and `CLOUDFLARE_HSTS_MAX_AGE` as for the Cloudflare
+configurator, or omit both to keep the platform's deployed value. Registration verifies
 cluster identity, scoped API and Vault access, authenticated data services and
 TLS before publishing the target in `infra/deployment-environments`.
 

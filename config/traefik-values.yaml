@@ -45,8 +45,9 @@ ports:
     http:
       tls: {enabled: true}
       # Normalize routing headers even when the trusted edge forwards a
-      # visitor-supplied value; keep only its client-address chain.
-      middlewares: [infra-forwarded-headers@kubernetescrd]
+      # visitor-supplied value; keep only its client-address chain. Then
+      # repeat the edge's response header policy at the origin.
+      middlewares: [infra-forwarded-headers@kubernetescrd, infra-security-headers@kubernetescrd]
     transport:
       respondingTimeouts:
         readTimeout: 900s
@@ -127,3 +128,18 @@ extraObjects:
           X-Forwarded-Uri: ""
           X-Forwarded-Prefix: ""
           X-Forwarded-Method: ""
+  # The zone's Cloudflare header policy (configure-cloudflare.sh) on every HTTPS
+  # response: HSTS with subdomains and no preload, and nosniff. configure-ingress.sh
+  # renders CLOUDFLARE_HSTS_MAX_AGE, or 0 (no header) when CLOUDFLARE_ENABLE_HSTS
+  # is false. Applications own framing and Content Security Policy.
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: security-headers
+      namespace: infra
+    spec:
+      headers:
+        stsSeconds: __HSTS_MAX_AGE__
+        stsIncludeSubdomains: true
+        stsPreload: false
+        contentTypeNosniff: true

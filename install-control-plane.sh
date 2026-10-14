@@ -1389,8 +1389,12 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             installer_prompt_secret CLOUDFLARE_API_TOKEN "Cloudflare token with Tunnel Edit and DNS/TLS permissions (input hidden)"
             export CLOUDFLARE_API_TOKEN
         fi
+        # A local installation has no Cloudflare edge whose HSTS policy the origin repeats.
+        ingress_hsts="${CLOUDFLARE_ENABLE_HSTS:-}"
+        [[ "$SERVER_EXPOSURE" != local || "$HIGH_AVAILABILITY_ENABLED" == true ]] || ingress_hsts=false
         INGRESS_VALUES_FILE="$INGRESS_VALUES_FILE" TRAEFIK_CHART_VERSION="$TRAEFIK_CHART_VERSION" \
-            INGRESS_HELM_TIMEOUT="$INGRESS_HELM_TIMEOUT" "$SCRIPT_DIR/scripts/configure-ingress.sh"
+            INGRESS_HELM_TIMEOUT="$INGRESS_HELM_TIMEOUT" CLOUDFLARE_ENABLE_HSTS="$ingress_hsts" \
+            "$SCRIPT_DIR/scripts/configure-ingress.sh"
     fi
 
     if [[ "$CONFIGURE_CLOUDFLARE" == "true" ]]; then

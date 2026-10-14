@@ -9,7 +9,7 @@ an installation, migration or failover actually works.
 
 | Layer | Command or location | Proves |
 | --- | --- | --- |
-| Source syntax and policy | `./scripts/validate-repository.sh` | Shell, Python, YAML, JSON and Ansible syntax; ShellCheck; documentation links; manifest inventories; digest-pinned images; workload token/resource declarations; an owner and a runbook section for every alert. |
+| Source syntax and policy | `./scripts/validate-repository.sh` | Shell, Python, YAML, JSON and Ansible syntax; ShellCheck; documentation links; manifest inventories; digest-pinned images; workload token/resource declarations; an owner and a runbook section for every alert; Traefik entry-point middlewares and the origin header policy. |
 | Rendering | `scripts/validate-manifests.py` (called by the validator) | Nine installer/GitOps render profiles, resource references, Service selectors and named ports, Ingress backends, RBAC and installer/GitOps parity. |
 | Safety suites | `tests/` | Deployment and recovery failure modes listed in the [validation policy](#validation-policy). |
 | Live dry-run | `./scripts/validate-repository.sh --live` | API compatibility of every rendered profile with the active cluster, without mutation. Objects that need a namespace the profile creates, `cnpg-system` or CloudNativePG APIs before HA activation are counted and reported as not validated; any other missing namespace or API fails. |
@@ -41,7 +41,8 @@ PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock`, OpenSSL and
 time zone database (`tzdata`). CI installs
 these tools. Missing dependencies fail validation rather than silently skipping
 deployment checks. It checks syntax, documentation links, manifest inventories,
-workload policy and platform-owned image digests. Nine installer/GitOps render
+workload policy, platform-owned image digests, and that Traefik's entry points use
+defined middlewares and the Cloudflare edge's header policy. Nine installer/GitOps render
 combinations cover HA, Odoo scope, PostgreSQL staging/cutover,
 Kafka migration phases, fencing and authenticated shared application data. Each render checks resource references,
 Service selectors and named ports, Ingress backends, RBAC and installer/GitOps

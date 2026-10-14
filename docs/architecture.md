@@ -126,7 +126,8 @@ for private SSH and API access. With three or more control planes, the
 1. Cloudflare terminates the visitor connection, applies WAF and rate rules, and
    requires an Access session backed by Keycloak for administrative hosts.
 2. Traefik accepts traffic only from Cloudflare (direct) or the loopback tunnel
-   connector (HA), normalizes forwarded headers and selects the Ingress.
+   connector (HA), normalizes forwarded headers, selects the Ingress and repeats
+   the edge's HSTS and `nosniff` response headers.
 3. Native OIDC services (GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer,
    Odoo) authenticate directly with Keycloak; the others use the shared OAuth2
    Proxy ForwardAuth middleware.

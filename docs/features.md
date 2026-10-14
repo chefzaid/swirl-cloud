@@ -39,7 +39,7 @@ the pieces fit together.
 
 - Cloudflare DNS, Origin CA TLS, DNSSEC, WAF, login rate limiting, cache rules, Smart Tiered Cache and Access
 - origin firewall that accepts web traffic only from Cloudflare
-- platform-owned Traefik with native Ingress, ForwardAuth SSO, body limits and forwarded-header normalization
+- platform-owned Traefik with native Ingress, ForwardAuth SSO, body limits, forwarded-header normalization and the edge's HSTS and `nosniff` headers at the origin
 - application DNS ownership through onboarding, with direct A records or Tunnel CNAMEs
 - opt-in HA ingress: Traefik and `cloudflared` pairs on every control plane
 

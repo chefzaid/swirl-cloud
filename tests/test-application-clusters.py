@@ -144,6 +144,26 @@ class ApplicationClusterSafety(unittest.TestCase):
         service = registration.service_boundary(context)
         self.assertIn("object.spec.type == 'ClusterIP'", service[0]["spec"]["validations"][0]["expression"])
 
+    def test_remote_origin_hsts_keeps_the_deployed_zone_setting(self):
+        default = int(re.search(r"^DEFAULT_CLOUDFLARE_HSTS_MAX_AGE=(\d+)$", (ROOT / "config/platform.env").read_text(), re.M)[1])
+        platform, target = Mock(), Mock()
+
+        def deployed(seconds):
+            return lambda kind, *args, **kwargs: {"spec": {"headers": {"stsSeconds": seconds}}}
+        env = {key: value for key, value in registration.os.environ.items() if not key.startswith("CLOUDFLARE_")}
+        with patch.dict(registration.os.environ, env, clear=True):
+            # A rerun without inputs must not re-enable HSTS the zone turned off.
+            platform.get.side_effect, target.get.side_effect = deployed(0), deployed(86400)
+            self.assertEqual(registration.origin_hsts(platform, target), 0)
+            platform.get.side_effect, platform.get.return_value = None, None
+            self.assertEqual(registration.origin_hsts(platform, target), 86400)
+            target.get.side_effect, target.get.return_value = None, None
+            self.assertEqual(registration.origin_hsts(platform, target), default)
+            with patch.dict(registration.os.environ, {"CLOUDFLARE_ENABLE_HSTS": "false"}):
+                self.assertEqual(registration.origin_hsts(platform, target), 0)
+            with patch.dict(registration.os.environ, {"CLOUDFLARE_ENABLE_HSTS": "yes"}), self.assertRaisesRegex(ValueError, "true or false"):
+                registration.origin_hsts(platform, target)
+
     def test_local_bootstrap_refuses_before_remote_tools_or_host_mutations(self):
         result = subprocess.run(["bash", str(ROOT / "scripts/install-application-cluster.sh"), "--config",
             str(ROOT / "config/deployment-environments.example.yaml"), "--environment", "int"],

@@ -438,13 +438,30 @@ def configure_vault(platform, context, identity, token):
         "audience": "vault", "token_policies": [policy], "token_ttl": "1h", "token_max_ttl": "2h"})
 
 
-def helm_foundation(target, context):
+def origin_hsts(platform, target):
+    """Application hosts share the zone's edge HSTS setting, as in configure-ingress.sh (0 sends none)."""
+    enable = os.environ.get("CLOUDFLARE_ENABLE_HSTS", "")
+    max_age = os.environ.get("CLOUDFLARE_HSTS_MAX_AGE", "")
+    if enable not in ("", "true", "false") or not re.fullmatch(r"[0-9]*", max_age):
+        raise ValueError("CLOUDFLARE_ENABLE_HSTS must be true or false and CLOUDFLARE_HSTS_MAX_AGE whole seconds")
+    if not enable and not max_age:
+        # Without inputs, keep the platform origin's zone setting, else this target's.
+        for cluster in (platform, target):
+            if cluster.get("customresourcedefinition", "middlewares.traefik.io", optional=True):
+                deployed = cluster.get("middlewares.traefik.io", "security-headers", "infra", optional=True)
+                if deployed:
+                    return int(deployed["spec"]["headers"].get("stsSeconds", 0))
+    defaults = dict(line.split("=", 1) for line in (ROOT / "config/platform.env").read_text().splitlines() if line and not line.startswith("#"))
+    return int(max_age or defaults["DEFAULT_CLOUDFLARE_HSTS_MAX_AGE"]) if enable != "false" else 0
+
+
+def helm_foundation(target, context, hsts_max_age):
+    versions = dict(line.split("=", 1) for line in (ROOT / "config/platform.env").read_text().splitlines() if line and not line.startswith("#"))
     env = dict(os.environ, KUBECONFIG=target.path, HIGH_AVAILABILITY_ENABLED="false")
     result = subprocess.run([str(ROOT / "scripts/reconcile-platform-release.sh"), "external-secrets"], env=env, check=False)
     if result.returncode:
         raise RuntimeError("Target External Secrets installation failed")
-    versions = dict(line.split("=", 1) for line in (ROOT / "config/platform.env").read_text().splitlines() if line and not line.startswith("#"))
-    values = yaml.safe_load((ROOT / "config/traefik-values.yaml").read_text())
+    values = yaml.safe_load((ROOT / "config/traefik-values.yaml").read_text().replace("__HSTS_MAX_AGE__", str(hsts_max_age)))
     values["tlsStore"]["default"]["defaultCertificate"]["secretName"] = context["tlsSecretName"]
     values["nodeSelector"] = {"kubernetes.io/os": "linux"}
     values["providers"]["kubernetesIngress"]["allowExternalNameServices"] = False
@@ -682,6 +699,7 @@ def main():
     expected = {"environment": args.environment, "clusterName": context["clusterName"], "podCIDR": context["podCIDR"], "platformDomain": context["platformDomain"]}
     if not installed or installed.get("data") != expected:
         raise ValueError("Target is not the matching bootstrapped application cluster; run install-application-cluster.sh on that host first")
+    hsts_max_age = origin_hsts(platform, target)
     current = platform.get("configmap", "deployment-environments", "infra", optional=True)
     updated = publish_inventory(json.loads(current["data"]["environments.json"]) if current else None, inventory, args.environment)
     routes = gateway_routes(inventory)
@@ -741,7 +759,7 @@ def main():
         if not name:
             raise ValueError("Set platform.services.vault.caSecretName when supplying --vault-ca")
         target.apply(object_("Secret", name, namespace="infra", data={"ca.crt": base64.b64encode(Path(args.vault_ca).read_bytes()).decode()}))
-    helm_foundation(target, context)
+    helm_foundation(target, context, hsts_max_age)
     token = private_token_file(args.vault_token_file)
     if not token or any(c.isspace() for c in token):
         raise ValueError("Vault token file must contain one nonempty token")

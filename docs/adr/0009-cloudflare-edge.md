@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-13
-- Amended: 2026-09-06, 2026-09-10, 2026-09-23, 2026-10-08
+- Amended: 2026-09-06, 2026-09-10, 2026-09-23, 2026-10-08, 2026-10-14
 
 ## Context
 
@@ -44,5 +44,6 @@ the origin prevents bypassing the edge.
 Cloudflare, its API token scope and the Access team are hard dependencies. The
 token needs Zone, DNS, SSL, WAF, Cache, Transform, Bot Management, Access and
 (for HA) Tunnel permissions. Origin certificates are trusted only by Cloudflare,
-so direct origin access is not browser-trusted. Header policy (HSTS) relies on
-Cloudflare and each app.
+so direct origin access is not browser-trusted. Traefik's HTTPS entry point
+repeats the zone's HSTS and `nosniff` headers at the origin (2026-10-14); framing
+and Content Security Policy remain with each app.

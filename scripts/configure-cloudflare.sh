@@ -33,7 +33,7 @@ INGRESS_SERVICE="${INGRESS_SERVICE:-traefik}"
 
 MIN_TLS_VERSION="${CLOUDFLARE_MIN_TLS_VERSION:-1.2}"
 ENABLE_HSTS="${CLOUDFLARE_ENABLE_HSTS:-true}"
-HSTS_MAX_AGE="${CLOUDFLARE_HSTS_MAX_AGE:-31536000}"
+HSTS_MAX_AGE="${CLOUDFLARE_HSTS_MAX_AGE:-$DEFAULT_CLOUDFLARE_HSTS_MAX_AGE}"
 ENABLE_DNSSEC="${CLOUDFLARE_ENABLE_DNSSEC:-true}"
 LOCK_ORIGIN="${CLOUDFLARE_LOCK_ORIGIN:-true}"
 ENABLE_WAF="${CLOUDFLARE_ENABLE_WAF:-true}"
@@ -98,8 +98,8 @@ Optional environment variables:
   CLOUDFLARE_HOST_LABELS   Space-separated labels replacing the default list
   CLOUDFLARE_TLS_SECRET_NAME
   CLOUDFLARE_MIN_TLS_VERSION       Default: 1.2
-  CLOUDFLARE_ENABLE_HSTS           Default: true
-  CLOUDFLARE_HSTS_MAX_AGE          Default: 31536000 seconds
+  CLOUDFLARE_ENABLE_HSTS           Default: true; configure-ingress.sh repeats HSTS at the origin
+  CLOUDFLARE_HSTS_MAX_AGE          Seconds (default: config/platform.env)
   CLOUDFLARE_ENABLE_DNSSEC         Default: true
   CLOUDFLARE_LOCK_ORIGIN           Allow ports 80/443 only from Cloudflare (default: true)
   CLOUDFLARE_ENABLE_WAF            Default: true
