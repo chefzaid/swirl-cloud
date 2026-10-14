@@ -375,7 +375,7 @@ Retention is declared with the component that owns the data:
 
 | Data | Configuration |
 |---|---|
-| Container and application logs | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), Elasticsearch ILM policy |
+| Container and application logs | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), Elasticsearch ILM policy `swirl-cloud-logs` |
 | Lynis audit indices | [elk.yaml](../k8s/platform/elk.yaml), separate ILM policy |
 | Shared Prometheus metrics | [monitoring.yaml](../k8s/platform/monitoring.yaml), time and size limits |
 | Images and packages | [GitLab retention job](../k8s/platform/gitlab-registry-retention.yaml) |
@@ -389,6 +389,37 @@ During log maintenance, remove only closed, processed archives outside the
 chosen retention window; preserve current logs, unprocessed `.u` files, and
 audit records. Use GitLab's supported cleanup paths for registry and artifact
 data so references remain consistent.
+
+The log policy was named `swirl-cloud-logs-7d` with the same phases; its new
+name states no period, so a retention change edits it in place. Fluent Bit's
+init container stores `swirl-cloud-logs` before it points its templates and
+the existing `kubernetes-logs-*` and `app-logs-*` indices at it; Logstash
+installs the new name in its `app-logs-*` template when it restarts; an
+`app-logs-*` index created before Fluent Bit stores the policy reports it
+missing, then follows it. Elasticsearch advises removing a policy before
+assigning another, because a switch can silently stop phase execution; removing
+it here would leave the log indices unmanaged and reset their ILM state. Both
+policies have the same phases and actions, so a moved index finishes its current
+phase from the cached definition and enters the new delete phase on schedule,
+still counted from index creation.
+
+Nothing deletes the former policy: an `app-logs-*` index the previous Logstash
+pod created can still name it, and explain output keeps it under
+`phase_execution` until an index leaves its current phase. Two days after the
+change, check in Kibana's Dev Tools console that no index, phase or template
+uses it, then delete it. Elasticsearch refuses the delete only while an index
+names the policy, not a template, so a template that still names it must be
+fixed first: `kubectl -n infra rollout restart deployment/logstash` reinstalls
+`app-logs-single-node`, and
+`kubectl -n host-agents rollout restart daemonset/fluent-bit` reinstalls the
+Fluent Bit templates and moves remaining log indices.
+
+```text
+GET */_ilm/explain?filter_path=indices.*.policy,indices.*.phase_execution.policy
+GET _ilm/policy/swirl-cloud-logs-7d?filter_path=*.in_use_by
+GET _template/kubernetes-logs-v2,kubernetes-logs-host?filter_path=**.lifecycle
+DELETE _ilm/policy/swirl-cloud-logs-7d
+```
 
 ### GitLab storage
 

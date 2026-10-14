@@ -288,6 +288,17 @@ def alert_policy(resources):
                 require(name.lower() in anchors, f"alert {name}: no section in {runbooks.relative_to(ROOT)}")
 
 
+def lifecycle_policies(rendered, label):
+    """Every Elasticsearch index.lifecycle.name is a policy that a rendered job or init container PUTs."""
+    # One curl invocation or script line per call, so a GET or DELETE does not count.
+    calls = re.split(r"\bcurl\s|\n", rendered.replace("\\\n", " "))
+    stored = {name for call in calls if re.search(r'-X PUT\b|"PUT"', call)
+              for name in re.findall(r"/_ilm/policy/([\w.-]+)", call)}
+    named = set(re.findall(r'"index\.lifecycle\.name"\s*:\s*"([^"]+)"', rendered))
+    require(named, f"{label}: no index.lifecycle.name found; update the lifecycle policy check")
+    require(named <= stored, f"{label}: lifecycle policies never stored: {', '.join(sorted(named - stored))}")
+
+
 def ingress_policy(contract):
     """Entry-point middlewares of the separately installed Traefik release and its edge header policy."""
     def layer(base, override):
@@ -454,6 +465,7 @@ def render_profiles(output):
         require(set(TOKEN.findall(rendered)) <= {"__RUNNER_TOKEN__"}, f"{label}: unresolved deployment placeholders")
         runtime = index(documents(rendered))
         resource_wiring(list(runtime.values()))
+        lifecycle_policies(rendered, label)
         owned = {identity(doc) for block in rendered.split("\n---")
                  if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
         require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")

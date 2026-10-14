@@ -42,6 +42,7 @@ Missing tools fail validation instead of skipping checks. See
   `configure-cloudflare.sh` sets at the edge
 - every manifest in the `platform.env` inventories exists without duplicates
 - Service selectors, named ports, RBAC and chart file references resolve
+- every Elasticsearch `index.lifecycle.name` names a policy that a rendered job or init container stores
 - installer and GitOps renders agree for nine profiles
 - retired image profiles stop rendering
 - GitHub Actions are pinned by commit SHA

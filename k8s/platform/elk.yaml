@@ -104,7 +104,7 @@ data:
         "settings": {
           "number_of_shards": 1,
           "number_of_replicas": 0,
-          "index.lifecycle.name": "swirl-cloud-logs-7d"
+          "index.lifecycle.name": "swirl-cloud-logs"
         }
       },
       "priority": 200
@@ -855,7 +855,7 @@ spec:
       labels:
         app: logstash
       annotations:
-        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "2"
+        swirl-cloud.__PUBLIC_DOMAIN__/config-version: "3"
     spec:
       automountServiceAccountToken: false
       securityContext:

@@ -109,8 +109,9 @@ Capacity requests are not physical usage; see [storage and retention](operations
 
 ## Privacy And Retention
 
-Container logs are deleted after about three days, Lynis audits after 365 days,
-Prometheus metrics after 15 days and GitLab's embedded metrics after one day.
+Container logs are deleted one day after their daily index starts, Lynis
+audits after 365 days, Prometheus metrics after 15 days and GitLab's embedded
+metrics after one day.
 Registry images and packages expire after the configured retention period
 (default 1 095 days). Secret-scanner reports contain metadata, not secret values.
 See [storage and retention](operations.md#storage-and-retention).

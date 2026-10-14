@@ -227,7 +227,7 @@ data:
         "index.refresh_interval": "5s",
         "index.mapping.total_fields.limit": 200,
         "index.mapping.ignore_malformed": true,
-        "index.lifecycle.name": "swirl-cloud-logs-7d"
+        "index.lifecycle.name": "swirl-cloud-logs"
       },
       "mappings": {
         "dynamic": false,
@@ -275,7 +275,7 @@ data:
         "index.refresh_interval": "5s",
         "index.mapping.total_fields.limit": 100,
         "index.mapping.ignore_malformed": true,
-        "index.lifecycle.name": "swirl-cloud-logs-7d"
+        "index.lifecycle.name": "swirl-cloud-logs"
       },
       "mappings": {
         "dynamic": false,
@@ -486,10 +486,12 @@ spec:
             - |
               until curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200 >/dev/null; do sleep 5; done
+              # The templates and indices below are pointed at this policy; stop if
+              # it was not stored.
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/ilm-policy.json \
-                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-logs-7d >/dev/null
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-logs >/dev/null || exit 1
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/index-template.json \
@@ -514,9 +516,12 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/identity-audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/identity-audit >/dev/null
+              # Indices created under the former swirl-cloud-logs-7d policy (same
+              # phases) move here; that policy is removed by hand, see
+              # docs/operations.md#storage-and-retention.
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
-                --data-binary '{"index.lifecycle.name":"swirl-cloud-logs-7d"}' \
+                --data-binary '{"index.lifecycle.name":"swirl-cloud-logs"}' \
                 'http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/kubernetes-logs-*,app-logs-*/_settings?allow_no_indices=true&ignore_unavailable=true' >/dev/null
           securityContext:
             runAsNonRoot: true
