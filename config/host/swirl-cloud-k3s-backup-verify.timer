@@ -1,0 +1,13 @@
+[Unit]
+Description=Verify the off-node K3s recovery archives weekly
+
+[Timer]
+# Away from the 02:15 backup, 03:15 Longhorn backups and the Sunday AIDE,
+# rkhunter and trim runs.
+OnCalendar=Wed *-*-* 05:30:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+Unit=swirl-cloud-k3s-backup-verify.service
+
+[Install]
+WantedBy=timers.target

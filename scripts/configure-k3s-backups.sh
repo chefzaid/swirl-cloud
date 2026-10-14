@@ -66,8 +66,18 @@ sudo install -o root -g root -m 0644 "$REPO_ROOT/scripts/lib/postgres-access.sh"
 sudo install -o root -g root -m 0644 "$REPO_ROOT/scripts/lib/vault-access.sh" /usr/local/lib/swirl-cloud/vault-access.sh
 sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup.service" /etc/systemd/system/swirl-cloud-k3s-backup.service
 sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup.timer" /etc/systemd/system/swirl-cloud-k3s-backup.timer
+sudo install -o root -g root -m 0750 "$REPO_ROOT/scripts/verify-k3s-backup.sh" /usr/local/sbin/swirl-cloud-k3s-backup-verify
+sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup-verify.service" /etc/systemd/system/swirl-cloud-k3s-backup-verify.service
+sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup-verify.timer" /etc/systemd/system/swirl-cloud-k3s-backup-verify.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now swirl-cloud-k3s-backup.timer >/dev/null
+# The weekly verification reads back the off-node copy, so it runs only while
+# backup.env names a restic repository, whichever run wrote that file.
+if sudo grep -qs '^RESTIC_REPOSITORY=.' /etc/swirl-cloud/backup.env; then
+  sudo systemctl enable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
+else
+  sudo systemctl disable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
+fi
 if [[ "$RUN_BACKUP_NOW" == "true" ]]; then
   sudo systemctl start swirl-cloud-k3s-backup.service
 fi

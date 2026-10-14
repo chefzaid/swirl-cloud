@@ -12,13 +12,17 @@ source "$VAULT_ACCESS_LIBRARY"
 
 BACKUP_ENVIRONMENT_FILE="${BACKUP_ENVIRONMENT_FILE:-/etc/swirl-cloud/backup.env}"
 if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
-  # This root-owned file is written with shell-safe escaped values.
+  # This root-owned file is written with shell-safe escaped values; restic
+  # reads the repository, password and S3 credentials from the environment.
+  set -a
   # shellcheck disable=SC1090
   source "$BACKUP_ENVIRONMENT_FILE"
+  set +a
 fi
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 RETENTION_COUNT="${RETENTION_COUNT:-7}"
+BACKUP_LOCK_WAIT_SECONDS="${BACKUP_LOCK_WAIT_SECONDS:-14400}"
 K3S_DATA_DIR="${K3S_DATA_DIR:-/var/lib/rancher/k3s}"
 K3S_CONFIG_DIR="${K3S_CONFIG_DIR:-/etc/rancher/k3s}"
 K3S_DB="${K3S_DB:-$K3S_DATA_DIR/server/db/state.db}"
@@ -28,6 +32,7 @@ ARCHIVE="$BACKUP_DIR/k3s-$TIMESTAMP.tar.gz"
 
 [[ "$EUID" -eq 0 ]] || { echo "Run this backup as root." >&2; exit 1; }
 [[ "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]] || { echo "RETENTION_COUNT must be a positive integer." >&2; exit 1; }
+[[ "$BACKUP_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds." >&2; exit 1; }
 command -v k3s >/dev/null || { echo "k3s is required." >&2; exit 1; }
 [[ -s "$K3S_DATA_DIR/server/token" ]] || { echo "K3s server token is required for a restorable backup." >&2; exit 1; }
 # K3s can leave an empty etcd directory on SQLite servers. An initialized
@@ -44,8 +49,14 @@ fi
 
 umask 077
 install -d -o root -g root -m 0700 "$BACKUP_DIR"
+# The weekly off-node verification holds this lock too. Wait it out (its unit
+# stops after four hours) instead of skipping: a skipped night would be
+# recorded as a success.
 exec 9>/run/lock/swirl-cloud-k3s-backup.lock
-flock -n 9 || exit 0
+flock -w "$BACKUP_LOCK_WAIT_SECONDS" 9 || {
+  echo "The backup lock is still held after $BACKUP_LOCK_WAIT_SECONDS seconds; no archive was created." >&2
+  exit 1
+}
 
 staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
@@ -301,7 +312,9 @@ if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
     restic init
   fi
   restic backup --tag swirl-cloud-k3s "$ARCHIVE" "$ARCHIVE.sha256"
-  restic forget --tag swirl-cloud-k3s --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
+  # Every archive has its own path, so restic's default grouping by host and
+  # paths would keep each snapshot forever; group by host and tag instead.
+  restic forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
 fi
 
 echo "Created $ARCHIVE"

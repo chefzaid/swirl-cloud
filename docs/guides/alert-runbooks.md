@@ -305,9 +305,27 @@ the node on multi-node clusters, reboot, then run `./install.sh --status`.
 
 ### HostMaintenanceServiceFailed
 
-A platform maintenance unit (backup, unseal, AIDE, rkhunter, metrics) failed its
-last run. `sudo journalctl -u <unit> -n 50` shows why; rerun it with
-`sudo systemctl start <unit>`.
+A platform maintenance unit (backup, backup verification, unseal, AIDE, rkhunter,
+metrics) failed its last run. `sudo journalctl -u <unit> -n 50` shows why; rerun it with
+`sudo systemctl start <unit>`. A backup that reports the backup lock still held
+waited four hours for a verification; rerun it once that ends.
+
+For `swirl-cloud-k3s-backup-verify.service`, the weekly read-back of the off-node
+restic copy failed, so off-node recovery is unproven until it passes. The journal
+names the cause: `restic check` errors (damaged or missing pack data, or a stale
+lock), a newest archive that does not match its SHA-256 or is not a complete
+`tar.gz`, an empty repository, or a backup still holding the lock after an hour.
+Keep the local archives, confirm a fresh backup uploads
+(`sudo systemctl start swirl-cloud-k3s-backup.service`), then rerun the verification:
+within the same week (Monday to Sunday UTC) it checks the same data subset, and
+`sudo env VERIFY_DATA_SUBSETS=1 /usr/local/sbin/swirl-cloud-k3s-backup-verify`
+checks them all. If restic reports the repository locked while neither
+`swirl-cloud-k3s-backup.service` nor `swirl-cloud-k3s-backup-verify.service` is
+active (`systemctl is-active`), a killed run left a stale lock; clear it with
+`sudo bash -c 'set -a; source /etc/swirl-cloud/backup.env; restic unlock'`, which
+removes only stale locks, and rerun. Otherwise follow
+restic's [troubleshooting guide](https://restic.readthedocs.io/en/stable/077_troubleshooting.html);
+see [backups and recovery](../operations.md#backups-and-recovery).
 
 ### K3sRecoveryBackupMissing
 

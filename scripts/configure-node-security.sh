@@ -1406,7 +1406,8 @@ chmod 0644 "$temporary"
 mv -f "$temporary" "$metrics_file"
 EOF
   # "+" runs the hook with full privileges, also for units with their own user.
-  for unit in swirl-cloud-k3s-backup.service swirl-cloud-vault-unseal.service dailyaidecheck.service; do
+  for unit in swirl-cloud-k3s-backup.service swirl-cloud-k3s-backup-verify.service \
+    swirl-cloud-vault-unseal.service dailyaidecheck.service; do
     write_root_file "/etc/systemd/system/$unit.d/50-swirl-cloud-metrics.conf" <<'EOF'
 # Managed by scripts/configure-node-security.sh
 [Service]

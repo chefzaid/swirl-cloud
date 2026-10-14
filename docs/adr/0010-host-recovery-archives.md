@@ -38,5 +38,6 @@ an object-storage account.
 Without offsite configuration, archives do not survive host or disk loss — the
 current live state. GitLab data needs its own native backup, including the
 Registry metadata database; only its configuration and secrets are in this
-archive. Backup success is an exit status, not a verified restore. These gaps
-are open items in [TODO.md](../../TODO.md).
+archive. Backup success is an exit status; the weekly off-node verification
+shows the newest archive reads back intact, but no restore has been rehearsed.
+These gaps are open items in [TODO.md](../../TODO.md).

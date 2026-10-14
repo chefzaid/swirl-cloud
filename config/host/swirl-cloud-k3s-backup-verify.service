@@ -1,0 +1,25 @@
+[Unit]
+Description=Verify the off-node K3s recovery archives with restic check and a streamed restore
+Wants=network-online.target
+After=network-online.target swirl-cloud-k3s-backup.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=HOME=/run/swirl-cloud-k3s-backup-verify
+RuntimeDirectory=swirl-cloud-k3s-backup-verify
+ExecStart=/usr/local/sbin/swirl-cloud-k3s-backup-verify
+# The nightly backup waits at most four hours for this run to release the
+# backup lock, so a hung download must fail by then.
+TimeoutStartSec=4h
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/swirl-cloud
+ReadWritePaths=/run/lock
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true

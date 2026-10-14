@@ -22,8 +22,9 @@ SQL
 
 run_backup() (
     export BACKUP_DIR="$TEST_DIR/$1" K3S_DATA_DIR="$TEST_DIR/data" K3S_CONFIG_DIR="$TEST_DIR/config"
-    export BACKUP_ENVIRONMENT_FILE="$TEST_DIR/absent.env" RESTIC_REPOSITORY=''
-    unset K3S_DB
+    export BACKUP_ENVIRONMENT_FILE="${MOCK_BACKUP_ENVIRONMENT:-$TEST_DIR/absent.env}"
+    # Off-node settings come only from the environment file, never the caller.
+    unset K3S_DB RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
     install() {
         local -a arguments=()
         while [[ $# -gt 0 ]]; do
@@ -211,5 +212,145 @@ if bash -c 'set -e; run_backup missing-token' >/dev/null 2>&1; then
     printf 'A backup without the server token was accepted.\n' >&2
     exit 1
 fi
+mv "$TEST_DIR/saved-token" "$TEST_DIR/data/server/token"
+# The weekly verification holds the same lock; a backup waits, then fails
+# instead of reporting a skipped night as a success.
+exec {held_lock}>"$TEST_DIR/locks/swirl-cloud-k3s-backup.lock"
+flock -n "$held_lock"
+if BACKUP_LOCK_WAIT_SECONDS=1 bash -c 'set -e; run_backup lock-held' >/dev/null 2>"$TEST_DIR/backup-lock-held.err"; then
+    printf 'A backup that could not take the lock was accepted.\n' >&2
+    exit 1
+fi
+exec {held_lock}>&-
+grep -Fq 'The backup lock is still held' "$TEST_DIR/backup-lock-held.err"
+[[ -z "$(find "$TEST_DIR/lock-held" -name 'k3s-*')" ]]
 
-printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, recovery-kit key separation and GitLab configuration capture\n'
+# Off-node copies. The restic stand-in is a separate process, so it sees only
+# what backup.env exported; it keeps each snapshot's files under its id.
+mkdir -p "$TEST_DIR/bin" "$TEST_DIR/restic"
+cat > "$TEST_DIR/bin/restic" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+store="$MOCK_RESTIC_STORE"
+[[ "${RESTIC_REPOSITORY:-}" == s3:https://* && -n "${RESTIC_PASSWORD:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] || {
+    printf 'Fatal: the repository or its credentials are not in the environment\n' >&2
+    exit 1
+}
+printf '%s\n' "$*" >> "$store/calls"
+case "$*" in
+    'snapshots --no-lock') [[ -f "$store/snapshots.json" ]] ;;
+    init) printf '[]\n' > "$store/snapshots.json" ;;
+    'backup --tag swirl-cloud-k3s '*)
+        shift 3
+        id="$(printf '%s\n' "$@" | sha256sum | cut -d' ' -f1)"
+        for path in "$@"; do
+            mkdir -p "$store/$id$(dirname "$path")"
+            cp "$path" "$store/$id$path"
+        done
+        jq --arg id "$id" '. + [{id: $id, paths: $ARGS.positional}]' --args "$@" \
+            < "$store/snapshots.json" > "$store/snapshots.next"
+        mv "$store/snapshots.next" "$store/snapshots.json" ;;
+    'forget --tag swirl-cloud-k3s --group-by host,tags '*) ;;
+    'snapshots --tag swirl-cloud-k3s --json') cat "$store/snapshots.json" ;;
+    'check --read-data-subset '*) exit "${MOCK_RESTIC_CHECK_STATUS:-0}" ;;
+    'dump '*) cat "$store/$2$3" ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod 0755 "$TEST_DIR/bin/restic"
+{
+    printf 'RESTIC_REPOSITORY=%q\n' 's3:https://objects.example.test/swirl-cloud-backups/restic'
+    printf 'RESTIC_PASSWORD=%q\n' 'fixture repository password'
+    printf 'AWS_ACCESS_KEY_ID=%q\n' 'fixture-access-key'
+    printf 'AWS_SECRET_ACCESS_KEY=%q\n' 'fixture/secret+key'
+    printf 'AWS_DEFAULT_REGION=%q\n' 'fixture-region'
+} > "$TEST_DIR/backup.env"
+export PATH="$TEST_DIR/bin:$PATH" MOCK_BACKUP_ENVIRONMENT="$TEST_DIR/backup.env"
+MOCK_RESTIC_STORE="$TEST_DIR/restic" run_backup offsite >/dev/null
+offsite_archive="$(find "$TEST_DIR/offsite" -name 'k3s-*.tar.gz')"
+grep -Fxq init "$TEST_DIR/restic/calls"
+grep -Fxq "backup --tag swirl-cloud-k3s $offsite_archive $offsite_archive.sha256" "$TEST_DIR/restic/calls"
+grep -Fxq 'forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune' "$TEST_DIR/restic/calls"
+offsite_id="$(jq -r '.[0].id' "$TEST_DIR/restic/snapshots.json")"
+# Older snapshots listed before and after it must not be taken for the newest archive.
+jq --arg older "$TEST_DIR/offsite/k3s-20200101T000000Z.tar.gz" --arg old "$TEST_DIR/offsite/k3s-20200102T000000Z.tar.gz" \
+    '[{id: "older-snapshot", paths: [$older, "\($older).sha256"]}] + . + [{id: "old-snapshot", paths: [$old, "\($old).sha256"]}]' \
+    "$TEST_DIR/restic/snapshots.json" > "$TEST_DIR/snapshots.json"
+mv "$TEST_DIR/snapshots.json" "$TEST_DIR/restic/snapshots.json"
+
+run_verification() (
+    local BACKUP_ENVIRONMENT_FILE="${MOCK_BACKUP_ENVIRONMENT:-$TEST_DIR/absent.env}"
+    export VERIFY_LOCK_WAIT_SECONDS=1
+    unset RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+    date() {
+        if [[ "$*" == '-u +%s' ]]; then command date -u -d "${MOCK_DATE:-2027-01-13 05:30}" +%s; else command date "$@"; fi
+    }
+    # shellcheck disable=SC1090
+    source <(sed \
+        -e '/^\[\[ "\$EUID" -eq 0 \]\]/d' \
+        -e "s|/run/lock/|$TEST_DIR/locks/|g" \
+        "$SCRIPT_DIR/verify-k3s-backup.sh")
+)
+export -f run_verification
+# Weeks rotate the restic check through four data subsets, also across ISO
+# week 53 into week 01.
+for rotation in 2026-12-30:3 2027-01-06:4 2027-01-13:1; do
+    : > "$TEST_DIR/restic/calls"
+    MOCK_DATE="${rotation%:*} 05:30" MOCK_RESTIC_STORE="$TEST_DIR/restic" run_verification > "$TEST_DIR/verified.out"
+    grep -Fq "Verified $offsite_archive from off-node snapshot ${offsite_id:0:8}" "$TEST_DIR/verified.out"
+    [[ "$(< "$TEST_DIR/restic/calls")" == "check --read-data-subset ${rotation#*:}/4
+snapshots --tag swirl-cloud-k3s --json
+dump $offsite_id $offsite_archive.sha256
+dump $offsite_id $offsite_archive" ]]
+done
+
+# Each failure must fail the unit (and so alert) with its own cause.
+expect_unverified() {
+    : > "$MOCK_RESTIC_STORE/calls"
+    if bash -c 'set -e; run_verification' >/dev/null 2>"$TEST_DIR/$1.err"; then
+        printf 'Verification accepted %s.\n' "$1" >&2
+        exit 1
+    fi
+    grep -Fq "$2" "$TEST_DIR/$1.err" || { cat "$TEST_DIR/$1.err" >&2; exit 1; }
+}
+publish_snapshot() {
+    local store="$TEST_DIR/$1"
+    mkdir -p "$store/$1$TEST_DIR/offsite"
+    cp "$2" "$store/$1$offsite_archive"
+    printf '%s  %s\n' "$3" "$offsite_archive" > "$store/$1$offsite_archive.sha256"
+    jq -n --arg id "$1" --arg path "$offsite_archive" '[{id: $id, paths: [$path, "\($path).sha256"]}]' \
+        > "$store/snapshots.json"
+}
+MOCK_RESTIC_CHECK_STATUS=1 MOCK_RESTIC_STORE="$TEST_DIR/restic" \
+    expect_unverified check-failed 'restic check of the off-node repository failed (data subset 1/4)'
+[[ "$(< "$TEST_DIR/restic/calls")" == 'check --read-data-subset 1/4' ]]
+publish_snapshot restic-no-digest "$offsite_archive" ''
+rm "$TEST_DIR/restic-no-digest/restic-no-digest$offsite_archive.sha256"
+MOCK_RESTIC_STORE="$TEST_DIR/restic-no-digest" expect_unverified missing-digest 'has no readable SHA-256 record'
+publish_snapshot restic-mismatch "$offsite_archive" "$(printf 'another archive' | sha256sum | cut -d' ' -f1)"
+MOCK_RESTIC_STORE="$TEST_DIR/restic-mismatch" expect_unverified checksum-mismatch 'does not match its recorded SHA-256'
+cp "$offsite_archive" "$TEST_DIR/corrupt.tar.gz"
+printf 'corrupted' | dd of="$TEST_DIR/corrupt.tar.gz" bs=1 seek=$(( $(wc -c < "$TEST_DIR/corrupt.tar.gz") / 2 )) \
+    conv=notrunc status=none
+publish_snapshot restic-corrupt "$TEST_DIR/corrupt.tar.gz" "$(sha256sum "$TEST_DIR/corrupt.tar.gz" | cut -d' ' -f1)"
+MOCK_RESTIC_STORE="$TEST_DIR/restic-corrupt" \
+    expect_unverified corrupt-archive 'could not be read back as a complete tar.gz recovery archive'
+tar -C "$TEST_DIR/etc-gitlab" -czf "$TEST_DIR/foreign.tar.gz" .
+publish_snapshot restic-foreign "$TEST_DIR/foreign.tar.gz" "$(sha256sum "$TEST_DIR/foreign.tar.gz" | cut -d' ' -f1)"
+MOCK_RESTIC_STORE="$TEST_DIR/restic-foreign" \
+    expect_unverified foreign-archive 'could not be read back as a complete tar.gz recovery archive'
+mkdir "$TEST_DIR/restic-empty" && printf '[]\n' > "$TEST_DIR/restic-empty/snapshots.json"
+MOCK_RESTIC_STORE="$TEST_DIR/restic-empty" expect_unverified empty-repository 'holds no K3s recovery archive'
+# A running backup or prune holds the lock; verification waits, then fails
+# without touching the repository.
+exec {held_lock}>"$TEST_DIR/locks/swirl-cloud-k3s-backup.lock"
+flock -n "$held_lock"
+MOCK_RESTIC_STORE="$TEST_DIR/restic" expect_unverified lock-held 'The backup lock is still held'
+exec {held_lock}>&-
+[[ ! -s "$TEST_DIR/restic/calls" ]]
+# Without an off-node repository there is nothing to verify, and that is not a failure.
+MOCK_BACKUP_ENVIRONMENT='' MOCK_RESTIC_STORE="$TEST_DIR/restic" run_verification > "$TEST_DIR/unconfigured.out"
+grep -Fxq 'No off-node restic repository is configured; nothing to verify.' "$TEST_DIR/unconfigured.out"
+[[ ! -s "$TEST_DIR/restic/calls" ]]
+
+printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, held lock, recovery-kit key separation, GitLab configuration capture, off-node upload and its weekly verification (restic check rotation, missing checksum, checksum mismatch, corrupt archive, empty repository, held lock, no repository)\n'

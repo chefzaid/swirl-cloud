@@ -73,7 +73,7 @@ source inputs and rendered deployment output, then runs only these safety suites
 
 | Retained suite | Failure it guards against |
 | --- | --- |
-| `test-k3s-backups.sh` | Unrestorable archives, stale SQLite backups after etcd migration, missing recovery tokens, Vault keys dropped from archives without a matching recovery kit, and GitLab configuration that is missing, readable by others or half-copied. |
+| `test-k3s-backups.sh` | Unrestorable archives, stale SQLite backups after etcd migration, missing recovery tokens, Vault keys dropped from archives without a matching recovery kit, GitLab configuration that is missing, readable by others or half-copied, off-node uploads that cannot see the repository credentials, restic retention grouped by path (which keeps every archive), a backup that reports success while the lock is held, and a weekly verification that passes a failed `restic check`, a missing or mismatched checksum, a corrupt or foreign archive or an empty repository, or runs during a backup. |
 | `test-k3s-api-endpoint.sh` | An API VIP that a node already holds or that lies outside the node network, a VIP held by a server whose API is not ready, multicast VRRP fallback, and a certificate restart that would leave no fresh etcd majority. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover, and restarting an obsolete writer. Includes an optional isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |

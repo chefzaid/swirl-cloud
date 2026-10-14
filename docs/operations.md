@@ -72,6 +72,7 @@ to the application repository.
 - `kubectl get externalsecrets -A` reports every ExternalSecret `Ready`.
 - `swirl-cloud-vault-unseal.timer` is active and Vault reports `Sealed: false`.
 - `swirl-cloud-k3s-backup.service` last `Result=success`, with a fresh archive under `/var/backups/swirl-cloud/k3s`.
+- With off-node storage, `swirl-cloud-k3s-backup-verify.service` last `Result=success` within the past week.
 - Longhorn volumes report robustness `healthy` (detached volumes may report `unknown`).
 - The default-branch platform pipeline passes `verify:gitops`, `verify:delivery-platform` and `verify:registry-write`.
 
@@ -168,8 +169,9 @@ fires on a non-zero exit and `LynisAuditMissing` when no run has succeeded for
 Unattended upgrades install security updates without rebooting; every node
 exports `swirl_cloud_reboot_required` every 15 minutes, and
 `NodeRebootRequired` fires once a reboot has been pending for seven days.
-`swirl-cloud-k3s-backup.service` and `swirl-cloud-vault-unseal.service` record
-each run's result through an `ExecStopPost` drop-in:
+`swirl-cloud-k3s-backup.service`, `swirl-cloud-k3s-backup-verify.service` and
+`swirl-cloud-vault-unseal.service` record each run's result through an
+`ExecStopPost` drop-in:
 `HostMaintenanceServiceFailed` fires after 15 minutes in a failed state,
 `K3sRecoveryBackupMissing` after 36 hours without a successful backup and
 `VaultUnsealTimerStopped` after 15 minutes without an unseal check. See
@@ -469,6 +471,32 @@ backups, `LonghornVolumeBackupStale` fires for any volume without a backup in
 36 hours. Credentials are stored root-only in
 `/etc/swirl-cloud/backup.env` and the Longhorn credential Secret. Keep the recovery
 password available off-host; local archives cannot survive loss of the host.
+
+With a restic repository in `backup.env`, `swirl-cloud-k3s-backup-verify.timer`
+runs [verify-k3s-backup.sh](../scripts/verify-k3s-backup.sh) on Wednesdays at
+05:30 UTC (± 30 min); without one the configurator disables it. Under the
+backup's lock it runs `restic check` on one of four data subsets, rotated weekly
+(Monday to Sunday UTC) so the whole repository is read every four weeks, then
+streams the newest archive out with `restic dump` and checks it against its
+recorded SHA-256 and as a complete `tar.gz` holding `RESTORE.txt`, without
+writing it to disk. A failure, or a backup still holding the lock after an hour,
+fails the unit and raises `HostMaintenanceServiceFailed`; the nightly backup in
+turn waits up to four hours for the lock, then fails instead of skipping. The
+timer runs the copy installed as
+`/usr/local/sbin/swirl-cloud-k3s-backup-verify`: changes take effect when
+`./scripts/configure-k3s-backups.sh` is rerun, and the alert needs the metrics
+drop-in from `./scripts/configure-node-security.sh --host-baseline`. To run it
+by hand (a rerun in the same week repeats that week's subset), or to read every
+data subset at once (full repository egress; start it well clear of the 02:15
+UTC backup):
+
+```bash
+sudo systemctl start swirl-cloud-k3s-backup-verify.service
+sudo journalctl -u swirl-cloud-k3s-backup-verify.service --since today
+sudo env VERIFY_DATA_SUBSETS=1 /usr/local/sbin/swirl-cloud-k3s-backup-verify
+```
+
+This proves the newest off-node archive reads back intact; it is not a restore drill.
 
 Follow the archive's datastore-specific `RESTORE.txt` and the
 [Vault recovery guide](security.md#upgrade-and-recovery). Restore SQLite with K3s stopped; embedded-etcd
