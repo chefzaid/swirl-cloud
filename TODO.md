@@ -36,6 +36,29 @@ Repeated gaps in the inventory point to their owning roadmap section; they are
 not separate implementations. Close operational items only with a dated result
 (restore, migration or failure drill); source/render checks alone are insufficient.
 
+## Bugs to fix
+
+Defects found while working on another task: misconfiguration, drift, failing
+checks, scanner findings, insecure defaults or broken automation. Each entry names
+the environment and resource, the evidence (command and output, plan excerpt or
+finding) and the risk. Agents add entries here instead of widening their change.
+
+None open.
+
+## Needs Input
+
+Parts of tasks that cannot advance without the owner's decision or information:
+target environment, approvals and maintenance windows, credentials and access,
+cost, security exceptions, and destructive or irreversible steps. Only the part
+needing input waits here; the rest of the task keeps moving. Answer under the
+item, and the next agent run applies the answer and removes the entry.
+
+Changes under `k8s/` deploy to the live cluster as soon as they reach `main`
+(the root Argo CD Application syncs automatically), so agents prepare each such
+change and ask the owner before pushing it.
+
+None open.
+
 ---
 
 ## Part I — Build timeline (how it got here)
