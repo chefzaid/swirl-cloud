@@ -248,6 +248,10 @@ spec:
         theme.__PUBLIC_DOMAIN__/config-revision: "1"
     spec:
       automountServiceAccountToken: false
+      # Exec probes killed at their timeout orphan curl and grep. With a shared
+      # process namespace the pause container reaps them as PID 1; the
+      # SonarQube JVM never does.
+      shareProcessNamespace: true
       securityContext:
         fsGroup: 1000
         seccompProfile:
