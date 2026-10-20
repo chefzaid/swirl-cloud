@@ -1247,6 +1247,38 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#ingressserviceerrorratehigh
               summary: Ingress service is returning server errors
               description: '{{ $labels.service }} has answered more than 5% of requests with 5xx for 15 minutes; see the Ingress Traffic dashboard.'
+      - name: applications.indezy
+        rules:
+          - alert: IndezyOfferSiteFailing
+            expr: max by (site) (indezy_offers_site_consecutive_failures{namespace="apps",app="indezy-server"}) >= 3
+            for: 10m
+            labels:
+              severity: warning
+              owner: application
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyoffersitefailing
+              summary: An Indezy job board keeps failing
+              description: 'Indezy failed to read {{ $labels.site }} {{ $value | printf "%.0f" }} times in a row; its offers are no longer refreshed.'
+          - alert: IndezyOfferSiteFindsNothing
+            expr: |
+              max by (site) (max_over_time(indezy_offers_site_last_found{namespace="apps",app="indezy-server"}[24h])) == 0
+              and max by (site) (indezy_offers_site_last_success_age_seconds{namespace="apps",app="indezy-server"}) < 86400
+            labels:
+              severity: warning
+              owner: application
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyoffersitefindsnothing
+              summary: An Indezy job board yields no offer
+              description: 'Every successful reading of {{ $labels.site }} over 24 hours found no offer; its pages have probably changed.'
+          - alert: IndezyGeocodingTimeouts
+            expr: sum(increase(indezy_offers_geocoding_timeouts_total{namespace="apps",app="indezy-server"}[1h])) > 20
+            labels:
+              severity: warning
+              owner: application
+            annotations:
+              runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezygeocodingtimeouts
+              summary: Indezy cannot reach the geocoding service
+              description: '{{ $value | printf "%.0f" }} place lookups to geo.api.gouv.fr failed in an hour; new offers lack coordinates until it answers.'
       - name: swirl-cloud.monitoring
         rules:
           - alert: PrometheusTargetDown

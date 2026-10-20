@@ -414,6 +414,37 @@ settings, which checks the login and sender before storing anything
 GitLab is up and that its alert integration token matches Vault
 `infra/monitoring`.
 
+## Applications
+
+### IndezyOfferSiteFailing
+
+Indezy failed to read one job board three times in a row (the `site` label), so
+its offers stop being refreshed while the others carry on; each failure doubles
+the wait before the next try, up to a day. The Indezy **Job boards** page shows
+the site's last error, and so do the server logs
+(`kubectl -n apps logs deploy/indezy-server | grep "Collecting <SITE> failed"`).
+A 403 or 429 means the site now refuses the crawler; a parse error means its
+pages changed and the reader in `indezy-server/.../scraping/reader` needs
+updating (see the Indezy TODO's reader canaries). Indezy's **Read now** button
+retries once the cause is fixed.
+
+### IndezyOfferSiteFindsNothing
+
+Every successful reading of one job board over 24 hours found no offer: the
+pages still answer but no longer hold what the reader looks for, the usual sign
+of a site redesign. Open the site, compare its list with the reader's sample in
+`indezy-server/src/test/resources/offers/`, and update the reader. A board that
+genuinely stopped publishing belongs in the Indezy TODO's left-out sites.
+
+### IndezyGeocodingTimeouts
+
+More than 20 place lookups to `geo.api.gouv.fr` failed in an hour. Offers read
+meanwhile have no coordinates, so the distance filter and the profile match
+leave them out until Indezy looks them up again (every 6 hours). Check that the
+service answers from the cluster
+(`kubectl -n apps exec deploy/indezy-server -- wget -qO- 'https://geo.api.gouv.fr/communes?nom=Paris'`);
+it is a public French government service, so a short outage needs no action.
+
 ## Service levels
 
 ### CIJobsQueueingLong
