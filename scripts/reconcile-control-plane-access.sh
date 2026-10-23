@@ -93,6 +93,8 @@ while IFS=$'\t' read -r name address role recorded_user; do
     ssh -n "${ssh_options[@]}" "$target" "mkdir -m 700 $quoted_dir/lib"
     scp "${scp_options[@]}" "$SCRIPT_DIR/configure-node-security.sh" "$target:$remote_dir/"
     scp "${scp_options[@]}" "$SCRIPT_DIR/lib/network.sh" "$target:$remote_dir/lib/"
+    scp "${scp_options[@]}" "$SCRIPT_DIR/lib/node-access-policy.sh" "$SCRIPT_DIR/lib/intrusion-config.sh" \
+        "$SCRIPT_DIR/lib/node-firewall.sh" "$SCRIPT_DIR/lib/host-baseline.sh" "$target:$remote_dir/lib/"
     args=(--apply --reconcile-control-plane-ssh --server-exposure local --node-role "$role"
           --control-plane-ip "$SOURCE_IP" --control-plane-ssh-ips "$addresses" --ssh-port "$SSH_PORT")
     [[ "$role" != control-plane ]] || args+=(--private-control-plane)
