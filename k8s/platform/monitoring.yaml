@@ -314,10 +314,9 @@ spec:
             path: /
 
 ---
-# Availability probes for every public Ingress host (docs/guides/service-levels.md).
-# Requests travel the public path (DNS, Cloudflare, Traefik) like a user's.
-# Login redirects and 401/403/404 answers count as available; 5xx, TLS and
-# connection errors do not.
+# Availability probes for every public Ingress host over the public path (DNS,
+# Cloudflare, Traefik), see docs/guides/service-levels.md. Login redirects and
+# 401/403/404 count as available; 5xx, TLS and connection errors do not.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -712,9 +711,8 @@ data:
           - source_labels: [__meta_kubernetes_pod_node_name]
             target_label: node
 
-      # Datastore exporters are containers named <datastore>-exporter with a
-      # metrics port; CloudNativePG instances serve the same PostgreSQL role.
-      # Each target's job is the datastore name.
+      # <datastore>-exporter containers and CloudNativePG instances; each
+      # target's job is the datastore name.
       - job_name: datastores
         kubernetes_sd_configs:
           - role: pod
@@ -1138,10 +1136,9 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#lynisauditmissing
               summary: Monthly Lynis audit is overdue
               description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
-          # Known findings are triaged in docs/security.md; alert only when an
-          # image gains critical findings over its own recent maximum, or a new
-          # image arrives with some. The 6 h baseline fits the current size-bound
-          # retention; widen it with the retention increase in TODO §26.
+          # Known findings are triaged in docs/security.md; alert only when an image
+          # exceeds its own 6 h critical maximum or arrives with critical findings.
+          # 6 h fits the size-bound retention; widen it with TODO §26.
           - alert: TrivyNewCriticalVulnerability
             expr: |
               max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"}) > 0
@@ -1345,10 +1342,8 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#compliancecontrolregressed
               summary: A compliance control started failing or lost its evidence
               description: 'Control {{ $labels.control }} is now {{ if eq $value 0.0 }}failing{{ else }}without evidence{{ end }}. Open the Compliance Evidence dashboard or run ./install.sh --compliance.'
-      # Service levels (docs/guides/service-levels.md): every public endpoint
-      # targets 99.5 % availability (error budget 0.5 %) measured by probes.
-      # Burn-rate alerts follow the multi-window method of the Google SRE
-      # workbook: 14.4x over 1 h and 5 m pages, 6x over 6 h and 30 m warns.
+      # Service levels (docs/guides/service-levels.md): 99.5 % probe availability.
+      # Multi-window burn rates: 14.4x over 1 h and 5 m pages, 6x over 6 h and 30 m warns.
       - name: swirl-cloud.slo
         rules:
           - record: swirl_cloud_slo:probe_success:ratio_rate5m
@@ -1416,9 +1411,8 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#cijobsqueueinglong
               summary: CI jobs wait more than ten minutes for a runner
               description: 'Nine in ten CI jobs started within {{ $value | humanizeDuration }} over six hours; raise runner concurrency or add capacity.'
-      # Capacity planning (docs/guides/capacity-planning.md): requests reserve
-      # schedulable capacity whether used or not, so plan on requests and keep
-      # usage in view. Targets keep requests below 70 % and survive a server loss.
+      # Capacity planning (docs/guides/capacity-planning.md) works on requests, which
+      # reserve capacity whether used or not: below 70 % and surviving a server loss.
       - name: swirl-cloud.capacity-planning
         rules:
           - record: swirl_cloud_capacity:requests:ratio
@@ -1473,10 +1467,9 @@ data:
               runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clustercannotsurvivenodeloss
               summary: Workloads would not fit after losing the largest server
               description: 'Requested {{ $labels.resource }} is {{ $value | humanizePercentage }} of the capacity left without the largest server; a host failure would leave pods unscheduled.'
-      # Cost showback (docs/guides/cost-showback.md): each server's monthly cost,
-      # published by scripts/configure-node-cost.sh, is split 65 % CPU / 35 %
-      # memory and allocated to running pods by the larger of request and usage.
-      # What no pod uses is idle cost on that server.
+      # Cost showback (docs/guides/cost-showback.md): each server's monthly cost
+      # (scripts/configure-node-cost.sh) splits 65 % CPU / 35 % memory across pods
+      # by the larger of request and usage; the rest is idle cost.
       - name: swirl-cloud.cost
         interval: 1m
         rules:
@@ -1551,12 +1544,10 @@ data:
               or sum by (currency) (swirl_cloud_cost_node_monthly)
 
 ---
-# Alertmanager's configuration, rendered by External Secrets from the platform
-# mail relay in Vault infra/smtp (ADR 0029). Notifications are paused since
-# 2026-10-11: every alert goes to the "paused" receiver, which sends nothing,
-# and stays visible in Alertmanager, Prometheus and Grafana. The GitLab and
-# email receivers stay defined; restoring their routes needs the owner's
-# approval (TODO.md §14). With mail off, the "email" receiver has no target.
+# Alertmanager configuration, rendered from the platform mail relay in Vault
+# infra/smtp (ADR 0029). Notifications are paused: every alert routes to the
+# "paused" receiver, which sends nothing; restoring the gitlab and email routes
+# needs the owner's approval (TODO.md §14). With mail off, "email" has no target.
 # scripts/configure-platform-mail.py restarts Alertmanager after a change.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -1727,8 +1718,8 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      # Keep ample headroom above the 1500 MB TSDB retention limit because
-      # WAL and memory-mapped head chunks are not covered by that limit.
+      # Headroom above the 1500 MB retention size, which excludes the WAL and
+      # memory-mapped head chunks.
       storage: 4Gi
 
 ---
