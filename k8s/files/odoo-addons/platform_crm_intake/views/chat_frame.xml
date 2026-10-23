@@ -12,7 +12,7 @@
                 <script>
                     window.odoo ??= {};
                     window.odoo.csrf_token = "<t t-out="request.csrf_token(None)"/>";
-                    // Read by static/src/website_frame_service.js.
+                    // Read by static/src/website_frame_service.js and chat_window_status.js.
                     window.odoo.platformWebsiteOrigin = <t t-out="website_origin"/>;
                 </script>
                 <t t-out="channel.script_external"/>

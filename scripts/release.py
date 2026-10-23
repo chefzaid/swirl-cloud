@@ -223,7 +223,7 @@ def prepare(version):
     head, _, rest = existing.partition("\n## ")
     changelog_path.write_text(head.rstrip("\n") + "\n\n" + "\n".join(entry) + ("\n## " + rest if rest else ""))
     print(f"Set version {version} in k8s/Chart.yaml and added it to CHANGELOG.md (changes since {previous or 'the first commit'}).\n"
-          f"Review, then: git commit -am 'Release {version}' && git tag -a v{version} -m 'Swirl Cloud {version}'")
+          f"Review, then: git add k8s/Chart.yaml CHANGELOG.md && git commit -m 'Release {version}' && git tag -a v{version} -m 'Swirl Cloud {version}'")
 
 
 def main():
