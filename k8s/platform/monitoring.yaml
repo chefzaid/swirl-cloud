@@ -604,6 +604,12 @@ data:
             replacement: /api/v1/nodes/$1/proxy/metrics
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
+        # K3s serves its embedded API server, etcd/kine and controllers here too:
+        # about 57,000 series that no dashboard or rule reads.
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            action: drop
+            regex: (apiserver|apiextensions|aggregator|authentication|authorization|etcd|kine|scheduler|workqueue|rest_client|watch_cache)_.+
 
       - job_name: kubernetes-cadvisor
         scheme: https
@@ -1799,14 +1805,16 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
-          # CPU peaked at 0.07 core over 6 h on 2026-10-05.
+          # CPU peaked at 0.07 core over 6 h on 2026-10-05. The CPU limit sets
+          # GOMAXPROCS: with one, a chunk read stalled on disk freezes every
+          # handler, probes included.
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 768Mi
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: "2"
+              memory: 2Gi
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus/prometheus.yml

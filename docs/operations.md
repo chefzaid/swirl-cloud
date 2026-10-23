@@ -121,7 +121,10 @@ CloudNativePG), `mongodb`, `redis` (including Redis HA), `kafka` and
 `elasticsearch` (exporters; Elasticsearch signs in as `metrics_monitor`);
 `external-secrets`; and GitLab's `/-/metrics` (its bundled Prometheus is
 disabled; see **GitLab Delivery**). Prometheus restarts when
-[monitoring.yaml](../k8s/platform/monitoring.yaml) changes.
+[monitoring.yaml](../k8s/platform/monitoring.yaml) changes. The kubelet job drops
+the K3s API server, etcd/kine, scheduler and work-queue metrics its endpoint also
+serves; remove a family from its `metric_relabel_configs` before a dashboard or
+rule uses it.
 
 Vault serves `/v1/sys/metrics` without a token, reporting `vault_core_unsealed`
 even while sealed, and reads telemetry settings only at startup: after an
