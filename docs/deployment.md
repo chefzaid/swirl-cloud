@@ -1,48 +1,44 @@
 # Deployment Guide
 
-This guide installs, reconciles and expands the shared platform, registers
-application environments, and explains the delivery path shared by GitLab CI
-and Argo CD. The [architecture overview](architecture.md) explains why the
-platform is shaped this way; step-by-step procedures without a Swirl Demo App
-counterpart live in [specialized guides](architecture.md#specialized-guides).
+Install, reconcile and expand the shared platform, register application
+environments, and maintain the shared GitLab CI and Argo CD delivery path. The
+[architecture overview](architecture.md) explains the design; other procedures live
+in the [specialized guides](architecture.md#specialized-guides).
 
 ## Infrastructure Layout
 
 | Entry point | Owns |
 | --- | --- |
-| [`install-control-plane.sh`](../install-control-plane.sh) | Guided or unattended bootstrap of the first control plane and every selected platform component. |
+| [`install-control-plane.sh`](../install-control-plane.sh) | Guided or unattended bootstrap of the first control plane and every selected component. |
 | [`ansible/install.yml`](../ansible/install.yml) | The same installer through Ansible, with Vault-encrypted inputs. |
 | [`ansible/deploy.yml`](../ansible/deploy.yml) | Idempotent reconciliation of an installed control plane. |
 | [`add-node.sh`](../add-node.sh) | Control-plane and worker enrollment; see [node enrollment](guides/node-enrollment.md). |
 | [`add-repos.sh`](../add-repos.sh) | Repository import, synchronization and first deployment; see [repository onboarding](guides/repository-onboarding.md). |
 | [`scripts/install-application-cluster.sh`](../scripts/install-application-cluster.sh) | Optional separate application cluster for one environment. |
 | [`k8s/`](../k8s/) | The GitOps Helm chart reconciled by the root Argo CD Application. |
-| [`config/`](../config/) | Shared version inventory and Helm values for separately installed releases. |
+| [`config/`](../config/) | Version inventory and Helm values for separately installed releases. |
 
 ## Installation Prerequisites
 
-Run commands from this checkout on the first control-plane host as a non-root
-user with sudo access. Use Ubuntu and size CPU, memory, and disk for the
-selected services' [resource and volume requests](../k8s), with headroom for
-builds, snapshots, and backups. Unattended runs require passwordless sudo.
-When Helm is missing, the installer downloads the release pinned by
-`DEFAULT_HELM_VERSION` in [`config/platform.env`](../config/platform.env) and
-installs it only if the archive matches the recorded SHA-256 checksum. To update
-Helm, change the version and both architecture checksums together.
+Run from this checkout on the first control-plane host as a non-root user with sudo
+(passwordless for unattended runs). Size the host for the selected services'
+[resource and volume requests](../k8s) plus builds, snapshots and backups. A missing
+Helm is downloaded at `DEFAULT_HELM_VERSION` from
+[`config/platform.env`](../config/platform.env) and installed only if its SHA-256
+matches; update the version and both architecture checksums together.
 
 ### Support matrix
 
 | Item | Supported | Notes |
 | --- | --- | --- |
 | Operating system | Ubuntu LTS; tested on Ubuntu 26.04 LTS | The setup hub warns on other distributions. |
-| Architecture | x86_64 | The GitLab Omnibus image is amd64-only, so a full installation needs x86_64; aarch64 passes preflight but is untested. |
+| Architecture | x86_64 | GitLab Omnibus is amd64-only; aarch64 passes preflight but is untested. |
 | Kubernetes | K3s at the version pinned in `config/platform.env` | Installed by the platform; existing clusters are not adopted. |
-| Topology | One server; three or more control planes with the high-availability profile | HA profiles are not yet drill-tested on three hosts. |
+| Topology | One server, or three or more control planes with the HA profile | HA profiles are not yet drill-tested on three hosts. |
 
-Minimum and recommended sizes for one server running every platform service
-plus a few applications, measured on the reference installation in October
-2026 (platform services request about 5.4 CPU cores and 16 GiB of memory,
-applications the rest; peak CPU use was 3 cores):
+Sizes for one server running every platform service plus a few applications,
+measured in October 2026 (platform services request about 5.4 cores and 16 GiB;
+peak CPU use was 3 cores):
 
 | Size | CPU | Memory | Disk |
 | --- | --- | --- | --- |
@@ -50,25 +46,22 @@ applications the rest; peak CPU use was 3 cores):
 | Recommended | 16 cores | 64 GiB | 500 GB NVMe |
 | Reference installation | 8 cores (requests at about 90 %) | 31 GiB | 145 GiB (67 % used) |
 
-At the minimum size, CPU requests leave little room for applications or
-rollouts; follow [capacity planning](guides/capacity-planning.md) before adding
-workloads. Add 30 GiB of free disk for backups and upgrades on top of data.
+At the minimum, CPU requests leave little room for applications or rollouts; follow
+[capacity planning](guides/capacity-planning.md) before adding workloads. Keep
+30 GiB of free disk for backups and upgrades on top of data.
 
-Prepare your public domain, an accessible GitOps repository, and the
-[administrator credentials](security.md#administrator-sign-in). For multiple
-nodes, complete the [private transport prerequisites](guides/node-enrollment.md#private-node-network)
+Prepare your public domain, an accessible GitOps repository and the
+[administrator credentials](security.md#administrator-sign-in). For several nodes,
+complete the [private transport prerequisites](guides/node-enrollment.md#private-node-network)
 and [remote enrollment requirements](guides/node-enrollment.md#remote-enrollment).
 Interactive setup guides account configuration before changing the firewall;
-unattended runs require it to be ready.
+unattended runs need it done first.
 
 ## Choose an entry point
 
-`./install.sh` is the entry point. Run it without arguments for the setup hub
-(`./install.sh --lang fr`, or `SWIRL_CLOUD_LANG=fr`, shows it in French):
-
-```bash
-./install.sh
-```
+`./install.sh` without arguments opens the setup hub (`--lang fr` or
+`SWIRL_CLOUD_LANG=fr` for French). `./install.sh --help` lists every command,
+including the compliance and incident reports covered by the specialized guides.
 
 | Task | Command |
 | --- | --- |
@@ -77,150 +70,133 @@ unattended runs require it to be ready.
 | Check a file without changing anything | `./install.sh --env-file FILE --validate-only` |
 | Verify an installed platform | [`./install.sh --status`](#verify-the-result) |
 | See what a rerun will change | [`./install.sh --plan [--env-file FILE]`](#setup-hub-and-the-input-file) |
-| Collect troubleshooting data | [`./install.sh --support-bundle`](../docs/operations.md#cluster-status) |
+| Collect troubleshooting data | [`./install.sh --support-bundle`](operations.md#cluster-status) |
 | Reconcile an installed platform | [Ansible reconciliation](#platform-reconciliation) |
 | Configure local or remote application environments | [Application deployment clusters](#application-deployment-clusters) |
 
 The hub starts [`add-node.sh`](guides/node-enrollment.md) and
-[`add-repos.sh`](guides/repository-onboarding.md) for you; both still run on their
-own. `install-control-plane.sh` is the engine behind the hub: run without
-arguments in a terminal it opens the hub, and `--prompts` keeps the plain
-terminal questions. Environment-driven runs use [`--yes`](#unattended-installation).
+[`add-repos.sh`](guides/repository-onboarding.md), which also run on their own.
+`install-control-plane.sh` is the engine: without arguments in a terminal it opens
+the hub, `--prompts` asks plain terminal questions, and
+[`--yes`](#unattended-installation) runs from the environment.
 
-The hub collects identity, installation scope, topology, components, recovery
-destination, public access and administrator credentials. Accept the
-recommended shared-platform bundle or select components individually.
-`INSTALL_SCOPE=apps` also installs Odoo in `corp`; `infra` omits it. Both scopes
-provide the `apps` namespace and its networking, credentials and TLS foundation
-for [application-owned deployments](guides/repository-onboarding.md).
+`INSTALL_SCOPE=apps` (default) also installs Odoo in `corp`; `infra` omits it. Both
+provide the `apps` namespace foundation for
+[application-owned deployments](guides/repository-onboarding.md).
 
 Existing ingress-nginx or private-image installations must first follow the
-[platform migration](guides/platform-migration.md). Ordinary reconciliation stops at a
-read-only migration check; `platform_migration_approved=true` is reserved for a
+[platform migration](guides/platform-migration.md). Ordinary reconciliation stops at
+a read-only migration check; `platform_migration_approved=true` is only for a
 prepared Ansible maintenance run. Retired image-profile inputs are rejected.
-New installations use public upstream images and a separate Traefik release.
 
 ## Setup hub and the input file
 
-`./install.sh` checks that it is not running as root, offers to install
-`python3` and `whiptail` with apt-get when they are missing, and opens the hub.
-Answers are kept in `~/.config/swirl-cloud/install.env` (`--output FILE` chooses
-another path outside the checkout). Nothing changes on the host until you choose
-**Install**.
+`./install.sh` refuses to run as root, offers to apt-get install missing `python3`
+and `whiptail`, and opens the hub. Answers go to `~/.config/swirl-cloud/install.env`
+(`--output FILE` for another path outside the checkout). Nothing changes on the host
+until you choose **Install**.
 
 | Menu | What it does |
 | --- | --- |
-| Overview | What gets installed, and the current state of this host and the input file. |
-| Check this host | OS, architecture, sudo, CPU, memory, free disk, ports, clock, K3s role, internet egress and domain resolution. |
-| Configure: express | Asks only for the company name and domain, GitOps URL, administrator login, the Cloudflare token and Access emails for internet-exposed servers, and optionally more servers, S3 backups and GitHub repositories. |
-| Configure: advanced | Every installer input by section; only inputs that apply to earlier answers are asked. |
-| Test credentials | Calls Cloudflare (token and zone), GitHub (token and repository admin access) and Tailscale with the entered tokens, and logs in to the SMTP relay without sending. OVHcloud and S3 keys are checked by the installer. |
-| Review / Save | Lists answers (secrets show as `(set)`) and problems; Save writes the file and runs the installer's `--validate-only` check. |
-| Plan | Each stage as installed, missing, drifted (chart or K3s version differs from `config/platform.env`, or the installed identity differs from the file) or failed, the action the next run takes, and the result of the last run. Install shows it before asking for confirmation. |
+| Overview | What gets installed, and the state of this host and the input file. |
+| Check this host | OS, architecture, sudo, CPU, memory, disk, ports, clock, K3s role, egress and domain resolution. |
+| Configure: express | Company name and domain, GitOps URL, administrator login, Cloudflare token and Access emails for internet-exposed servers; optionally more servers, S3 backups and GitHub repositories. |
+| Configure: advanced | Every input by section, asking only those that apply. |
+| Test credentials | Cloudflare (token and zone), GitHub (token and repository admin access), Tailscale, and an SMTP login without sending. The installer checks OVHcloud and S3 keys. |
+| Review / Save | Answers (secrets show as `(set)`) and problems; Save writes the file and runs `--validate-only`. |
+| Plan | Each stage as installed, missing, drifted (chart or K3s version differs from `config/platform.env`, or identity differs from the file) or failed, the next action and the last result. Install shows it before confirming. |
 | Install or update | Saves, rechecks the host, runs the engine with a private log under `~/.local/state/swirl-cloud/logs`, then shows the [verification report](#verify-the-result). |
-| Add servers | Enrolls control planes or workers over SSH, or joins this machine to an existing cluster, with the transport credentials already entered. |
-| Import repositories | Runs repository import and deployment with the GitHub inputs already entered. |
-| Deploy an application | Shows each environment-aware application's revision and health per environment, then deploys a branch to `int`, a new release to `uat`/`prod`, or promotes an existing release ([details](#deploy-from-the-hub-or-the-command-line)). |
-| Status / Service links | Verification report, and every service URL grouped by namespace. |
-| Maintenance | Run the recovery backup or Vault unseal now (with their journal), apply API audit logging, create a support bundle, [rotate local administrator passwords](security.md#rotate-local-administrator-passwords) with the password sent on stdin, audit hosts with Lynis, run the API dry-run validation, list failed `swirl-cloud-*` units and open earlier run logs. |
+| Add servers | Enrolls control planes or workers over SSH, or joins this machine to a cluster. |
+| Import repositories | Imports and deploys GitHub repositories or existing GitLab projects. |
+| Deploy an application | Per-environment revision and health, then a [deployment](#deploy-from-the-hub-or-the-command-line) or promotion. |
+| Status / Service links | Verification report, and every service URL by namespace. |
+| Maintenance | Recovery backup or Vault unseal now, API audit logging (restarts K3s), [local administrator password rotation](security.md#rotate-local-administrator-passwords), Lynis host audit, API dry-run, failed `swirl-cloud-*` units, earlier logs, support bundle, compliance and access-review reports, server cost, and recovery kit export or verification. |
 
-Password fields can generate a strong password; it is shown once from a private
-file, never as a command argument. Any secret can instead be read from a
-protected file: choose **Read it from a protected file**, or write
-`NAME_FILE=/path` (for example `CLOUDFLARE_API_TOKEN_FILE=/secure/cloudflare`)
-instead of `NAME=value`. The file holds one line, belongs to you or root and has
-mode `600`; the engine reads it when it imports the inputs, so the input file
-itself carries no credentials and Vault is not needed during bootstrap or
-recovery. Hub run logs replace every entered secret with `[redacted]`.
+Password fields can generate a strong password, shown once from a private file and
+never passed as a command argument. Any secret can come from a protected file
+instead: choose **Read it from a protected file**, or write `NAME_FILE=/path` (for
+example `CLOUDFLARE_API_TOKEN_FILE=/secure/cloudflare`). The file holds one line,
+belongs to you or root and has mode `600`, so the input file carries no credentials
+and Vault is not needed during bootstrap or recovery. Hub logs show secrets as
+`[redacted]`.
 
-Automation can keep secrets off the disk entirely: pipe `NAME=value` lines for
-secret inputs into the engine, for example from a password manager or CI secret
-store. Non-secret names and values that the file also sets are rejected:
+To keep secrets off the disk, pipe `NAME=value` lines into the engine. Stdin accepts
+only secret inputs, and a secret also set in the file (or as `NAME_FILE`) is
+rejected:
 
 ```bash
 pass show swirl-cloud/install-secrets | \
   ./install.sh --env-file ~/.config/swirl-cloud/install.env --secrets-stdin
-``` On a host that already runs the platform,
-the hub loads the installed identity as defaults. Rerunning it loads the saved
-file, so earlier answers become defaults and an empty secret keeps the stored
-value. Unattended reruns use the same file:
-
-```bash
-./install.sh --env-file ~/.config/swirl-cloud/install.env
 ```
 
-The file is the only source of installation inputs for that run; matching
-variables in the calling shell are ignored. It is parsed as data, never sourced,
-and must be readable only by its owner (`chmod 600`). The installer reports every
-missing, unknown or invalid input and credential-policy failure at once before it
-changes anything; `--validate-only` stops after that report. The
-[input schema](../scripts/lib/install_inputs.py) defines names, types, defaults
-and conditions ([ADR 0026](adr/0026-installer-input-file.md)). Version pins
-remain in [`config/platform.env`](../config/platform.env). The file contains
-credentials: keep it outside Git and remove or protect it after installation.
+On an installed host the hub loads the installed identity as defaults; a rerun loads
+the saved file, and an empty secret keeps the stored value. Unattended reruns pass
+the same file to `./install.sh --env-file`.
+
+The file is the only input source for that run (shell variables are ignored), is
+parsed as data, never sourced, and must be mode `600`. Every missing, unknown or
+invalid input and credential-policy failure is reported before anything changes;
+`--validate-only` stops there. The [input schema](../scripts/lib/install_inputs.py)
+defines names, types, defaults and conditions
+([ADR 0026](adr/0026-installer-input-file.md)); version pins stay in
+`config/platform.env`. Keep the file outside Git and remove or protect it after
+installation.
 
 ## Topology and scheduling
 
 Choose an odd final control-plane count (`1`, `3`, `5`, …) and a total count that
-includes workers. Control planes must remain schedulable when there are no
-workers. See the [topology and exposure model](architecture.md#node-topology) and
+includes workers. Without workers, control planes must stay schedulable. See the
+[topology and exposure model](architecture.md#node-topology) and
 [scheduling and storage rules](guides/node-enrollment.md#scheduling-and-storage).
-Additional hosts alone do not activate the [HA profile](guides/high-availability.md).
+Extra hosts alone do not activate the [HA profile](guides/high-availability.md).
 
 ## Organization and installation identity
 
-The installer renders URLs, registry paths, authentication issuers, discovery
-settings and branding from your inputs; the source checkout stays generic.
-The required company display name gives the portal its `<company name> Cloud`
-title and cluster label. Keycloak's realm display name and Odoo's main company
-use the company name without the suffix.
+URLs, registry paths, authentication issuers, discovery and branding are rendered
+from these inputs; the checkout stays generic. The portal is titled
+`<company name> Cloud`; Keycloak's realm display name and Odoo's main company use
+the company name alone.
 
 | Environment input | Helm value | Default or requirement |
 |---|---|---|
-| `ORGANIZATION_NAME` | `organizationName` | Required company display name, including spaces and punctuation; the portal appends ` Cloud`. |
+| `ORGANIZATION_NAME` | `organizationName` | Required company display name, spaces and punctuation allowed. |
 | `ORGANIZATION_SLUG` | `organizationSlug` | First label of the public domain; a lowercase DNS label. |
 | `PLATFORM_DOMAIN` | `publicDomain` | Required public base domain, such as `example.com`. |
 | `INTERNAL_DNS_ZONE` | `internalDnsZone` | `internal.<PLATFORM_DOMAIN>`; must differ from the public domain. |
-| `GITLAB_GROUP_PATH` | `gitlabGroupPath` | Organization slug; the installer provisions a top-level group. |
+| `GITLAB_GROUP_PATH` | `gitlabGroupPath` | Organization slug; provisioned as a top-level group. |
 | `GITLAB_GROUP_NAME` | `gitlabGroupName` | Organization display name. |
-| `GITLAB_PROJECT_NAME` | `gitlabProjectName` | `swirl-cloud`; platform GitLab integrations follow this choice. |
+| `GITLAB_PROJECT_NAME` | `gitlabProjectName` | `swirl-cloud`; platform GitLab integrations follow it. |
 | `KEYCLOAK_REALM` | `keycloakRealm` | Organization slug; `master` is reserved for Keycloak administration. |
-| `TLS_SECRET_NAME` | `tlsSecretName` | Public domain with dots replaced by hyphens, plus `-tls`; shared by ingress and certificate provisioning. `CLOUDFLARE_TLS_SECRET_NAME` is an alias. |
-| `SONAR_ALM_SETTING` | `sonarAlmSetting` | `<organization-slug>-gitlab`; the managed Sonar GitLab integration. |
-| `CLOUDFLARE_ACCESS_IDP_NAME` | `cloudflareAccessIdpName` | `<organization-name> Keycloak`; identifies the managed Access identity provider. |
+| `TLS_SECRET_NAME` | `tlsSecretName` | Public domain with dots as hyphens, plus `-tls`. `CLOUDFLARE_TLS_SECRET_NAME` is an alias. |
+| `SONAR_ALM_SETTING` | `sonarAlmSetting` | `<organization-slug>-gitlab`. |
+| `CLOUDFLARE_ACCESS_IDP_NAME` | `cloudflareAccessIdpName` | `<organization-name> Keycloak`. |
 | `CLOUDFLARE_ACCESS_TEAM_NAME` | `cloudflareAccessTeamName` | Existing Zero Trust team label, or `swirl-cloud-<domain-with-hyphens>` for a new team. |
 | `GITOPS_REPOSITORY_URL` | `gitopsRepositoryURL` | Accessible HTTP(S) `.git` URL; interactive setup suggests the checkout's remote. |
 
-The generated Argo CD Application carries these settings into subsequent Helm
-reconciliation. The public `infra/swirl-cloud-identity` ConfigMap records installed
-choices for installer reruns, Ansible, and provisioning helpers. Explicit
-environment inputs override stored choices. Credentials stay in the
+The generated Argo CD Application carries these into later Helm reconciliation. The
+public `infra/swirl-cloud-identity` ConfigMap records them for reruns, Ansible and
+helpers; explicit inputs override it. Credentials follow the
 [secret-management flow](security.md#recovery-credentials).
 
-To rebrand an existing installation, update `organizationName` in the installed
-`swirl-cloud` Argo CD Application's Helm parameters and reconcile the platform.
-Use the same `ORGANIZATION_NAME` for installer or Ansible overrides. Display
-settings such as `GITLAB_GROUP_NAME` and `CLOUDFLARE_ACCESS_IDP_NAME` are stored
-separately; update them explicitly when their labels also need to change.
-Keep the domain, organization slug, SSO realm and repository paths unchanged
-when changing display names.
+To rebrand, change `organizationName` in the `swirl-cloud` Application's Helm
+parameters, reconcile, and pass the same `ORGANIZATION_NAME` to installer or Ansible
+reruns. Update `GITLAB_GROUP_NAME` and `CLOUDFLARE_ACCESS_IDP_NAME` separately if
+needed. Keep the domain, slug, SSO realm and repository paths unchanged.
 
-For an existing installation created before this identity contract, preserve its
-current realm, GitLab group/project, TLS secret, organization name, and integration
-names as explicit Helm parameters on the installed `swirl-cloud` Application
-**before syncing the generalized chart**. Supply the same values to a first
-installer/Ansible rerun. This records the existing identity; changing a realm,
-domain, or repository path is a separate migration of accounts and resources.
+An installation older than this identity contract must have its current realm,
+GitLab group/project, TLS secret, organization and integration names set as explicit
+Helm parameters on the `swirl-cloud` Application **before syncing the generalized
+chart**, and passed to the first rerun. Changing a realm, domain or repository path
+is a separate migration.
 
 ## Unattended installation
 
-`--yes` selects the recommended component bundle and defaults to
-`INSTALL_SCOPE=apps`. Set `INSTALL_PREREQS`, `INSTALL_K3S` or the component
-inputs (`INSTALL_LONGHORN`, `INSTALL_INGRESS`, `INSTALL_VAULT_STACK`,
-`DEPLOY_DATA_STORES`, `DEPLOY_PLATFORM_SERVICES`, `INSTALL_DESCHEDULER`,
-`INSTALL_ARGOCD`) to `true` or `false` to override a default; unset components
-stay installed. Interactive runs skip questions for inputs already set. This example uses local exposure; replace the identity,
-node name and GitOps URL with your own values:
+`--yes` selects the recommended bundle with `INSTALL_SCOPE=apps`. Set
+`INSTALL_PREREQS`, `INSTALL_K3S`, `INSTALL_LONGHORN`, `INSTALL_INGRESS`,
+`INSTALL_VAULT_STACK`, `DEPLOY_DATA_STORES`, `DEPLOY_PLATFORM_SERVICES`,
+`INSTALL_DESCHEDULER` or `INSTALL_ARGOCD` to `true` or `false` to override a
+default; unset components stay installed. Interactive runs skip inputs already set.
+A local-exposure example:
 
 ```bash
 export ORGANIZATION_NAME='Example Company'
@@ -240,27 +216,25 @@ export KEYCLOAK_SSO_BOOTSTRAP_PASSWORD
 unset KEYCLOAK_SSO_BOOTSTRAP_PASSWORD
 ```
 
-Identity inputs and defaults are listed [above](#organization-and-installation-identity).
-Other installation inputs are:
+Besides the [identity inputs](#organization-and-installation-identity):
 
 | Input | Meaning |
 | --- | --- |
-| `INSTALL_SCOPE` | `apps` includes Odoo; `infra` omits it. |
-| `INSTALL_DEVELOPER_TOOLS` | `true` also installs Java 21, Maven and Docker with the system prerequisites; defaults to `false`. Runtime and validation tools (Ansible, storage clients, Node.js, ShellCheck, SQLite) are always included. |
-| `SERVER_EXPOSURE` | `local` or `internet`; internet exposure enables the public host policy and defaults to Cloudflare configuration. |
+| `INSTALL_DEVELOPER_TOOLS` | `true` adds Java 21, Maven and Docker; default `false`. Ansible, storage clients, Node.js, ShellCheck and SQLite are always installed. |
+| `SERVER_EXPOSURE` | `local` or `internet`; `internet` enables the public host policy and defaults to Cloudflare configuration. |
 | `CONTROL_PLANE_NODE_NAME` | Local Kubernetes node name; defaults to the lowercase host name. |
-| `CONTROL_PLANE_COUNT`, `CLUSTER_NODE_COUNT` | Desired final counts, including registered nodes; the control-plane count must be odd. |
-| `CONTROL_PLANE_SCHEDULABLE` | `true` permits workloads on all control planes; `false` applies `NoSchedule` after workers are Ready. Defaults to `true` without workers, otherwise `false`. |
+| `CONTROL_PLANE_COUNT`, `CLUSTER_NODE_COUNT` | Final counts, including registered nodes; the control-plane count must be odd. |
+| `CONTROL_PLANE_SCHEDULABLE` | `false` applies `NoSchedule` to control planes once workers are Ready. Defaults to `true` without workers, otherwise `false`. |
 | `K3S_NODE_TRANSPORT` | `vrack`, `tailscale` or `lan` for multi-node enrollment. |
-| `K3S_CONTROL_PLANE_IPS`, `K3S_WORKER_IPS` | Comma-separated prepared vRack or LAN addresses; exclude the first host. |
-| `K3S_CONTROL_PLANE_HOSTS`, `K3S_WORKER_HOSTS` | Comma-separated Tailscale bootstrap SSH targets such as `admin@host`; private addresses are discovered. |
+| `K3S_CONTROL_PLANE_IPS`, `K3S_WORKER_IPS` | Comma-separated prepared vRack or LAN addresses, excluding the first host. |
+| `K3S_CONTROL_PLANE_HOSTS`, `K3S_WORKER_HOSTS` | Comma-separated Tailscale bootstrap SSH targets such as `admin@host`. |
 | `K3S_CONTROL_PLANE_SSH_USER`, `K3S_WORKER_SSH_USER` | SSH users for address-based enrollment. |
-| `K3S_API_VIP` | vRack or LAN with more than one control plane: an unused node-network address for the [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint). Tailscale uses a Tailscale Service instead. |
-| `CLOUDFLARE_NODE_DNS_LABEL` | Public administration label, independent of the Kubernetes node name; defaults to `node-01`. |
-| `CLOUDFLARE_PUBLISH_APEX` | `false`; opt in only if the platform should manage apex DNS. |
+| `K3S_API_VIP` | vRack or LAN with several control planes: an unused node-network address for the [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint). Tailscale uses a Tailscale Service. |
+| `CLOUDFLARE_NODE_DNS_LABEL` | Public administration label, independent of the node name; default `node-01`. |
+| `CLOUDFLARE_PUBLISH_APEX` | Default `false`; opt in only if the platform should manage apex DNS. |
 
-For example, after supplying identity, credentials and the
-[Tailscale inputs](guides/node-enrollment.md#tailscale):
+A Tailscale example, with identity, credentials and the
+[Tailscale inputs](guides/node-enrollment.md#tailscale) set:
 
 ```bash
 CONTROL_PLANE_COUNT=3 CLUSTER_NODE_COUNT=5 CONTROL_PLANE_SCHEDULABLE=false \
@@ -270,73 +244,59 @@ K3S_WORKER_HOSTS='admin@worker-01,admin@worker-02' \
   ./install-control-plane.sh --yes
 ```
 
-On retries with a partial list of new hosts, set both final counts explicitly.
-Registered nodes count even when NotReady; completion requires the planned nodes
-to be Ready. Reruns preserve installed K3s by default and do not upgrade it.
-Use [node enrollment](guides/node-enrollment.md) for later expansion.
+When retrying with a partial host list, set both final counts. Registered nodes
+count even when NotReady; completion needs every planned node Ready. Reruns keep the
+installed K3s version. Expand later with [node enrollment](guides/node-enrollment.md).
 
 ### Optional integrations
 
-Use the same integration credentials with either entry point. Keep secrets in
-hidden prompts, the process environment or Ansible Vault; never commit
-credentials or generated cluster configuration.
+Both entry points take the same inputs. Keep secrets in hidden prompts, the process
+environment or Ansible Vault; never commit credentials or generated configuration.
 
-- **Public DNS, TLS and Access:** follow [Cloudflare setup](dns.md#cloudflare)
-  for tokens, allowed emails, the existing Zero Trust team and account
-  prerequisites. In the shell installer, `CONFIGURE_CLOUDFLARE=false` uses local
-  TLS while preserving existing TLS secrets; public DNS/TLS then needs separate
-  configuration.
-- **Encrypted offsite backups:** set `CONFIGURE_OFFSITE_BACKUPS=true`,
+- **Public DNS, TLS and Access:** see [Cloudflare setup](dns.md#cloudflare).
+  `CONFIGURE_CLOUDFLARE=false` uses local TLS and keeps existing TLS secrets.
+- **Encrypted offsite backups:** `CONFIGURE_OFFSITE_BACKUPS=true` with
   `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_REGION`,
-  `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` and `BACKUP_REPOSITORY_PASSWORD`.
-  Keep the password outside the cluster; see
+  `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` and `BACKUP_REPOSITORY_PASSWORD`
+  (16+ characters; keep a copy outside the cluster). See
   [backup and recovery](operations.md#backups-and-recovery).
-- **Platform mail:** set `CONFIGURE_PLATFORM_MAIL=true` with
-  `PLATFORM_MAIL_HOST`, `PLATFORM_MAIL_USERNAME` and `PLATFORM_MAIL_PASSWORD`;
-  the TLS mode, port, sender and alert recipients have defaults. The installer
-  checks the login and configures the relay after Vault starts; see
+- **Platform mail:** `CONFIGURE_PLATFORM_MAIL=true` with `PLATFORM_MAIL_HOST`,
+  `PLATFORM_MAIL_USERNAME` and `PLATFORM_MAIL_PASSWORD`; the rest has defaults. See
   [platform mail](guides/platform-mail.md).
-- **Repository import and deployment:** set `CONFIGURE_REPOSITORY_SYNC=true`
-  and supply the [onboarding automation inputs](guides/repository-onboarding.md#automation-and-reruns).
-  With `REPOSITORY_SOURCE=gitlab` and `GITLAB_PROJECTS`, reruns deploy
-  [projects that already live in GitLab](guides/repository-onboarding.md#projects-without-github)
-  without any GitHub input.
-  The installer calls `add-repos.sh` after platform and Argo CD readiness,
-  forwarding `--yes` for unattended runs. Selecting deployment authorizes the
-  app configuration commits and service changes described in that guide.
+- **Repository import and deployment:** `CONFIGURE_REPOSITORY_SYNC=true` with the
+  [onboarding automation inputs](guides/repository-onboarding.md#automation-and-reruns),
+  or `REPOSITORY_SOURCE=gitlab` with `GITLAB_PROJECTS` for
+  [projects already in GitLab](guides/repository-onboarding.md#projects-without-github).
+  The installer runs `add-repos.sh` (with `--yes` when unattended) once the platform
+  and Argo CD are ready. Selecting deployment authorizes the commits and service
+  changes described in that guide.
 
 ## Ansible
 
-Both playbooks run locally from this checkout using the supplied `localhost`
-inventory. Adding inventory hosts does not distribute installation; node
-enrollment uses SSH. Bootstrap and default-mode reconciliation run on the first
-control plane; an HA platform can be reconciled from a surviving control plane.
-
-The playbooks share [platform defaults](../config/platform.env), manifest
-inventories and provisioning helpers with the shell installer. Longhorn, Vault,
-External Secrets and Argo CD releases use
-[`reconcile-platform-release.sh`](../scripts/reconcile-platform-release.sh)
-for chart options and readiness; each entry point controls selection and order.
-Vault readiness follows resource application and precedes secrets bootstrap.
+Both playbooks run locally with the supplied `localhost` inventory; extra inventory
+hosts do not distribute installation (enrollment uses SSH). Run bootstrap and default
+reconciliation on the first control plane; an HA platform can be reconciled from any
+surviving control plane. The playbooks share
+[platform defaults](../config/platform.env), manifest inventories and helpers such as
+[`reconcile-platform-release.sh`](../scripts/reconcile-platform-release.sh) with the
+shell installer. Vault readiness follows resource application and precedes secrets
+bootstrap.
 
 ### Ansible installation
-
-Install the prerequisites on the first Ubuntu host:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y ansible git python3
 ```
 
-Export the [unattended inputs](#unattended-installation), then run the full
-installer through Ansible:
+Export the [unattended inputs](#unattended-installation), then run:
 
 ```bash
 ansible-playbook -i ansible/inventory ansible/install.yml
 ```
 
-An optional `installer_environment` mapping overrides selected process inputs.
-For example, store this mapping in an Ansible Vault encrypted extra-vars file:
+To override inputs from an Ansible Vault encrypted extra-vars file, put them in an
+`installer_environment` mapping:
 
 ```yaml
 installer_environment:
@@ -352,51 +312,40 @@ ansible-playbook -i ansible/inventory ansible/install.yml \
   -e @/secure/cluster-install.yml --ask-vault-pass
 ```
 
-To use an [input file](#setup-hub-and-the-input-file) instead, pass
-`-e installer_env_file=/secure/install.env`; it replaces `installer_environment`
-inputs and the process environment for that run.
-
-The installation task uses `no_log` because nested commands handle secrets.
-Failures stop the play; run the shared installer with the same inputs for visible
-diagnostics.
+`-e installer_env_file=/secure/install.env` uses an
+[input file](#setup-hub-and-the-input-file) instead of `installer_environment` and
+the process environment. The task uses `no_log`; on failure, rerun the shell
+installer with the same inputs to see diagnostics.
 
 ### Platform reconciliation
 
-Use `ansible/deploy.yml` on an installed control plane with its matching
-kubeconfig, kubectl, Helm, jq, OpenSSL, Git, Python and Ansible. Preflight verifies
-the local K3s service, control-plane role and kubeconfig before host changes.
-Workers are rejected; joined private control planes are accepted when HA is
-requested or already recorded.
-
-Supply `KEYCLOAK_SSO_BOOTSTRAP_USERNAME` and `KEYCLOAK_SSO_BOOTSTRAP_PASSWORD`
-through the secret environment when reconciling platform services, then run:
+Run on an installed control plane with its kubeconfig, kubectl, Helm, jq, OpenSSL,
+Git, Python and Ansible. Preflight checks the local K3s service, control-plane role
+and kubeconfig before host changes. Workers are rejected; joined private control
+planes are accepted when HA is requested or recorded. Supply
+`KEYCLOAK_SSO_BOOTSTRAP_USERNAME` and `KEYCLOAK_SSO_BOOTSTRAP_PASSWORD` in the
+environment when reconciling platform services:
 
 ```bash
 ansible-playbook -i ansible/inventory ansible/deploy.yml
 ```
 
-Installed [identity settings](#organization-and-installation-identity) are reused
-unless explicitly overridden. Set `CONTROL_PLANE_NODE_NAME` if the registered
-name differs from the local hostname. Exposure defaults to `internet`; use
-`-e server_exposure=local` for a locally exposed bootstrap host. Joined servers
-retain their private exposure.
+- Installed [identity settings](#organization-and-installation-identity) are reused
+  unless overridden. Set `CONTROL_PLANE_NODE_NAME` if it differs from the hostname.
+- Exposure defaults to `internet`; pass `-e server_exposure=local` for a locally
+  exposed bootstrap host. Joined servers keep their private exposure.
+- Scheduling is kept unless `CONTROL_PLANE_SCHEDULABLE=true|false` changes it.
+  [Private SSH access](guides/node-enrollment.md#control-plane-administration) and
+  [storage placement](guides/node-enrollment.md#scheduling-and-storage) are reconciled.
+- To activate HA, first finish the PostgreSQL, Kafka and Vault migrations in
+  [activation order](guides/high-availability.md#activate-in-order), then run with
+  `HIGH_AVAILABILITY_ENABLED=true`, `PLATFORM_HA_VALUES_FILE` and
+  `-e configure_cloudflare=true`. Later runs keep recorded HA and reject unfinished
+  migrations or implicit downgrades.
 
-The playbook preserves control-plane scheduling unless
-`CONTROL_PLANE_SCHEDULABLE=true|false` explicitly changes it, reconciles
-[private SSH access](guides/node-enrollment.md#control-plane-administration) from
-registered control-plane addresses, and applies the shared
-[storage placement rules](guides/node-enrollment.md#scheduling-and-storage).
-
-Before activating HA, complete the PostgreSQL, Kafka and Vault migrations in
-[activation order](guides/high-availability.md#activate-in-order). Reconcile with
-`HIGH_AVAILABILITY_ENABLED=true` and `PLATFORM_HA_VALUES_FILE`, including
-`-e configure_cloudflare=true` for the public Tunnel/DNS cutover. The playbook
-preserves recorded HA on later runs and rejects unfinished migrations or
-implicit downgrades.
-
-Feature switches select tasks and automatically include their dependencies:
-Odoo needs platform services, those services need data stores, data stores need
-Vault/External Secrets, and Cloudflare needs ingress.
+Switches pull in their dependencies (Odoo → platform services → data stores →
+Vault/External Secrets; Cloudflare → ingress). HA forces Longhorn, Cloudflare,
+platform services and Argo CD on.
 
 | Switch | Default |
 | --- | --- |
@@ -406,15 +355,14 @@ Vault/External Secrets, and Cloudflare needs ingress.
 | `install_descheduler`, `install_argocd`, `manage_host_security` | `true` |
 | `configure_cloudflare`, `manage_private_transport` | `false` |
 
-`-e install_apps=false` omits Odoo while retaining the shared `apps` foundation.
-Disabling a switch does not uninstall components; Argo CD continues reconciling
-its configured scope. Application deployments remain owned by their repositories.
+`-e install_apps=false` omits Odoo but keeps the `apps` foundation. Disabling a
+switch uninstalls nothing; Argo CD keeps reconciling its scope.
 
 ### Optional host and account changes
 
-Private transport reconciliation is opt-in and runs before K3s network binding
-and UFW. Export the [transport inputs](guides/node-enrollment.md#private-node-network) and
-choose the existing transport:
+Private transport reconciliation is opt-in and runs before K3s network binding and
+UFW. Export the [transport inputs](guides/node-enrollment.md#private-node-network)
+and name the existing transport:
 
 ```bash
 # Already attached and addressed vRack:
@@ -426,17 +374,17 @@ ansible-playbook -i ansible/inventory ansible/deploy.yml \
   -e manage_private_transport=true -e k3s_node_transport=tailscale
 ```
 
-For API-managed vRack attachment, add `-e ovh_vrack_automate_account=true`
-and the OVH account inputs. Without transport reconciliation, supply
-`K3S_NODE_NETWORK_CIDR` when host security must trust node traffic.
+For API-managed vRack attachment, add `-e ovh_vrack_automate_account=true` and the
+OVH account inputs. Without transport reconciliation, set `K3S_NODE_NETWORK_CIDR`
+when host security must trust node traffic.
 
-Cloudflare requires its [integration inputs](#optional-integrations) and
-`-e configure_cloudflare=true`. Offsite recovery and repository import use the
-same optional inputs as installation. Repository setup uses `no_log`, waits for
-required app jobs and readiness, and stops the play on failure. Run `add-repos.sh`
-with the same inputs and state directory for visible diagnostics and recovery.
+Cloudflare needs its [integration inputs](#optional-integrations) and
+`-e configure_cloudflare=true`; offsite recovery and repository import take the same
+inputs as installation. Repository setup uses `no_log` and stops the play on
+failure; run `add-repos.sh` with the same inputs and state directory to diagnose.
 
-To request [local administrator password alignment](security.md#rotate-local-administrator-passwords):
+To align [local administrator passwords](security.md#rotate-local-administrator-passwords)
+(SSO identities and application users do not change):
 
 ```bash
 read -rsp 'Local administrator password: ' LOCAL_ADMIN_PASSWORD
@@ -446,19 +394,15 @@ ansible-playbook -i ansible/inventory ansible/deploy.yml
 unset LOCAL_ADMIN_PASSWORD ROTATE_LOCAL_ADMIN_PASSWORDS
 ```
 
-The task passes the secret through stdin with `no_log`; it does not change SSO
-identities or application users.
-
 ## Application deployment clusters
 
-Install the shared platform once. `int`, `uat` and `prod` can run in separate
-namespaces on that cluster, or an environment can use its own application cluster.
-GitLab, Argo CD, Vault, registry, Keycloak and data services remain shared.
-
-Copy [`deployment-environments.example.yaml`](../config/deployment-environments.example.yaml)
-outside the checkout and supply your domain, ingress address and pod CIDR. The
-example uses the existing cluster. `mode: local` reuses its controllers and
-networking; `mode: remote` requires a separate cluster and Tailscale connectivity.
+`int`, `uat` and `prod` run in separate namespaces on the platform cluster, or an
+environment gets its own application cluster. GitLab, Argo CD, Vault, the registry,
+Keycloak and data services stay shared. Copy
+[`deployment-environments.example.yaml`](../config/deployment-environments.example.yaml)
+outside the checkout and set your domain, ingress address and pod CIDR.
+`mode: local` reuses the platform cluster; `mode: remote` needs a separate cluster
+and Tailscale.
 
 | Environment | Default local namespace | Example application hostname |
 | --- | --- | --- |
@@ -466,26 +410,23 @@ networking; `mode: remote` requires a separate cluster and Tailscale connectivit
 | `uat` | `apps-uat` | `demo-uat.example.com` |
 | `prod` | `apps` | `demo.example.com` |
 
-Local `int` and `uat` each get a dedicated namespace, restricted Argo project,
-Vault store, network rules and resource quota. Local `prod` runs in the shared
-`apps` namespace next to single-environment applications: it gets its restricted
-Argo project and Vault store, while quotas, network and admission rules there stay
-platform-owned and each application ships its own ingress NetworkPolicy. In suffix mode, application ingress uses
-the shared Traefik certificate kept in `infra`; branch workloads never receive
-its private key. Set `resourceQuota` in its inventory
-entry to fit available capacity. Environments on the same cluster share its
-outages, upgrades and underlying resources; quotas limit application consumption.
+- Local `int` and `uat` each get a namespace, restricted Argo project, Vault store,
+  network rules and resource quota (set `resourceQuota` in the entry to fit capacity).
+- Local `prod` shares `apps` with single-environment applications: it gets its own
+  Argo project and Vault store, but quotas, network and admission rules stay
+  platform-owned, and each application ships its own ingress NetworkPolicy.
+- Environments on one cluster share its outages, upgrades and resources.
 
-`platform.hostnameStyle: suffix` produces the hostnames above and uses ordinary
-base-domain wildcard certificate coverage. `nested` produces
-`demo.int.example.com` and `demo.uat.example.com`; omitted values retain this
-older style. The application label and company domain remain installation inputs.
+`platform.hostnameStyle: suffix` gives the hostnames above, covered by the
+base-domain wildcard; application ingress uses the shared Traefik certificate in
+`infra`, whose key branch workloads never receive. `nested` (the default when
+omitted) gives `demo.int.example.com` and `demo.uat.example.com`.
 
 ### Register an environment
 
-First prepare [shared data authentication](guides/application-onboarding.md#shared-application-data).
-Keep administrator kubeconfigs, Vault tokens and TLS keys outside Git. Register a
-local environment from the platform administration host:
+Prepare [shared data authentication](guides/application-onboarding.md#shared-application-data)
+first, and keep administrator kubeconfigs, Vault tokens and TLS keys outside Git.
+From the platform administration host:
 
 ```bash
 python3 scripts/configure-deployment-environments.py \
@@ -495,136 +436,130 @@ python3 scripts/configure-deployment-environments.py \
 ```
 
 Repeat for `uat` and `prod`. Supply `CLOUDFLARE_API_TOKEN` for origin certificates,
-or `--tls-cert` and `--tls-key` for a certificate covering the environment domain
-and its wildcard. Existing valid certificates are reused. A remote target's
-Traefik repeats the zone's [HSTS policy](dns.md#ingress-controller): set
-`CLOUDFLARE_ENABLE_HSTS` and `CLOUDFLARE_HSTS_MAX_AGE` as for the Cloudflare
-configurator, or omit both to keep the platform's deployed value. Registration verifies
-cluster identity, scoped API and Vault access, authenticated data services and
-TLS before publishing the target in `infra/deployment-environments`.
+or `--tls-cert` and `--tls-key` for one covering the environment domain and its
+wildcard; valid existing certificates are reused. A remote target's Traefik repeats
+the zone's [HSTS policy](dns.md#ingress-controller) from `CLOUDFLARE_ENABLE_HSTS`
+and `CLOUDFLARE_HSTS_MAX_AGE`, or the platform's deployed value when both are unset.
+Registration verifies cluster identity, scoped API and Vault access, data services
+and TLS before publishing the target in `infra/deployment-environments`.
 
-For installer-driven registration, set `DEPLOYMENT_ENVIRONMENTS_FILE` to this
-prepared inventory when running `install-control-plane.sh`. After platform setup,
-the installer registers its local entries before repository onboarding. Data
-authentication and certificate prerequisites still apply; remote entries are
-registered separately with their target kubeconfig.
+Setting `DEPLOYMENT_ENVIRONMENTS_FILE` for the installer registers the local entries
+after platform setup, before repository onboarding. Register remote entries
+separately with their target kubeconfig.
 
 ### Optional separate application cluster
 
-A remote entry specifies `mode: remote`, a unique `clusterName` and HTTPS `server`,
-its `ingressAddress`, `podCIDR` and disjoint Tailscale `nodeCIDRs`. Its namespace
-can be configured and defaults to `apps`. Set `platform.gateway` and shared
-service endpoints to the protected Tailscale gateway; the
-[inventory schema](../scripts/lib/deployment_environments.py) validates these
-inputs. In a mixed inventory, local entries can supply a complete `services`
-override for cluster-local endpoints. Kafka broker advertisements must remain
-reachable from every selected environment.
+Start from
+[`deployment-environments.remote.example.yaml`](../config/deployment-environments.remote.example.yaml).
+A remote entry needs a unique `clusterName`, an HTTPS `server`, `ingressAddress`,
+`podCIDR` and disjoint Tailscale `nodeCIDRs`; `namespace` defaults to `apps`. Point
+`platform.gateway` and the shared service endpoints at the protected Tailscale
+gateway (validated by the [inventory schema](../scripts/lib/deployment_environments.py)).
+In a mixed inventory, local entries need a full `services` override. Kafka broker
+advertisements must be reachable from every selected environment.
 
-On each prepared Ubuntu target, install `python3-yaml`, `curl`, `jq`, `openssl`,
-`nftables` and Tailscale, then run as a sudo-capable user:
+On each Ubuntu target, install `python3-yaml`, `curl`, `jq`, `openssl`, `nftables`
+and Tailscale, then run as a sudo-capable user (never on the platform host):
 
 ```bash
 ./scripts/install-application-cluster.sh \
   --config /secure/deployment-environments.yaml --environment prod
 ```
 
-Remote bootstrap installs pinned K3s and its network guard, with no duplicate
-platform services. It refuses to convert an unrelated cluster. Transfer the
-generated administrator kubeconfig securely, then use the registration command
-above with `--environment prod --target-kubeconfig /secure/apps-prod.yaml`.
-Registration installs the remote ingress and secret controllers and verifies
-Tailscale routes and the shared-service gateway. Do not run remote bootstrap on
-the platform host. See [application node enrollment](guides/node-enrollment.md#application-cluster-nodes)
-for expansion and [observability](operations.md#namespace-and-discovery) for
-remote collection requirements.
+It installs pinned K3s and its network guard, without platform services, and
+refuses to convert an unrelated cluster. Copy the generated administrator kubeconfig
+securely, then register with `--environment prod --target-kubeconfig
+/secure/apps-prod.yaml`; registration installs the ingress and secret controllers
+and verifies Tailscale routes and the gateway. See
+[application node enrollment](guides/node-enrollment.md#application-cluster-nodes)
+and [observability](operations.md#namespace-and-discovery) for remote collection.
 
 ### Publication and maintenance
 
-Only registered targets are deployable. Run [repository onboarding](guides/repository-onboarding.md#environment-deployment)
-to prepare application data, identity, DNS and CI access, then use the GitLab
-environment dropdown. Reruns preserve cluster/namespace identities; changing an
-existing binding requires an explicit migration. `--rotate-argocd-token` verifies
-a replacement operator credential before revoking the previous one. Local
-registration never replaces Argo CD's built-in cluster credentials.
+Only registered targets are deployable. Run
+[repository onboarding](guides/repository-onboarding.md#environment-deployment) to
+prepare data, identity, DNS and CI access, then pick the environment in GitLab.
+Reruns keep cluster/namespace identities; changing a binding is an explicit
+migration. `--rotate-argocd-token` verifies a replacement operator credential before
+revoking the old one. Local registration never replaces Argo CD's built-in cluster
+credentials.
 
-Cloudflare needs active edge coverage for each application hostname. The default
-suffix example works with `*.example.com`; nested names need additional coverage.
-The [DNS helper](../scripts/configure-application-dns.py) checks coverage before
-publishing records. For nested names, prepare Advanced/Custom edge coverage;
-Total TLS alone needs DNS first and cannot satisfy this pre-publication check.
-Certificate preparation does not move production traffic. Preserve the existing
-production database and verify the replacement application before its cutover.
+Each application hostname needs active Cloudflare edge coverage. Suffix names are
+covered by `*.example.com`. Nested names need Advanced/Custom coverage prepared in
+advance: the [DNS helper](../scripts/configure-application-dns.py) checks coverage
+before publishing, and Total TLS needs DNS first. Certificate preparation moves no
+production traffic; keep the production database and verify the replacement before
+cutover.
 
 ### Prepare application CI before targets exist
 
 Version 2 onboarding configures the [scoped project runners](#application-delivery)
-automatically. For an existing GitLab project whose target machines are not ready,
-protect its default branch, finish any active jobs, and prepare CI independently:
+itself. For an existing project whose targets are not ready, protect its default
+branch, let active jobs finish, and run from the platform administration host:
 
 ```bash
 python3 scripts/configure-application-delivery.py \
   --application swirl-demo-app --project team/swirl-demo-app --checkout /path/to/swirl-demo-app
 ```
 
-Run from the shared platform administration host. The command acquires and revokes
-a temporary GitLab administrator token, or uses `GITLAB_ADMIN_TOKEN` if supplied.
-It discovers registered targets from the platform; with none registered, jobs can
-build but have no Application write permissions. Runner credentials stay in a
-central Kubernetes Secret, and job caches are ephemeral. Rerun application
-onboarding after registering targets to provision data, DNS and deployment access.
+It creates and revokes a temporary GitLab administrator token (or uses
+`GITLAB_ADMIN_TOKEN`). With no registered targets, jobs build but cannot write
+Applications. Runner credentials stay in a central Secret; job caches are ephemeral.
+Rerun onboarding after registering targets.
 
 ## Delivery Flow
 
-The platform supplies GitLab, an instance runner, registries and Argo CD.
-Application repositories own their CI, runtime manifests and Applications.
-Use [repository onboarding](guides/repository-onboarding.md) to import or deploy an app;
-this section explains the shared delivery path and how to maintain it.
+The platform supplies GitLab, an instance runner, registries and Argo CD;
+application repositories own their CI, runtime manifests and Applications. The
+[architecture overview](architecture.md) shows the flow.
 
 ### Ownership and bootstrap
 
 The [root Application](../k8s/addons/swirl-cloud-application.yaml) reconciles the
-platform chart, including Odoo when enabled. Each external application has its
-own Application and deployment guide. Application runtime changes belong in that
-repository; the platform has no application repository inventory.
-
-The installer and [Ansible](#ansible) run
-[configure-gitlab-ci.sh](../scripts/configure-gitlab-ci.sh) to reconcile the
-configured group/project, Dependency Proxy, retention policies, instance runner
-and Vault-backed tokens. Setup creates a temporary GitLab administrator token
-through `gitlab-rails` on the control plane and revokes it on exit. No manually
-created token is required.
+platform chart, including Odoo when enabled; each application has its own
+Application and deployment guide. The installer and [Ansible](#ansible) run
+[configure-gitlab-ci.sh](../scripts/configure-gitlab-ci.sh) to reconcile the group
+and project, Dependency Proxy, retention, instance runner and Vault-backed tokens,
+using a temporary administrator token created through `gitlab-rails` and revoked on
+exit.
 
 ### Pipelines and outputs
 
 #### Application delivery
 
-Swirl Demo App uses one GitLab project and registry for all environments. In **Build →
-Pipelines → New pipeline**, select `PIPELINE_MODE=full` and the destination:
+Swirl Demo App uses one GitLab project and registry for all environments. In
+**Build → Pipelines → New pipeline**, set `PIPELINE_MODE=full` and the target:
 
-- `int`: select any branch to build and deploy a snapshot, including source
-  versions ending in `-SNAPSHOT`. All branches share the integration hostname.
-- `uat` or `prod`: select the default branch to publish and deploy a stable
-  release, or set `RELEASE_VERSION` to promote a finalized release without rebuilding.
+- `int`: any branch builds and deploys a snapshot (`-SNAPSHOT` versions included);
+  all branches share the integration hostname.
+- `uat` or `prod`: the default branch publishes a stable release, or set
+  `RELEASE_VERSION` to promote a finalized release without rebuilding.
 
-Existing releases can also deploy to `int`. Snapshots cannot deploy to `uat` or
-`prod`. Older feature branches must first merge or rebase the updated CI helpers.
+Releases can also go to `int`; snapshots never reach `uat` or `prod`. Older feature
+branches must merge or rebase the updated CI helpers first.
 
-```mermaid
-flowchart LR
-    GitLab["One GitLab project and registry"] --> CI["Choose int / uat / prod"]
-    CI --> Pin["Commit selected environment and image digests"]
-    Pin --> Argo["One central Argo CD"]
-    Argo --> Int["int namespace / cluster"]
-    Argo --> Uat["uat namespace / cluster"]
-    Argo --> Prod["prod namespace / cluster"]
-    Int --> Data["Shared PostgreSQL, Redis, Kafka, Vault and Keycloak"]
-    Uat --> Data
-    Prod --> Data
-```
+- Each Application (`swirl-demo-app-int`, `-uat`, `-prod`) has its own restricted
+  AppProject, cluster/namespace pair and immutable runtime configuration commit, so
+  deploying `int` never moves the production pointer.
+- CI reads only the public `infra/deployment-environments` ConfigMap and rejects
+  missing targets or a changed cluster binding. It verifies destination, revision,
+  health, image digests and public smoke checks, and never patches workloads.
+- Release publication takes one lock; deployments lock per environment and reject a
+  stale branch. Snapshot GitOps commits go to `gitops/int/<pipeline-id>` and leave
+  the source branches and version counter unchanged.
+- Version 2 onboarding gives each project its own integration and protected-release
+  runners and disables shared runners for it. Branch jobs update only their
+  integration Application; release jobs update their registered environments, and
+  admission rules bind Applications to their destinations. Version 1 applications
+  keep their runners and delivery contract until migrated.
+
+See the app's deployment guide for job details and the
+[scanner contract](operations.md#source-analysis) for analysis-only pipelines.
+Remote clusters need their own metrics/log collector.
 
 ### Deploy from the hub or the command line
 
-`./install.sh` → **Deploy an application**, or the same flow without the hub:
+`./install.sh` → **Deploy an application**, or:
 
 ```bash
 scripts/deploy-application.py list
@@ -632,52 +567,16 @@ scripts/deploy-application.py deploy --application swirl-demo-app --environment 
 scripts/deploy-application.py deploy --application swirl-demo-app --environment prod [--release-version 1.2.3]
 ```
 
-Choices come from Argo CD Applications labelled `swirl-cloud/environment` whose
-environment is registered in `infra/deployment-environments`. The command
-starts the project's pipeline with `PIPELINE_MODE=full` and
-`DEPLOYMENT_ENVIRONMENT` (plus `RELEASE_VERSION` when promoting) through a private
-port-forward to GitLab, using a one-day administrator token it creates and
-revokes afterwards (or `GITLAB_ADMIN_TOKEN` when set). `uat` and `prod` deploy
-only from the default branch. Manual release gates are run only after you
-confirm them; otherwise the command stops with exit code 2 and the gate's
-GitLab link. It reports success only when the target Application is `Synced`
-and `Healthy` at a new revision, then prints the application URLs.
-
-Each Application (`swirl-demo-app-int`, `swirl-demo-app-uat`, `swirl-demo-app-prod`) uses its own restricted
-AppProject, registered cluster/namespace pair and immutable runtime configuration commit.
-A second commit records that revision in the selected Application. Updating
-shared source or deploying integration therefore does not move the production
-pointer. CI verifies destination, revision, deployment health, image digests and
-public smoke checks; it never patches workloads directly.
-
-The central `infra/deployment-environments` ConfigMap contains only successfully
-registered targets. CI reads this public inventory, without access to
-administrator credentials. It rejects missing targets and a changed cluster
-binding. Register targets and provision each application's scoped services
-through [installation](#application-deployment-clusters) and
-[onboarding](guides/repository-onboarding.md#environment-deployment), then select the
-destination in CI. Shared GitLab, registry, Argo CD and identity URLs keep the
-platform domain; application hosts follow the configured suffix or nested naming style.
-
-Release/version publication shares one lock because it changes the same branch
-and version counter. Deployments use a lock per environment and reject a stale
-branch before publication. Snapshot GitOps commits live on a dedicated
-`gitops/int/<pipeline-id>` branch and leave the source/default branches and stable
-version counter unchanged.
-
-Version 2 onboarding gives each application project its own integration and
-protected-release runners on the central platform, and disables shared runners
-for that project. Branch jobs can update only their integration Application.
-Protected release jobs can update their application's registered environments;
-Kubernetes admission rules bind those Applications to their assigned destinations.
-Existing version 1 applications keep their current runner configuration.
-
-GitHub/GitLab synchronization still connects one repository pair. Existing
-applications retain their own delivery contracts until explicitly migrated;
-Swirl Demo App is the first environment-aware implementation. See the app's deployment
-guide for its job details and the [scanner contract](operations.md#source-analysis)
-for analysis-only pipelines. Remote metrics/log shipping requires a collector;
-central namespace discovery does not automatically extend to another cluster.
+It lists Argo CD Applications labelled `swirl-cloud/environment` whose environment
+is registered, and starts the pipeline (`PIPELINE_MODE=full`,
+`DEPLOYMENT_ENVIRONMENT`, and `RELEASE_VERSION` when promoting) through a private
+port-forward with a one-day administrator token it revokes afterwards (or
+`GITLAB_ADMIN_TOKEN`). `uat` and `prod` deploy only from the default branch.
+`--yes` skips the start confirmation, and `--timeout` sets the pipeline limit in
+minutes (default 60). Manual release gates run only after you confirm or with
+`--approve-manual`; otherwise it exits with code 2 and the gate's link. It succeeds
+only when the Application is `Synced` and `Healthy` at a new revision, then prints
+the application URLs.
 
 #### Infrastructure reconciliation and verification
 
@@ -688,88 +587,73 @@ The [platform pipeline](../.gitlab-ci.yml) and Argo CD act independently:
 | Argo CD | Reconcile `main` into platform resources with automatic sync, prune and self-heal. |
 | CI | Run [repository validation](testing.md#validation); on the default branch, verify the same commit is Synced/Healthy and check delivery services and Registry push/read. |
 
-CI observes reconciliation; it does not gate the start of Argo's sync.
-The separately installed Argo CD Helm release follows the upgrade procedure below.
+CI observes reconciliation; it does not gate Argo's sync.
 
 ### Registry and dependencies
 
-Use the [service DNS and registry routing contract](dns.md#service-dns-and-registry-routing)
-for public names, internal CI/containerd routes and the Dependency Proxy. These
-machine endpoints must remain usable without browser-only authentication or challenges.
-
-The infrastructure pipeline pins its public Alpine image by digest; the runner's
-`IfNotPresent` policy reuses the node-local image. The group Dependency Proxy can
-accelerate upstream pulls. Maven/npm use their public upstreams and the persistent
+Public names, internal CI/containerd routes and the Dependency Proxy follow the
+[service DNS and registry routing contract](dns.md#service-dns-and-registry-routing);
+these machine endpoints must work without browser authentication or challenges. The
+infrastructure pipeline pins Alpine by digest (`IfNotPresent` reuses the node copy).
+Maven/npm use public upstreams and the persistent
 [runner cache](../k8s/platform/gitlab-runner.yaml); app builds may use disposable
-Kaniko layers. A cold pipeline must still build, test and release successfully.
-
+Kaniko layers. A cold pipeline must still build, test and release.
 [Operations](operations.md#gitlab-storage) owns Registry/package retention and
-storage cleanup. [Observability](operations.md#observability) covers delivery metrics and logs.
+[observability](operations.md#observability) covers delivery metrics and logs.
 
 ## Argo CD operations
 
-The installer and `ansible/deploy.yml` install Argo CD through Helm using rendered
-[`config/argocd-values.yaml`](../config/argocd-values.yaml) and version pins from
-[`config/platform.env`](../config/platform.env). The root Application manages
-platform resources after bootstrap; it does not upgrade its own Argo CD Helm
-release. Reconcile Helm changes through the installer, Ansible, or a Helm upgrade
-with those same rendered inputs and pins.
+The installer and `ansible/deploy.yml` install Argo CD with Helm from the rendered
+[`config/argocd-values.yaml`](../config/argocd-values.yaml) and the pins in
+`config/platform.env`. The root Application does not upgrade its own Argo CD
+release; apply Helm changes through the installer, Ansible or a Helm upgrade with
+the same rendered inputs.
 
 Bootstrap Jobs such as `elasticsearch-security-bootstrap` and
-`keycloak-sso-reconcile` are sync hooks: they run during a sync operation, and
-automated sync only starts one when a regular resource differs from Git. A
-commit that changes only a hook Job leaves the Application Synced without running
-it; start a sync of the current revision (Argo CD **Sync**, or
+`keycloak-sso-reconcile` are sync hooks. Automated sync starts only when a regular
+resource differs from Git, so a commit that changes only a hook Job does not run it.
+Sync the current revision (Argo CD **Sync**, or
 `kubectl -n infra patch application swirl-cloud --type merge -p '{"operation":{"sync":{}}}'`).
 
-With `HIGH_AVAILABILITY_ENABLED=true`, the installer and Ansible also apply
-[`config/argocd-ha-values.yaml`](../config/argocd-ha-values.yaml). API/repository
-servers and ApplicationSet controllers run in pairs on separate hosts. The
-disposable Redis cache uses three Sentinel peers with authenticated Redis and
-Sentinel connections, two HAProxy endpoints, and disruption budgets.
+With `HIGH_AVAILABILITY_ENABLED=true`,
+[`config/argocd-ha-values.yaml`](../config/argocd-ha-values.yaml) runs API and
+repository servers and ApplicationSet controllers in pairs on separate hosts, and
+the Redis cache as three authenticated Sentinel peers behind two HAProxy endpoints,
+with disruption budgets. The application controller stays a single process: upstream
+[dynamic cluster distribution](https://argo-cd.readthedocs.io/en/stable/operator-manual/dynamic-cluster-distribution/)
+(alpha; recheck on upgrades) runs it as a Deployment with 30-second
+not-ready/unreachable tolerations, so it is replaced on a surviving host. There is
+no standby; reconciliation pauses while it restarts, and running applications are
+unaffected.
 
-The application controller remains one active process. The overlay enables
-upstream [dynamic cluster distribution](https://argo-cd.readthedocs.io/en/stable/operator-manual/dynamic-cluster-distribution/)
-to run it as a Deployment, with 30-second not-ready/unreachable tolerations so
-Kubernetes can replace it on a surviving host. With one replica it processes
-the whole cluster; there is no second controller acting as a standby. GitOps
-reconciliation pauses while the replacement starts and rebuilds its cache.
-Upstream marks this mechanism alpha, so check its chart behavior during upgrades.
-Existing applications continue running during that pause.
-
-The application controller caches cluster resources. Its `GOMEMLIMIT` is kept
-below the container memory limit to leave room for non-Go allocations and
-transient work. This is a soft Go runtime limit, not a hard process bound. Keep
-the values together in `config/argocd-values.yaml`; see the upstream
-[Argo CD memory guidance](https://argo-cd.readthedocs.io/en/stable/operator-manual/high_availability/#mitigating-oomkilled-events-from-memory-spikes).
-
-After a Helm change, wait for the controller rollout and check that Applications
-return to `Synced` and `Healthy`. Confirm `go_gc_gomemlimit_bytes` matches the
-configured value and observe restarts, working memory, garbage collection, CPU
-and reconciliation duration across startup and normal cycles. If memory pressure
-persists, inspect the live heap/cache and adjust both budgets within node capacity.
+The controller's `GOMEMLIMIT` is a soft limit below the container memory limit;
+change both together in `config/argocd-values.yaml` (upstream
+[memory guidance](https://argo-cd.readthedocs.io/en/stable/operator-manual/high_availability/#mitigating-oomkilled-events-from-memory-spikes)).
+After a Helm change, wait for the rollout, check Applications return to `Synced` and
+`Healthy`, confirm `go_gc_gomemlimit_bytes`, and watch restarts, memory, GC, CPU and
+reconciliation time.
 
 ## After installation
 
-Two steps need a person and cannot be automated from the cluster:
+Two steps need a person:
 
-- Export the encrypted recovery kit and store it and its passphrase off the
-  host, then verify it; follow the [operator recovery checklist](operations.md#operator-recovery-checklist).
-  Without it, losing the host also loses the Vault keys and the off-node backup
-  password.
-- Open `./install.sh` in a terminal once and check that its screens render and
-  navigate on your terminal.
+- Export the encrypted recovery kit, store it and its passphrase off the host, and
+  verify it ([operator recovery checklist](operations.md#operator-recovery-checklist)).
+  Without it, losing the host loses the Vault keys and the off-node backup password.
+- Open `./install.sh` in a terminal once and check that its screens render.
 
 ## Verify the result
 
-The installer waits for selected components, then runs
-[`scripts/verify-platform.py`](../scripts/verify-platform.py) and stops with a
-nonzero exit when a check fails. Run the same read-only report at any time:
+The installer finishes with [`scripts/verify-platform.py`](../scripts/verify-platform.py)
+and exits nonzero when a check fails. Run the same read-only report any time:
 
 ```bash
-./install.sh --status                 # add --strict to fail on warnings, --json for tooling
+./install.sh --status                 # --strict fails on warnings, --json for tooling
 ./install.sh --status --api-dry-run   # also validate rendered profiles against the API server
 ```
+
+`--skip-endpoints` skips the HTTPS probes; `--backup-max-age-hours` sets the backup
+limit (default 26).
 
 | Check | Fails when | Warns when |
 | --- | --- | --- |
@@ -777,21 +661,20 @@ nonzero exit when a check fails. Run the same read-only report at any time:
 | Workloads | a pod older than five minutes is not ready (failed Job pods are left to their Jobs) | a newer pod is still starting |
 | ExternalSecrets | any is not `Ready` | |
 | Argo CD | an Application is not `Synced` and `Healthy` | a synced Application is `Progressing` |
-| Vault | a Vault pod is sealed or not running | Vault is not installed |
-| Longhorn | a volume is `faulted` | a volume is `degraded` |
+| Vault | a Vault pod is sealed or none is running | Vault is not installed |
+| Longhorn | a volume is `faulted` | a volume is `degraded`, or volumes are unreadable |
 | TLS secrets | a certificate in `infra`, `apps` or `corp` has expired | it expires within 30 days |
 | Platform mail | | [platform mail](guides/platform-mail.md) is off or not seeded, so alerts reach only GitLab |
 | Public endpoints | an Ingress host answers 5xx or fails TLS | DNS does not resolve yet or the request times out |
-| API audit log | | auditing is configured but not yet active, or not configured |
 | Disk headroom | the K3s filesystem is 85 % used (kubelet image GC) | less than 30 GiB is free for maintenance |
-| Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric has been written yet |
+| Host firewall | UFW is inactive or IPv4/IPv6 INPUT is not default-deny | UFW cannot be read without passwordless sudo |
+| API audit log | | auditing is configured but not yet active, or not configured |
+| Kubelet memory reservation | | the reservation is missing or waits for a K3s restart |
+| Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric yet, or the timer is not installed |
 
-Each warning or failure ends with a `Next:` line naming the command to run
-first, such as describing the failing pod or ExternalSecret, starting the Vault
-unseal service or reading the backup journal.
-
-Redirects and `401`/`403` answers count as reachable: administration hosts sit
-behind Cloudflare Access and SSO by design. Then open `https://cloud.<your-domain>`.
+Each warning or failure ends with a `Next:` line naming the first command to run.
+Redirects and `401`/`403` count as reachable: administration hosts sit behind
+Cloudflare Access and SSO. Then open `https://cloud.<your-domain>`.
 
 For source changes and Ansible syntax checks:
 
@@ -801,19 +684,15 @@ ansible-playbook -i ansible/inventory --syntax-check ansible/deploy.yml
 ./scripts/validate-repository.sh
 ```
 
-The live validator uses Kubernetes server-side dry-run without mutation.
-`install.yml --check` skips installation; `deploy.yml` rejects check mode because
-its tasks depend on command results. Validation does not replace a fresh
-installation on disposable hosts. See [validation coverage](testing.md#validation)
-and [Argo CD operations](#argo-cd-operations) for ongoing maintenance.
+`validate-repository.sh --live` adds a Kubernetes server-side dry-run without
+mutation. `install.yml --check` skips installation; `deploy.yml` rejects check
+mode. Neither replaces a fresh installation on disposable hosts; see
+[validation coverage](testing.md#validation).
 
 ## Related Guides
 
-- [Architecture](architecture.md)
-- [Public DNS And Ingress](dns.md)
-- [Operations](operations.md)
-- [Security](security.md)
-- [Testing](testing.md)
-- [Node enrollment](guides/node-enrollment.md)
-- [High availability](guides/high-availability.md)
-- [Repository onboarding](guides/repository-onboarding.md)
+[Architecture](architecture.md), [Public DNS And Ingress](dns.md),
+[Operations](operations.md), [Security](security.md), [Testing](testing.md),
+[node enrollment](guides/node-enrollment.md),
+[high availability](guides/high-availability.md) and
+[repository onboarding](guides/repository-onboarding.md).

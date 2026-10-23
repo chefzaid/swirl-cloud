@@ -1,10 +1,9 @@
 # External Services
 
-This is the platform's record of every service outside the installation that it
-contacts, what each receives, and whether it is required. Use it as the
-supplier and data-flow inventory for the `supply-chain` control of the
-[compliance evidence](compliance-evidence.md) and when answering where data
-goes. Applications add their own external services in their repositories.
+Every outside service the platform contacts, what it receives and whether it is
+required. This is the supplier and data-flow inventory for the `supply-chain`
+[compliance](compliance-evidence.md) control. Applications list their own
+external services in their repositories.
 
 ## Required or selected at installation
 
@@ -37,8 +36,8 @@ Downloads only; these services learn the requesting address and what was downloa
 | `install.crowdsec.net`, CrowdSec package repository | CrowdSec SAS (France) | CrowdSec packages on internet-exposed hosts |
 | `rdap.org` | RDAP bootstrap service | Registrar and DNSSEC check for the domain name during installation |
 
-Images and charts are pinned to versions and image digests; an offline
-installation bundle that removes these downloads is planned (TODO §32).
+Images and charts are pinned by version and digest. An offline installation
+bundle is planned (TODO §32).
 
 ## Data shared while running
 
@@ -48,8 +47,8 @@ installation bundle that removes these downloads is planned (TODO §32).
 
 ## Vendor telemetry and update checks (switched off)
 
-Several components report usage or check for updates by default. The platform
-turns these off so no usage data leaves the installation:
+The platform switches off these defaults so no usage data leaves the
+installation:
 
 | Component | Default behaviour | Setting |
 | --- | --- | --- |
@@ -67,9 +66,9 @@ uses a GeoIP processor; none is configured.
 
 ## Keeping this record current
 
-Add a row when a change introduces an outside dependency (a new image registry,
-API, update check or AI provider), with what it receives. Review the list with
-the access review each quarter.
+Add a row, with what it receives, whenever a change adds an outside dependency
+(image registry, API, update check, AI provider). Review the list with the
+quarterly access review.
 
 ## Related Guides
 

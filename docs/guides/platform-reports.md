@@ -1,10 +1,10 @@
 # Platform Reports
 
 Prometheus keeps only recent history, but service levels, cost and compliance
-are reported per month. Every hour the `platform-reports-snapshot` CronJob in
-`infra` copies the past hour's figures from Prometheus into Elasticsearch, where
-they are kept for 13 months. Grafana's **Platform Report** dashboard turns them
-into a monthly report.
+are reported per month. At seven minutes past every hour the
+`platform-reports-snapshot` CronJob in `infra` copies the past hour's figures
+from Prometheus into Elasticsearch, kept for 13 months. Grafana's **Platform
+Report** dashboard turns them into a monthly report.
 
 ## What each snapshot records
 
@@ -16,37 +16,39 @@ into a monthly report.
 | `compliance` | `control`, `status`, `passing` (1 or 0) | [compliance evidence](compliance-evidence.md) |
 | `compliance_framework` | `framework`, `ratio` (share of automated controls passing) | compliance evidence |
 | `vulnerabilities` | `severity`, `open`, `past_deadline`, `deadline_days` | Trivy findings in running images |
-| `game_day` | `namespace`, `scope` (scenario), `ratio` (endpoint availability during the drill), `value` (slowest recovery, seconds) | [game days](service-levels.md#game-days) |
+| `game_day` | `namespace`, `scope` (scenario), `ratio` (endpoint availability during the drill), `value` (slowest recovery, seconds) | [game days](service-levels.md#game-days), written by `./install.sh --game-day --record`, not the hourly snapshot |
 | `sli` | `indicator` (`datastore:<service>`, `ci_queue_p90_seconds`, `ci_platform_failure_ratio`, `argocd_sync_failure_ratio`), `value` | [service indicators](service-levels.md#other-indicators) |
 
-The vulnerability counts rest on `platform-reports-vulnerability-tracking`, which
-keeps, without lifecycle deletion, when each image and vulnerability pair
-(Critical and High) was first and last seen. Deadlines default to 15 days for
-Critical and 30 days for High; change them with `VULNERABILITY_DEADLINE_DAYS`
-(for example `Critical=7,High=30`) on the CronJob. `./install.sh
---vulnerability-report` lists the items past their deadline (`--all` lists every
-open item).
+Vulnerability counts rest on the `platform-reports-vulnerability-tracking`
+index, which records when each image and Critical or High vulnerability was
+first and last seen, with no lifecycle deletion. Deadlines default to 15 days
+for Critical and 30 for High; set `VULNERABILITY_DEADLINE_DAYS` on the CronJob
+to change them (for example `Critical=7,High=30`).
+`./install.sh --vulnerability-report` lists items past their deadline (`--all`
+lists every open item).
 
-Documents are stamped with the start of the hour they cover, in monthly indices
-`platform-reports-YYYY.MM`. Their IDs derive from the hour, so rerunning a
-snapshot replaces that hour instead of duplicating it. The
-`swirl-cloud-platform-reports` lifecycle policy deletes each index 400 days
-after it starts. Snapshots use the Logstash writer account; Grafana reads them
-through the **Platform reports** data source.
+Snapshot documents are stamped with the start of the hour they cover, in monthly
+indices `platform-reports-YYYY.MM`. Their IDs derive from the hour, so a rerun
+replaces that hour instead of duplicating it. The `swirl-cloud-platform-reports`
+lifecycle policy deletes each index 400 days after it starts. Snapshots write
+with the Logstash account; Grafana reads through the **Platform reports** data
+source.
 
 ## Monthly report
 
-Open Grafana **Platform Report** and choose the month in the time picker (for
+Open Grafana **Platform Report** and pick the month in the time picker (for
 example *Previous month*). It shows:
 
-- availability across all endpoints and per endpoint against the 99.5 % objective;
-- the average monthly platform cost, idle capacity cost, and cost per namespace and workload;
+- availability overall and per endpoint against the 99.5 % objective;
+- average monthly platform cost, idle capacity cost, and cost per namespace and
+  workload;
 - the share of hours each compliance control passed;
 - open Critical and High vulnerabilities and those past their deadline;
+- service indicators and recorded game days;
 - availability and CPU allocation over time.
 
-Export a table with **Inspect → Data → Download CSV** to send it on, and attach
-the month's compliance evidence pack for audits.
+Export a table with **Inspect → Data → Download CSV**. For audits, attach the
+month's compliance evidence pack.
 
 ## Check the snapshots
 
@@ -57,8 +59,8 @@ kubectl -n infra logs job/platform-reports-manual
 ```
 
 A run logs how many documents it indexed. A failed run raises
-[KubernetesJobFailed](alert-runbooks.md#kubernetesjobfailed); the next hourly
-run continues normally, and a missed hour stays a gap in the report.
+[KubernetesJobFailed](alert-runbooks.md#kubernetesjobfailed). The next run
+continues normally; a missed hour stays a gap in the report.
 
 ## Related Guides
 

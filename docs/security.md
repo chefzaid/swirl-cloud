@@ -1,10 +1,10 @@
 # Security Reference
 
-Vault owns infrastructure credentials; External Secrets supplies namespace-scoped
-Kubernetes Secrets. Keep credentials, local environment files, setup tokens and
-recovery material outside Git. Rotate bootstrap credentials and revoke temporary
-setup tokens after use. See [image maintenance](operations.md#image-updates) for
-container updates and Trivy findings.
+Vault owns infrastructure credentials; External Secrets projects them into
+namespace-scoped Kubernetes Secrets. Keep credentials, local environment files,
+setup tokens and recovery material outside Git. Rotate bootstrap credentials and
+revoke setup tokens after use. Container updates are in
+[image maintenance](operations.md#image-updates).
 
 ## Security Posture Summary
 
@@ -17,54 +17,50 @@ container updates and Trivy findings.
 | Secrets | Vault KV-v2 with Kubernetes and OIDC auth, two audit devices, External Secrets projection, host-only recovery material. |
 | Supply chain | Every platform image pinned by digest, pinned GitHub Actions, in-cluster Trivy Operator reports. |
 
-Known gaps are tracked as open items in [TODO.md](../TODO.md).
+Known gaps are open items in [TODO.md](../TODO.md).
 
 ## Trust Boundaries
 
 - Public traffic reaches Traefik only through Cloudflare. Direct mode trusts
   Cloudflare ranges; HA Tunnel mode trusts only the loopback connector.
 - Administrative hosts require Cloudflare Access and a Keycloak session.
-- Private node traffic stays on vRack, Tailscale or a trusted LAN; workers
-  accept SSH only from control planes.
-- Application namespaces receive only their own scoped Vault paths, data
-  credentials and runners; they never receive platform administrator secrets.
+- Node traffic stays on vRack, Tailscale or a trusted LAN; workers accept SSH
+  only from control planes.
+- Application namespaces get only their own Vault paths, data credentials and
+  runners, never platform administrator secrets.
 - Control-plane root access includes Vault recovery authority.
 
 ## Exposure boundaries
 
 | Node | Inbound access |
 | --- | --- |
-| First control plane | Default local or internet exposure; direct public HTTP/HTTPS is restricted to Cloudflare networks. HA ingress uses an outbound Tunnel instead of public ServiceLB |
-| Additional control plane | Private SSH from verified control planes, Kubernetes API TCP 6443 and etcd TCP 2379–2380 plus node peers, and VRRP from the node network on vRack/LAN; HA adds an outbound Tunnel with local ingress, without public ServiceLB advertisement |
-| Worker | Private SSH from verified control planes and required K3s/Longhorn peer traffic; no inbound server API, etcd or public ingress |
+| First control plane | Local or internet exposure; direct public HTTP/HTTPS only from Cloudflare networks. HA ingress uses an outbound Tunnel instead of public ServiceLB |
+| Additional control plane | Private SSH from verified control planes, Kubernetes API TCP 6443 and etcd TCP 2379–2380 from node peers, VRRP from the node network on vRack/LAN; HA adds an outbound Tunnel with local ingress and no public ServiceLB |
+| Worker | Private SSH from verified control planes and required K3s/Longhorn peer traffic; no server API, etcd or public ingress |
 
-Every control plane serves the private [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint):
-on vRack/LAN a keepalived VIP inside the node network (UFW accepts VRRP only
-from that network on the cluster interface), on Tailscale a Service that only
-tailnet admins, control planes and workers may reach on TCP 6443. Its readiness
-probe uses the K3s scheduler client certificate, not administrator credentials.
+Every control plane serves the private
+[Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint): a
+keepalived VIP on vRack/LAN (UFW accepts VRRP only from the node network on the
+cluster interface), or on Tailscale a Service that only tailnet admins, control
+planes and workers reach on TCP 6443. Its readiness probe uses the K3s scheduler
+client certificate.
 
-Added nodes use default-deny inbound UFW. Both host input and forwarded
-Docker/Kubernetes traffic are restricted on non-cluster interfaces for IPv4
-and IPv6; outbound connections and their replies remain available. Private
-SSH must originate from the declared control-plane address before the
-provider-facing path is closed. See [host policy](#host-policy) for controls
-and [host audits](#host-audits), and [node enrollment](guides/node-enrollment.md) for role-specific setup.
+Added nodes deny inbound host and forwarded traffic on non-cluster interfaces
+(IPv4 and IPv6); outbound traffic stays open. Private SSH must work from the
+declared control-plane address before the provider-facing path is closed. See
+[node enrollment](guides/node-enrollment.md) for role-specific setup.
 
-Odoo is not behind Cloudflare Access. Besides its login page, its Live Chat
-endpoints and the website's chat frame (`/platform_crm_intake/chat/<id>`) are
-public by design. Chat session starts share the login rate limit, and only the
-website's origin may frame the chat page. The website reaches Odoo's lead
-intake API in-cluster with a key that can only create leads. Emailed chat
-replies reach `/platform_crm_intake/mail/inbound` only from the Cloudflare
-Email Worker, with a shared secret, and are posted only for a correctly signed
-reply address and an allowed sender; see
-[Odoo website integration](guides/odoo-website.md#chat-by-email).
+Odoo is not behind Cloudflare Access: its login page, Live Chat endpoints and the
+website chat frame (`/platform_crm_intake/chat/<id>`) are public by design. Chat
+starts share the login rate limit, the website's lead intake key can only create
+leads, and emailed replies are accepted only from the Cloudflare Email Worker.
+See [Odoo website integration](guides/odoo-website.md#chat-by-email).
 
 ## Host policy
 
-Installer and Ansible use [configure-node-security.sh](../scripts/configure-node-security.sh).
-Transport setup and required private ports are covered in [node enrollment](guides/node-enrollment.md#private-node-network).
+The installer and Ansible use
+[configure-node-security.sh](../scripts/configure-node-security.sh); private
+ports are in [node enrollment](guides/node-enrollment.md#private-node-network).
 
 | Node | Installed host controls |
 | --- | --- |
@@ -72,60 +68,48 @@ Transport setup and required private ports are covered in [node enrollment](guid
 | Local/private control plane | UFW and Lynis. |
 | Worker | UFW; no Fail2ban, CrowdSec or persistent Lynis installation. |
 
-On internet-facing control planes, `swirl-cloud-intrusion-metrics.timer` writes
-Fail2ban and CrowdSec activity for node-exporter every five minutes: service
-state, current and total bans and failed attempts per jail, and active CrowdSec
-decisions per scenario (counts only; banned addresses stay on the host).
-It also exports `swirl_cloud_host_firewall_active`: UFW active and both IPv4 and
-IPv6 `INPUT` policies default-deny. `HostFirewallDisabled` (critical) fires when
-it is 0, and `./install.sh --status` checks the same. The hardening script
-verifies UFW after enabling it, falls back to `ufw-init force-reload`, and if
-UFW still cannot start it drops all inbound traffic except SSH, loopback,
-established connections and cluster interfaces before failing.
-Prometheus raises `HostIntrusionPreventionDown` (critical) when a service stops,
-`HostIntrusionMetricsStale` when the export stops, and `HostBruteForceWave` for
-more than 50 new bans an hour or 200 active decisions.
-
-Internet-facing control planes retain password SSH, disable root SSH and limit
+Internet-facing control planes keep password SSH, disable root SSH and limit
 authentication attempts and connection bursts. Fail2ban escalates repeat bans;
-CrowdSec also detects slow brute-force and user-enumeration patterns. The shared
-script owns ban periods, authentication-log retention and rules. Follow
-[the private SSH preflight](guides/node-enrollment.md#private-node-network) before applying a node's firewall.
+CrowdSec also catches slow brute force and user enumeration. Follow
+[the private SSH preflight](guides/node-enrollment.md#private-node-network)
+before applying a node's firewall.
 
-Every node also receives a host baseline that never touches the firewall or
-Kubernetes networking: a legal login banner in `/etc/issue` and
-`/etc/issue.net`, and the package audit tools `libpam-tmpdir`, `debsums`,
-`apt-show-versions` and `apt-listchanges` (text frontend, so APT never waits in
-a pager). New passwords must pass `pam_pwquality` (at least 12 characters,
-dictionary and user-name checks); existing passwords and key login are
-unaffected. debsums verifies package checksums weekly and logs mismatches to the
-system journal under the `debsums` tag. Configuration left behind by removed
-kernel packages is purged; other removed packages keep their configuration.
-Kernel settings in `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restrict kernel
-pointers, `dmesg`, unprivileged BPF, FIFO/regular-file creation in sticky
-directories and ICMP redirects. Forwarding, reverse-path filtering, module
-loading and SysRq stay at the values Kubernetes and console recovery need.
-The unused DCCP, RDS, SCTP and TIPC protocol modules cannot be loaded; a
-Service that needs SCTP must remove that entry first. USB storage remains
-available for remote-console recovery media. `/etc/crontab`, the `/etc/cron.*`
-directories and `/etc/ssh/sshd_config` are root-only; packaged paths keep that
-mode across upgrades through `dpkg-statoverride`.
-SSH session options (`ClientAliveInterval 300`, `ClientAliveCountMax 2`,
-`TCPKeepAlive no`, `MaxSessions 4`, `LogLevel VERBOSE`) are validated with
-`sshd -t` before a reload, which keeps existing sessions open.
-`auditd` records changes to accounts, sudoers, SSH, cron, systemd units, K3s
-and Swirl Cloud configuration, UFW and the time zone, plus kernel module loads
-(`ausearch -k identity`, `-k k3s-config`, and so on). Process execution is not
-audited; `acct` keeps 14 days of per-process accounting (`lastcomm`, `sa`).
-Audit logs rotate at 8 × 32 MB, BPF program-load records from container
-start-up are excluded, and a full audit disk suspends auditing instead of
-halting the node.
-`swirl-cloud-rkhunter.timer` runs a report-only rkhunter scan every Sunday.
-Warnings appear in `journalctl -u swirl-cloud-rkhunter.service` and as
-`swirl_cloud_rkhunter_warnings` in Prometheus; package updates refresh its
-file-property baseline. Each whitelist entry in `/etc/rkhunter.conf.local`
-carries its reason. A full `--apply` includes it; to reconcile only the baseline
-on a live host without resetting UFW, run:
+`swirl-cloud-intrusion-metrics.timer` exports Fail2ban and CrowdSec counts (bans,
+failures, decisions; no addresses) and `swirl_cloud_host_firewall_active` (UFW
+active, IPv4 and IPv6 `INPUT` default-deny) every five minutes for the
+[host security alerts](guides/alert-runbooks.md#host-security-and-maintenance);
+`./install.sh --status` also checks the firewall. If UFW cannot start even after
+`ufw-init force-reload`, the script drops all inbound traffic except SSH,
+loopback, established connections and cluster interfaces, then fails.
+
+Every node also gets a host baseline that never touches the firewall or
+Kubernetes networking:
+
+- Login banner in `/etc/issue` and `/etc/issue.net`; `libpam-tmpdir`,
+  `apt-show-versions`, `apt-listchanges` (text frontend) and `debsums` (weekly
+  checksum check, logged under the `debsums` tag).
+- `pam_pwquality` for new passwords (12+ characters, dictionary and user-name
+  checks). Config of removed kernel packages is purged.
+- `/etc/sysctl.d/90-swirl-cloud-hardening.conf` restricts kernel pointers,
+  `dmesg`, unprivileged BPF, sticky-directory file creation and ICMP redirects;
+  forwarding, rp_filter, module loading and SysRq stay as Kubernetes and console
+  recovery need.
+- DCCP, RDS, SCTP and TIPC modules are blocked (a Service that needs SCTP must
+  remove that entry first); USB storage stays available for recovery media.
+- `/etc/crontab`, `/etc/cron.*` and `/etc/ssh/sshd_config` are root-only, kept
+  across upgrades by `dpkg-statoverride`. SSH session options
+  (`ClientAliveInterval 300`, `ClientAliveCountMax 2`, `TCPKeepAlive no`,
+  `MaxSessions 4`, `LogLevel VERBOSE`) pass `sshd -t` before a reload.
+- `auditd` watches accounts, sudoers, SSH, cron, systemd units, K3s and Swirl
+  Cloud configuration, UFW, the time zone and module loads (`ausearch -k
+  identity`, `-k k3s-config`, ...); logs rotate at 8 × 32 MB and a full disk
+  suspends auditing. `acct` keeps 14 days of process accounting (`lastcomm`).
+- `swirl-cloud-rkhunter.timer` scans every Sunday, report-only (`journalctl -u
+  swirl-cloud-rkhunter.service`, `swirl_cloud_rkhunter_warnings`); whitelist
+  reasons are in `/etc/rkhunter.conf.local`.
+
+A full `--apply` includes the baseline. To reapply only the baseline without
+resetting UFW:
 
 ```bash
 ./scripts/configure-node-security.sh --host-baseline
@@ -133,10 +117,9 @@ on a live host without resetting UFW, run:
 
 ## Host audits
 
-Control planes run `swirl-cloud-lynis.timer` monthly; the distro's daily
-`lynis.timer` is masked so it cannot overwrite the shared report. Check its next run and inspect the
-root-only reports under `/var/log/lynis-reports`; the latest report is
-`/var/log/lynis-report.dat`. Schedule and archive retention are maintained in
+Control planes run `swirl-cloud-lynis.timer` monthly (the distro's daily
+`lynis.timer` is masked). Reports are root-only under `/var/log/lynis-reports`;
+the latest is `/var/log/lynis-report.dat`. The schedule lives in
 [configure-lynis-schedule.sh](../scripts/configure-lynis-schedule.sh).
 
 ```sh
@@ -144,45 +127,39 @@ systemctl list-timers swirl-cloud-lynis.timer
 swirl-cloud-audit-nodes
 ```
 
-Run the audit assistant with the user and SSH identity used for enrollment.
-It discovers workers, asks for SSH settings, temporarily copies Lynis to each
-worker, runs it with passwordless `sudo`, retrieves reports into
-`~/.local/state/swirl-cloud/lynis-reports`, and removes the temporary copy.
-Use `--targets user@host,user@host` for explicit targets or `--help` for automation.
-Filebeat ships control-plane findings to Kibana's **Lynis Security Audits**
-dashboard; audit retention is separate from ordinary logs.
+Run `swirl-cloud-audit-nodes` with the enrollment user and SSH identity. It
+copies Lynis to each worker, runs it with passwordless `sudo`, collects reports
+into `~/.local/state/swirl-cloud/lynis-reports` and removes the copy
+(`--targets user@host,...` for explicit hosts). Control-plane findings appear in
+Kibana's **Lynis Security Audits** dashboard.
 
-Accepted findings live in `/etc/lynis/custom.prf`, written by the host
-baseline with an owner, a review date and a rationale per entry. Entries skip a
-single check or value (for example `KRNL-6000:kernel.sysrq`), so new gaps in the
-same test still appear. Change the policy in
-[configure-node-security.sh](../scripts/configure-node-security.sh), never by
-editing the profile on a host.
+Accepted findings live in `/etc/lynis/custom.prf` with an owner, review date and
+rationale each. Entries skip one check or value (for example
+`KRNL-6000:kernel.sysrq`), so new gaps in the same test still show. Change them
+in [configure-node-security.sh](../scripts/configure-node-security.sh), never on
+a host.
 
 ## Kubernetes API audit log
 
 [`configure-k3s-audit.sh`](../scripts/configure-k3s-audit.sh) installs the
-[audit policy](../config/host/k3s-audit-policy.yaml) and the K3s drop-in
+[audit policy](../config/host/k3s-audit-policy.yaml) and the drop-in
 `/etc/rancher/k3s/config.yaml.d/40-swirl-cloud-api-audit.yaml`. Each K3s server
-then writes `/var/log/kubernetes/audit/audit.log` (root only, rotated at
-100 MB, 10 files, 30 days). Events record who changed which object and every read
-of Secrets, ConfigMaps and service-account tokens, at `Metadata` level only:
-request and response bodies, and therefore secret values, are never logged.
-Health probes, leases, events, node reads and routine service-account reads are
+writes `/var/log/kubernetes/audit/audit.log` (root only; 100 MB × 10 files, 30
+days). It records who changed which object and every read of Secrets, ConfigMaps
+and service-account tokens, at `Metadata` level only, so secret values are never
+logged. Probes, leases, events, node reads and routine service-account reads are
 dropped.
 
-The installer, and node enrollment for every new control plane, configure it
-before K3s starts, so new servers audit from the start. On an existing server the drop-in takes effect at the next K3s restart; to
-apply it now, use **Maintenance → Apply Kubernetes API audit logging** in
-`./install.sh` or run `scripts/configure-k3s-audit.sh --restart`. The API is
-unavailable for about a minute while K3s restarts; running workloads continue.
-`./install.sh --status` and the rerun plan report whether auditing is active.
-Search the log with `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
-Fluent Bit ships the log from every control plane to Elasticsearch indices
-`kubernetes-audit-*` (fields such as `verb`, `user.username`, `objectRef.*`,
-`responseStatus.code`, `sourceIPs` and `node`), which the `swirl-cloud-audit-30d`
-lifecycle policy deletes after 30 days. In Kibana, create a data view for
-`kubernetes-audit-*` and filter on `objectRef.resource : secrets`.
+The installer and control-plane enrollment set it up before K3s starts. On an
+existing server it applies at the next K3s restart; to apply now, use
+**Maintenance → Apply Kubernetes API audit logging now** or run
+`scripts/configure-k3s-audit.sh --restart` (the API is down for about a minute;
+workloads keep running). `./install.sh --status` reports whether it is active.
+
+Fluent Bit ships the log to `kubernetes-audit-*` (`verb`, `user.username`,
+`objectRef.*`, `responseStatus.code`, `sourceIPs`, `node`), deleted after 30 days
+by `swirl-cloud-audit-30d`. In Kibana, filter on `objectRef.resource : secrets`;
+on a host, `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
 
 ## Security detection
 
@@ -191,14 +168,14 @@ events, the API audit log and Keycloak state into alerts every five minutes.
 
 ## Compliance evidence
 
-The [compliance evidence guide](guides/compliance-evidence.md) maps the controls
-on this page to NIS2, ISO/IEC 27001, DORA, GDPR and CIS requirements, evaluates
-them continuously and exports signed evidence packs.
+The [compliance evidence guide](guides/compliance-evidence.md) maps these
+controls to NIS2, ISO/IEC 27001, DORA, GDPR and CIS, evaluates them continuously
+and exports signed evidence packs.
 
 ## Just-in-time administration
 
-Day-to-day users do not need permanent `platform-admins` membership. Grant it
-for a limited time, with a reason and an approver who is not the user:
+Grant `platform-admins` for a limited time, with a reason and an approver who is
+not the user, instead of permanent membership:
 
 ```bash
 ./install.sh --admin-access grant --user alice --hours 4 \
@@ -207,40 +184,37 @@ for a limited time, with a reason and an approver who is not the user:
 ./install.sh --admin-access revoke --user alice
 ```
 
-Grants last 1 to 24 hours. Each is recorded in the Elasticsearch index
-`access-grants` (user, reason, operator, approver, start, end and how it
-ended). The security detection job removes the membership within five minutes
-of expiry and records it; `NewPlatformAdministrator` reports the grant like any
-other new administrator. Members added directly in Keycloak have no grant and
-are never removed automatically: keep that list to the break-glass accounts.
+Grants last 1 to 24 hours and are recorded in the Elasticsearch index
+`access-grants`. Security detection removes the membership within five minutes
+of expiry, and `NewPlatformAdministrator` reports each grant. Members added
+directly in Keycloak are never removed automatically: keep them to the
+break-glass accounts.
 
 ## Identity events
 
-`keycloak-sso-reconcile` turns on event storage in every Keycloak realm on each
-sync: login events (logins, failures, logouts, password and credential changes,
-lockouts, identity-provider links) and admin events (who created, changed or
-deleted which user, client, role or realm setting). Keycloak keeps both for 90
-days in its database; browse them under **Realm settings → Events** or the
-realm's **Events** page. Admin event details stay off, so stored events never
-contain the submitted representation.
+`keycloak-sso-reconcile` enables event storage in every realm: login events
+(logins, failures, logouts, credential changes, lockouts, identity-provider
+links) and admin events (who changed which user, client, role or realm setting),
+kept 90 days under **Realm settings → Events**. Admin event details stay off, so
+stored events never hold submitted representations.
 
-Keycloak also logs every event, successful or not, through its `jboss-logging`
-listener. The logging agent moves those lines out of the general container logs
-into monthly `identity-audit-*` indices with parsed fields under `keycloak.*`
-(`type`, `operationType`, `realmName`, `clientId`, `userId`, `username`,
-`ipAddress`, `error`, `resourceType`, `resourcePath`) and `event_category`
-(`user` or `admin`). The `swirl-cloud-identity-audit` lifecycle policy deletes
-each monthly index 396 days after it starts, so every event is kept for at least
-a year. Only lines from the `keycloak` container in `infra` are accepted. In Kibana, create a data view for `identity-audit-*`
-and filter, for example, on `keycloak.type : LOGIN_ERROR`. Admin events log the
-realm of the acting administrator; the target is in `keycloak.resourcePath`.
+Keycloak's `jboss-logging` listener also logs every event. The logging agent
+moves those lines (only from the `keycloak` container in `infra`) into monthly
+`identity-audit-*` indices, with fields under `keycloak.*` (`type`,
+`operationType`, `realmName`, `clientId`, `userId`, `username`, `ipAddress`,
+`error`, `resourceType`, `resourcePath`) and `event_category` (`user`/`admin`).
+`swirl-cloud-identity-audit` deletes each index 396 days after it starts, so
+events are kept at least a year. Filter in Kibana on, for example,
+`keycloak.type : LOGIN_ERROR`. Admin events carry the acting administrator's
+realm; the target is in `keycloak.resourcePath`.
 
 ## Application policies
 
-The application policy pack ([ADR 0027](adr/0027-native-admission-policy-packs.md),
+The application policy pack
+([ADR 0027](adr/0027-native-admission-policy-packs.md),
 [`k8s/base/application-policies.yaml`](../k8s/base/application-policies.yaml))
 checks Deployments, StatefulSets, DaemonSets and CronJobs in application
-namespaces when they are created or changed:
+namespaces:
 
 | Rule | Why |
 | --- | --- |
@@ -250,70 +224,58 @@ namespaces when they are created or changed:
 | An `app` pod label | Cost showback, discovery and dashboards group by it. |
 | `swirl-cloud.io/owner` and `swirl-cloud.io/data-classification` (`public`, `internal`, `confidential`, `restricted`) workload labels | Accountability and the records of processing. |
 
-The pack runs in **Warn and Audit** mode: changes are admitted, `kubectl` and
-Argo CD show the warning, and the API audit log records it. `./install.sh
---policy-report` checks existing workloads with unchanged server-side dry runs
-and lists every violation. Once an environment reports none, its binding can
-move to `Deny`, starting with `prod`.
+It runs in **Warn and Audit** mode: changes are admitted with a warning and an
+audit-log entry. `./install.sh --policy-report` dry-runs existing workloads and
+lists violations. Once an environment has none, move its binding to `Deny`,
+starting with `prod`.
 
 ## Encrypted volumes
 
-Volumes created with the StorageClass `longhorn-encrypted` are encrypted with
-dm-crypt (LUKS2, `aes-xts-plain64`, Argon2i key derivation) on every node, so
-replicas, snapshots and Longhorn backups hold only ciphertext. Applications opt
-in per claim:
+Claims with StorageClass `longhorn-encrypted` are encrypted with dm-crypt (LUKS2,
+`aes-xts-plain64`, Argon2i), so replicas, snapshots and backups hold only
+ciphertext:
 
 ```yaml
 spec:
   storageClassName: longhorn-encrypted
 ```
 
-The key is created once in Vault at `infra/longhorn` (`volume_encryption_key`)
-and reaches Longhorn through the `longhorn-volume-encryption` Secret in `infra`,
-which removing its ExternalSecret does not delete. **Never change or delete the
-key**: every encrypted volume and backup needs it; it is part of Vault's
-recovery archives and the recovery kit. Hosts load the `dm_crypt` module through
-`scripts/configure-longhorn-host.sh`, and the Longhorn release creates the
-StorageClass with the cluster's replica count. Existing volumes stay
-unencrypted; move data by restoring it into a new encrypted claim. Disk
-encryption of the host itself is a separate, provider-dependent choice.
+The key lives in Vault at `infra/longhorn` (`volume_encryption_key`) and reaches
+Longhorn through the `longhorn-volume-encryption` Secret in `infra`, which
+removing its ExternalSecret does not delete. **Never change or delete the key**:
+every encrypted volume and backup needs it; it is in the Vault recovery archives
+and the recovery kit. `scripts/configure-longhorn-host.sh` loads `dm_crypt`.
+Existing volumes stay unencrypted; restore their data into a new encrypted claim.
 
 ## Administrator second factor
 
-A second factor is optional. Any user can add an authenticator app in the
-Keycloak account console (**Account security → Signing in**); Keycloak then asks
-for a code at every sign-in. `./install.sh --admin-mfa status` shows which
-`platform-admins` members have one. `./install.sh --admin-mfa require` asks every
-member without one to set it up at their next sign-in (Keycloak's *Configure OTP*
-required action); it does not change the sign-in flow and leaves members with
-other pending actions untouched. Run it again after adding administrators.
+A second factor is optional. Users add an authenticator app in the Keycloak
+account console (**Account security → Signing in**). `./install.sh --admin-mfa
+status` shows which `platform-admins` members have one; `--admin-mfa require`
+asks the others to set one up at next sign-in (*Configure OTP* required action)
+without changing the sign-in flow. Rerun it after adding administrators.
 
 ## Credential age
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its
-current version and when it was last written, oldest first, and exits non-zero
-when one is older than `--max-age-days` (default 365). It reads only metadata,
-never values, with the bootstrap token passed to the Vault pod on standard
-input. Rotate local administrator passwords with
-`scripts/rotate-local-admin-passwords.sh`; application and registry credentials
-rotate through their onboarding flows.
+version and last write, oldest first, and exits non-zero when one is older than
+`--max-age-days` (default 365). It reads metadata only. Rotate local
+administrator passwords with
+[the rotation helper](#rotate-local-administrator-passwords); application and
+registry credentials rotate through their onboarding flows.
 
 ## Vulnerability triage
 
-Prometheus raises `TrivyNewCriticalVulnerability` when a running image gains
-critical findings over its recent maximum, or a newly deployed image has any;
-findings already triaged below do not keep alerting.
+`TrivyNewCriticalVulnerability` fires when a running image gains critical
+findings over its recent maximum, or a newly deployed image has any. Deadlines
+run from first sighting in a running image: 15 days for Critical, 30 for High.
+`./install.sh --vulnerability-report` lists items past deadline; the Grafana
+**Platform Report** tracks monthly counts
+([platform reports](guides/platform-reports.md)). A triaged item still counts
+until its image changes, so record decisions here.
 
-Remediation deadlines run from the first time a vulnerability is seen in a
-running image: 15 days for Critical and 30 days for High. `./install.sh
---vulnerability-report` lists the open items past their deadline, and the
-Grafana **Platform Report** tracks the counts per month
-([platform reports](guides/platform-reports.md)). An item triaged below still
-counts until its image changes; record the decision here so the report can be
-read against it.
-
-Trivy Operator keeps one report per running image digest. List critical findings
-by image, deduplicated across workloads:
+List critical findings by image, deduplicated across workloads (Trivy Operator
+keeps one report per running digest):
 
 ```bash
 kubectl get vulnerabilityreports -A -o json | jq -r '
@@ -322,19 +284,17 @@ kubectl get vulnerabilityreports -A -o json | jq -r '
   | unique_by(.digest) | sort_by(-.crit) | .[] | select(.crit > 0) | "\(.crit) \(.image)"'
 ```
 
-To check a candidate image before an upgrade, scan it against the in-cluster
-Trivy server from a short-lived pod (`trivy image --server
-http://trivy-service.infra:4954 --severity CRITICAL <image>`), with small resource
-requests so it can schedule on a busy node.
+Before an upgrade, scan the candidate from a short-lived pod with small requests:
+`trivy image --server http://trivy-service.infra:4954 --severity CRITICAL <image>`.
 
-Triage of 2026-10-04 (critical findings only). Each exception expires on
-2026-11-04 and must be rechecked then. Reachability is assessed from the
-advisory scope and how the platform runs the component; it was not exploit-tested.
+Triage of 2026-10-04 (critical only). Exceptions expire on 2026-11-04. Reachability
+is assessed from the advisory and how the platform runs the component, not
+exploit-tested.
 
 | Image | Critical findings | Status |
 | --- | --- | --- |
 | Keycloak 26.7.4 | Netty SNI routing, FreeMarker path traversal, Bouncy Castle | Resolved: upgraded to 26.7.5 (0 critical, 7 high). |
-| Homepage v2.4.0 | Next.js `next/og` RCE, node-tar | Latest release; no fix yet. The built server bundle has no `ImageResponse`/`next/og` code, so the RCE path is not reachable; behind Cloudflare Access and Keycloak. Exception. |
+| Homepage v2.4.0 | Next.js `next/og` RCE, node-tar | Latest release; no fix yet. The server bundle has no `ImageResponse`/`next/og` code, so the RCE path is unreachable; behind Cloudflare Access and Keycloak. Exception. |
 | Argo CD v3.5.3 | Go `crypto/tls` (CVE-2025-68121) | Latest 3.5 patch; no fix yet. Exception. |
 | Elasticsearch, Kibana, Logstash 9.5.4 | Netty SNI routing; `piscina`; Bouncy Castle | Latest 9.5 patch. Netty SNI does not apply to the plain-HTTP in-cluster listeners. Exception. |
 | Kafka UI v1.5.0 | Netty SNI routing | Latest release; plain HTTP behind Traefik. Exception. |
@@ -343,11 +303,10 @@ advisory scope and how the platform runs the component; it was not exploit-teste
 | GitLab Runner helper 19.4.1 (Alpine) | `miniperl` regular-expression handling | Fixed in Alpine `5.42.2-r1`; 19.4.1 is the latest helper. Job helpers do not run untrusted Perl. Exception. |
 | Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Resolved: Longhorn 1.13.0 (2026-10-05) runs `csi-provisioner` v6.3.0. |
 | MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
-| PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. Moving PostgreSQL to a newer Debian base changes glibc collation and needs a reindex plan. Exception. |
+| PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. A newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 
 Debian bookworm status of the PostgreSQL and DBGate findings
-([security tracker](https://security-tracker.debian.org/tracker/), checked
-2026-10-04):
+([security tracker](https://security-tracker.debian.org/tracker/), 2026-10-04):
 
 | CVE | Package | Debian status | Runtime use in these images |
 | --- | --- | --- | --- |
@@ -360,8 +319,8 @@ Debian bookworm status of the PostgreSQL and DBGate findings
 
 ### Exposed-secret findings
 
-Triage of 2026-10-05 for Trivy's exposed-secret reports. None is a usable
-credential; each is accepted until 2026-11-05.
+Triage of 2026-10-05. None is a usable credential; each is accepted until
+2026-11-05.
 
 | Image | Finding | Evidence |
 | --- | --- | --- |
@@ -372,19 +331,16 @@ credential; each is accepted until 2026-11-05.
 
 ## Administrator sign-in
 
-Normal browser access uses the administrator login selected during installation.
-[Keycloak reconciliation](../k8s/platform/keycloak-sso.yaml) maintains matching
-managed identities in `master` and the configured `KEYCLOAK_REALM`. A username
-gets the primary email `<username>@<your-domain>`; an email login stays unchanged.
-The `master` identity
-can administer every realm at
+[Keycloak reconciliation](../k8s/platform/keycloak-sso.yaml) keeps the
+administrator login chosen at installation as managed identities in `master` and
+`KEYCLOAK_REALM`. A username gets the email `<username>@<your-domain>`. The
+`master` identity administers every realm at
 `https://keycloak.<your-domain>/auth/admin/master/console/`.
 
-Membership in `platform-admins` grants broad platform administration. Native
-OIDC integrations establish service sessions where supported. Other UIs use the
-Keycloak proxy boundary; administrative public hosts also sit behind Cloudflare
-Access. Internal automation retains token-based endpoints. See [Cloudflare](dns.md#cloudflare)
-for the hostname inventory and boundary configuration.
+`platform-admins` grants the access below, through native OIDC where supported
+and the Keycloak proxy otherwise; administrative hosts also sit behind Cloudflare
+Access ([hostnames](dns.md#cloudflare)). Give automation only the service
+credentials it needs.
 
 | Service | Managed administrator access |
 | --- | --- |
@@ -398,27 +354,22 @@ for the hostname inventory and boundary configuration.
 | DBGate / Kafka UI | Database administrator connections / full Kafka write access. |
 | Longhorn / Homepage | Full UI access through the administrator gate. |
 
-GitLab links SSO to its existing root account, preserving project ownership;
-its bootstrap removes a duplicate matching the selected login. Profile sync
-preserves locally edited GitLab names. Kibana validates the signed session and
-keeps individual profiles, favorites and preferences. Its reconciler disables
-managed identities that leave `platform-admins`; the dashboard-import account
-is separate from browser identities. Give automation only its required service
-credentials rather than this full administrator access.
+GitLab links SSO to its existing root account, keeping project ownership and
+locally edited names. Kibana keeps individual profiles and disables managed
+identities that leave `platform-admins`.
 
 ## Recovery credentials
 
-Read credentials only in a private terminal. For example, retrieve the managed
-SSO login or password individually from `infra/keycloak-sso-credentials` using
-keys `SSO_BOOTSTRAP_USERNAME` and `SSO_BOOTSTRAP_PASSWORD`:
+Read credentials only in a private terminal; they serve recovery and automation,
+not normal access. The managed SSO login is in `infra/keycloak-sso-credentials`
+(`SSO_BOOTSTRAP_USERNAME`, `SSO_BOOTSTRAP_PASSWORD`):
 
 ```sh
 kubectl get secret -n infra keycloak-sso-credentials \
   -o jsonpath='{.data.SSO_BOOTSTRAP_USERNAME}' | base64 -d
 ```
 
-The same command works with the namespace, Secret and key below. These local
-credentials serve recovery or automation; normal access uses SSO.
+The same command works for these:
 
 | Service | Namespace / Secret | Password key |
 | --- | --- | --- |
@@ -430,9 +381,9 @@ credentials serve recovery or automation; normal access uses SSO.
 | Portainer | `infra/portainer-auth-secret` | `ADMIN_PASSWORD` |
 | Odoo | `corp/odoo-secret` | `ODOO_ADMIN_PASSWORD` |
 
-Username fields and Vault mappings live with the
-[ExternalSecrets](../k8s/platform/vault.yaml) and [Odoo manifest](../k8s/corp/odoo.yaml).
-Vault's `secret` KV engine also holds these recovery and automation fields:
+Username fields and Vault mappings are in the
+[ExternalSecrets](../k8s/platform/vault.yaml) and the
+[Odoo manifest](../k8s/corp/odoo.yaml). Vault's `secret` KV engine also holds:
 
 | Service | Path | Field |
 | --- | --- | --- |
@@ -442,41 +393,37 @@ Vault's `secret` KV engine also holds these recovery and automation fields:
 | Website's Odoo lead intake | `apps/<website>/odoo` | `apiKey` (only creates leads; [guide](guides/odoo-website.md)) |
 | Platform mail relay | `infra/smtp` | `password` (the relay login; [guide](guides/platform-mail.md#where-the-password-lives)) |
 
-Use Vault's authenticated UI to read those fields. During an SSO outage, reach
-Vault locally with `kubectl port-forward -n infra service/vault 8200:8200` and
-open `http://127.0.0.1:8200/ui`. Its Token login accepts the root-only recovery
-token stored at `/var/lib/swirl-cloud/vault-bootstrap-token`. Keep it out of
-command arguments and logs. Argo CD's local `admin` is disabled. DBGate signs in
-through its own Keycloak client and admits only `platform-admins`; Kafka UI,
-Longhorn and Homepage rely on their authentication boundary.
+During an SSO outage, run `kubectl port-forward -n infra service/vault 8200:8200`
+and open `http://127.0.0.1:8200/ui` with the root-only token in
+`/var/lib/swirl-cloud/vault-bootstrap-token`; keep it out of arguments and logs.
+Argo CD's local `admin` is disabled; DBGate admits only `platform-admins` through
+its own Keycloak client.
 
 ## Recovery kit
 
-`scripts/export-recovery-kit.sh` (or `./install.sh` → Maintenance → Export the
-encrypted recovery kit) writes everything needed to rebuild without this host
-into one file encrypted with a passphrase you choose (OpenSSL AES-256-CBC,
-PBKDF2 with 600 000 iterations): the Vault unseal key and root token, the K3s
-server token and secrets-encryption state, and the restic password and S3
-credentials when off-node backups are configured. The passphrase is read from
-the terminal and passed to OpenSSL on stdin, never as an argument. The script
-decrypts the file once before reporting success and records only SHA-256
-fingerprints in `/var/lib/swirl-cloud/recovery-kit.json`.
+`scripts/export-recovery-kit.sh` (or **Maintenance → Export the encrypted
+recovery kit**) writes one file, encrypted with your passphrase (OpenSSL
+AES-256-CBC, PBKDF2, 600 000 iterations), holding the Vault unseal key and root
+token, the K3s server token and secrets-encryption state, and the restic password
+and S3 credentials when off-node backups are set. The passphrase goes to OpenSSL
+on stdin. The script test-decrypts the kit and records only SHA-256 fingerprints
+in `/var/lib/swirl-cloud/recovery-kit.json`.
 
-Move the kit and its passphrase off the host (password manager, encrypted USB),
-then confirm it with `scripts/export-recovery-kit.sh --verify FILE`, which fails
-when any key changed since the export. With `--separate-archives`, nightly
-archives omit the Vault keys while they still match the kit and say so in
-`RESTORE.txt`; a rotated key is archived again with a warning until you export a
-new kit. Export a new kit after rotating Vault, K3s or backup credentials. The
+Move the kit and passphrase off the host (password manager, encrypted USB) and
+check it with `scripts/export-recovery-kit.sh --verify FILE`, which fails when any
+key changed since export. Export a new kit after rotating Vault, K3s or backup
+credentials. With `--separate-archives`, nightly archives omit the Vault keys
+while they match the kit; a rotated key is archived again, with a warning, until
+a new kit exists. See the
 [operator recovery checklist](operations.md#operator-recovery-checklist) and
-[restore procedure](operations.md#restore-after-losing-the-host) use the kit.
+[restore procedure](operations.md#restore-after-losing-the-host).
 
 ## Rotate local administrator passwords
 
-The optional installer rotation step aligns infrastructure-local administrator
-passwords. It does not run implicitly in unattended `--yes` installs; automation
-must set `ROTATE_LOCAL_ADMIN_PASSWORDS=true` and provide `LOCAL_ADMIN_PASSWORD`
-through its secret environment. To run it later in Bash:
+The installer's rotation step, off by default, sets one password for the local
+infrastructure administrators. Unattended `--env-file` installs enable it with
+`ROTATE_LOCAL_ADMIN_PASSWORDS=true` and `LOCAL_ADMIN_PASSWORD` in their secret
+environment. To run it later:
 
 ```bash
 read -rsp 'Local administrator password: ' LOCAL_ADMIN_PASSWORD
@@ -486,68 +433,58 @@ printf '%s\n' "$LOCAL_ADMIN_PASSWORD" | \
 unset LOCAL_ADMIN_PASSWORD
 ```
 
-[The rotation helper](../scripts/rotate-local-admin-passwords.sh) updates service
-credentials, persists them in Vault, refreshes External Secrets, restarts affected
-consumers and checks availability. Application users, Keycloak SSO identities,
-API tokens and ingress Basic Auth credentials have separate lifecycles.
+[The helper](../scripts/rotate-local-admin-passwords.sh) updates the services,
+stores the password in Vault, refreshes External Secrets, restarts consumers and
+checks availability. Application users, SSO identities, API tokens and ingress
+Basic Auth have separate lifecycles.
 
 ## Vault Operations
 
-Vault stores platform credentials in integrated Raft storage. Installer and
-Ansible render [the shared Helm values](../config/vault-values.yaml), including
-the pinned [upstream image](operations.md#image-updates). Changes to those values need
-a Helm reconciliation to update an existing release. External Secrets reads
-Vault through Kubernetes authentication; its store and secret mappings are in
-[vault.yaml](../k8s/platform/vault.yaml).
+Vault uses integrated Raft storage. The installer and Ansible render
+[the shared Helm values](../config/vault-values.yaml), including the pinned
+[image](operations.md#image-updates); changed values need a Helm reconciliation.
+External Secrets reads Vault through Kubernetes auth
+([vault.yaml](../k8s/platform/vault.yaml)).
 
 ### Storage and audit
 
-The server has a read-only root filesystem and a bounded memory-backed `/tmp`
-for the chart's generated startup configuration. Its writable home, Raft data
-and audit logs have separate mounts. Preserve the deployed file-owner identity
-when updating the image: changing only its UID/GID can prevent Vault from
-opening existing Raft and audit files.
+The server has a read-only root filesystem, a small memory-backed `/tmp`, and
+separate mounts for home, Raft data and audit logs. **Keep the image's file-owner
+UID/GID when updating**; a change can stop Vault opening existing Raft and audit
+files.
 
-Keep both audit devices enabled. Stdout reaches Fluent Bit; the file device
-writes to the dedicated node-local `vault-audit` PVC, avoiding a Longhorn
-dependency during startup. The unprivileged rotator shares Vault's process
-namespace to rename the active file and send `SIGHUP`, then compresses closed
-files. It receives no Vault token. Limits and retained archive counts live in
-[the Helm values](../config/vault-values.yaml). Monitor audit-write failures and
-volume pressure separately from ordinary application-log retention.
+Keep both audit devices. Stdout goes to Fluent Bit; the file device writes to the
+node-local `vault-audit` PVC, so startup does not depend on Longhorn. A tokenless
+rotator sidecar renames the file, sends `SIGHUP` and compresses old files; limits
+are in [the Helm values](../config/vault-values.yaml).
 
 ### Three-peer availability
 
-The default remains one Vault server. Opting into `HIGH_AVAILABILITY_ENABLED=true`
-uses [the HA overlay](../config/vault-ha-values.yaml): three Raft voters on three
-different control planes, a disruption budget permitting one unavailable peer,
-and a separate 5 GiB node-local audit claim for each pod. Data remains on Longhorn.
-Three Ready, uncordoned control planes and working storage are prerequisites.
-The profile tolerates the managed control-plane taint, so controller-only
-control planes are supported. Adding replicas to one host does not provide
-host-failure protection.
+The default is one server. `HIGH_AVAILABILITY_ENABLED=true` applies
+[the HA overlay](../config/vault-ha-values.yaml): three Raft voters on three
+control planes, a disruption budget of one, and a 5 GiB node-local audit claim
+per pod; data stays on Longhorn. It needs three Ready, uncordoned control planes
+(controller-only ones work). Replicas on one host give no host-failure
+protection.
 
-The chart uses `OnDelete`, so a Helm reconciliation does not restart existing
-peers automatically. Roll out image/configuration changes one peer at a time,
-checking quorum before and after each replacement:
+The chart uses `OnDelete`: Helm does not restart peers. Replace one peer at a
+time and check quorum before and after each:
 
 ```sh
 ./scripts/configure-vault-ha.sh --verify
 ```
 
-This checks three Ready peers on different nodes, three voters and healthy Raft
-Autopilot state. Two surviving peers can continue serving during one host outage.
-Each node-local audit claim stays attached to its original host: permanent host
-replacement requires an explicit audit-volume recovery plan, alongside recovery
-of that member's data. Keep both audit devices and off-host log collection enabled.
+It checks three Ready peers on different nodes, three voters and healthy
+Autopilot. Two peers keep serving through one host outage. Audit claims stay on
+their host, so replacing a host needs an audit-volume recovery plan too.
 
 #### Migrating an existing singleton
 
-Use [the shared configurator](../scripts/configure-vault-ha.sh), rather than
-applying the overlay directly: Kubernetes cannot add a StatefulSet claim template
-in place. Schedule one maintenance operation from one control plane, verify a
-restoration backup, and complete any [image transition](guides/platform-migration.md)
-separately. Set `VAULT_VALUES_FILE` to the rendered `config/vault-values.yaml`.
+Use [the shared configurator](../scripts/configure-vault-ha.sh), not the overlay:
+Kubernetes cannot add a claim template to a StatefulSet in place. Run it as one
+maintenance operation from one control plane after verifying a restore backup,
+and do any [image transition](guides/platform-migration.md) separately.
+`VAULT_VALUES_FILE` is the rendered `config/vault-values.yaml`.
 
 ```sh
 VAULT_HA_MIGRATE_EXISTING=true ./scripts/configure-vault-ha.sh \
@@ -555,59 +492,47 @@ VAULT_HA_MIGRATE_EXISTING=true ./scripts/configure-vault-ha.sh \
 HIGH_AVAILABILITY_ENABLED=true ./scripts/configure-vault.sh infra
 ```
 
-The explicit flag is also required when the installer or Ansible encounters the
-singleton layout. The helper saves a fresh Raft snapshot, checks its checksum,
-and archives the current Helm values and StatefulSet under the root-only
-`/var/lib/swirl-cloud/backups/` directory. It then orphans the existing controller,
-retaining the running `vault-0`, and recreates the controller with per-pod audit
-claims. It replaces `vault-0` only after both new peers are unsealed and all three
-are healthy voters. Deletions check object identity; no PVC is deleted.
+The installer and Ansible also stop at the singleton layout until
+`VAULT_HA_MIGRATE_EXISTING=true` is set. The helper saves and checksums a Raft
+snapshot, archives the Helm values and StatefulSet in the root-only
+`/var/lib/swirl-cloud/backups/`, orphans the controller (keeping `vault-0`
+running), recreates it with per-pod audit claims, and replaces `vault-0` only
+after both new peers are unsealed healthy voters. No PVC is deleted;
+`data-vault-0` stays in use and the old `vault-audit` is kept as an archive.
 
-The original `data-vault-0` remains in use. The original `vault-audit` is retained
-as an audit archive after `audit-vault-0` takes over. If joining fails, leave the
-original pod and retained PVCs in place, diagnose the failed peers, then rerun
-the gated helper. If controller creation itself failed, restore the archived
-controller before retrying. Do not scale a live three-voter cluster back to one
-by changing only the Helm replica count.
+If joining fails, leave the original pod and PVCs, fix the peers and rerun. If
+controller creation failed, restore the archived controller first. **Never scale
+a live three-voter cluster to one by changing only the Helm replica count.**
 
 ### Upgrade and recovery
 
-Test the candidate against the deployed image with disposable data outside the
-production cluster. Verify existing-volume upgrade, stored secrets, access
-controls, authentication, transit decryption, UI assets, audit rotation and
-restart. Restore a snapshot into a separate volume using the previous image
-to establish the recovery path. Keep the fixture and logs outside Git.
+1. Test the candidate on disposable data outside production: volume upgrade,
+   secrets, access controls, auth, transit decryption, UI, audit rotation and
+   restart. Prove a snapshot restore with the previous image.
+2. Before the production update, save a fresh Raft snapshot, verify checksums
+   and restore it into an isolated, network-disabled instance with the original
+   unseal key and token. Compare secret hashes, policies, auth methods and audit
+   devices with a private inventory; a snapshot command alone proves nothing.
+3. After rollout, verify readiness, unseal state, data, mounts, auth methods,
+   both audit devices, every ExternalSecret's Ready condition, the host unseal
+   service and fresh Trivy reports.
 
-Before a production Helm update, save a fresh Raft snapshot and verify its
-archive checksums. Test restoration into an isolated, network-disabled instance
-with the original unseal key and bootstrap token; compare secret hashes,
-policies, authentication methods and audit devices against a private inventory.
-Keep snapshots, keys, tokens, inventories and fixture logs outside Git. A
-successful snapshot command alone does not establish recoverability.
-
-After rollout, verify readiness, unsealed status, stored data, mounts and auth
-methods, both audit devices, and every ExternalSecret's Ready condition. Check
-the host unseal service and fresh reports for the running image digest. Retain
-the verified backup and previous image for recovery; do not start an older
-binary directly against upgraded Raft data.
+Keep snapshots, keys, tokens, inventories and logs outside Git. Keep the verified
+backup and previous image; never start an older binary on upgraded Raft data.
 
 ### Host unseal service
 
-The root-owned `swirl-cloud-vault-unseal.service` is scheduled by
-[swirl-cloud-vault-unseal.timer](../config/host/swirl-cloud-vault-unseal.timer). Its
-[helper](../scripts/vault-unseal.sh) discovers running Vault server pods, checks
-seal status and reads
-`/var/lib/swirl-cloud/vault-unseal-key` only when unsealing is needed. Keep that
-file root-owned with mode `0600`, outside Git and diagnostic output.
+[swirl-cloud-vault-unseal.timer](../config/host/swirl-cloud-vault-unseal.timer)
+runs the root-owned `swirl-cloud-vault-unseal.service`. Its
+[helper](../scripts/vault-unseal.sh) checks each Vault pod's seal status and reads
+`/var/lib/swirl-cloud/vault-unseal-key` (root, `0600`, never in Git or
+diagnostics) only when needed. It unseals initialized peers, lets an empty
+replacement join an unsealed survivor first, and never initializes a cluster.
+Configuration refuses to initialize when recovery material exists but no
+initialized peer answers.
 
-An initialized peer is unsealed with the existing key. An empty replacement
-joins an unsealed surviving member before receiving that key; the timer never
-initializes a cluster. Configuration also refuses initialization when host
-recovery material exists but no initialized peer is reachable. Existing runtime
-maintenance commands and backups select an unsealed peer, preferring the leader.
-
-In HA mode, distribute the same recovery files and install the timer on every
-verified control plane after initial Vault configuration and future enrollment:
+In HA mode, after the first Vault configuration and after each enrollment,
+distribute the recovery files and timer to every verified control plane:
 
 ```sh
 ./scripts/sync-vault-recovery.sh --all-control-planes \
@@ -615,25 +540,17 @@ verified control plane after initial Vault configuration and future enrollment:
   --control-plane-ip "$K3S_PRIVATE_ADDRESS" --ssh-user "$K3S_NODE_SSH_USER"
 ```
 
-This requires private SSH access and passwordless sudo using
-[the control-plane administration policy](guides/node-enrollment.md#control-plane-administration).
-The helper verifies Kubernetes control-plane roles, private addresses and the
-actual SSH endpoints. Only those hosts receive the unseal key and bootstrap
-token, as root-owned `0600` files in a `0700` directory. Values travel through
-encrypted SSH stdin; differing existing recovery material is never overwritten.
-Workers receive neither file. Control-plane root access therefore includes Vault
-recovery authority. The original control-plane timer remains the default until
-this explicit distribution is requested.
+It needs private SSH and passwordless sudo
+([control-plane administration](guides/node-enrollment.md#control-plane-administration)),
+verifies roles, addresses and SSH endpoints, and sends the unseal key and token
+over SSH stdin as root `0600` files in a `0700` directory. It never overwrites
+differing material; workers get nothing. Until it runs, only the first control
+plane has the timer.
 
-The anonymous `sys/unseal` request carries the key as JSON over
-`kubectl exec -i` stdin, keeping it out of process arguments and Kubernetes exec
-metadata. Preserve this handling when changing the helper or initial installer
-configuration. [The regression test](../tests/test-vault-unseal.py) verifies
-stdin handling and error propagation; a real recovery fixture verifies actual
-unsealing. [HA tests](../tests/test-vault-ha.py) cover survivor selection,
-join/unseal ordering, quorum gates and recovery-file target validation.
-
-Check scheduling and the last result without displaying credentials:
+The helper sends the key as JSON on `kubectl exec -i` stdin, never in arguments;
+keep it that way ([unseal test](../tests/test-vault-unseal.py),
+[HA tests](../tests/test-vault-ha.py)). Check the timer without showing
+credentials:
 
 ```sh
 sudo systemctl show swirl-cloud-vault-unseal.timer \
@@ -642,9 +559,8 @@ sudo systemctl show swirl-cloud-vault-unseal.service \
   -p Result -p ExecMainStatus -p ExecMainExitTimestamp
 ```
 
-A check on an already unsealed server verifies the status path. Exercise actual
-unsealing in an isolated recovery test, without sealing the live cluster.
-See [security and access](#recovery-credentials) for credential lookup.
+Test real unsealing only in an isolated fixture, never by sealing the live
+cluster. Credential lookup is in [recovery credentials](#recovery-credentials).
 
 ## Related Guides
 

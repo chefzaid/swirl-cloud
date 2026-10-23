@@ -1,491 +1,428 @@
 # Alert Runbooks
 
-Every Prometheus alert links here through its `runbook_url` annotation and
-carries an `owner` label:
+Every alert links here through its `runbook_url` annotation and carries an `owner`
+label:
 
 | Owner | Responsible for |
 | --- | --- |
 | `platform` | Cluster, storage, shared services and host maintenance |
 | `security` | Firewall, intrusion prevention, audits, vulnerabilities, identity attacks and compliance |
-| `application` | Workloads in application namespaces (`apps`, `apps-<environment>`); the owning repository's team acts, the platform team helps |
+| `application` | Workloads in `apps` and `apps-<environment>`; the owning repository's team acts, the platform team helps |
 
-Start every investigation with `./install.sh --status`: it checks the platform
-end to end and prints a `Next:` command for each problem. Alert rules live in
-[`k8s/platform/monitoring.yaml`](../../k8s/platform/monitoring.yaml); change a
-threshold there, not in Alertmanager.
+Start with `./install.sh --status`: it prints a `Next:` command for each problem.
+Change thresholds in
+[`k8s/platform/monitoring.yaml`](../../k8s/platform/monitoring.yaml), not in
+Alertmanager.
 
 ## Capacity
 
 ### NodeFilesystemSpaceLow
 
-A host filesystem has less than 20 % free. Kubelet starts deleting images at
-85 % used and evicts pods when ephemeral storage runs out.
-
-- Find the largest consumers: `sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail`.
-- Move old recovery archives off the host (keep the pinned recovery images), prune
-  unused images with `sudo k3s crictl rmi --prune`, and shorten log retention if logs grew.
-- See [storage and retention](../operations.md#storage-and-retention).
+A host filesystem has under 20 % free. Kubelet deletes images at 85 % used and
+evicts pods when ephemeral storage runs out. Find the largest consumers
+(`sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail`), move old
+recovery archives off the host (keep the pinned recovery images), run
+`sudo k3s crictl rmi --prune` and shorten log retention. See
+[storage and retention](../operations.md#storage-and-retention).
 
 ### NodeFilesystemSpaceCritical
 
-Less than 10 % free: evictions and failed writes are imminent. Act as for
-[NodeFilesystemSpaceLow](#nodefilesystemspacelow) immediately, starting with the
-largest directory, and postpone backups or upgrades until space is back.
+Under 10 % free: evictions and failed writes are imminent. Act now as for
+[NodeFilesystemSpaceLow](#nodefilesystemspacelow); postpone backups and upgrades.
 
 ### NodeMaintenanceHeadroomLow
 
-Less than 30 GiB free on the K3s filesystem. Backups, image pulls and upgrades
-need that headroom; on 2026-09-28 a backup with too little space evicted pods.
-Free space as for [NodeFilesystemSpaceLow](#nodefilesystemspacelow) before the
-next maintenance or nightly backup.
+Under 30 GiB free on the K3s filesystem, the headroom backups, image pulls and
+upgrades need. Free space as for [NodeFilesystemSpaceLow](#nodefilesystemspacelow)
+before the next maintenance or nightly backup.
 
 ### NodeFilesystemFillingWithinDay
 
-The filesystem is predicted to fill within 24 hours at the current rate.
-Find what is growing (`sudo du` as above, `kubectl top pods -A`, CI caches,
-container logs) and stop or rotate it; then free space.
+The filesystem will fill within 24 hours. Find what grows (`sudo du`,
+`kubectl top pods -A`, CI caches, container logs), stop or rotate it, then free
+space.
 
 ### PersistentVolumeSpaceLow
 
-A volume has less than 20 % free. Check what the service stores (database
-growth, indices, uploads) and either clean up through the service, shorten its
+A volume has under 20 % free. Clean up through the service, shorten its
 retention, or expand the claim if the StorageClass allows it:
-`kubectl -n <namespace> edit pvc <claim>` and raise `spec.resources.requests.storage`.
+`kubectl -n <namespace> edit pvc <claim>`, raising `spec.resources.requests.storage`.
 
 ### PersistentVolumeSpaceCritical
 
-Less than 10 % free; the service may stop writing. Expand the claim or free
-space now as for [PersistentVolumeSpaceLow](#persistentvolumespacelow).
+Under 10 % free; the service may stop writing. Act now as for
+[PersistentVolumeSpaceLow](#persistentvolumespacelow).
 
 ### PersistentVolumeFillingWithinDay
 
-The volume is predicted to fill within 24 hours. Identify the writer from the
-claim's namespace and stop runaway growth before expanding.
+The volume will fill within 24 hours. Find the writer from the claim's namespace
+and stop runaway growth before expanding.
 
 ### ClusterCapacityRequestsHigh
 
-Running pods request more than 90 % of the cluster's allocatable CPU or memory.
-Requests reserve capacity whether used or not, so new pods, rollouts and pods
-moved after a restart may stay Pending even when real usage is low.
-
-- Compare requested with used capacity in Grafana **Capacity Planning** and
-  **Cost Showback → Rightsizing**; lower the largest over-sized requests in the
-  owning manifests first.
-- When usage is also high, add a server: the dashboard shows how many cores and
-  how much memory keep requests below 70 %. See [capacity planning](capacity-planning.md).
+Pods request over 90 % of allocatable CPU or memory, so new or moved pods may stay
+Pending even when real usage is low. Compare requests with usage in Grafana
+**Capacity Planning** and **Cost Showback → Rightsizing** and lower the largest
+over-sized requests. If usage is also high, add a server; the dashboard shows the
+size that keeps requests below 70 %. See [capacity planning](capacity-planning.md).
 
 ### ClusterCannotSurviveNodeLoss
 
-The capacity left after losing the largest server is smaller than what running
-pods request, so a host failure would leave workloads unscheduled. Lower
-requests or add a server until the ratio on **Capacity Planning** stays below
-100 %; this is a prerequisite for high availability.
+After losing the largest server, the pods would not fit. Lower requests or add a
+server until the ratio on **Capacity Planning** stays below 100 %; high
+availability requires this.
 
 ## Kubernetes workloads
 
 ### KubernetesDeploymentUnavailable
 
-A Deployment has had fewer available replicas than desired for ten minutes.
-
-- `kubectl -n <namespace> describe deployment <name>` and `kubectl -n <namespace> get pods -l app=<name>`.
-- Look for image pull errors, failing probes, pending pods (capacity or volumes) and crash loops; follow
-  [KubernetesPodCrashLooping](#kubernetespodcrashlooping) when containers restart.
-- For application namespaces, check the latest delivery in Argo CD and roll back to the previous revision if the release caused it.
+A Deployment has lacked available replicas for ten minutes. Run
+`kubectl -n <namespace> describe deployment <name>` and
+`kubectl -n <namespace> get pods -l app=<name>`; look for image pull errors,
+failing probes, Pending pods and crash loops
+([KubernetesPodCrashLooping](#kubernetespodcrashlooping)). In application
+namespaces, roll back in Argo CD if the latest release caused it.
 
 ### KubernetesStatefulSetUnavailable
 
-A StatefulSet has fewer ready replicas than desired. Datastores and Vault run
-as StatefulSets: check the pod (`describe`, logs), its volume attachment in
-Longhorn and, for Vault, [VaultSealed](#vaultsealed).
+A StatefulSet (datastores, Vault) lacks ready replicas. Check the pod (`describe`,
+logs), its Longhorn volume attachment and, for Vault, [VaultSealed](#vaultsealed).
 
 ### KubernetesPodCrashLooping
 
-A container keeps exiting. `kubectl -n <namespace> logs <pod> -c <container> --previous`
-shows why. Typical causes are missing configuration or secrets
+`kubectl -n <namespace> logs <pod> -c <container> --previous` shows why. Usual
+causes: missing configuration or secrets
 ([ExternalSecretNotReady](#externalsecretnotready)), an unreachable dependency
-([DatastoreDown](#datastoredown)), or a memory limit
+([DatastoreDown](#datastoredown)) or a memory limit
 ([KubernetesContainerOOMKilled](#kubernetescontaineroomkilled)).
 
 ### KubernetesContainerOOMKilled
 
-A container was killed for exceeding its memory limit. Compare its usage with
-the limit (Grafana **Cost Showback → Rightsizing**, or `kubectl top pod`). Raise
-the limit in the owning manifest when the workload legitimately needs more, or
-fix the leak; repeated OOM kills cause crash loops.
+Compare usage with the limit (Grafana **Cost Showback → Rightsizing** or
+`kubectl top pod`). Raise the limit in the owning manifest or fix the leak.
 
 ### KubernetesPersistentVolumeReleased
 
-A volume's claim was deleted but the volume (reclaim policy `Retain`) still
-holds data and disk space. Confirm nobody needs the data, back it up if in
-doubt, then delete the PersistentVolume and its Longhorn volume.
+A claim was deleted but its `Retain` volume still holds data and disk space.
+Confirm nobody needs the data (back it up if in doubt), then delete the
+PersistentVolume and its Longhorn volume.
 
 ### KubernetesPersistentVolumeClaimPending
 
-A claim has not bound for 15 minutes, so its pod cannot start.
-`kubectl -n <namespace> describe pvc <claim>` names the cause: unknown
-StorageClass, Longhorn unable to place replicas (disk space, node tags) or a
-quota. Check the Longhorn UI for scheduling errors.
+A claim has not bound for 15 minutes. `kubectl -n <namespace> describe pvc <claim>`
+names the cause: unknown StorageClass, Longhorn unable to place replicas (disk
+space, node tags; see the Longhorn UI) or a quota.
 
 ### KubernetesJobFailed
 
-A Job failed and no later run of its CronJob succeeded.
-`kubectl -n <namespace> logs job/<job>` shows the error. Platform Jobs (Keycloak,
-Kibana or Elasticsearch bootstrap, registry retention, discovery) rerun on the
-next Argo CD sync or schedule after the cause is fixed; delete the failed Job to
-clear the alert once a run succeeds.
+A Job failed and no later run of its CronJob succeeded;
+`kubectl -n <namespace> logs job/<job>` shows why. Platform Jobs rerun on the next
+Argo CD sync or schedule. Delete the failed Job once a run succeeds.
 
 ## Platform services
 
 ### KubernetesNodeNotReady
 
-A node has not reported Ready for five minutes; its pods are being or will be
-rescheduled, and single-replica volumes on it are unavailable.
-
-- `kubectl describe node <node>` (conditions, pressure), then on the host:
-  `sudo journalctl -u k3s -u k3s-agent -n 100` and `sudo systemctl status k3s`.
-- Check disk, memory and the private transport (Tailscale or vRack) to the other nodes.
-- If the host is gone, follow [node fencing](node-fencing.md) before recovering its storage.
+A node has not been Ready for five minutes; its single-replica volumes are
+unavailable. Run `kubectl describe node <node>`, then on the host
+`sudo journalctl -u k3s -u k3s-agent -n 100`. Check disk, memory and the private
+transport (Tailscale or vRack). If the host is gone, follow
+[node fencing](node-fencing.md) before recovering its storage.
 
 ### VaultSealed
 
-Vault is sealed: ExternalSecrets cannot refresh and new pods that need secrets
-fail. Run `sudo systemctl start swirl-cloud-vault-unseal.service` on a control
-plane (or **Maintenance → Unseal Vault now** in `./install.sh`), then check
-`kubectl -n infra logs vault-0 -c vault --tail=50`. If the unseal keys are
-missing, use the recovery kit ([security](../security.md)).
+ExternalSecrets cannot refresh and new pods needing secrets fail. Run
+`sudo systemctl start swirl-cloud-vault-unseal.service` on a control plane (or
+**Maintenance → Unseal Vault now** in `./install.sh`), then check
+`kubectl -n infra logs vault-0 -c vault --tail=50`. Without unseal keys, use the
+recovery kit ([security](../security.md)).
 
 ### VaultAuditDeviceFailing
 
-Vault cannot write an audit record. Vault refuses requests when no audit device
-works, so secrets stop flowing. Check the audit volume's free space and
-`kubectl -n infra logs vault-0 -c vault`; free space or fix the device, then
-confirm requests succeed again.
+Vault refuses requests when no audit device works. Check the audit volume's free
+space and `kubectl -n infra logs vault-0 -c vault`, fix it, and confirm requests
+succeed.
 
 ### LonghornVolumeDegraded
 
-A volume is missing healthy replicas or rebuilding. Open the Longhorn UI: if a
-rebuild is running, let it finish; otherwise check node disk space and node
-status. On a single node, volumes with more than one requested replica stay
-degraded by design; align the replica count with the number of storage nodes.
+Let a running rebuild finish in the Longhorn UI; otherwise check node disk space
+and status. On one node, volumes requesting more than one replica stay degraded:
+match the replica count to the storage nodes.
 
 ### LonghornVolumeBackupStale
 
-Off-node backups are active but this volume's last backup is older than 36
-hours. Check the backup target and the recurring job in the Longhorn UI
-(credentials, bucket reachability, target free space) and run a backup now.
+Off-node backups are active but this volume's last one is over 36 hours old.
+Check the backup target and recurring job in the Longhorn UI (credentials, bucket
+reachability, free space) and run a backup now.
 
 ### LonghornVolumeFaulted
 
-The volume has no usable replica; its workload is down and data may be at
-risk. Do not delete anything. In the Longhorn UI, check whether a replica can be
-salvaged; otherwise restore from the latest backup. See
-[backups and recovery](../operations.md#backups-and-recovery).
+No usable replica: the workload is down and data is at risk. Delete nothing.
+Salvage a replica in the Longhorn UI, or restore the latest backup
+([backups and recovery](../operations.md#backups-and-recovery)).
 
 ### KeycloakPasswordFailuresHigh
 
-More than 20 failed password checks in 15 minutes in one realm: someone may be
-guessing passwords. Keycloak's brute-force protection locks accounts
-temporarily. In Kibana, filter `identity-audit-*` on
-`keycloak.type : LOGIN_ERROR` to see usernames and source addresses; block
-abusive sources at the edge and contact affected users. See
+Over 20 failed password checks in 15 minutes in one realm. In Kibana, filter
+`identity-audit-*` on `keycloak.type : LOGIN_ERROR` for usernames and sources;
+block abusive sources at the edge and contact affected users. See
 [identity events](../security.md#identity-events).
 
 ### ExternalSecretNotReady
 
-An ExternalSecret could not read from Vault for 15 minutes, so its Secret is
-stale or missing. `kubectl -n <namespace> describe externalsecret <name>` shows
-the reason: Vault sealed ([VaultSealed](#vaultsealed)), a missing path or field,
-or a policy that does not allow the read. Fix the path or seed the value with
-`scripts/configure-vault.sh`.
+An ExternalSecret could not read Vault for 15 minutes.
+`kubectl -n <namespace> describe externalsecret <name>` gives the reason:
+[VaultSealed](#vaultsealed), a missing path or field, or a denying policy. Seed
+missing values with `scripts/configure-vault.sh`.
 
 ### ElasticsearchUnreachable
 
-The exporter cannot read Elasticsearch health; logs and audits are not being
-indexed (Fluent Bit buffers them on disk meanwhile).
-`kubectl -n infra get pods -l app=elasticsearch` and its logs; check the data
-volume's free space ([PersistentVolumeSpaceLow](#persistentvolumespacelow)).
+Logs and audits are not indexed (Fluent Bit buffers them on disk). Check
+`kubectl -n infra get pods -l app=elasticsearch`, its logs and the data volume
+([PersistentVolumeSpaceLow](#persistentvolumespacelow)).
 
 ### ElasticsearchClusterRed
 
-A primary shard is unassigned; some indices cannot be written or searched.
-`GET _cluster/allocation/explain` (from the Elasticsearch pod, as `elastic`)
-names the cause, usually disk watermarks. Free space or delete expired indices;
-do not delete audit indices before their retention ends.
+A primary shard is unassigned. `GET _cluster/allocation/explain` (in the
+Elasticsearch pod, as `elastic`) names the cause, usually disk watermarks. Free
+space or delete expired indices, never audit indices within their retention.
 
 ### ElasticsearchClusterYellow
 
-Replica shards are unassigned. On a single node this means an index asks for
-replicas: set `number_of_replicas` to 0 on it and fix the template that created it.
+Replica shards are unassigned. On one node, set `number_of_replicas` to 0 on the
+index and fix the template that created it.
 
 ### DatastoreDown
 
-A shared PostgreSQL, MongoDB, Redis or Kafka exporter cannot reach its
-datastore; dependent applications fail. Check the datastore pod in `infra`
-(`kubectl -n infra get pods`, logs, volume) and its credentials
+A PostgreSQL, MongoDB, Redis or Kafka exporter cannot reach its datastore. Check
+the pod in `infra` (`kubectl -n infra get pods`, logs, volume) and its credentials
 ([ExternalSecretNotReady](#externalsecretnotready)).
 
 ### ArgoCDApplicationUnhealthy
 
-An Argo CD application reports Degraded, Missing or Unknown health for 15
-minutes. Open it in Argo CD to see which resource is unhealthy, then follow the
-matching workload runbook. For an application release, roll back to the
-previous revision through the deployment flow.
+Degraded, Missing or Unknown for 15 minutes. Find the unhealthy resource in Argo
+CD and follow its runbook; roll back an application release through the
+deployment flow.
 
 ### ArgoCDApplicationOutOfSync
 
-Live state has differed from Git for 30 minutes: a sync is failing or someone
-changed resources by hand. Argo CD shows the diff and the last sync error;
-fix the manifest or revert the manual change (self-heal reverts it on the next
-sync). See [Argo CD operations](../deployment.md).
+Live state has differed from Git for 30 minutes: a failing sync or a manual
+change. Fix the manifest from Argo CD's diff and sync error, or revert the manual
+change (self-heal does on the next sync). See [Argo CD operations](../deployment.md).
 
 ### TLSCertificateExpiringSoon
 
-A certificate served by Traefik expires within 14 days. Rerun
-`scripts/configure-cloudflare.sh` (or the installer): it issues a new Cloudflare
-Origin CA certificate when fewer than 30 days remain. Replace other certificates
-in their TLS Secret. See [public DNS and ingress](../dns.md).
+A Traefik certificate expires within 14 days. Rerun
+`scripts/configure-cloudflare.sh` (or the installer); it reissues the Cloudflare
+Origin CA certificate when under 30 days remain. Replace other certificates in
+their TLS Secret. See [public DNS and ingress](../dns.md).
 
 ### TLSCertificateExpiryCritical
 
-A certificate expires within three days. Renew it now as for
-[TLSCertificateExpiringSoon](#tlscertificateexpiringsoon); once expired,
-browsers and API clients reject the service.
+Expires within three days; clients then reject the service. Renew now as for
+[TLSCertificateExpiringSoon](#tlscertificateexpiringsoon).
 
 ## Host security and maintenance
 
 ### LynisAuditFailed
 
-The monthly Lynis audit exited with an error. `sudo journalctl -u swirl-cloud-lynis.service -n 50`
-shows why; rerun it with `sudo systemctl start swirl-cloud-lynis.service`.
+Read `sudo journalctl -u swirl-cloud-lynis.service -n 50` and rerun with
+`sudo systemctl start swirl-cloud-lynis.service`.
 
 ### LynisAuditMissing
 
-No successful Lynis audit for 35 days. Check the timer:
-`systemctl list-timers swirl-cloud-lynis.timer`; reinstall it with
+No successful monthly audit for 35 days. Check
+`systemctl list-timers swirl-cloud-lynis.timer`, reinstall it with
 `scripts/configure-lynis-schedule.sh` and run an audit.
 
 ### TrivyNewCriticalVulnerability
 
-A running image gained critical vulnerabilities above its own recent maximum,
-or a new image arrived with some. Open Grafana **Trivy Security Reports**,
-update the image when a fixed version exists, and record the decision in the
-[vulnerability triage](../security.md#vulnerability-triage). Application images
-are fixed in their own repository.
+An image's critical vulnerabilities rose above its recent maximum, or a new image
+has some. Check Grafana **Trivy Security Reports**, update when a fix exists and
+record the decision in [vulnerability triage](../security.md#vulnerability-triage).
+Application images are fixed in their own repository.
 
 ### HostFirewallDisabled
 
-UFW is inactive or INPUT is not default-deny: every listening port may be
-reachable from the Internet. Check `sudo ufw status verbose`, then rerun
-`scripts/configure-node-security.sh --apply` (it re-enables and verifies UFW).
-Find out why it was disabled before closing the incident.
+UFW is inactive or INPUT is not default-deny, so listening ports may be public.
+Check `sudo ufw status verbose`, rerun `scripts/configure-node-security.sh --apply`
+(it re-enables and verifies UFW) and find out why it was disabled.
 
 ### HostIntrusionPreventionDown
 
-Fail2ban or CrowdSec (or its firewall bouncer) is not running, so brute-force
-sources are not blocked. `sudo systemctl status fail2ban crowdsec crowdsec-firewall-bouncer`,
-then restart the stopped service and read its journal.
+Run `sudo systemctl status fail2ban crowdsec crowdsec-firewall-bouncer`, restart
+the stopped service and read its journal.
 
 ### HostIntrusionMetricsStale
 
-Intrusion-prevention metrics have not refreshed for 30 minutes, so the two
-alerts above cannot fire. `sudo systemctl status swirl-cloud-intrusion-metrics.timer`
-and restart it.
+Metrics are over 30 minutes old, so the two alerts above cannot fire. Check and
+restart `swirl-cloud-intrusion-metrics.timer`.
 
 ### HostBruteForceWave
 
-A host is banning attackers at an unusual rate. Protection is working; confirm
-bans succeed (`sudo fail2ban-client status sshd`, `sudo cscli decisions list`)
+Confirm bans work (`sudo fail2ban-client status sshd`, `sudo cscli decisions list`)
 and consider restricting SSH to the private interface with keys only.
 
 ### NodeRebootRequired
 
-Security updates installed more than a week ago need a reboot to take effect.
-Plan a maintenance window: check a fresh backup and Vault unseal access, drain
-the node on multi-node clusters, reboot, then run `./install.sh --status`.
+Updates installed over a week ago need a reboot. In a maintenance window, confirm
+a fresh backup and Vault unseal access, drain the node on multi-node clusters,
+reboot, then run `./install.sh --status`.
 
 ### HostMaintenanceServiceFailed
 
-A platform maintenance unit (backup, backup verification, unseal, AIDE, rkhunter,
-metrics) failed its last run. `sudo journalctl -u <unit> -n 50` shows why; rerun it with
-`sudo systemctl start <unit>`. A backup that reports the backup lock still held
-waited four hours for a verification; rerun it once that ends.
+One of `swirl-cloud-k3s-backup.service`, `swirl-cloud-k3s-backup-verify.service`,
+`swirl-cloud-vault-unseal.service` or `dailyaidecheck.service` (AIDE) failed. Read
+`sudo journalctl -u <unit> -n 50` and rerun with `sudo systemctl start <unit>`. A
+backup waits up to four hours for a verification holding the backup lock; rerun it
+after that ends.
 
-For `swirl-cloud-k3s-backup-verify.service`, the weekly read-back of the off-node
-restic copy failed, so off-node recovery is unproven until it passes. The journal
-names the cause: `restic check` errors (damaged or missing pack data, or a stale
-lock), a newest archive that does not match its SHA-256 or is not a complete
-`tar.gz`, an empty repository, or a backup still holding the lock after an hour.
-Keep the local archives, confirm a fresh backup uploads
-(`sudo systemctl start swirl-cloud-k3s-backup.service`), then rerun the verification:
-within the same week (Monday to Sunday UTC) it checks the same data subset, and
-`sudo env VERIFY_DATA_SUBSETS=1 /usr/local/sbin/swirl-cloud-k3s-backup-verify`
-checks them all. If restic reports the repository locked while neither
-`swirl-cloud-k3s-backup.service` nor `swirl-cloud-k3s-backup-verify.service` is
-active (`systemctl is-active`), a killed run left a stale lock; clear it with
-`sudo bash -c 'set -a; source /etc/swirl-cloud/backup.env; restic unlock'`, which
-removes only stale locks, and rerun. Otherwise follow
-restic's [troubleshooting guide](https://restic.readthedocs.io/en/stable/077_troubleshooting.html);
-see [backups and recovery](../operations.md#backups-and-recovery).
+A failed verification means the weekly read-back of the off-node restic copy
+failed, so off-node recovery is unproven. The journal names the cause:
+`restic check` errors, a newest archive failing its SHA-256 or not a complete
+`tar.gz`, an empty repository, or a backup holding the lock for over an hour.
+
+1. Keep the local archives and confirm a fresh backup uploads:
+   `sudo systemctl start swirl-cloud-k3s-backup.service`.
+2. Rerun the verification; within one UTC week (Monday to Sunday) it checks the
+   same data subset.
+   `sudo env VERIFY_DATA_SUBSETS=1 /usr/local/sbin/swirl-cloud-k3s-backup-verify`
+   checks all data.
+3. If restic reports a lock while neither unit is active (`systemctl is-active`),
+   clear the stale lock with
+   `sudo bash -c 'set -a; source /etc/swirl-cloud/backup.env; restic unlock'` and
+   rerun.
+
+Otherwise see restic's
+[troubleshooting guide](https://restic.readthedocs.io/en/stable/077_troubleshooting.html)
+and [backups and recovery](../operations.md#backups-and-recovery).
 
 ### K3sRecoveryBackupMissing
 
-No successful platform recovery archive for 36 hours. Without it, a lost host
-cannot be rebuilt to its current state. `sudo journalctl -u swirl-cloud-k3s-backup.service -n 50`,
-fix the cause (space, credentials, S3 target), then run
-**Maintenance → Run the recovery backup now** in `./install.sh`.
+No successful recovery archive for 36 hours. Read
+`sudo journalctl -u swirl-cloud-k3s-backup.service -n 50`, fix the cause (space,
+credentials, S3 target), then run **Maintenance → Run the recovery backup now** in
+`./install.sh`.
 
 ### VaultUnsealTimerStopped
 
-The Vault unseal service has not run for 15 minutes, so Vault would stay sealed
-after a restart. `sudo systemctl status swirl-cloud-vault-unseal.timer` and
-restart it; see [VaultSealed](#vaultsealed).
+The unseal service has not run for 15 minutes, so Vault would stay sealed after a
+restart. Restart `swirl-cloud-vault-unseal.timer`; see [VaultSealed](#vaultsealed).
 
 ## Security detection
 
-These alerts come from the `security-detection` job, which checks identity
-events, the Kubernetes API audit log and Keycloak every five minutes and posts
-findings to Alertmanager. Each stays active for 30 minutes after its evidence
-was last seen. See [security detection](security-detection.md).
+The `security-detection` job
+([`security-detection.yaml`](../../k8s/platform/security-detection.yaml)) posts
+these to Alertmanager every five minutes; each stays active 30 minutes after its
+evidence was last seen. See [security detection](security-detection.md).
 
 ### IdentityBruteForceThenSuccess
 
-An account had at least five failed logins in 15 minutes and then signed in.
-Either the owner remembered the password or someone guessed it.
-
-- Contact the owner through another channel. In Kibana, filter `identity-audit-*`
-  on `keycloak.username` for the failures and the successful login with source addresses.
-- If the owner did not sign in: disable the user in Keycloak, end their sessions
-  (**Users → Sessions → Sign out**), reset the password and review what the session did.
+At least five failed logins in 15 minutes, then a sign-in. Contact the owner
+through another channel; filter `identity-audit-*` on `keycloak.username` in
+Kibana for the logins and sources. If it was not the owner, disable the user, end
+their sessions (**Users → Sessions → Sign out**), reset the password and review
+the session.
 
 ### KubernetesRBACChangedOutsideGitOps
 
-Someone other than Argo CD or K3s created, changed or deleted a Role,
-ClusterRole or binding. Changes outside Git are reverted or drift, and new
-bindings can grant access silently.
-
-- In Kibana, filter `kubernetes-audit-*` on `user.username` and
-  `objectRef.resource : *bindings` for the exact objects and source addresses.
-- If the change is intended, back-port it to Git; if not, revert it and rotate
-  the credentials of the identity that made it. Installer reruns by
-  `system:admin` also trigger this alert.
+Someone other than Argo CD or K3s changed a Role, ClusterRole or binding. Filter
+`kubernetes-audit-*` on `user.username` and `objectRef.resource : *bindings`.
+Back-port an intended change to Git; otherwise revert it and rotate the identity's
+credentials. Installer reruns by `system:admin` also fire this alert.
 
 ### KubernetesSecretReadByNewIdentity
 
-An identity read Secrets that it had not read during the previous week. New
-workloads and new operators cause this legitimately; a compromised token or a
-person browsing Secrets also does.
-
-- Check `kubernetes-audit-*` for the identity's Secret reads (`objectRef.name`,
-  `sourceIPs`) and whether a matching deployment or onboarding just happened.
-- If unexpected, revoke the identity (delete the ServiceAccount token or remove
-  the binding) and rotate the Secrets it read.
+An identity read Secrets it had not read in the previous week. Check its reads in
+`kubernetes-audit-*` (`objectRef.name`, `sourceIPs`) against recent deployments or
+onboarding. If unexpected, revoke the identity (ServiceAccount token or binding)
+and rotate the Secrets it read.
 
 ### NewPlatformAdministrator
 
-A user joined `platform-admins` in the platform realm or received the `admin`
-role in the Keycloak master realm. The alert stays for a day.
-
-- Confirm the grant was approved. If not, remove the membership or role, end the
-  user's sessions and review the Keycloak admin events for who granted it.
+A user joined `platform-admins` in the platform realm or got `admin` in the master
+realm; the alert lasts a day. If the grant was not approved, remove it, end the
+user's sessions and check Keycloak admin events for who granted it.
 
 ## Ingress and monitoring
 
 ### IngressServiceErrorRateHigh
 
-More than 5 % of requests to a service returned 5xx for 15 minutes. Open
-Grafana **Ingress Traffic** for the affected service, then check its pods and
-logs; a recent release is the usual cause and the fastest fix is a rollback.
+Over 5 % of a service's requests returned 5xx for 15 minutes. Check Grafana
+**Ingress Traffic**, then its pods and logs; roll back a recent release.
 
 ### PrometheusTargetDown
 
-Prometheus has not scraped a target for ten minutes, so its alerts cannot fire.
-Check the target pod or exporter (`kubectl get pods -A -o wide | grep <instance>`)
-and the network policies between `infra` and its namespace.
+Its alerts cannot fire. Check the pod or exporter
+(`kubectl get pods -A -o wide | grep <instance>`) and the network policies between
+`infra` and its namespace.
 
 ### AlertNotificationsFailing
 
-Every notification Alertmanager tried through one integration (`email` or
-`webhook`) failed in the last hour, so alerts reach only the other receiver.
-Read the reason in `kubectl -n infra logs deploy/alertmanager | grep -i notify`.
-For `email`, a revoked key, a changed password or the provider's sending limit
-are the usual causes: rerun `scripts/configure-platform-mail.py` with the relay
-settings, which checks the login and sender before storing anything
-([platform mail](platform-mail.md#troubleshooting)). For `webhook`, check that
-GitLab is up and that its alert integration token matches Vault
-`infra/monitoring`.
+All notifications through `email` or `webhook` failed in the last hour; read
+`kubectl -n infra logs deploy/alertmanager | grep -i notify`. For `email` (revoked
+key, changed password, sending limit), rerun `scripts/configure-platform-mail.py`;
+it checks the login and sender before storing anything
+([platform mail](platform-mail.md#troubleshooting)). For `webhook`, check GitLab
+is up and its alert integration token matches Vault `infra/monitoring`.
 
 ## Applications
 
 ### IndezyOfferSiteFailing
 
-Indezy failed to read one job board three times in a row (the `site` label), so
-its offers stop being refreshed while the others carry on; each failure doubles
-the wait before the next try, up to a day. The Indezy **Job boards** page shows
-the site's last error, and so do the server logs
-(`kubectl -n apps logs deploy/indezy-server | grep "Collecting <SITE> failed"`).
-A 403 or 429 means the site now refuses the crawler; a parse error means its
-pages changed and the reader in `indezy-server/.../scraping/reader` needs
-updating (see the Indezy TODO's reader canaries). Indezy's **Read now** button
-retries once the cause is fixed.
+Three consecutive failures reading one job board (`site` label); each failure
+doubles the retry wait, up to a day. The **Job boards** page and
+`kubectl -n apps logs deploy/indezy-server | grep "Collecting <SITE> failed"` show
+the error. A 403 or 429 means the site refuses the crawler; a parse error means
+the reader in `indezy-server/.../scraping/reader` needs updating (see the Indezy
+TODO's reader canaries). **Read now** retries after the fix.
 
 ### IndezyOfferSiteFindsNothing
 
-Every successful reading of one job board over 24 hours found no offer: the
-pages still answer but no longer hold what the reader looks for, the usual sign
-of a site redesign. Open the site, compare its list with the reader's sample in
-`indezy-server/src/test/resources/offers/`, and update the reader. A board that
-genuinely stopped publishing belongs in the Indezy TODO's left-out sites.
+A job board answered for 24 hours without any offer, usually a redesign. Compare
+it with the reader's sample in `indezy-server/src/test/resources/offers/` and
+update the reader. A board that stopped publishing goes in the Indezy TODO's
+left-out sites.
 
 ### IndezyGeocodingTimeouts
 
-More than 20 place lookups to `geo.api.gouv.fr` failed in an hour. Offers read
-meanwhile have no coordinates, so the distance filter and the profile match
-leave them out until Indezy looks them up again (every 6 hours). Check that the
-service answers from the cluster
-(`kubectl -n apps exec deploy/indezy-server -- wget -qO- 'https://geo.api.gouv.fr/communes?nom=Paris'`);
-it is a public French government service, so a short outage needs no action.
+Over 20 `geo.api.gouv.fr` lookups failed in an hour; offers lack coordinates
+until the next lookup (every 6 hours). Test with
+`kubectl -n apps exec deploy/indezy-server -- wget -qO- 'https://geo.api.gouv.fr/communes?nom=Paris'`.
+A short outage of this public service needs no action.
 
 ## Service levels
 
 ### CIJobsQueueingLong
 
-Over six hours, one CI job in ten waited more than ten minutes before a runner
-picked it up. Pipelines and deployments slow down for every team.
-
-- Check `gitlab_runner_concurrent` and the queue on Grafana **Service Levels**;
-  the shared runner runs one job at a time by default.
-- Raise the runner's `concurrent` setting and per-job limits within the capacity
-  shown on **Capacity Planning** (TODO §26), or add a runner on another server.
+Over six hours, one CI job in ten waited over ten minutes for a runner. Check
+`gitlab_runner_concurrent` and the queue on Grafana **Service Levels** (the shared
+runner runs one job at a time by default). Raise `concurrent` and per-job limits
+within **Capacity Planning** (TODO §26), or add a runner on another server.
 
 ### SLOAvailabilityBudgetBurnFast
 
-An endpoint failed more than 7.2 % of its availability probes over the last
-hour and is still failing: at this rate it uses the month's 0.5 % error budget
-in about two days. Users see errors now.
-
-- Open Grafana **Service Levels** and the endpoint's probe result:
-  `curl -sSI https://<host>/` shows the status code or TLS error.
-- A 5xx points at the service behind the Ingress (see
-  [KubernetesDeploymentUnavailable](#kubernetesdeploymentunavailable)); a
-  Cloudflare 52x error at Traefik or the origin; a TLS error at the certificate
-  ([TLSCertificateExpiryCritical](#tlscertificateexpirycritical)).
-- Roll back a release that caused it, then record the incident.
+Over 7.2 % of probes failed in the last hour and still fail; the month's 0.5 %
+budget lasts about two days at this rate. `curl -sSI https://<host>/` shows the
+status or TLS error. A 5xx points at the service
+([KubernetesDeploymentUnavailable](#kubernetesdeploymentunavailable)), a
+Cloudflare 52x at Traefik or the origin, a TLS error at the certificate
+([TLSCertificateExpiryCritical](#tlscertificateexpirycritical)). Roll back a
+causing release, then record the incident.
 
 ### SLOAvailabilityBudgetBurnSlow
 
-An endpoint failed more than 3 % of its probes over six hours and is still
-failing: the month's budget lasts about five days at this rate. Look for
-intermittent failures (restarts, OOM kills, a flapping dependency) on the
-**Service Levels** dashboard and fix them before they become an outage.
+Over 3 % of probes failed in six hours and still fail; the budget lasts about
+five days. Fix intermittent failures (restarts, OOM kills, a flapping dependency)
+seen on **Service Levels**.
 
 ## Compliance
 
 ### ComplianceControlRegressed
 
-A compliance control is now failing or lost its evidence, compared with its
-usual state (the median of the last six hours). Run `./install.sh --compliance` to see which
-check changed and the failing series, then follow that check's alert runbook
-(for example [HostFirewallDisabled](#hostfirewalldisabled) or
+A control is failing or lost evidence compared with its six-hour median.
+`./install.sh --compliance` shows the changed check; follow its runbook (for
+example [HostFirewallDisabled](#hostfirewalldisabled) or
 [K3sRecoveryBackupMissing](#k3srecoverybackupmissing)). See
 [compliance evidence](compliance-evidence.md).
 

@@ -1,20 +1,20 @@
 # Testing Guide
 
-Platform verification is layered: offline source and render checks, deployment
-and recovery safety suites, live API dry-runs, default-branch service checks, and
-rehearsals on disposable or representative hosts. Only the last layer proves that
-an installation, migration or failover actually works.
+Verification is layered: offline source and render checks, deployment and
+recovery safety suites, live API dry-runs, default-branch service checks and
+rehearsals. Only rehearsals prove that an installation, migration or failover
+works.
 
 ## Test Layers
 
 | Layer | Command or location | Proves |
 | --- | --- | --- |
-| Source syntax and policy | `./scripts/validate-repository.sh` | Shell, Python, YAML, JSON and Ansible syntax; ShellCheck; documentation links; manifest inventories; digest-pinned images; workload token/resource declarations; an owner and a runbook section for every alert; Traefik entry-point middlewares and the origin header policy. |
-| Rendering | `scripts/validate-manifests.py` (called by the validator) | Nine installer/GitOps render profiles, resource references, Service selectors and named ports, Ingress backends, RBAC, Elasticsearch lifecycle policy references and installer/GitOps parity. |
-| Safety suites | `tests/` | Deployment and recovery failure modes listed in the [validation policy](#validation-policy). |
-| Live dry-run | `./scripts/validate-repository.sh --live` | API compatibility of every rendered profile with the active cluster, without mutation. Objects that need a namespace the profile creates, `cnpg-system` or CloudNativePG APIs before HA activation are counted and reported as not validated; any other missing namespace or API fails. |
+| Source syntax and policy | `./scripts/validate-repository.sh` | The [static checks](code-quality.md#static-checks): syntax, ShellCheck, documentation links, whitespace and a credential scan. |
+| Rendering | `scripts/validate-manifests.py` (called by the validator) | The [manifest and deployment policy](code-quality.md#manifest-and-deployment-policy) over nine installer/GitOps render profiles, including installer/GitOps parity. |
+| Safety suites | `tests/` | Deployment and recovery failure modes in the [validation policy](#validation-policy). |
+| Live dry-run | `./scripts/validate-repository.sh --live` | API compatibility of every rendered profile with the active cluster, without changes. Objects in a namespace the profile creates or in `cnpg-system`, and CloudNativePG objects before HA activation, are counted and reported as not validated; any other missing namespace or API fails. |
 | Platform CI | [`.gitlab-ci.yml`](../.gitlab-ci.yml) | Default-branch reconciliation of the exact commit, delivery services and Registry push/read. |
-| Rehearsal | Disposable or representative hosts | Installation, enrollment, migration, restore and failover behavior. |
+| Rehearsal | Disposable or representative hosts | Installation, enrollment, migration, restore and failover. |
 
 ## Quick Commands
 
@@ -29,109 +29,96 @@ python3 scripts/verify-high-availability.py  # read-only HA readiness on a live 
 
 ## Validation
 
-Run from the repository root before changing installation or deployment behavior:
+Run `./scripts/validate-repository.sh` from the repository root before changing
+installation or deployment behavior. It is offline and needs Bash, Git,
+ShellCheck, Python 3 with PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3`
+CLI, `flock`, OpenSSL and the time zone database (`tzdata`). CI installs them. A
+missing tool fails validation instead of skipping checks.
 
-```bash
-./scripts/validate-repository.sh
-./scripts/validate-repository.sh --live
-```
+The nine render profiles cover single-node and HA, `infra` and Odoo scope,
+PostgreSQL and Kafka migration phases with fencing, and authenticated shared
+application data. The command then runs the [safety suites](#validation-policy).
 
-The first command is offline and requires Bash, Git, ShellCheck, Python 3 with
-PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3` CLI, `flock`, OpenSSL and the
-time zone database (`tzdata`). CI installs
-these tools. Missing dependencies fail validation rather than silently skipping
-deployment checks. It checks syntax, documentation links, manifest inventories,
-workload policy, platform-owned image digests, and that Traefik's entry points use
-defined middlewares and the Cloudflare edge's header policy. Nine installer/GitOps render
-combinations cover HA, Odoo scope, PostgreSQL staging/cutover,
-Kafka migration phases, fencing and authenticated shared application data. Each render checks resource references,
-Service selectors and named ports, Ingress backends, RBAC and installer/GitOps
-parity, then the command runs the [deployment and recovery safety suites](#validation-policy).
+`--live` dry-runs those profiles against the active Kubernetes context. It needs
+`kubectl`, API access and the platform CRDs. Synthetic `example.com` settings
+test API compatibility, not the live installation's credentials, routing or
+health. Generated files are private and removed on exit.
 
-The second command adds server-side dry-runs of the rendered profiles, including
-the opted-in database migration and fencing resources, against the active
-Kubernetes context.
-It requires kubectl, access to the API and the platform CRDs; it does not install
-resources. Synthetic `example.com` settings validate API compatibility, not the
-live installation's credentials, routing or health. Generated files are private
-and removed on exit.
-
-Syntax and rendering cannot establish successful installation, image runtime
-compatibility or failover. Rehearse installer/enrollment changes on disposable
-hosts and follow each service's upgrade/recovery guide. See [delivery](deployment.md#infrastructure-reconciliation-and-verification)
-for the additional default-branch reconciliation and service checks.
-
-Rehearse host provisioning, Longhorn recovery, physical fencing, Tunnel failover
-and production authentication in a representative environment before relying on
-them. A synthetic upstream restore does not establish compatibility with existing
-data; use protected copies of the actual backups for [migration rehearsal](guides/platform-migration.md#prepare-and-rehearse).
+Syntax and rendering cannot prove a successful install, image runtime
+compatibility or failover. Rehearse installer and enrollment changes on
+disposable hosts and follow each service's upgrade and recovery guide. See
+[delivery](deployment.md#infrastructure-reconciliation-and-verification) for the
+default-branch checks. A synthetic restore does not prove compatibility with
+existing data; use protected copies of real backups for
+[migration rehearsal](guides/platform-migration.md#prepare-and-rehearse).
 
 ## Validation policy
 
-Run `./scripts/validate-repository.sh` before submitting changes. It checks actual
-source inputs and rendered deployment output, then runs only these safety suites:
+The validator runs only these safety suites:
 
 | Retained suite | Failure it guards against |
 | --- | --- |
-| `test-k3s-backups.sh` | Unrestorable archives, stale SQLite backups after etcd migration, missing recovery tokens, Vault keys dropped from archives without a matching recovery kit, GitLab configuration that is missing, readable by others or half-copied, off-node uploads that cannot see the repository credentials, restic retention grouped by path (which keeps every archive), a backup that reports success while the lock is held, and a weekly verification that passes a failed `restic check`, a missing or mismatched checksum, a corrupt or foreign archive or an empty repository, or runs during a backup. |
-| `test-k3s-api-endpoint.sh` | An API VIP that a node already holds or that lies outside the node network, a VIP held by a server whose API is not ready, multicast VRRP fallback, and a certificate restart that would leave no fresh etcd majority. |
-| `test-k3s-kubelet-memory.sh` | A K3s reservation that does not scale with the node's memory, a drop-in that replaces other drop-ins' kubelet arguments, and a memory eviction threshold that drops K3s's disk thresholds. |
-| `test-postgres-ha.py` | Data or role loss, unverified cutover, and restarting an obsolete writer. Includes an optional isolated SQL restore drill. |
+| `test-k3s-backups.sh` | Unrestorable or incomplete archives (stale SQLite backups after etcd migration, missing recovery tokens or Vault keys, unsafe GitLab configuration copies), off-node uploads without repository credentials, restic retention that keeps every archive, success reported while the lock is held, and a weekly verification that passes a failed `restic check`, a bad checksum, a corrupt, foreign or empty repository, or runs during a backup. |
+| `test-k3s-api-endpoint.sh` | An API VIP already held or outside the node network, a VIP on a server whose API is not ready, multicast VRRP fallback, and a certificate restart that leaves no fresh etcd majority. |
+| `test-k3s-kubelet-memory.sh` | A K3s reservation that does not scale with node memory, a drop-in that replaces other kubelet arguments, and an eviction threshold that drops K3s's disk thresholds. |
+| `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
-| `test-vault-unseal.py` | Recovery keys leaking into process arguments, false unseal success, and a recovery kit that cannot be decrypted, misses keys or is accepted after the keys changed. |
-| `test-vault-ha.py` | Unsafe peer replacement, loss of recovery access and distributing keys to the wrong host. |
-| `test-node-fencing.py` | Powering off a healthy/wrong host or recovering storage before confirmed fencing. |
-| `test-application-clusters.py` | Wrong cluster/namespace identity, unsafe shared-cluster ingress, and unverified remote gateway access. |
+| `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |
+| `test-vault-ha.py` | Unsafe peer replacement, loss of recovery access and keys sent to the wrong host. |
+| `test-node-fencing.py` | Powering off a healthy or wrong host, or recovering storage before fencing is confirmed. |
+| `test-application-clusters.py` | Wrong cluster/namespace identity, unsafe shared-cluster ingress and unverified remote gateway access. |
 | `test-application-data.py` | Cross-environment data access, anonymous remote cache access and unsafe database adoption; optional disposable datastore checks. |
-| `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage, accepting a certificate that does not cover an environment hostname, and deploying a branch to `uat`/`prod` or a second concurrent run to one environment. |
-| `test-odoo-website.py` | The website's Odoo integration key or the inbound email secret reaching process arguments, error messages or routing rules, reuse of another integration's stored key, and an unvalidated origin, address or persona reaching Odoo's chat frame and settings. |
-| `test-outage-watch.py` | The relay password reaching Cloudflare outside a Worker secret, process arguments or output, watching Access-gated or environment hosts, recreating the Durable Object class on every deploy, and an outage watch whose SMTP client fails over implicit TLS or STARTTLS, emails a change twice or drops a change the relay refused. |
-| `test-platform-mail.py` | The relay password reaching process arguments, output or error messages, settings stored after the relay refused the login, services restarted when nothing changed, header/YAML/JSON injection through sender or recipient values, and a rendered Alertmanager configuration that breaks with mail on or off. |
-| `test-install-inputs.py` | Shell execution through the installation input file, inputs leaking in from the calling shell, readable credential files, secrets (including generated passwords and file references) in setup-hub process arguments, the input file, run logs or support bundles, and installs starting with unreported input problems. |
+| `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage, a certificate missing an environment hostname, a branch deployed to `uat`/`prod`, and concurrent runs on one environment. |
+| `test-odoo-website.py` | The integration key or inbound email secret leaking into arguments, errors or routing rules, reuse of another integration's key, and unvalidated values reaching Odoo's chat frame and settings. |
+| `test-outage-watch.py` | The relay password leaving the Worker secret, watching Access-gated or environment hosts, recreating the Durable Object class on each deploy, and SMTP failures over implicit TLS or STARTTLS, duplicate emails or dropped changes. |
+| `test-platform-mail.py` | The relay password in arguments, output or errors, settings saved after a refused login, needless restarts, header/YAML/JSON injection through addresses, and an Alertmanager configuration that breaks with mail on or off. |
+| `test-install-inputs.py` | Shell execution through the input file, inputs leaking from the calling shell, readable credential files, secrets in setup-hub arguments, the input file, run logs or support bundles, and installs that start with unreported input problems. |
 
-Do not restore broad application, UI, source-text assertion or per-image test
-frameworks here. New tests need a concrete deployment or recovery failure that
-syntax, manifest policy and rendering cannot detect. Image promotion still
-requires isolated runtime and recovery checks; cluster availability still
-requires the documented host-failure drills. See [validation](#validation) for commands and coverage, and
-[maintenance](operations.md#image-updates) for image promotion.
+Do not bring back broad application, UI, source-text or per-image test
+frameworks. A new suite needs a concrete deployment or recovery failure that
+syntax, manifest policy and rendering cannot catch. Image promotion still needs
+isolated runtime and recovery checks
+([image updates](operations.md#image-updates)); cluster availability still needs
+the host-failure drills below.
 
 ## Observability Discovery Changes
 
 ### Validating changes
 
-Run [repository validation](#validation) for manifests and embedded
-script syntax. After discovery changes, use a disposable app to check namespace
-and ownership boundaries, dashboard links, an idempotent second pass, the selected
-Sonar project, its scan-only pipeline and analysis timestamp. App repositories
-validate successful submission, scanner failure, missing-token behavior and CI
-with both values of `SONAR_SCAN_ONLY`; scan-only runs must never publish or deploy.
+Run [repository validation](#validation) for manifests and embedded script
+syntax. Then use a disposable app to check namespace and ownership boundaries,
+dashboard links, an idempotent second pass, the selected Sonar project, its
+scan-only pipeline and analysis timestamp. App repositories test successful
+submission, scanner failure, a missing token and CI with both values of
+`SONAR_SCAN_ONLY`; scan-only runs must never publish or deploy.
 
 ## Rehearsals And Drills
 
-These behaviors cannot be established by rendering or unit-style tests:
+Rendering and unit-style tests cannot establish:
 
 - fresh installation and node enrollment on disposable hosts;
-- PostgreSQL, Kafka and Vault HA migrations with sample data, following the
+- PostgreSQL, Kafka and Vault HA migrations with sample data, in the
   [HA activation order](guides/high-availability.md#activate-in-order);
-- controlled one-host failure drills, including the original control plane and
-  current database and consensus leaders;
+- one-host failure drills, including the original control plane and the current
+  database and consensus leaders;
 - physical Redfish fencing for [persistent singletons](guides/node-fencing.md);
 - restoring backups into an isolated environment and comparing data;
-- Cloudflare Tunnel failover and Registry push/pull through the public edge;
-- [platform migration](guides/platform-migration.md#prepare-and-rehearse) rehearsal
-  with protected copies of real backups.
+- Longhorn recovery, production authentication, Cloudflare Tunnel failover and
+  Registry push/pull through the public edge;
+- [platform migration](guides/platform-migration.md#prepare-and-rehearse) with
+  protected copies of real backups.
 
 ## Known Verification Gaps
 
-- No automated restore drill verifies offsite archives or `restic check`, and the
+- With an off-node restic repository, `swirl-cloud-k3s-backup-verify.timer`
+  runs `restic check` and reads back the newest archive weekly, but no automated
+  drill restores an archive, and
   [restore after losing the host](operations.md#restore-after-losing-the-host)
-  procedure has not been rehearsed.
+  has not been rehearsed.
 - The setup hub has been exercised only with scripted dialog answers, not in a
   real terminal.
-- HA profiles, Tunnel ingress and fencing have not been exercised on three
-  independent hosts.
-- Image upgrades rely on manual runtime and recovery checks described in
+- HA profiles, Tunnel ingress and fencing have not run on three independent hosts.
+- Image upgrades rely on the manual checks in
   [image updates](operations.md#image-updates).
 
 ## Related Guides

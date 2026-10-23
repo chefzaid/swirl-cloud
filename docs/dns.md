@@ -1,169 +1,153 @@
 # Public DNS And Ingress
 
-The platform owns the managed Cloudflare zone, platform hostnames, origin TLS,
-the Traefik ingress controller and cluster-only service names. Applications own
-their own hostnames, Ingress resources and redirects. Private node transport is
-covered in [node enrollment](guides/node-enrollment.md#private-node-network) and
-host exposure in [security](security.md#exposure-boundaries).
+The platform owns the managed Cloudflare zone, platform hostnames, origin TLS, the
+Traefik ingress controller and cluster-only service names. Applications own their
+hostnames, Ingress resources and redirects. See also
+[private node transport](guides/node-enrollment.md#private-node-network) and
+[host exposure](security.md#exposure-boundaries).
 
 ## Service DNS and registry routing
 
 CoreDNS resolves `<service>.internal.<your-domain>` to the matching Service in
-`infra`, preserving additional DNS labels for headless services. Curated aliases route
-services such as Longhorn into their own namespaces. Application-owned
-services use canonical Kubernetes DNS names. The private zone is cluster-only;
-Cloudflare does not publish it, and ordinary host resolvers cannot use it.
+`infra`, keeping extra labels for headless services; curated aliases route services
+such as Longhorn to their own namespaces. The zone is cluster-only: Cloudflare does
+not publish it and host resolvers cannot use it. Application services use canonical
+Kubernetes DNS names.
 
-K3s/containerd routes `registry.<your-domain>` to the fixed internal Registry
-service endpoint. Cluster automation uses internal GitLab/API routes, while
-the Dependency Proxy uses canonical `gitlab.<your-domain>` HTTPS. Kubernetes
-API clients retain `kubernetes.default.svc`, which matches the server certificate.
-Public Docker clients use `registry.<your-domain>` over HTTPS.
+K3s/containerd maps `registry.<your-domain>` to the fixed internal Registry Service
+endpoint, and cluster automation uses internal GitLab and API routes. The Dependency
+Proxy uses canonical `gitlab.<your-domain>` HTTPS, Kubernetes API clients keep
+`kubernetes.default.svc` (it matches the server certificate), and public Docker
+clients use `registry.<your-domain>` over HTTPS.
 
-The shared HA cache accepts application traffic only through HAProxy on port
-6379 from `infra`, `apps` and `corp`. Its Redis and Sentinel ports accept traffic
-only from that release's server and HAProxy pods in `infra`. Applications cannot
-reach Sentinel management directly; these NetworkPolicies preserve the existing
-application cache credential contract.
+The shared HA Redis cache accepts application traffic only through HAProxy on port
+6379 from `infra`, `apps` and `corp`; its Redis and Sentinel ports accept only that
+release's server and HAProxy pods, so applications cannot reach Sentinel management.
 
 ## Cloudflare
 
-Platform host inventories live in [config/platform.env](../config/platform.env).
-The configurator reconciles their proxied DNS, Origin CA TLS, DNSSEC, WAF/cache
-rules and Keycloak-backed Access for administration. It also enables Smart
-Tiered Cache for the whole zone, so applications' cacheable responses fill from
-one upper tier near the origin. Application names are not
-part of that inventory. Apex DNS publication is disabled by default; set
-`CLOUDFLARE_PUBLISH_APEX=true` only when the platform should manage that record.
-Applications own their public DNS records, Ingress resources and redirects,
-including apex/`www` behavior when applicable. They also own any cache rules for
-their hosts in the zone's cache ruleset and the purges that refresh them after a
-release; the configurator reconciles only its own rule in that ruleset.
+For the platform host inventories in [config/platform.env](../config/platform.env)
+(`DEFAULT_CLOUDFLARE_*`), the configurator reconciles proxied DNS, Origin CA TLS,
+DNSSEC, WAF and cache rules, and Keycloak-backed Access for administration. It also
+enables Smart Tiered Cache zone-wide. Apex DNS is off unless
+`CLOUDFLARE_PUBLISH_APEX=true`. Applications own their DNS records, redirects
+(including apex/`www`), their cache rules in the zone's cache ruleset and their
+purges; the configurator reconciles only its own rule there.
 
-Homepage is published at `cloud.<your-domain>` and protected by Cloudflare
-Access. Its Ingress, allowed hosts and links share that hostname. The retired
-`dashboard` and `intranet` labels remain in `DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS` so Cloudflare
-reconciliation removes their old address records and Access applications.
-
-In the default layout, node administration has a separate unproxied hostname
-controlled by `CLOUDFLARE_NODE_DNS_LABEL`. HA public-host reconciliation does
-not publish node administration records; maintain any required record separately.
+Homepage is at `cloud.<your-domain>` behind Access. The retired `dashboard` and
+`intranet` labels stay in `DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS` so their old
+records and Access applications are removed. Node administration has a separate
+unproxied hostname, `CLOUDFLARE_NODE_DNS_LABEL` (default `node-01`); HA
+reconciliation does not publish it, so maintain any needed record yourself.
 
 ```bash
 ./scripts/configure-cloudflare.sh --zone example.com
 ```
 
-The script prompts for a scoped Cloudflare **User API Token** and prints the
-required permissions. For automation, supply `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_ACCESS_ALLOWED_EMAILS` and `CLOUDFLARE_ACCESS_TEAM_NAME`. Complete
-registrar nameserver delegation and DNSSEC prerequisites before unattended
-setup; interactive setup pauses with the required registrar values.
+The script asks for a scoped Cloudflare **User API Token** (`cfut_...`; Account
+tokens and the Global API Key are rejected) and prints the permissions it needs. For
+automation, supply `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCESS_ALLOWED_EMAILS` and
+`CLOUDFLARE_ACCESS_TEAM_NAME`, and finish registrar nameserver delegation and DNSSEC
+first; interactive setup pauses with the registrar values. Some features need more:
 
-Registry clients cannot answer browser bot challenges. Reconciliation disables
-basic Bot Fight Mode, which has no hostname exceptions, and skips Super Bot
-Fight Mode only for the Registry hostname. Other WAF, rate-limit and TLS
-controls remain enabled. The token therefore needs **Bot Management Read** and
-**Edit**, in addition to the other permissions printed by the configurator.
-The optional [outage watch](guides/service-levels.md#outage-watch) and the
-website chat's Email Worker also need Account **Workers Scripts Edit**.
+| Feature | Extra token permission |
+| --- | --- |
+| [HA public ingress](#ha-public-ingress) | Account **Cloudflare Tunnel Edit** |
+| [Outage watch](guides/service-levels.md#outage-watch) | Account **Workers Scripts Edit** |
+| [Website chat Email Worker](guides/odoo-website.md) | **Workers Scripts Edit** and **Email Routing Rules Edit** |
+
+Registry clients cannot answer browser bot challenges, so reconciliation disables
+basic Bot Fight Mode (it has no hostname exceptions) and skips Super Bot Fight Mode
+only for the Registry hostname. Other WAF, rate-limit and TLS controls stay on.
 
 ### Origin behind NAT
 
-On a local LAN, Traefik's ServiceLB address is private and Cloudflare cannot
-reach it, so the configurator refuses to publish it. Forward TCP 80 and 443
-on the router to the first control plane's LAN address and supply the
-router's public IPv4:
+On a LAN, Traefik's ServiceLB address is private, so the configurator refuses to
+publish it. Forward TCP 80 and 443 on the router to the first control plane's LAN
+address and pass the router's public IPv4 (`--origin-ip` or `CLOUDFLARE_ORIGIN_IP`,
+which the installer forwards):
 
 ```bash
 CLOUDFLARE_ORIGIN_IP=203.0.113.25 ./scripts/configure-cloudflare.sh --zone example.com
 ```
 
-The installer passes `CLOUDFLARE_ORIGIN_IP` through. Port forwarding keeps the
-original client address, so the Cloudflare-only origin firewall still applies.
-With a dynamic public address, rerun the configurator after it changes. A
-`local` exposure needs none of this.
+Forwarding keeps the client address, so the Cloudflare-only origin firewall still
+applies. Rerun the configurator when a dynamic public address changes. `local`
+exposure needs none of this.
 
 ### Application DNS ownership
 
-Each application declares its own DNS records and owns their lifecycle.
-[`add-repos.sh`](guides/repository-onboarding.md) can provision or reconcile those exact
-hosts from `infra/onboarding.json`, without adding names to this repository.
-Direct ingress uses proxied A records targeting its unique public IPv4.
-Changing a hostname does not delete the old record; retire old hosts explicitly
-after verifying the replacement route.
+Each application declares and owns its DNS records.
+[`add-repos.sh`](guides/repository-onboarding.md) reconciles exactly those hosts from
+`infra/onboarding.json`, adding no names to this repository. Direct ingress uses
+proxied A records to the unique public IPv4. A renamed host's old record is not
+deleted; retire it after verifying the new route.
 
-After HA activation, use proxied CNAME records targeting
-`<publishedTunnelID>.cfargotunnel.com`. The platform publishes its nonsecret
-endpoint state in `infra/swirl-cloud-public-ingress`:
+After HA activation, use proxied CNAMEs to `<publishedTunnelID>.cfargotunnel.com`.
+The platform publishes its nonsecret endpoint state:
 
 ```bash
 kubectl -n infra get configmap swirl-cloud-public-ingress -o json
 ```
 
-An application must wait until `data.mode=tunnel`, `data.publishedTunnelID` is
-nonempty and equals `data.tunnelID`, and `data.domain` matches its zone before
-switching DNS. A prepared tunnel is not an activated endpoint. Repository
-onboarding checks these conditions before publication; rerun it for the app's
-DNS cutover after platform HA activation. Conflicting address records or another
-application's Ingress ownership stop reconciliation. Unrelated MX/TXT records
-are preserved. App-owned checks still verify the public route and failover.
+Switch DNS only when `data.mode=tunnel`, `data.publishedTunnelID` is nonempty and
+equals `data.tunnelID`, and `data.domain` matches the zone; a prepared tunnel is not
+active. Repository onboarding checks this; rerun it for each app's cutover after
+platform HA activation. Conflicting address records or another application's
+Ingress stop reconciliation; unrelated MX/TXT records are kept. App-owned checks
+still verify the route and failover.
 
-The tunnel accepts the configured zone apex and wildcard subdomains and forwards
-them to local Traefik; Kubernetes Ingress resources select the application. This
-uses Cloudflare's [hostname wildcard matching](https://developers.cloudflare.com/tunnel/advanced/local-management/configuration-file/#wildcards).
-It creates no wildcard DNS record and grants no application deployment ownership
-to the platform. A hostname without a matching Ingress receives Traefik's default
-404 response. Other public zones require a separate ingress and DNS arrangement.
+The tunnel accepts the zone apex and all subdomains
+([hostname wildcard matching](https://developers.cloudflare.com/tunnel/advanced/local-management/configuration-file/#wildcards))
+and forwards them to local Traefik, where Ingress resources pick the application.
+It creates no wildcard DNS record and no platform ownership of applications. A host
+without a matching Ingress gets Traefik's default 404. Other public zones need their
+own ingress and DNS arrangement.
 
 ### Ingress controller
 
-The platform installs Traefik through its own pinned Helm release, with K3s
-bundled Traefik disabled. Native Kubernetes Ingress preserves application-owned
-hosts, DNS/Homepage discovery and TLS secrets. Same-namespace Middleware adds
-authentication and request limits; Thoughty uses native weighted routes for its
-canary. This keeps the existing ownership model without another routing API
-migration. See [controller migration](guides/platform-migration.md) for existing clusters.
+The platform installs Traefik as its own pinned Helm release, with K3s's bundled
+Traefik disabled. Native Kubernetes Ingress keeps application-owned hosts,
+DNS/Homepage discovery and TLS secrets; same-namespace Middleware adds
+authentication and request limits, and Thoughty's canary uses native weighted
+routes. Existing clusters follow the [controller migration](guides/platform-migration.md).
 
-Only HTTP/HTTPS entry points receive public application routers. The shared
-header Middleware removes RFC `Forwarded`, `X-Real-IP` and forwarded routing
-overrides. Preserve Traefik's default appended `X-Forwarded-For` chain: app rate
-limiters validate the trusted proxy boundary and take the visitor immediately
-before the edge, or the single sanitized address for a direct client.
+Client addresses:
 
-For the platform host inventory, the Cloudflare configurator removes incoming
-`X-Forwarded-For` through a request-header transform. Cloudflare then supplies
-the visitor address itself, as documented in its [header transform behavior](https://developers.cloudflare.com/rules/transform/request-header-modification/#important-remarks).
-This prevents stock services from trusting a visitor-supplied leading address;
-app rate limiters also validate the chain locally. Verify the rule at the live
-edge during cutover, especially if Workers or additional proxies handle a host.
+- Only HTTP/HTTPS entry points get public application routers. The shared header
+  Middleware removes RFC `Forwarded`, `X-Real-IP` and forwarded routing overrides
+  but keeps Traefik's appended `X-Forwarded-For` chain, from which app rate limiters
+  take the address just before the edge (or a direct client's single address).
+- For platform hosts, a Cloudflare request-header transform strips incoming
+  `X-Forwarded-For` and Cloudflare sets the visitor address
+  ([transform behavior](https://developers.cloudflare.com/rules/transform/request-header-modification/#important-remarks)).
+  Verify it at the live edge during cutover, especially behind Workers or extra
+  proxies.
+- Traefik publishes its trusted edge ranges in `infra/ingress-proxy-trust`. GitLab's
+  Rails and bundled NGINX combine them with its private proxy trust, and NGINX
+  passes the resolved visitor to Workhorse for audit logs and rate limits. Restart
+  GitLab in a maintenance window after changing ingress mode or edge ranges;
+  without ingress it uses private proxy defaults.
 
-The Traefik release publishes its trusted edge ranges in
-`infra/ingress-proxy-trust`. GitLab uses those ranges with its private proxy trust
-in both Rails and its bundled NGINX. NGINX resolves the visitor recursively from
-`X-Forwarded-For` before forwarding that address to Workhorse, preserving the
-visitor identity for audit logs and rate limits.
-After changing ingress mode or edge ranges, restart GitLab in a maintenance
-window to reload that environment input. A GitLab installation without ingress
-uses private proxy defaults. The token needs Zone **Transform Rules Edit** in
-addition to the listed DNS/security permissions.
+The HTTPS entry point repeats the zone's header policy on routed responses, replacing
+any application value: HSTS with `includeSubDomains` and no preload, and
+`X-Content-Type-Options: nosniff`.
 
-The HTTPS entry point repeats the zone's Cloudflare header policy on routed
-responses: HSTS with `includeSubDomains` and no preload, and
-`X-Content-Type-Options: nosniff`. A header Traefik sends replaces the
-application's own value. `configure-ingress.sh` takes the max-age from
-`CLOUDFLARE_HSTS_MAX_AGE` (default in `config/platform.env`) and adds no HSTS when
-`CLOUDFLARE_ENABLE_HSTS=false`; give it the same values as the Cloudflare
-configurator. Without either input, a rerun keeps the deployed value. A local
-installation (`SERVER_EXPOSURE=local` without HA) has no edge, so the installer
-and Ansible send only `nosniff` there. Remote application clusters get the
-policy at [registration](deployment.md#register-an-environment), from the same
-inputs or else the platform's deployed value; rerun registration for each
-existing remote environment. Only HTTPS responses carry HSTS: the HTTP entry
-point only redirects, and cluster-only internal names bypass Traefik.
-Applications own framing and Content Security Policy; the website frames Odoo's
-chat page. Argo CD does not manage Traefik, so a change applies when
-`./scripts/configure-ingress.sh` (or the installer or Ansible ingress step) runs
-again. Cloudflare adds the same headers. Verify the origin on a host whose
+- `configure-ingress.sh` takes the max-age from `CLOUDFLARE_HSTS_MAX_AGE` (default
+  in `config/platform.env`) and drops HSTS when `CLOUDFLARE_ENABLE_HSTS=false`; use
+  the same values as the Cloudflare configurator. With neither set, a rerun keeps
+  the deployed value.
+- A local installation (`SERVER_EXPOSURE=local` without HA) has no edge and gets
+  only `nosniff`.
+- Remote application clusters get the policy at
+  [registration](deployment.md#register-an-environment); rerun it for each existing
+  remote environment.
+- The HTTP entry point only redirects, and cluster-only internal names bypass
+  Traefik. Applications own framing and Content Security Policy (the website frames
+  Odoo's chat page).
+
+Argo CD does not manage Traefik: changes apply when `./scripts/configure-ingress.sh`
+(or the installer or Ansible ingress step) runs again. Verify on a host whose
 application sends no HSTS itself, such as Grafana (Keycloak does):
 
 ```bash
@@ -177,38 +161,31 @@ curl -sSI --cacert config/cloudflare-origin-ca.pem \
 ### HA public ingress
 
 The [HA ingress profile](../config/traefik-ha-values.yaml) runs Traefik as a
-DaemonSet on control planes, with one co-located `cloudflared` container per
-pod. Every connector uses the same tunnel identity and connects outbound to
-Cloudflare. Traefik uses normal pod networking and an internal Service; additional
-hosts need no inbound public web listener or shared public IP.
+DaemonSet on control planes with a `cloudflared` container per pod. All connectors
+share one tunnel identity and connect outbound, so hosts need no inbound public web
+listener or shared IP; Traefik uses pod networking and an internal Service.
 
-The connector sends HTTPS to its own Traefik listener over loopback, verifies the
-Cloudflare Origin CA certificate against the public domain, and preserves the
-request Host. Traefik trusts the forwarded client-address chain only from that loopback peer.
-A shared Middleware clears forwarded routing headers and derives host, URI and
-method from the request; the public scheme is HTTPS.
-Application proxy and NetworkPolicy contracts still see the Traefik pod network.
-Keycloak/OIDC URLs, Access protection and Registry authentication retain their
-public hostnames.
+Each connector sends HTTPS to its own Traefik over loopback, verifies the Origin CA
+certificate against the public domain and keeps the Host header. Traefik trusts the
+forwarded address chain only from that loopback peer; a shared Middleware clears
+forwarded routing headers and the public scheme is HTTPS. Application proxy and
+NetworkPolicy contracts still see the Traefik pod network, and Keycloak/OIDC URLs,
+Access and Registry authentication keep their public hostnames.
 
-The connector's liveness check withdraws it when its local Traefik stops serving;
-its readiness check requires a connected tunnel. Before changing public DNS to
-the tunnel CNAME, the configurator checks connectors on at least three distinct
-Ready control planes and performs verified HTTPS origin probes. The API token
-also needs account-level **Cloudflare Tunnel Edit** permission. Use the ordered
-[HA migration](guides/high-availability.md#activate-in-order); allow a maintenance
-window for replacing the direct ingress path.
+Liveness withdraws a connector when its Traefik stops serving; readiness requires a
+connected tunnel. Before pointing public DNS at the tunnel, the configurator requires
+Ready connectors on at least three distinct control planes and verified HTTPS origin
+probes. Follow the ordered [HA migration](guides/high-availability.md#activate-in-order)
+in a maintenance window.
 
-Tunnel replicas provide connection redundancy; they do not promise even
-traffic distribution or preserve an interrupted client connection. See
-[Cloudflare's replica and load-balancer distinction](https://developers.cloudflare.com/tunnel/routing/#replicas-versus-load-balancers).
-Public uploads still pass through Cloudflare's request limits. Verify Registry
-push/pull and application login through the tunnel before relying on failover.
+Replicas give connection redundancy, not even load distribution, and do not keep an
+interrupted connection
+([replicas versus load balancers](https://developers.cloudflare.com/tunnel/routing/#replicas-versus-load-balancers)).
+Uploads still pass Cloudflare's request limits. Verify Registry push/pull and
+application login through the tunnel before relying on failover.
 
 ## Related Guides
 
-- [Architecture](architecture.md#node-topology)
-- [Deployment](deployment.md)
-- [Security](security.md)
-- [High availability](guides/high-availability.md)
-- [Repository onboarding](guides/repository-onboarding.md)
+[Architecture](architecture.md#node-topology), [Deployment](deployment.md),
+[Security](security.md), [high availability](guides/high-availability.md) and
+[repository onboarding](guides/repository-onboarding.md).

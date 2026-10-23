@@ -1,57 +1,53 @@
 # Cost Showback
 
-Swirl Cloud runs on servers rented or owned at a fixed monthly price; the
-provider's bill does not change with CPU, memory or traffic. Cost showback
-divides that fixed price among the environments, namespaces and workloads that
-use the servers, so each team or customer project sees its share and where
-capacity sits idle. The amounts are an internal allocation, not usage billing:
-idle capacity is paid for all the same, and the total never exceeds the recorded
-price. Prometheus computes it from data the platform already collects; no
-billing service or external account is involved.
+Swirl Cloud runs on servers with a fixed monthly price. Cost showback divides
+that price among the environments, namespaces and workloads that use them, and
+shows where capacity sits idle. It is an internal allocation, not usage billing:
+the total never exceeds the recorded price. Prometheus computes it from data the
+platform already collects; no billing service is involved.
 
 ## Record server costs
 
-Run on each server, with its monthly rent, or its purchase price spread over its
+On each server, record its monthly rent, or its purchase price spread over its
 service life plus hosting and power:
 
 ```bash
 scripts/configure-node-cost.sh --monthly-cost 89.90 --currency EUR
 ```
 
-Record costs that belong to the whole platform, such as off-site backup
-storage, domains or licences, on one server only:
+Record platform-wide costs (off-site backup storage, domains, licences) on one
+server only:
 
 ```bash
 scripts/configure-node-cost.sh --monthly-cost 89.90 --currency EUR \
   --shared backup-storage=12.50 --shared domains=3
 ```
 
-Each run replaces that server's figures, so repeat every `--shared` entry when
-you change one. `--show` prints the recorded values and `--remove` deletes
-them. The installer records the control plane's cost from the optional
-`SERVER_MONTHLY_COST` and `COST_CURRENCY` inputs, and the setup hub offers
-**Maintenance → Record this server's monthly cost**. The script writes
-`/var/lib/node_exporter/textfile_collector/swirl_cloud_cost.prom`, which
-node-exporter publishes as `swirl_cloud_node_monthly_cost` and
+- Each run replaces that server's figures, so repeat every `--shared` entry when
+  you change one.
+- `--show` prints the recorded values; `--remove` deletes them.
+- The currency defaults to `EUR`.
+- The installer records the control plane's cost from the optional
+  `SERVER_MONTHLY_COST` and `COST_CURRENCY` inputs. The setup hub offers
+  **Maintenance → Record this server's monthly cost**.
+
+The script writes `/var/lib/node_exporter/textfile_collector/swirl_cloud_cost.prom`,
+which node-exporter publishes as `swirl_cloud_node_monthly_cost` and
 `swirl_cloud_shared_monthly_cost`.
 
 ## How cost is allocated
 
-1. Each server's monthly cost is split into 65 % CPU and 35 % memory, a common
-   split for general-purpose servers. A core and a GiB of memory on that server
-   then have a monthly price.
-2. Every running pod is charged for the larger of its requests and its current
-   usage of CPU and memory on the server it runs on. Requests reserve capacity
-   whether it is used or not; usage above requests is charged too.
-3. When bursting pods use more than the server's allocatable capacity, prices
-   are based on the total allocation instead, so charges never exceed the
-   server's cost.
+1. Each server's cost is split 65 % CPU and 35 % memory, giving a monthly price
+   per core and per GiB on that server.
+2. Every running pod is charged for the larger of its requests and its usage of
+   CPU and memory.
+3. When bursting pods use more than the server's allocatable capacity, prices are
+   based on total allocation instead, so charges never exceed the server's cost.
 4. Whatever no pod requests or uses is **idle** cost on that server.
-5. Shared costs are shown separately and are not spread over workloads.
+5. Shared costs are shown separately, not spread over workloads.
 
-Storage is part of the server price, so persistent volumes are shown by size
-but not charged separately. Costs in different currencies are reported side by
-side, never converted.
+Storage is part of the server price: persistent volumes are shown by size but
+not charged. Currencies are reported side by side, never converted.
 
 | Series | Meaning |
 | --- | --- |
@@ -66,15 +62,17 @@ side, never converted.
 ## Dashboard
 
 Grafana's **Cost Showback** dashboard (Applications folder) shows the monthly
-total, the allocated, idle and shared parts, cost per environment (namespaces
-labelled `swirl-cloud.io/application-environment`, everything else is shared
-platform), per namespace and per workload, and how allocation and idle cost
-change over time. Two panels work without recorded costs: each namespace's
-share of cluster CPU, and a rightsizing table comparing requested with used CPU
-and memory. Large gaps between requested and used are candidates for smaller
-requests. That moves cost from the namespace to idle capacity and lowers the
-capacity a new server must provide; the server's price stays the same until a
-server is added, resized or removed.
+total, its allocated, idle and shared parts, and cost per environment, namespace
+and workload, plus allocated and idle cost over time. Environments are namespaces
+labeled `swirl-cloud.io/application-environment`; everything else is shared
+platform.
+
+Three panels work without recorded costs: each namespace's share of cluster CPU,
+persistent storage requested by namespace, and a rightsizing table of requested
+against used CPU and memory. Large gaps there are candidates for smaller
+requests. Lowering them moves cost from the namespace to idle and lowers the
+capacity a new server must provide; the bill changes only when a server is
+added, resized or removed.
 
 ## Related Guides
 

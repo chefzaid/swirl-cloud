@@ -1,10 +1,9 @@
 # Code Quality
 
-The platform repository is Bash, Python, YAML, Helm templates and Markdown.
-Quality is enforced by one offline gate, deployment policy checks on rendered
-manifests and supply-chain pinning. SonarQube analysis described in
-[source analysis](operations.md#source-analysis) is a platform service for
-application repositories; this repository relies on the checks below.
+This repository is Bash, Python, YAML, Helm templates and Markdown. One offline
+gate enforces quality: static checks, deployment policy on rendered manifests
+and supply-chain pinning. [SonarQube](operations.md#source-analysis) serves
+application repositories, not this one.
 
 ## How It Runs
 
@@ -12,10 +11,9 @@ application repositories; this repository relies on the checks below.
 | --- | --- |
 | Local | `./scripts/validate-repository.sh` before every commit |
 | Platform CI | `validate:repository` on every branch and merge request in a digest-pinned Alpine image with an APK cache |
-| Default branch | `verify:gitops`, `verify:delivery-platform`, `verify:registry-write` after Argo CD reconciles the commit |
+| Default branch | `verify:gitops`, `verify:delivery-platform`, `verify:registry-write` after Argo CD reconciles the commit; non-blocking `report:platform-artifacts` Trivy report on vendored charts and the CI image (kept 30 days) |
 
-Missing tools fail validation instead of skipping checks. See
-[testing](testing.md#test-layers) for the full layer map.
+See [testing](testing.md#test-layers) for the full layer map.
 
 ## Static Checks
 
@@ -35,22 +33,24 @@ Missing tools fail validation instead of skipping checks. See
 - every platform image is pinned by an `@sha256` digest
 - every Deployment, StatefulSet, DaemonSet, Job and CronJob declares
   `automountServiceAccountToken` and CPU/memory requests and limits for every container
-- every liveness probe has a timeout of 5 seconds or more and restarts only after a
-  minute of failures (`periodSeconds` × `failureThreshold` ≥ 60), every readiness
-  probe a timeout of 3 seconds or more, and no exec probe uses `$(VAR)` for a variable
-  without a literal `value` (a probe expands only those, so a Secret's value is empty).
-  A shared node under load answers slowly; killing a datastore or Keycloak then
-  disconnects every application and starts a chain of restarts
+- every liveness probe has a timeout of 5 seconds or more and restarts only after
+  a minute of failures (`periodSeconds` × `failureThreshold` ≥ 60); every readiness
+  probe has a timeout of 3 seconds or more. A loaded node answers slowly, and
+  restarting a datastore or Keycloak disconnects every application
+- no exec probe uses `$(VAR)` unless the variable has a literal `value`; probes
+  expand only those, so a Secret's value would be empty
 - every Ingress uses the `traefik` class and references an existing Service port
 - Ingress hostnames match `DEFAULT_CLOUDFLARE_HOST_LABELS`
 - Traefik entry points, alone and with the HA values layered, use only defined
   Middlewares, and `websecure` carries the HSTS and `nosniff` policy that
   `configure-cloudflare.sh` sets at the edge
+- every alert names an owner and links to its section of the [alert runbooks](guides/alert-runbooks.md)
 - every manifest in the `platform.env` inventories exists without duplicates
 - Service selectors, named ports, RBAC and chart file references resolve
 - every Elasticsearch `index.lifecycle.name` names a policy that a rendered job or init container stores
 - installer and GitOps renders agree for nine profiles
 - retired image profiles stop rendering
+- onboarding keeps branch names as strings, follows a default-branch switch and rejects unrelated revisions
 - GitHub Actions are pinned by commit SHA
 
 ## Conventions
@@ -71,7 +71,7 @@ Missing tools fail validation instead of skipping checks. See
   place only; update both the Ingress and `platform.env`.
 - `uses undefined middleware` or `HTTPS origin headers differ from the Cloudflare
   edge policy` names the Traefik values profile; align `config/traefik-values.yaml`
-  with the edge as described in [ingress controller](dns.md#ingress-controller).
+  with the edge ([ingress controller](dns.md#ingress-controller)).
 - `a liveness probe needs a timeout` or `must fail for a minute` names the
   container: raise `timeoutSeconds` (10 for a datastore) or `failureThreshold`; give
   a slow start a `startupProbe` instead of a long `initialDelaySeconds`.

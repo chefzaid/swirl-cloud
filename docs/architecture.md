@@ -1,9 +1,7 @@
 # Architecture Overview And ADR Index
 
-This guide describes how the bare-metal platform fits together and indexes the
-architecture decision records (ADRs) in [`adr/`](adr/). ADRs explain why the
-platform uses a pattern, where its boundary is, and what future changes must
-preserve or deliberately replace.
+How the bare-metal platform fits together, plus the index of architecture
+decision records (ADRs) in [`adr/`](adr/).
 
 ## System Architecture At A Glance
 
@@ -28,21 +26,6 @@ flowchart LR
     infra --> longhorn[(Longhorn volumes)]
 ```
 
-Delivery:
-
-```mermaid
-flowchart LR
-    accTitle: Platform and application delivery
-    accDescr: GitHub and GitLab stay synchronized. GitLab CI validates and publishes; one central Argo CD reconciles the platform chart and each application's pinned revision.
-    github[GitHub] <-->|two-way sync| gitlab[GitLab source, CI, registry]
-    gitlab --> ci[GitLab CI validation and releases]
-    ci --> gitops[Git desired state]
-    gitops --> argo[Central Argo CD in infra]
-    argo --> platform[swirl-cloud chart]
-    argo --> envs[int / uat / prod namespaces or clusters]
-    ci -. observes .-> argo
-```
-
 ## Platform Components
 
 | Layer | Components | Installed by |
@@ -50,7 +33,7 @@ flowchart LR
 | Kubernetes | K3s `v1.36.4+k3s1` with secrets encryption, SQLite or embedded etcd, CoreDNS private zone, floating API endpoint (keepalived VIP or Tailscale Service) | Installer and [node enrollment](guides/node-enrollment.md) |
 | Storage | Longhorn 1.13.0, weekly trim, optional S3 backups, opt-in encrypted volumes | Shared Helm helper |
 | Ingress and edge | Traefik 3.7 (direct LoadBalancer or HA DaemonSet with `cloudflared`), Cloudflare DNS/TLS/WAF/Access | [`configure-ingress.sh`](../scripts/configure-ingress.sh), [`configure-cloudflare.sh`](../scripts/configure-cloudflare.sh) |
-| Secrets | Vault 2.1 (Raft), External Secrets 2.9 | Shared Helm helper and [`configure-vault.sh`](../scripts/configure-vault.sh) |
+| Secrets | Vault 2.1 (Raft), External Secrets 2.11 | Shared Helm helper and [`configure-vault.sh`](../scripts/configure-vault.sh) |
 | Data | PostgreSQL 18 (optional CloudNativePG HA), Redis 8 (optional Sentinel HA), Kafka KRaft (optional three-node quorum), MongoDB 7 | Platform chart |
 | Identity | Keycloak 26, OAuth2 Proxy, Cloudflare Access IdP | Platform chart |
 | Delivery | GitLab CE 19 with Registry and Dependency Proxy, GitLab Runner, Argo CD 3.5 | Platform chart and shared Helm helper |
@@ -59,7 +42,7 @@ flowchart LR
 | Corporate | Odoo 19 in `corp` | Platform chart when `appsEnabled` |
 
 Exact versions and digests live in [`config/platform.env`](../config/platform.env),
-[`config/`](../config/) values and the owning manifests under [`k8s/`](../k8s/).
+the [`config/`](../config/) values files and the manifests under [`k8s/`](../k8s/).
 
 ## Node topology
 
@@ -83,86 +66,77 @@ flowchart TB
     Servers <-->|HA: outbound Tunnels| Edge
 ```
 
-Solid links show runtime traffic; dotted links show enrollment. Public traffic
-uses the first control plane until [HA activation](guides/high-availability.md#activate-in-order)
-switches it to independent Tunnel connectors. Adding nodes alone does not change
-that route. See [scheduling and storage](guides/node-enrollment.md#scheduling-and-storage)
-for workload placement and [control-plane administration](guides/node-enrollment.md#control-plane-administration)
-for private SSH and API access. With three or more control planes, the
-[Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint) follows healthy servers.
+Solid links are runtime traffic; dotted links are enrollment. Public traffic
+enters the first control plane until
+[HA activation](guides/high-availability.md#activate-in-order) moves it to
+independent Tunnel connectors. Adding nodes alone does not change that route.
+With three or more control planes, the
+[Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint)
+follows healthy servers. See also
+[scheduling and storage](guides/node-enrollment.md#scheduling-and-storage) and
+[control-plane administration](guides/node-enrollment.md#control-plane-administration).
 
 ### Namespaces
 
 | Namespace | Responsibility |
 | --- | --- |
 | `infra` | Shared platform services and Argo CD Applications |
-| `apps` | Workloads managed by application repositories |
+| `apps` | Workloads managed by application repositories; local `prod` |
+| `apps-int`, `apps-uat` | Local `int` and `uat` environments, when registered |
 | `corp` | Centrally managed Odoo |
 | `host-agents` | Node-level telemetry agents with host access (node-exporter, Fluent Bit, Filebeat) |
 | `gitlab-runners` | Isolated CI jobs |
 | `longhorn-system` | Persistent storage management |
+| `cnpg-system` | CloudNativePG operator, only with PostgreSQL HA |
 | `kube-system` | Kubernetes networking and system components |
 
 ## Key Runtime Lifecycles
 
 ### Installation
 
-1. The installer collects identity, scope, topology, components, recovery and
-   public-access inputs, then renders one configuration for native manifests and
-   Argo CD.
-2. Host preparation installs K3s, AppArmor, recovery archives, Longhorn
-   prerequisites and the exposure-specific host security policy.
-3. Nodes join over the private transport; topology reconciliation sets taints and
-   storage replication.
-4. Helm releases (Longhorn, Traefik, Vault, External Secrets) and Cloudflare are
-   reconciled, Vault is initialized and seeded, and ExternalSecrets become Ready.
-5. Data stores, platform services, Keycloak SSO, GitLab CI, Odoo and the
-   Descheduler are applied and awaited.
-6. Argo CD is installed and the root `swirl-cloud` Application takes ownership of
-   the chart. Environments and repositories are optionally registered afterward.
+The installer renders one configuration from its inputs, prepares hosts (K3s,
+AppArmor, recovery archives, Longhorn prerequisites, host security), joins nodes
+over the private transport, reconciles Longhorn, Traefik, Vault, External
+Secrets and Cloudflare, seeds Vault, applies the data stores and platform
+services, then installs Argo CD, whose root `swirl-cloud` Application takes over
+the chart. [Deployment](deployment.md) owns the procedure.
 
 ### Administrative request
 
-1. Cloudflare terminates the visitor connection, applies WAF and rate rules, and
-   requires an Access session backed by Keycloak for administrative hosts.
-2. Traefik accepts traffic only from Cloudflare (direct) or the loopback tunnel
-   connector (HA), normalizes forwarded headers, selects the Ingress and repeats
-   the edge's HSTS and `nosniff` response headers.
-3. Native OIDC services (GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer,
-   Odoo) authenticate directly with Keycloak; the others use the shared OAuth2
-   Proxy ForwardAuth middleware.
-4. Membership in `platform-admins` grants administration.
+Cloudflare applies WAF and rate rules and requires an Access session backed by
+Keycloak. Traefik accepts traffic only from Cloudflare (direct) or the loopback
+Tunnel connector (HA). GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and
+Odoo sign in with native OIDC; the others go through the OAuth2 Proxy
+ForwardAuth middleware. Membership in `platform-admins` grants administration.
 
 ### Secret delivery
 
-1. [`configure-vault.sh`](../scripts/configure-vault.sh) generates credentials into
-   Vault KV-v2 under `secret/infra/*` and scoped `secret/apps/*` paths.
-2. External Secrets authenticates with Vault Kubernetes auth and projects
-   namespace-scoped Secrets.
-3. Workloads consume Secrets as environment variables or files; rotation writes
-   Vault first and refreshes ExternalSecrets.
+[`configure-vault.sh`](../scripts/configure-vault.sh) writes credentials to
+Vault KV-v2 under `secret/infra/*` and scoped `secret/apps/*`
+([paths](data-model.md#vault-paths)). External Secrets authenticates with Vault
+Kubernetes auth and projects namespace Secrets. Rotation writes Vault first,
+then refreshes the ExternalSecrets.
 
 ### Platform change
 
-1. A commit lands on GitLab `main` (synchronized from GitHub).
-2. Argo CD renders `k8s/` with the installation's Helm parameters and applies it
-   with automatic sync, prune and self-heal.
-3. Platform CI validates the commit and, on the default branch, waits for that
-   exact revision to be `Synced`/`Healthy` before checking delivery services.
+A commit lands on GitLab `main` (synchronized with GitHub). Argo CD renders
+`k8s/` with the installation's Helm parameters and applies it with automatic
+sync, prune and self-heal. On the default branch, platform CI waits for that
+exact revision to be `Synced`/`Healthy`, then checks the delivery services.
 
 ### Application delivery
 
-1. An application repository publishes immutable images through its own CI.
-2. CI commits the selected environment's image digests and pointer revision.
-3. Central Argo CD reconciles that Application into its registered namespace or
-   cluster; CI verifies revision, health and public smoke checks.
+An application's CI publishes immutable images, commits the environment's image
+digests and pointer revision, and verifies revision, health and public smoke
+checks after central Argo CD reconciles it into its registered namespace or
+cluster.
 
 ## Ownership Rules
 
 - `swirl-cloud` owns the cluster, shared services, platform hostnames and Odoo.
 - Application repositories own their manifests, CI, Argo CD Applications,
-  hostnames, availability profile and data migrations.
-- The platform has no application inventory; applications declare an
+  hostnames, availability profile and data migrations. The platform keeps no
+  application inventory; applications declare an
   [onboarding contract](guides/application-onboarding.md).
 - Vault is the source of truth for credentials; Kubernetes Secrets are projections.
 - Git is the source of truth for desired state; manual cluster edits are reverted.
@@ -173,25 +147,25 @@ for private SSH and API access. With three or more control planes, the
 
 - Installation inputs define identity; the checkout stays organization-neutral.
 - Installer and GitOps render the same resources from the same inputs.
-- Every image is pinned by digest; every workload declares token mounting and
-  CPU/memory budgets, and probes that tolerate a loaded node (a liveness probe
-  restarts a container only after a minute without an answer). Each kubelet
+- Every image is pinned by digest. Every workload declares token mounting,
+  CPU/memory budgets and probes that tolerate a loaded node (see the
+  [probe policy](code-quality.md#manifest-and-deployment-policy)). Each kubelet
   reserves memory for the host and K3s and evicts pods before the node swaps.
 - Stateful migrations are explicit, journaled and refuse implicit downgrades.
-- Documentation distinguishes implemented behavior from [planned work](../TODO.md).
+- Docs separate implemented behavior from [planned work](../TODO.md).
 
 ## Specialized Guides
 
-These procedures have no Swirl Demo App counterpart and live under [`guides/`](guides/):
+Procedures with no Swirl Demo App counterpart live under [`guides/`](guides/).
+The [README](../README.md) lists them all; the main ones are:
 
 - [Node enrollment and private networking](guides/node-enrollment.md)
-- [High availability](guides/high-availability.md)
-- [PostgreSQL HA profile](guides/postgres-ha.md)
-- [Kafka high availability](guides/kafka-ha.md)
-- [Node fencing](guides/node-fencing.md)
+- [High availability](guides/high-availability.md),
+  [PostgreSQL HA](guides/postgres-ha.md), [Kafka HA](guides/kafka-ha.md) and
+  [node fencing](guides/node-fencing.md)
 - [Platform migration to Traefik and upstream images](guides/platform-migration.md)
-- [Repository onboarding](guides/repository-onboarding.md)
-- [Application onboarding contract](guides/application-onboarding.md)
+- [Repository onboarding](guides/repository-onboarding.md) and the
+  [application onboarding contract](guides/application-onboarding.md)
 
 ## ADR Process
 
@@ -204,17 +178,9 @@ Add an ADR when a change:
 - changes installation, reconciliation or delivery ownership
 - constrains how application repositories integrate with the platform
 
-Use the next sequence number:
-
-```text
-NNNN-short-title.md
-```
-
-Statuses:
-
-- **Proposed**: under review, not a stable platform decision
-- **Accepted**: current direction
-- **Superseded**: retained for history and linked to its replacement
+Name it `NNNN-short-title.md` with the next sequence number. Statuses:
+**Proposed** (under review), **Accepted** (current direction), **Superseded**
+(kept for history, linked to its replacement).
 
 ## Accepted ADRs
 
@@ -254,16 +220,16 @@ Statuses:
 
 ## Proposed ADRs For Roadmap Work
 
-Create decisions before implementing:
+Write these decisions before implementing:
 
 - offsite backup activation, key separation and scheduled restore drills
 - `infra` default-deny network policy
 - multi-factor authentication for platform administrators
 - alert routing, paging and missing platform alerts
-- HTTP intrusion detection, API audit logging and host auditd
+- HTTP intrusion detection
 - remote application-cluster telemetry
 - migration of version-1 applications to the environment contract
-- installer `.env` schema, secret redaction and TUI/web front ends
+- installer secret resolution (Vault references) and the web front end
 - mixed vRack/Tailscale transport and API-only (`--disable-etcd`) control planes
 - directory and mail provider: Microsoft 365 versus self-hosted LDAP and mail
 - password manager: Bitwarden versus Vaultwarden
@@ -297,12 +263,8 @@ What becomes easier, harder, riskier, or more constrained?
 
 ## Related Guides
 
-- [Features](./features.md)
-- [Data Model](./data-model.md)
-- [Development](./development.md)
-- [Testing](./testing.md)
-- [Code Quality](./code-quality.md)
-- [Deployment](./deployment.md)
-- [Operations](./operations.md)
-- [Security](./security.md)
-- [Public DNS And Ingress](./dns.md)
+[Features](./features.md), [Data Model](./data-model.md),
+[Development](./development.md), [Testing](./testing.md),
+[Code Quality](./code-quality.md), [Deployment](./deployment.md),
+[Operations](./operations.md), [Security](./security.md),
+[Public DNS And Ingress](./dns.md)

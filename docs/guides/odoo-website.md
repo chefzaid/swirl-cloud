@@ -1,52 +1,45 @@
 # Odoo Website Integration
 
-The company website uses the platform's Odoo for two things: every contact-form
-inquiry becomes a CRM lead, and visitors can chat with the team through Odoo
-Live Chat. The website owns its form, consent text and chat button; the platform
-owns Odoo, the integration user, the network path, and the chat channel and its
-chatbot.
+The company website uses the platform's Odoo in two ways: contact-form inquiries
+become CRM leads, and visitors chat with the team through Odoo Live Chat. The
+website owns its form, consent text and chat button. The platform owns Odoo, the
+integration user, the network path, and the chat channel and chatbot.
 
 ## What the Odoo bootstrap configures
 
 The `bootstrap-database` init container in [the Odoo manifest](../../k8s/corp/odoo.yaml)
 installs CRM, Live Chat and the managed
 [`platform_crm_intake`](../../k8s/files/odoo-addons/platform_crm_intake/) add-on, and
-upgrades the add-on on every start. On the first start after installation it
-also:
+upgrades the add-on on every start. On the first start after installation it also:
 
-- enables **Leads**, so website inquiries arrive as leads to qualify before they
-  become opportunities;
-- names the default Live Chat channel after the organization and makes the
-  Odoo administrator its first agent;
-- adds a chatbot that answers only while no agent is online. It greets the
-  visitor, asks for an email address and the request, then creates a lead in
-  the first sales team with the conversation attached. Where the page is wide
-  enough, the channel rule also opens the chat as soon as the widget loads.
+- enables **Leads**, so inquiries are qualified before becoming opportunities;
+- names the default Live Chat channel after the organization, with the Odoo
+  administrator as first agent;
+- adds a chatbot that answers only while no agent is online. It asks for an email
+  address and the request, then creates a lead in the first sales team with the
+  conversation attached. On wide enough pages the chat opens when the widget loads.
 
-The chatbot text is English with French translations. Visitors see the language
-of the website page they chat from, or otherwise of their browser; any other
-language falls back to English. Staff can change agents, colours, the chatbot and its texts in
-**Live Chat → Configuration**. The bootstrap does not overwrite those changes.
-
-Agents receive conversations in Odoo **Discuss** in the browser or the Odoo
-mobile app. While no agent has Odoo open, the chatbot takes the conversation.
+The chatbot speaks English and French, following the page language, then the
+browser's; other languages fall back to English. Staff change agents, colours and
+chatbot texts in **Live Chat → Configuration**; the bootstrap keeps those changes.
+Agents answer in Odoo **Discuss** (browser or mobile app).
 
 ## Lead intake
 
 ### Provision the integration
 
-Run from the platform host with the platform kubeconfig, naming the website's
-application (its Vault `apps/<name>/` prefix):
+Run from the platform host with the platform kubeconfig. `--application` is the
+website's application name (its Vault `apps/<name>/` prefix):
 
 ```bash
 python3 scripts/configure-odoo-website.py --application <website> \
   --website-origin https://<website host>
 ```
 
-The command creates the Odoo user `integration-<website>` and an API key. It
-verifies that the key authenticates and cannot read CRM records, and stores it
-at Vault `apps/<website>/odoo`. Reruns keep a valid stored key. It also records
-the website origin, the only page allowed to frame the chat (see below).
+This creates Odoo user `integration-<website>` and an API key, verifies the key
+authenticates but cannot read CRM records, and stores it at Vault
+`apps/<website>/odoo`. Reruns keep a valid stored key. The website origin is the
+only page allowed to frame the chat ([below](#live-chat-on-the-website)).
 
 | Vault field | Value |
 | --- | --- |
@@ -55,15 +48,13 @@ the website origin, the only page allowed to frame the chat (see below).
 | `login` | `integration-<website>` |
 | `apiKey` | Bearer key; server-side only, never sent to browsers |
 
-The user is a portal user in the dedicated **Website CRM intake integration**
-group. It can only call `crm.lead/platform_intake_submit`; it cannot read,
-change or delete leads, or read other contacts. Leads are created in the main
-company with no salesperson, the first sales team, the website's application
-name as UTM source and **Website** as medium.
+The user is a portal user in the **Website CRM intake integration** group. It can
+only call `crm.lead/platform_intake_submit`; it cannot read, change or delete leads
+or read contacts. Leads go to the main company with no salesperson, the first sales
+team, the application name as UTM source and **Website** as medium.
 
-The website's pods reach Odoo in-cluster on port 8069 when they run in `apps`
-and carry the label `swirl-cloud.io/odoo-crm-intake: "true"`. No other
-application pod may connect; the chat bus on 8072 stays behind Traefik.
+Only pods in `apps` labelled `swirl-cloud.io/odoo-crm-intake: "true"` reach Odoo
+in-cluster on port 8069. The chat bus on 8072 stays behind Traefik.
 
 ### API
 
@@ -79,19 +70,18 @@ Content-Type: application/json
 
 | Field | Rule |
 | --- | --- |
-| `reference` | Required. 8–128 characters from `A-Z a-z 0-9 . _ : -`. Generate it once per inquiry and reuse it on every retry. |
+| `reference` | Required. 8–128 characters from `A-Z a-z 0-9 . _ : -`. Generate once per inquiry; reuse on every retry. |
 | `values.name` | Required lead title, up to 256 characters. |
 | `contact_name`, `partner_name`, `email_from` | Optional, up to 256 characters. `email_from` must be an email address. |
 | `phone` | Optional, up to 64 characters. |
 | `description` | Optional plain text, up to 10 000 characters, stored as escaped HTML. |
 | `lang` | Optional language code such as `fr_FR`; an inactive language is ignored. |
 
-Any other field is rejected. Stage, salesperson, tags and scoring stay under
-CRM staff control.
+Other fields are rejected; stage, salesperson, tags and scoring stay with CRM staff.
 
-A successful call returns `200` with `{"id": <lead id>, "created": true}`. A retry
-with the same reference returns the same lead with `"created": false`, including
-when retries run concurrently. Error responses are JSON:
+Success returns `200` with `{"id": <lead id>, "created": true}`. A retry with the
+same reference, even concurrent, returns the same lead with `"created": false`.
+Errors are JSON:
 
 | Status | Meaning | Client action |
 | --- | --- | --- |
@@ -100,30 +90,29 @@ when retries run concurrently. Error responses are JSON:
 | `422` | Invalid reference or values | Fix the request; do not retry |
 | `409`, `5xx`, timeout | Conflict or temporary failure | Retry with the same reference and backoff |
 
-Leads stay in Odoo until CRM staff archive or delete them; erasure requests are
-handled in Odoo, in addition to the website's own copy.
+Leads stay until CRM staff archive or delete them; handle erasure requests in Odoo
+as well as in the website's own copy.
 
 ### Rotate the key
 
-Run the command with `--rotate`. The new key goes to Vault and the previous key
-stays valid. After the website's ExternalSecret has refreshed and its pod has
-restarted, run it with `--revoke-previous`.
+Run the command with `--rotate`: the new key goes to Vault and the previous key stays
+valid. Once the website's ExternalSecret has refreshed and its pod restarted, run it
+with `--revoke-previous`.
 
 ## Live Chat on the website
 
-Odoo's chat widget compiles its templates at run time and injects inline
-styles, which a strict Content Security Policy rightly blocks. The website
-therefore shows the chat in a frame served from Odoo's own origin:
+Odoo's widget compiles templates at run time and injects inline styles, which a
+strict Content Security Policy blocks. The website therefore frames a page served
+from Odoo's origin:
 
 ```text
 https://odoo.<domain>/platform_crm_intake/chat/<channel id>?lang=<fr|en>[&open=1]
 ```
 
-The page loads the widget and reports to the website whether a chat window is
-open. With `open=1`, sent when the visitor clicks the website's chat button, it
-also opens the chat once Odoo has restored the visitor's windows; without it,
-it only restores a conversation the visitor left open, for example on the next
-page they visit.
+The page loads the widget and tells the website whether a chat window is open. With
+`open=1` (sent when the visitor clicks the chat button) it opens the chat once Odoo
+has restored the visitor's windows; without it, it only restores a chat the visitor
+left open, for example on the next page.
 
 | Message | Direction | Meaning |
 | --- | --- | --- |
@@ -131,31 +120,29 @@ page they visit.
 | `{type: "odoo-livechat", open: false, failed: true}` | Odoo → website | The chat cannot start; offer another contact path |
 | `{type: "odoo-livechat-open"}` | website → Odoo | Reopen the chat, or start a new one |
 
-Inside the frame, the chat window shows its correspondent (the chatbot or an
-agent) as online under their name, in the `lang` of the page, and the page
-reports an opened chat to the website within 100 ms.
+The frame shows the correspondent (chatbot or agent) as online in the page `lang`,
+and reports an opened chat within 100 ms. Messages are exchanged only with the
+`--website-origin`. The page sends `Content-Security-Policy: frame-ancestors <website
+origin>` and returns `404` until the origin is set. `lang` is kept in Odoo's
+`frontend_lang` cookie.
 
-Messages are exchanged only with the website origin given to
-`configure-odoo-website.py --website-origin`. The page sends
-`Content-Security-Policy: frame-ancestors <website origin>`, so no other site can
-frame it, and returns `404` until that origin is set. `lang` selects the
-language of the chatbot and is kept in Odoo's `frontend_lang` cookie.
+On the website side:
 
-The website's own policy then needs only `frame-src https://odoo.<domain>`.
-Keep the frame narrower than 768 px (Odoo's phone layout fills it), for example
-400 × 620 px on desktop and the full screen on phones. Inside the frame, Odoo
-sets its `session_id` and `frontend_lang` cookies on `odoo.<domain>` and keeps the
-guest token and chat history in that origin's local storage; nothing is stored
-until the visitor opens the chat.
+- CSP needs only `frame-src https://odoo.<domain>`.
+- Keep the frame narrower than 768 px (Odoo's phone layout fills it), e.g.
+  400 × 620 px on desktop and full screen on phones.
+- Odoo stores `session_id` and `frontend_lang` cookies on `odoo.<domain>` and the
+  guest token and history in that origin's local storage, only once the visitor
+  opens the chat.
 
 The chat endpoints are public. The Cloudflare login rate limit also covers chat
-session starts (`/im_livechat/get_session` and `/im_livechat/cors/get_session`).
+session starts (`/im_livechat/get_session`, `/im_livechat/cors/get_session`).
 
 ## Chat by email
 
-The team does not need Odoo open to answer the website chat. New visitor
-messages are emailed to the team, a reply to that email appears in the chat,
-and a visitor who has left receives the answer by email and can reply to it.
+The team can answer without Odoo open: new visitor messages are emailed to the team,
+email replies appear in the chat, and a visitor who has left gets the answer by email
+and can reply.
 
 ```bash
 python3 scripts/configure-odoo-website.py --application <website> \
@@ -167,48 +154,44 @@ python3 scripts/configure-odoo-website.py --application <website> \
 
 | Option | Effect |
 | --- | --- |
-| `--notify` | Receives one email per chat once the visitor has paused for 45 seconds, with the new messages, the recent conversation, and links to the chat and its CRM lead. Messages an agent already read in Odoo are not emailed. |
-| `--reply-sender` | Addresses whose replies are accepted; defaults to the `--notify` addresses. List every address you actually reply from, such as the mailbox a forwarding address delivers to. |
-| `--chat-from` | Sender of chat emails, `chat@<website host>` by default. Its plus-addresses receive replies. |
-| `--notify-lang`, `--timezone` | Language (`fr` or `en`) and time zone of the team's emails. |
-| `--chat-persona` | JSON file naming the chatbot, its PNG avatar and its messages (`type`, `en`, `fr` per step, in the order of the bootstrap's chatbot steps). |
-| `--resend-key-path` | Vault path whose `RESEND_API_KEY` becomes Odoo's outgoing mail server (`smtp.resend.com`, limited to the sender's domain). Odoo also gets that domain as its mail domain, so its own emails can be sent too. |
-| `--email-worker` | Deploys the Cloudflare Email Worker and its routing rule (below). Needs `CLOUDFLARE_API_TOKEN` with **Workers Scripts: Edit** and **Email Routing Rules: Edit**. |
+| `--notify` | Repeatable. One email per chat after the visitor pauses for 45 seconds, with new messages, recent conversation and links to the chat and its lead. Messages an agent already read in Odoo are skipped. |
+| `--reply-sender` | Repeatable. Addresses whose replies are accepted; defaults to `--notify`. List every address you reply from, such as a forwarding target mailbox. |
+| `--chat-from` | Sender of chat emails, default `chat@<website host>`. Its plus-addresses receive replies. |
+| `--notify-lang`, `--timezone` | Language (`fr` default, or `en`) and time zone (default `UTC`) of the team's emails. |
+| `--chat-persona` | JSON naming the chatbot, its PNG avatar and its messages (`type`, `en`, `fr` per step, in bootstrap step order). |
+| `--resend-key-path` | Vault path whose `RESEND_API_KEY` becomes Odoo's outgoing server (`smtp.resend.com`, limited to the sender's domain, which also becomes Odoo's mail domain). |
+| `--email-worker` | Deploys the Cloudflare Email Worker and routing rule. Needs `CLOUDFLARE_API_TOKEN` with **Workers Scripts: Edit** and **Email Routing Rules: Edit**. |
 
-Every chat email has a Reply-To of the form
-`chat+<chat id>.<t|v>.<signature>@<domain>`, where `t` marks the team's copy, `v`
-the visitor's, and the signature is an HMAC of both with a secret kept in Odoo.
-Cloudflare Email Routing hands `chat@<domain>`, including its plus-addresses
-(the script turns on the zone's subaddressing), to the `platform-chat-email` Worker ([source](../../scripts/lib/chat_email_worker.js)),
-which posts the raw email to `https://odoo.<domain>/platform_crm_intake/mail/inbound`
-with a shared secret (Vault `apps/<website>/odoo`, field `inboundSecret`). Odoo
-then:
+Each chat email has Reply-To `chat+<chat id>.<t|v>.<signature>@<domain>`: `t` is the
+team's copy, `v` the visitor's, and the signature is an HMAC with a secret kept in
+Odoo. Cloudflare Email Routing sends `chat@<domain>` and its plus-addresses (the
+script enables zone subaddressing) to the `platform-chat-email` Worker
+([source](../../scripts/lib/chat_email_worker.js)). The Worker posts the raw email to
+`https://odoo.<domain>/platform_crm_intake/mail/inbound` with a shared secret (Vault
+`apps/<website>/odoo`, field `inboundSecret`). Odoo then:
 
 - ignores an unknown or wrongly signed address;
-- refuses a sender that may not answer that copy (not a listed team sender, or
-  not the visitor's own address); the Worker bounces it, so a mistaken sender
-  learns about it;
-- removes the quoted conversation and signature (Gmail, Outlook, Apple Mail, in
-  English and French), then posts the rest in the chat: the team's reply as the
-  chat's agent (the chatbot persona when nobody was online), the visitor's as the
-  visitor;
-- emails the team's reply to the visitor when they are no longer on the website,
-  using the address they gave the chatbot.
+- refuses a sender not allowed for that copy (not a listed team sender, or not the
+  visitor's address); the Worker bounces it so the sender knows;
+- strips quoted text and signatures (Gmail, Outlook, Apple Mail; English and French)
+  and posts the reply as the agent (the chatbot persona if nobody was online) or as
+  the visitor;
+- emails the team's reply to a visitor who has left, at the address they gave.
 
-An Odoo outage makes the Worker fail temporarily, so the sending mail server
-retries. Chatbot leads no longer trigger Odoo's separate "You have been
-assigned" email, because the chat email already links the lead.
+During an Odoo outage the Worker fails temporarily and the sending server retries.
+Chatbot leads skip Odoo's "You have been assigned" email; the chat email links the
+lead.
 
 ## Changes and recovery
 
-Take a database dump before changing the add-on or the CRM configuration
-(`kubectl -n corp exec deploy/odoo -c odoo -- pg_dump …`, or the nightly archive
-in [operations](../operations.md#backups-and-recovery)). Uninstalling CRM or Live Chat
-does not restore the earlier schema, so recovery means restoring that dump.
+Take a database dump before changing the add-on or CRM configuration
+(`kubectl -n corp exec deploy/odoo -c odoo -- pg_dump …`, or the nightly archive in
+[operations](../operations.md#backups-and-recovery)). Uninstalling CRM or Live Chat
+does not restore the earlier schema; recovery means restoring the dump.
 
-To stop lead intake, archive the integration user in Odoo (its keys stop
-working) and remove the website's pod label. To hide the chat, archive the
-channel's rule or remove the widget from the website.
+To stop lead intake, archive the integration user (its keys stop working) and remove
+the website's pod label. To hide the chat, archive the channel's rule or remove the
+widget from the website.
 
 ## Related Guides
 

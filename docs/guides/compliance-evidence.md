@@ -1,35 +1,31 @@
 # Compliance Evidence
 
 Swirl Cloud evaluates a catalog of platform controls continuously and maps each
-one to the requirements it supports in NIS2 (Article 21(2) and 23), ISO/IEC
-27001:2022 Annex A, DORA, GDPR (Articles 28, 32 and 33) and the CIS Kubernetes
-and Ubuntu benchmarks. The platform proves the technical controls from live
-telemetry; the organization supplies the documents for the rest. Use it to
-answer customer security questionnaires, prepare an audit and notice when a
-control stops working.
+to NIS2 (Article 21(2) and 23), ISO/IEC 27001:2022 Annex A, DORA, GDPR (Articles
+28, 32 and 33) and the CIS Kubernetes and Ubuntu benchmarks. Live telemetry
+proves the technical controls; the organization supplies documents for the rest.
+Use it for security questionnaires, audit preparation and spotting a control that
+stopped working.
 
-The evidence supports an audit; it does not certify compliance. Scope,
-risk assessment and the organizational measures remain the organization's
-responsibility.
+The evidence supports an audit; it does not certify compliance. Scope, risk
+assessment and organizational measures remain the organization's job.
 
 ## The control catalog
 
 [`k8s/files/compliance-controls.yaml`](../../k8s/files/compliance-controls.yaml)
 lists each control with its objective, framework mappings, automated checks and
-the manual evidence an auditor will ask for. Each automated check has two
-Prometheus queries:
+the manual evidence an auditor will ask for. Each check has two Prometheus
+queries:
 
 | Query | Meaning |
 | --- | --- |
 | `present` | Must return data: proves the evidence source exists and reports. |
 | `failing` | Returns data only while the control is not met. Existing alerts are reused (`ALERTS{alertname=...}`), so thresholds live in one place. |
 
-A check **passes** when evidence is present and nothing is failing, **fails**
-when anything is failing and reports **no evidence** otherwise. A control takes
-the worst status of its checks; controls without checks are **manual**.
-
-Helm turns the catalog into Prometheus recording rules on every sync, so
-Prometheus evaluates the controls every 15 seconds:
+A check **passes** when evidence is present and nothing fails, **fails** when
+anything fails, and otherwise has **no evidence**. A control takes its worst
+check; controls without checks are **manual**. Helm turns the catalog into
+recording rules on every sync, evaluated every 15 seconds:
 
 | Series | Value |
 | --- | --- |
@@ -43,30 +39,30 @@ Prometheus evaluates the controls every 15 seconds:
 ## Dashboard and drift alerts
 
 Grafana's **Compliance Evidence** dashboard (Applications folder) shows the
-passing share per framework, every control and check needing attention, the
-requirement coverage per framework and the controls proven only by documents.
+passing share and requirement coverage per framework, every control and check
+needing attention, and the controls proven only by documents.
 
-`ComplianceControlRegressed` fires when a control has been worse than its usual
-state (the median of the last six hours) for 30 minutes, for example a firewall turned off,
-a backup that stopped or a vulnerability baseline exceeded. Standing failures
-stay visible on the dashboard without paging repeatedly.
+`ComplianceControlRegressed` fires when a control has been worse than its
+six-hour median for 30 minutes, for example a firewall turned off, a backup that
+stopped or a vulnerability baseline exceeded. Standing failures stay on the
+dashboard without paging again.
 
 ## Reports and evidence packs
 
 ```bash
 ./install.sh --compliance                       # status per framework and control
-./install.sh --compliance --framework nis2      # one framework
-./install.sh --compliance --format markdown     # report to paste or print
+./install.sh --compliance --framework nis2      # one framework (nis2, iso27001, dora, gdpr, cis)
+./install.sh --compliance --format markdown     # report to paste or print (or json)
 ./install.sh --compliance --evidence-pack       # private archive for an auditor
 ./install.sh --compliance --evidence-pack --sign-key ~/.ssh/id_ed25519
 ```
 
-The setup hub offers the same under **Maintenance → Compliance report and
-evidence pack**. `--strict` exits non-zero when a control fails or lacks
-evidence, for use in scheduled checks.
+The setup hub has the same under **Maintenance → Compliance report and evidence
+pack**. `--strict` exits non-zero when a control fails or lacks evidence, for
+scheduled checks.
 
-The evidence pack is written to `~/.local/state/swirl-cloud/compliance/` with
-mode `0600` and contains:
+The pack is written to `~/.local/state/swirl-cloud/compliance/` (`--output-dir`)
+with mode `0600`:
 
 | File | Content |
 | --- | --- |
@@ -78,9 +74,8 @@ mode `0600` and contains:
 | `context/access-review.json` | With `--access-review`: the [access review](#access-reviews) at the time of the pack. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature over the manifest. |
 
-No Kubernetes Secret is read. Generate a pack at least monthly and store it
-with the period's manual evidence; Prometheus keeps only recent history, so the
-archived packs are the long-term record.
+No Kubernetes Secret is read. Prometheus keeps only recent history, so generate a
+pack at least monthly and archive it with the period's manual evidence.
 
 ## Access reviews
 
@@ -89,36 +84,38 @@ archived packs are the long-term record.
 ./install.sh --access-review --output-dir ~/access-reviews  # review sheets (.md, .csv, .json)
 ```
 
-The review lists every identity and what it can do: Keycloak users in every
-realm with groups, effective roles and last recorded login; GitLab users with
-the administrator flag, two-factor status, last activity and group or project
-memberships; Kubernetes users, groups and ServiceAccounts bound to
-`cluster-admin`, `admin` or `edit`; Argo CD role mappings and local accounts;
-and the local break-glass administrators. It flags administrators, disabled or
-blocked accounts that keep memberships, accounts without activity for 90 days,
-missing two-factor authentication where GitLab does not require it, and
-non-system ServiceAccounts with `cluster-admin`. Keycloak and GitLab are read
-through their own in-pod administration tools, so no Kubernetes Secret is read.
+The review lists every identity and what it can do:
 
-Owners mark each identity **Keep** or **Revoke** in the sheet, the revocations
-are applied, and the signed sheet is the evidence for the `access-review`
-control. Run it at least quarterly and when people leave. Inactivity relies on
-Keycloak's stored login events (90 days), so it becomes reliable 90 days after
-event storage started. Vault policies and Grafana roles follow the Keycloak
-groups shown in the sheet.
+- Keycloak users in every realm: groups, effective roles, last recorded login.
+- GitLab users: administrator flag, two-factor status, last activity, group and
+  project memberships.
+- Kubernetes users, groups and ServiceAccounts bound to `cluster-admin`, `admin`
+  or `edit`.
+- Argo CD role mappings and local accounts, and the local break-glass
+  administrators.
+
+It flags administrators, disabled or blocked accounts that keep memberships,
+accounts idle for 90 days, missing GitLab two-factor where GitLab does not
+require it, and non-system ServiceAccounts with `cluster-admin`. Keycloak and
+GitLab are read with their in-pod admin tools, so no Kubernetes Secret is read.
+
+Owners mark each identity **Keep** or **Revoke**, the revocations are applied,
+and the signed sheet is the `access-review` control's evidence. Run it at least
+quarterly and when people leave. Inactivity uses Keycloak's stored login events
+(90 days), so it is reliable only 90 days after event storage started. Vault
+policies and Grafana roles follow the Keycloak groups in the sheet.
 
 ## Records of processing
 
 `./install.sh --processing-records > records.md` drafts the GDPR Article 30
-register from the running platform. For each application deployed through Argo
-CD it lists environments, the `swirl-cloud.io/owner` and
-`swirl-cloud.io/data-classification` labels, public endpoints, the data services
-and external processors found in its credential names (never values) and its
-persistent volumes; it adds the platform's own activities (identity, GitLab,
-logs and audit, Odoo), where processing runs and the retention the platform
-applies. Purposes, data subjects, legal bases, recipients and erasure deadlines
-are left in brackets for the controller. Regenerate it when applications change
-and keep the completed version with the period's evidence.
+register from the running platform. For each Argo CD application it lists
+environments, the `swirl-cloud.io/owner` and `swirl-cloud.io/data-classification`
+labels, public endpoints, data services and external processors found in its
+credential names (never values) and persistent volumes. It adds the platform's
+own activities (identity, GitLab, logs and audit, Odoo), where processing runs
+and the retention applied. Purposes, data subjects, legal bases, recipients and
+erasure deadlines are left in brackets for the controller. Regenerate it when
+applications change and keep the completed version with the period's evidence.
 
 ### Verify a pack
 
@@ -130,8 +127,8 @@ scripts/compliance-report.py --verify swirl-cloud-evidence-<time>.tar.gz \
   --allowed-signers allowed_signers --signer evidence
 ```
 
-Verification fails when a file was changed, added or removed, or when the
-signature does not match the manifest.
+Verification fails when a file was changed, added or removed, or the signature
+does not match the manifest.
 
 ## Change the catalog
 
@@ -139,9 +136,9 @@ signature does not match the manifest.
    `failing` query; otherwise write a query that returns series only while the
    control is not met.
 2. Run `./scripts/validate-repository.sh`; it renders the generated rules with
-   the rest of the chart.
-3. After the sync, run `./install.sh --compliance` and check the new control on
-   the dashboard.
+   the chart.
+3. After the sync, run `./install.sh --compliance` and check the control on the
+   dashboard.
 
 Record an accepted exception (for example a benchmark check that does not apply)
 by narrowing the `failing` query and naming the owner, rationale and review date

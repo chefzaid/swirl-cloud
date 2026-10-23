@@ -1,18 +1,16 @@
 # Swirl Cloud Platform
 
-Build and operate your organization's private cloud on bare-metal infrastructure.
-This K3s platform brings application delivery, identity, networking, storage,
-databases, observability, security and Odoo together under your own domain.
-Automated installation and GitOps keep the platform repeatable as it grows.
+A private cloud for your organization on bare-metal servers: K3s with application
+delivery, identity, storage, databases, observability, security and Odoo under your
+own domain, installed by script and kept in sync with GitOps.
 
 [![K3s](https://img.shields.io/badge/K3s-1.36-yellow.svg)](https://k3s.io/)
 [![Argo CD](https://img.shields.io/badge/Argo%20CD-3.5-orange.svg)](https://argo-cd.readthedocs.io/)
 [![Traefik](https://img.shields.io/badge/Traefik-3.7-blue.svg)](https://traefik.io/)
 [![License](https://img.shields.io/badge/License-GPL%203.0-lightgrey.svg)](LICENSE)
 
-Supply your company name during installation to present the portal as
-**`<company name> Cloud`**. Company identity, domains and deployment settings are
-configuration inputs; no organization is built into the platform.
+The portal is titled **`<company name> Cloud`** from the name you enter at
+installation; no organization, domain or deployment setting is built in.
 
 ## Get Started
 
@@ -24,31 +22,29 @@ On the first Ubuntu control-plane host, review the
 ```
 
 The setup hub checks the host, asks only what an express installation needs (or
-every input under Advanced), tests your Cloudflare, GitHub and Tailscale tokens,
-installs, and verifies the result. It also adds servers and imports
-repositories. Saved answers drive unattended reruns with
-`./install.sh --env-file ~/.config/swirl-cloud/install.env`, and
+every input under Advanced), tests your credentials, installs and verifies the
+result. It also adds servers and imports repositories. Saved answers drive
+unattended reruns with `./install.sh --env-file ~/.config/swirl-cloud/install.env`;
 `./install.sh --status` verifies an installed platform. Open
 `https://cloud.<your-domain>` for the service catalog. The
-[deployment guide](docs/deployment.md) also covers unattended setup, Ansible,
+[deployment guide](docs/deployment.md) covers unattended setup, Ansible,
 reconciliation and application environments.
 
 ## How It Fits Together
 
 Cloudflare routes public traffic to Traefik. K3s runs shared platform services in
 `infra`, application workloads in `apps`, and centrally managed Odoo in `corp`.
-Longhorn supplies persistent storage; Vault and External Secrets supply credentials.
-One shared GitLab provides source, CI and the registry; one central Argo CD
-reconciles deployments from Git. Run `int`, `uat` and `prod` in separate namespaces
-on the same cluster, or give an environment its own application cluster. See the
+Longhorn supplies storage; Vault and External Secrets supply credentials. One
+shared GitLab provides source, CI and the registry; one central Argo CD reconciles
+deployments from Git. `int`, `uat` and `prod` run in separate namespaces on the same
+cluster, or an environment gets its own application cluster. See the
 [architecture overview](docs/architecture.md).
 
-Application repositories own their manifests, pipelines and Argo CD Applications.
-Use [`add-repos.sh`](docs/guides/repository-onboarding.md) to import and onboard
-them; the [application contract](docs/guides/application-onboarding.md) defines the
-integration. Adding nodes and enabling service availability are separate
-operations: see [node enrollment](docs/guides/node-enrollment.md) and
-[high availability](docs/guides/high-availability.md).
+Application repositories own their manifests, pipelines and Argo CD Applications;
+[`add-repos.sh`](docs/guides/repository-onboarding.md) imports and onboards them
+under the [application contract](docs/guides/application-onboarding.md). Adding
+nodes ([node enrollment](docs/guides/node-enrollment.md)) and enabling
+[high availability](docs/guides/high-availability.md) are separate operations.
 
 ## Documentation
 
@@ -65,22 +61,28 @@ operations: see [node enrollment](docs/guides/node-enrollment.md) and
 
 Specialized procedures:
 
-- [Node enrollment and private networking](./docs/guides/node-enrollment.md)
-- [High availability](./docs/guides/high-availability.md), [PostgreSQL HA](./docs/guides/postgres-ha.md), [Kafka HA](./docs/guides/kafka-ha.md) and [node fencing](./docs/guides/node-fencing.md)
-- [Platform migration to Traefik and upstream images](./docs/guides/platform-migration.md)
-- [Repository onboarding](./docs/guides/repository-onboarding.md) and the [application onboarding contract](./docs/guides/application-onboarding.md)
-- [Compliance evidence](./docs/guides/compliance-evidence.md) for NIS2, ISO/IEC 27001, DORA, GDPR and CIS
-- [Cost showback](./docs/guides/cost-showback.md) per environment, namespace and workload
-- [Alert runbooks](./docs/guides/alert-runbooks.md) for every platform alert
-- [Service levels](./docs/guides/service-levels.md): availability objectives and burn-rate alerts for every public endpoint, and an outage watch from outside the cluster
-- [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance kept for 13 months
-- [Capacity planning](./docs/guides/capacity-planning.md): requested and used capacity, server-loss headroom and what to add
-- [Security detection](./docs/guides/security-detection.md): alerts on suspicious logins, permission changes and Secret access
-- [External services](./docs/guides/external-services.md): every outside service the platform contacts and what it receives
-- [Incident response](./docs/guides/incident-response.md): incident record, evidence report and NIS2/GDPR deadlines
-- [Releases](./docs/guides/releases.md): versioning, changelog, SBOM and signed release bundles
-- [Odoo website integration](./docs/guides/odoo-website.md): contact inquiries as CRM leads and Live Chat with an out-of-hours chatbot
-- [Platform mail](./docs/guides/platform-mail.md): alerts by email, Keycloak password resets, GitLab notifications and Odoo mail through one SMTP relay
+- [Node enrollment](./docs/guides/node-enrollment.md): adding servers and private networking
+- [High availability](./docs/guides/high-availability.md): the multi-server HA profile
+- [PostgreSQL HA](./docs/guides/postgres-ha.md): replicated PostgreSQL
+- [Kafka HA](./docs/guides/kafka-ha.md): three-node Kafka quorum
+- [Node fencing](./docs/guides/node-fencing.md): recovering single-writer services after a host failure
+- [Platform migration](./docs/guides/platform-migration.md): move to Traefik and upstream images
+- [Repository onboarding](./docs/guides/repository-onboarding.md): import and deploy repositories
+- [Application onboarding](./docs/guides/application-onboarding.md): the application contract
+- [Alert runbooks](./docs/guides/alert-runbooks.md): response for every platform alert
+- [Service levels](./docs/guides/service-levels.md): availability objectives and outage watch
+- [Capacity planning](./docs/guides/capacity-planning.md): headroom and what to add
+- [Cost showback](./docs/guides/cost-showback.md): cost per environment and workload
+- [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance
+- [Compliance evidence](./docs/guides/compliance-evidence.md): NIS2, ISO/IEC 27001, DORA, GDPR and CIS
+- [Security detection](./docs/guides/security-detection.md): alerts on suspicious activity
+- [Incident response](./docs/guides/incident-response.md): incident records and NIS2/GDPR deadlines
+- [External services](./docs/guides/external-services.md): what leaves the platform
+- [Platform mail](./docs/guides/platform-mail.md): one SMTP relay for platform email
+- [Odoo website](./docs/guides/odoo-website.md): website leads and Live Chat
+- [Releases](./docs/guides/releases.md): versioning, SBOM and signed bundles
+- [September 2026 service upgrades](./docs/guides/service-upgrades-2026-09.md): upgrade record
+- [October 2026 service upgrades](./docs/guides/service-upgrades-2026-10.md): upgrade record
 
 ## Roadmap
 

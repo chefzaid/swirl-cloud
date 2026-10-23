@@ -1,22 +1,18 @@
 # Application Onboarding Contract
 
-Applications opt into `add-repos.sh` by committing `infra/onboarding.json`.
-This reference is for application authors; the
-[operator guide](repository-onboarding.md) covers setup credentials and reruns.
-Contracts declare supported platform operations without running repository
-scripts or playbooks. Swirl Demo App uses version 2 for delivery to local or remote environment namespaces;
-version 1 remains compatible with existing applications in `apps`. Follow the
-[namespace and discovery contract](../operations.md#namespace-and-discovery).
+Applications opt into `add-repos.sh` by committing `infra/onboarding.json`, which
+declares supported platform operations; repository scripts and playbooks are never
+run. This page is for application authors; operators use
+[repository onboarding](repository-onboarding.md). Version 2 (Swirl Demo App)
+delivers to environment namespaces; version 1 remains for existing apps in `apps`.
+See also the [namespace and discovery contract](../operations.md#namespace-and-discovery).
 
 ## Shared-platform contract (version 2)
 
-The application has one default branch, one `.gitlab-ci.yml`, one registry and
-one Argo CD template at `infra/argocd/application.yaml`. The template is an input,
-not a deployable environment: CI renders `infra/argocd/<env>.yaml` and
-`infra/environments/<env>/` for the selected registered cluster. Runtime resources
-stay in the application repository. Shared services stay on the platform.
-
-Version 2 uses the common fields below and adds this declaration:
+The application has one default branch, one `.gitlab-ci.yml`, one registry and the
+Argo CD template `infra/argocd/application.yaml`. CI renders
+`infra/argocd/<env>.yaml` and `infra/environments/<env>/` from it for the selected
+registered cluster. Version 2 uses the common [fields](#fields) plus exactly:
 
 ```json
 {
@@ -30,115 +26,92 @@ Version 2 uses the common fields below and adds this declaration:
 }
 ```
 
-This is the current Swirl Demo App service contract; other applications keep version 1
-until their delivery and runtime support are explicitly migrated. Version 2
-does not accept arbitrary bootstrap resources or administrator Vault paths.
-The template selects `infra/k8s` or `infra/overlays/ha`; the latter supplies the
-initial replica profile. No application source code is changed during onboarding.
+It rejects `bootstrap`, `vault` and a `DEPLOYMENT_ENVIRONMENT` pipeline variable.
+The template selects `infra/k8s` or `infra/overlays/ha` (initial replica profile).
+Other apps stay on version 1 until migrated; onboarding changes no source code.
 
-Onboarding reads the authoritative registered inventory from the central
-`infra/deployment-environments` ConfigMap and commits a public copy. Per-target
-`settings.json` contains the shared `appSubdomain` and target-specific
-`trustedProxyCIDRs` and `highAvailability`. Credentials and kubeconfigs never
-enter Git. The shared platform domain, identity realm and existing target
-bindings must match; a cluster migration is a deliberate operation.
-Reruns also reject a changed saved `appSubdomain`: hostname migration must
-preserve DNS and login callbacks for environments still running their pinned release.
+Onboarding commits a public copy of the central `infra/deployment-environments`
+ConfigMap inventory. Per-target `settings.json` holds the shared `appSubdomain` plus
+`trustedProxyCIDRs`, `highAvailability` and optional `databaseName`; credentials and
+kubeconfigs never enter Git. Platform domain, realm and existing target bindings
+must match (cluster migration is deliberate). Reruns reject a changed saved
+`appSubdomain`, since pinned environments still need their DNS and login callbacks.
 
-Each selected Application must use `applications-<env>`, the registered cluster
-name and namespace, and a full Git commit for its runtime source. CI must
-expose an `int`/`uat`/`prod` selector, default to `int`, update only that
-Application, and verify the destination, images and exact revision after sync.
-Integration may deploy branch snapshots; `uat` and `prod` require finalized
-releases. Project-scoped runners and Application admission rules enforce the
-integration/protected-release boundary described in [delivery](../deployment.md#application-delivery).
-The final pointer commit carries the onboarding trailers described below;
-the pinned runtime commit precedes it. Onboarding verifies both commits and
-checks Deployment readiness on the selected cluster.
+- Each Application uses `applications-<env>`, the registered cluster name and
+  namespace, and a full Git commit for its runtime source.
+- CI offers an `int`/`uat`/`prod` selector (default `int`), updates only that
+  Application and verifies destination, images and exact revision after sync.
+- `int` may deploy branch snapshots; `uat`/`prod` need finalized releases, enforced
+  by runners and admission rules ([delivery](../deployment.md#application-delivery)).
+- The final pointer commit carries the [trailers](#required-delivery-behavior) and
+  follows the pinned runtime commit; onboarding verifies both and Deployment
+  readiness.
 
-One registry credential serves all environments. PostgreSQL, Redis and Kafka
-credentials live under `apps/<app>/<env>/{database,redis,kafka}` in central Vault;
-the target's `kubernetes-<env>` auth mount cannot read another environment or
-platform administrator paths. Browser clients use `<app>-<env>-web` in the same
-shared Keycloak realm, with exact environment callbacks and matching JWT audiences.
-[Repository onboarding](repository-onboarding.md#environment-deployment) owns the operator flow.
+One registry credential serves all environments. Data credentials live in central
+Vault at `apps/<app>/<env>/{database,redis,kafka}`; the `kubernetes-<env>` auth mount
+cannot read other environments or admin paths. Browser clients use `<app>-<env>-web`
+in the shared realm, with exact callbacks and matching JWT audiences. Operator flow:
+[environment deployment](repository-onboarding.md#environment-deployment).
 
 ## Shared application data
 
-There is one shared PostgreSQL service, with separate logical databases and
-restricted logins such as `swirl_demo_app_int`, `swirl_demo_app_uat` and `swirl_demo_app_prod`. Redis is
-one shared cache with environment-prefixed keys and ACL users; Kafka is one
-shared cluster with environment-prefixed topics/groups and SCRAM credentials.
-No data service is installed on an application target.
+| Service | Sharing model |
+|---|---|
+| PostgreSQL | One service; per-environment databases and logins (`swirl_demo_app_int`, `_uat`, `_prod`). |
+| Redis | One cache; environment-prefixed keys and ACL users. |
+| Kafka | One cluster; environment-prefixed topics/groups and SCRAM credentials. |
 
-Redis ACLs restrict value access and writes to each environment's key prefix.
-The `KEYS`/`SCAN` commands needed for cache eviction can still list names from
-other environments in the shared cache; key names must not contain secrets or
-personal data. `INFO` is allowed for client health checks and exposes server
-statistics. This is value isolation, not complete metadata isolation.
+No data service runs on an application target. Redis ACLs isolate values, not
+metadata: `KEYS`/`SCAN` (for eviction) list other environments' key names and `INFO`
+shows server stats, so key names must not hold secrets or personal data.
 
-Environment data isolation requires authenticated Redis and Kafka. For an existing
-platform with anonymous Redis clients, first prepare a compatibility credential
-without changing their current access:
+Isolation requires authenticated Redis and Kafka. With anonymous Redis clients:
 
-```bash
-python3 scripts/configure-application-data.py \
-  --config /secure/deployment-environments.yaml --prepare-legacy-auth
-```
+1. Stage a compatibility credential (current access unchanged):
 
-Migrate legacy consumers to `infra/application-redis-legacy-auth` (username and
-password). OAuth2 Proxy and DBGate read that optional Secret automatically after
-rollout. Application owners supply it through their existing runtime configuration.
-This compatibility user retains the trusted legacy clients' existing access;
-new environments always receive restricted users. Verify client reconnects before
-enabling authentication. Then prepare the final ACL profile:
+   ```bash
+   python3 scripts/configure-application-data.py \
+     --config /secure/deployment-environments.yaml --prepare-legacy-auth
+   ```
 
-```bash
-KUBECONFIG=/secure/platform.yaml python3 scripts/configure-application-data.py \
-  --config /secure/deployment-environments.yaml \
-  --prepare-auth --legacy-clients-migrated \
-  --output-values /secure/application-data-values.yaml
-```
+2. Move legacy consumers to Secret `infra/application-redis-legacy-auth`. OAuth2
+   Proxy and DBGate read it after rollout; app owners wire it into runtime config.
+   Verify clients reconnect. New environments always get restricted users.
+3. Prepare the ACL profile (credentials only; no port or listener change). It writes
+   the public [profile](../../config/application-data-values.yaml) outside the
+   checkout and never overwrites a file. The admin password stays at Vault
+   `infra/application-redis`.
 
-That command prepares credentials; it does not expose ports or change a running
-Redis listener. The platform administrator password stays at Vault `infra/application-redis`;
-applications never receive it. Enable the generated
-[application-data profile](../../config/application-data-values.yaml). Its broker
-endpoints come directly from the inventory. Application consumers receive separate scoped
-users, never this platform password. The staged compatibility credential keeps migrated clients working during
-authentication activation. The helper writes the public profile outside
-the checkout and refuses to overwrite an existing file. Reconcile through the
-existing platform installer:
+   ```bash
+   KUBECONFIG=/secure/platform.yaml python3 scripts/configure-application-data.py \
+     --config /secure/deployment-environments.yaml \
+     --prepare-auth --legacy-clients-migrated \
+     --output-values /secure/application-data-values.yaml
+   ```
 
-```bash
-PLATFORM_HA_VALUES_FILE=/secure/application-data-values.yaml ./install-control-plane.sh
-```
+4. Run `PLATFORM_HA_VALUES_FILE=/secure/application-data-values.yaml
+   ./install-control-plane.sh`. This does not enable HA; later runs keep data auth
+   and reject an implicit downgrade.
 
-This profile does not enable platform HA. Subsequent installer/Ansible runs retain
-the enabled data authentication settings and reject an implicit downgrade. The gateway remains closed until
-`configure-application-data.py --config ... --check` verifies authenticated Redis
-and the expected Kafka remote listeners on every broker.
+The gateway stays closed until `configure-application-data.py --config ... --check`
+verifies authenticated Redis and the Kafka remote listeners on every broker.
 
-Onboarding creates fresh logical databases automatically. Existing production
-`swirl_demo_app_db` is never dropped, emptied or silently re-owned. To retain it, first
-perform a reviewed ownership migration to the dedicated application role and
-store that role's matching credentials at `apps/swirl-demo-app/prod/database`. Then set
-`"databaseName": "swirl_demo_app_db"` in the production `settings.json` and rerun onboarding.
-The helper's `--adopt-existing-database` check refuses missing ownership or
-credentials. This explicit override keeps CI pointed at the adopted database;
-other targets continue using their separate databases.
+Onboarding creates fresh databases and never drops, empties or re-owns the existing
+production `swirl_demo_app_db`. To keep it: migrate ownership to the app role
+(reviewed), store its credentials at `apps/swirl-demo-app/prod/database`, set
+`"databaseName": "swirl_demo_app_db"` in the production `settings.json`, and rerun.
+The `--adopt-existing-database` check refuses missing ownership or credentials.
 
 ## Single-target compatibility (version 1)
 
-Existing version 1 applications declare one local Application, with a
-repository-local Kustomize directory or Helm chart using its defaults. The
-AppProject must permit its repository and destination. External charts,
-multi-source Applications and custom source overrides are unsupported.
+One local Application with a repository-local Kustomize directory or Helm chart
+(defaults only); the AppProject must permit its repository and destination.
+External charts, multi-source Applications and source overrides are unsupported.
 
 ## Onboarding declaration
 
-This generic example assumes an Application named `catalog`, a Kustomize source
-at `infra/k8s`, and app-owned CI jobs named `verify` and `release`:
+Example: Application `catalog`, Kustomize at `infra/k8s`, CI jobs `verify` and
+`release`:
 
 ```json
 {
@@ -163,130 +136,104 @@ at `infra/k8s`, and app-owned CI jobs named `verify` and `release`:
 }
 ```
 
-Adapt the explicit files and mappings to the application. Image settings must
-cover both workload manifests and later release helpers. Hostname changes may
-also require browser configuration, redirects, allowed origins and build-time
-canonical URLs. Test first rendering and a changed-context rerun against the
-app's actual pipeline and rendered manifests.
+Image settings must cover manifests and release helpers; hostname changes may touch
+redirects, allowed origins and build-time URLs. Test a first render and a
+changed-context rerun against the real pipeline.
 
 ## Fields
 
 | Field | Contract |
 |---|---|
-| `version` | `1` for the compatibility flow, `2` for shared-platform environment delivery; unknown fields are rejected. |
-| `application` | Version 1 deploys the declared default-branch Application into local `apps`. Version 2 uses it only as the source/HA template described above. |
-| `inputs` | Unique `name` values with optional `label`, `type`, `default`, `required` and `secret`. Declare `APP_SUBDOMAIN` to derive `APP_HOST`. |
-| `files` | Unique, explicit local public files. No symlinks, paths outside the checkout, credential files, contract or saved-settings file. |
-| `replacements` | Literal `from` text and a `to` template; simultaneous longest-match replacement uses prior rendered bindings on reruns. |
-| `registry` | Required Vault `path` for verified `read_registry`/`read_repository` credentials, also projected into Argo CD through External Secrets. |
-| `vault` | Optional list of `path` and `fields` maps; each field declares exactly one of `generate`, `value` or `input`. |
-| `keycloak` | Optional `{"realm":"{{KEYCLOAK_REALM}}","file":"infra/keycloak/production-client.json"}` for a production public OIDC/PKCE client; add its file to `files` when it needs rendering. |
-| `bootstrap` | Optional YAML files containing only `Namespace`, `Role`, `RoleBinding` or `ExternalSecret` resources in `apps`/`infra`. Namespace creation is limited to `apps`; use explicit resource namespaces. No workloads. |
-| `dns` | Unique exact `hosts` in the selected public zone. Every rendered Ingress hostname must be declared; wildcards are unsupported. |
-| `pipeline` | Public `variables` include `APP_ONBOARDING: "true"`; `jobs` lists required automatic delivery jobs. The platform supplies reserved `ONBOARDING_EXPECTED_SHA` and `ONBOARDING_RUN_ID`. |
-| `readiness` | `deployments` lists names to verify in `apps` after Application `Synced`/`Healthy` status. |
+| `version` | `1` or `2`; unknown fields are rejected. |
+| `application` | Version 1 deploys this default-branch Application into local `apps`; version 2 uses it as the template. |
+| `inputs` | Unique `name` with optional `label`, `type`, `default`, `required`, `secret`. `APP_SUBDOMAIN` derives `APP_HOST`. |
+| `files` | Unique, explicit local public files. No symlinks, outside paths, credential files, contract or saved settings. |
+| `replacements` | Literal `from` and a `to` template; simultaneous longest-match, reusing prior bindings on reruns. |
+| `registry` | Required Vault `path` for verified `read_registry`/`read_repository` credentials, also projected into Argo CD via External Secrets. |
+| `vault` | Optional `path` + `fields`; each field has exactly one of `generate`, `value`, `input`. |
+| `keycloak` | Optional `{"realm":"{{KEYCLOAK_REALM}}","file":"infra/keycloak/production-client.json"}` for a production public OIDC/PKCE client; list the file in `files` to render it. |
+| `bootstrap` | Optional YAML with only `Namespace` (`apps` only), `Role`, `RoleBinding`, `ExternalSecret` in `apps`/`infra`, explicit namespaces. No workloads. |
+| `dns` | Unique exact `hosts` in the public zone covering every rendered Ingress host; no wildcards. |
+| `pipeline` | `variables` include `APP_ONBOARDING: "true"`; `jobs` lists required automatic jobs. Reserved: `ONBOARDING_EXPECTED_SHA`, `ONBOARDING_RUN_ID`. |
+| `readiness` | `deployments` checked in `apps` after the Application is `Synced`/`Healthy`. |
 
-Input types are `string`, `subdomain` and `cidrs`. `subdomain` accepts one DNS label
-or `@`; only `APP_SUBDOMAIN` converts `@` to the zone apex. An alias constructed as
-`{{ALIAS}}.{{PUBLIC_DOMAIN}}` needs a real label. `cidrs` accepts comma-separated IP
-networks. Inputs are required unless `required:false` is declared. Public defaults
-can reference context values; previous choices are offered on reruns.
+Input types: `string`, `subdomain` (one label or `@`) and `cidrs` (comma-separated
+networks). Only `APP_SUBDOMAIN` maps `@` to the apex, so an alias such as
+`{{ALIAS}}.{{PUBLIC_DOMAIN}}` needs a real label. Inputs are required unless
+`required:false`; defaults may use context values and reruns offer prior choices.
 
-Use `secret:true`, `required:false`, `default:""` for a hidden credential input
-that can retain an existing value. Reference it only through a Vault field, such
-as `"API_KEY":{"input":"PROVIDER_API_KEY"}`. Empty input retains an existing
-credential; a missing required Vault value still stops setup. An optional feature
-can seed an empty literal until deliberately enabled. Secret placeholders never
-belong in public files, replacements or pipeline variables.
+A hidden credential that keeps its stored value uses `secret:true`,
+`required:false`, `default:""` and appears only in a Vault field, e.g.
+`"API_KEY":{"input":"PROVIDER_API_KEY"}`. Empty input keeps the stored value; a
+missing required value stops setup. Secrets never go in files, replacements or
+pipeline variables.
 
-Registry/Vault paths must stay under `apps/<Application-name>/`. `generate`
-requests 16–256 random bytes before `hex` or `base64` encoding. Literal `value`
-fields are string defaults. Version-checked writes merge missing fields and
-retain existing/unrelated values; a different supplied credential fails instead
-of rotating it. Deleted versions require explicit recovery. Invalid registry
-credentials can be replaced while prior tokens remain available for consumer
-refresh; changing a declaration does not rotate a populated Vault value.
+Registry/Vault paths stay under `apps/<Application-name>/`. `generate` takes 16-256
+random bytes, `hex` or `base64`; `value` is a literal default. Writes are
+version-checked and only add missing fields: a different supplied credential fails
+rather than rotating, changed declarations never rotate populated values, and
+deleted versions need explicit recovery. Invalid registry credentials can be
+replaced while prior tokens stay valid.
 
-An optional Keycloak file must define a public HTTPS OIDC client using
-Authorization Code with PKCE `S256`, limited to declared app hosts. Password,
-implicit and service-account grants are disabled. The helper verifies realm,
-client ownership and scopes, then reconciles supported scopes and group/audience
-mappers. It does not import demonstration realms, users or secrets.
+The Keycloak file must define a public HTTPS client using Authorization Code with
+PKCE `S256`, limited to declared hosts; password, implicit and service-account
+grants are disabled. The helper verifies realm, ownership and scopes, then
+reconciles scopes and group/audience mappers. It never imports demo realms, users or
+secrets.
 
 ## Public rendering context
 
 | Values | Meaning |
 |---|---|
-| `PUBLIC_DOMAIN`, `INTERNAL_DNS_ZONE`, `TLS_SECRET_NAME` | Platform public zone, private service zone and shared TLS Secret name. |
-| `APP_SUBDOMAIN`, `APP_HOST` | Declared primary label and computed public hostname. |
+| `PUBLIC_DOMAIN`, `INTERNAL_DNS_ZONE`, `TLS_SECRET_NAME` | Public zone, private service zone, shared TLS Secret. |
+| `APP_SUBDOMAIN`, `APP_HOST` | Declared label and computed public hostname. |
 | `GITLAB_PROJECT_PATH`, `GITLAB_PROJECT_ID`, `DEFAULT_BRANCH` | Imported destination identity and branch. |
-| `GITLAB_PUBLIC_URL`, `GITLAB_INTERNAL_URL`, `GITLAB_REPOSITORY_URL` | Stable public GitLab base, internal API base and internal clone URL; the temporary setup port-forward is not saved. |
-| `REGISTRY_HOST`, `REGISTRY_PUSH_HOST` | Public pull hostname and internal CI push endpoint. |
-| `GITHUB_OWNER`, `GITHUB_REPOSITORY` | Imported GitHub source identity. |
-| `KEYCLOAK_REALM` | Existing platform realm, discovered from the installed SSO issuer unless explicitly supplied. |
-| `POD_CIDR` | Platform pod network; supply the actual `K3S_CLUSTER_CIDR` if it differs from the default. |
-| `PLATFORM_SECURITY_PROJECT_PATH` | Shared helper-image project, discovered from the platform Application repository plus `/security`; independent of the app destination group. |
-| `SONAR_PROJECT_KEY` | GitLab project path with `/` converted to `:`. |
+| `GITLAB_PUBLIC_URL`, `GITLAB_INTERNAL_URL`, `GITLAB_REPOSITORY_URL` | Public base, internal API base, internal clone URL (setup port-forward not saved). |
+| `REGISTRY_HOST`, `REGISTRY_PUSH_HOST` | Public pull host and internal CI push endpoint. |
+| `GITHUB_OWNER`, `GITHUB_REPOSITORY` | Imported GitHub source. |
+| `KEYCLOAK_REALM` | Existing realm, from the SSO issuer unless supplied. |
+| `POD_CIDR` | Pod network, default `10.42.0.0/16`; set `K3S_CLUSTER_CIDR` if different. |
+| `PLATFORM_SECURITY_PROJECT_PATH` | Helper-image project: platform Application repository plus `/security`. |
+| `SONAR_PROJECT_KEY` | GitLab project path with `/` as `:`. |
 
-Explicit `PLATFORM_DOMAIN`, `INTERNAL_DNS_ZONE` and `KEYCLOAK_REALM` settings
-override discovery. Otherwise the installed `swirl-cloud` Application supplies
-Helm parameters, then `valuesObject`, then inline values. CoreDNS provides a
-private-zone fallback; OAuth2 Proxy's OIDC issuer provides public-domain and
-realm fallbacks. The private zone is never guessed from the public domain, and
-missing required settings stop deployment.
+Explicit `PLATFORM_DOMAIN`, `INTERNAL_DNS_ZONE` and `KEYCLOAK_REALM` win; then the
+installed `swirl-cloud` Application's Helm parameters, `valuesObject` and inline
+values; then CoreDNS and OAuth2 Proxy's issuer. The private zone is never guessed
+from the public domain; missing settings stop deployment. If
+`PLATFORM_SECURITY_PROJECT_PATH` is used and undiscoverable, interactive setup
+prompts and unattended setup requires it.
 
-Set `PLATFORM_SECURITY_PROJECT_PATH` to override helper-image discovery. If a
-contract uses it and discovery fails, interactive setup asks for the value;
-unattended setup requires it explicitly.
-
-Declared public inputs add context names and cannot override platform values.
+Inputs add context names but never override platform values.
 `infra/onboarding-values.json` stores version `1`, public `context` and `bindings`
-mapping original literals to their last rendered values. These public settings
-contain no secret inputs or credentials; the execution journal stays outside Git.
-Keep the settings with rendered configuration so later pipelines reuse them.
-Declare `spec.source.targetRevision: HEAD` in the source Application; omit revision
-text replacements so YAML-sensitive branch names remain strings. Rendering writes
-the actual default branch, GitLab URL and `infra` namespace while preserving the
-source path/profile. It accepts `HEAD`, the current default branch or the previous
-default branch recorded in saved settings; unrelated revisions are rejected.
+(original literal to last rendered value), never secrets; the journal stays outside
+Git. Declare `spec.source.targetRevision: HEAD` and no revision replacements.
+Rendering writes the real default branch, GitLab URL and `infra` namespace, keeping
+the source path/profile; it accepts `HEAD` or the current or saved default branch.
 Release jobs must preserve these choices.
 
 ## Required delivery behavior
 
-The default-branch pipeline must accept source `api` and automatically run its
-declared jobs with `APP_ONBOARDING=true`. Ordinary manual-release behavior remains
-independent of onboarding; source-analysis pipelines follow the separate
-[scanner contract](../operations.md#scanner-contract).
+The default-branch pipeline accepts source `api` and runs its declared jobs
+automatically with `APP_ONBOARDING=true`. Manual releases are unaffected;
+source-analysis follows the [scanner contract](../operations.md#scanner-contract).
 
-Before publication, validate that `CI_COMMIT_SHA` equals a valid
-`ONBOARDING_EXPECTED_SHA`, the branch is the default branch and source is `api`.
-Tools with Git should also verify their checkout and the current remote branch.
-Reject an advanced branch before changing desired state; an outdated onboarding
-run must not report deployment success. Configuration commits use `[skip ci]`,
-so the explicit onboarding pipeline owns first publication.
-
-The final GitOps commit created by an onboarding pipeline must include these
-trailers with the actual pipeline ID and source SHA:
+Before publishing, require `CI_COMMIT_SHA` to equal a valid `ONBOARDING_EXPECTED_SHA`,
+the default branch and source `api`. Reject an advanced branch before changing
+desired state. Configuration commits use `[skip ci]`, so the onboarding pipeline
+owns first publication. The final GitOps commit (branch tip) must carry:
 
 ```text
 Onboarding-Pipeline: <CI_PIPELINE_ID>
 Onboarding-Source: <CI_COMMIT_SHA>
 ```
 
-If release preparation creates several commits, put the trailers on the final
-branch tip. The helper verifies those identifiers and source ancestry before
-accepting that tip as a verified delivery output. Version 1 deploys that tip; version 2 reads its selected Application and verifies the preceding pinned runtime commit. `ONBOARDING_RUN_ID` identifies
-the API request for recovery after a lost response; do not override or persist
-it as public application configuration.
+The helper verifies these and source ancestry. Version 1 deploys the tip; version 2
+reads its selected Application and verifies the preceding pinned runtime commit.
+`ONBOARDING_RUN_ID` identifies the request for recovery after a lost response; never
+override or save it.
 
-The release pipeline publishes immutable images, commits their selection and
-applies the committed Application once prerequisites exist. That restores any
-temporarily paused automatic sync policy. CI waits for its intended revision and
-application-specific health checks. The generic helper then requires every
-declared job to succeed, checks Argo CD's exact release revision, and verifies
-Application/Deployment health. Keep required work in ordinary jobs; optional
-reports may remain manual/non-blocking without
-being listed as required delivery jobs.
-
-See [reruns and recovery](repository-onboarding.md#automation-and-reruns) for
-private journals and partial-setup behavior.
+The release pipeline publishes immutable images, commits their selection and applies
+the committed Application (restoring paused auto-sync), then waits for its revision
+and health checks. The helper requires every declared job to succeed, Argo CD's exact
+revision and Application/Deployment health. Optional reports may stay manual if
+unlisted. See [reruns and recovery](repository-onboarding.md#automation-and-reruns).

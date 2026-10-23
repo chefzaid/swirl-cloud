@@ -6,22 +6,17 @@ Run the node assistant from a registered control plane:
 ./add-node.sh
 ```
 
-This assistant expands the shared platform. Dedicated application targets use
-the [separate bootstrap](../deployment.md#application-deployment-clusters) and the
-application-node procedure below; the platform enrollment assistant rejects an
-application-cluster host.
-
-Choose the new node's **role** (control plane or worker), then the **execution
-location** (remote enrollment from the existing control plane or a local join
-on the new host). Remote enrollment manages readiness, quorum planning,
-scheduling and storage placement together.
+Choose the **role** (control plane or worker) and the **mode**: remote
+enrollment from an existing control plane (recommended; it handles readiness,
+quorum, scheduling and storage) or a local join on the new host. The assistant
+only expands the shared platform; see
+[application cluster nodes](#application-cluster-nodes) for other targets.
 
 New hosts need Debian/Ubuntu, unique names and addresses, SSH keys, and root or
-passwordless sudo access. Prepare the existing cluster's
-[private transport](#private-node-network); enrollment proves private
-SSH before applying the [host exposure policy](../security.md#exposure-boundaries).
-For service redundancy beyond node membership, follow the
-[HA activation order](high-availability.md#activate-in-order).
+passwordless sudo. Prepare the [private transport](#private-node-network)
+first; enrollment proves private SSH before applying the
+[host exposure policy](../security.md#exposure-boundaries). Service redundancy
+needs the [HA activation order](high-availability.md#activate-in-order).
 
 ## Private node network
 
@@ -31,19 +26,16 @@ For service redundancy beyond node membership, follow the
 | Tailscale | Nodes span providers, locations or unrelated LANs | Tailnet and a temporary personal API access token |
 | Local LAN | Every node is on one on-premises or home-lab network | Fixed RFC1918 address per node and a trusted node CIDR |
 
-The [installer](../deployment.md#installation-prerequisites) and [node assistant](../../add-node.sh) share
-the account wizard and transport setup. They validate the account, prepare the
-private interface, prove private SSH, and then apply UFW. Keep provider console
-or rescue access available while configuring a new network.
+The [installer](../deployment.md#installation-prerequisites) and
+[node assistant](../../add-node.sh) share this setup: prepare the private
+interface, prove private SSH, then apply UFW. Keep console or rescue access
+while configuring a new network.
 
 ### OVHcloud vRack
 
-Activate the vRack and record every server's service name, private NIC name or
-MAC, and assigned private address. Attach servers manually in the OVHcloud
-Control Panel, or let the wizard attach their interfaces through the API.
-Host configuration uses Netplan or ifupdown and preserves the public route.
-
-For unattended installation on a prepared vRack:
+Record each server's service name, private NIC (name or MAC) and private
+address. Attach servers in the OVHcloud Control Panel or let the wizard do it
+through the API. Netplan or ifupdown is configured and the public route kept.
 
 ```bash
 export K3S_NODE_TRANSPORT=vrack
@@ -56,14 +48,14 @@ export K3S_API_VIP=10.40.0.5
 export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
 ```
 
-Use `K3S_PRIVATE_INTERFACE_MAC` to verify the expected NIC and
-`K3S_VRACK_VLAN_ID` for a tagged vRack VLAN when needed. Final node counts and
-scheduling remain [installer inputs](../deployment.md#unattended-installation).
+Optional: `K3S_PRIVATE_INTERFACE_MAC` (verify the NIC) and `K3S_VRACK_VLAN_ID`
+(tagged VLAN). Node counts and scheduling are
+[installer inputs](../deployment.md#unattended-installation).
 
-API-managed attachment additionally uses `OVH_VRACK_AUTOMATE_ACCOUNT=true`,
-`OVH_API_ENDPOINT`, `OVH_VRACK_SERVICE_NAME`,
-`OVH_CONTROL_PLANE_SERVICE_NAME`, `OVH_APPLICATION_KEY`,
-`OVH_APPLICATION_SECRET` and `OVH_CONSUMER_KEY`. The temporary credentials need:
+API attachment also needs `OVH_VRACK_AUTOMATE_ACCOUNT=true`, `OVH_API_ENDPOINT`,
+`OVH_VRACK_SERVICE_NAME`, `OVH_CONTROL_PLANE_SERVICE_NAME`,
+`OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET` and `OVH_CONSUMER_KEY`, with
+these rights (revoke them after enrollment):
 
 ```text
 GET  /vrack
@@ -72,15 +64,12 @@ POST /vrack/*/dedicatedServerInterface
 GET  /dedicated/server/*/networking
 ```
 
-The wizard prints the regional credential page and verifies access before
-making changes. Revoke temporary credentials after enrollment.
-
 ### Tailscale
 
-Create a short-lived personal API token in the tailnet's **Settings > Keys**
-page using an account allowed to manage its devices and policy. The wizard
-accepts a `tskey-api-` token and issues one-use tagged device keys itself. See
-the [Tailscale API documentation](https://tailscale.com/docs/reference/tailscale-api).
+Create a short-lived personal API token (`tskey-api-`) under **Settings > Keys**
+with an account that manages devices and policy; the wizard issues one-use
+tagged device keys itself
+([Tailscale API](https://tailscale.com/docs/reference/tailscale-api)).
 
 ```bash
 export K3S_NODE_TRANSPORT=tailscale
@@ -92,23 +81,17 @@ echo
 export TAILSCALE_API_TOKEN
 ```
 
-The configurator merges this cluster's role tags and grants into the existing
-policy, installs Tailscale on each target, and discovers its private address.
-K3s binds to `tailscale0` with trusted node CIDR `100.64.0.0/10`. Control planes
-and workers have separate grants; etcd traffic is limited to control planes.
-Unset and revoke the API token after enrollment.
-
-To provision just the mesh, run `./scripts/configure-tailscale.sh --fleet`.
-For K3s membership, use `./add-node.sh` so installation and security are also
-reconciled.
+The cluster's role tags and grants are merged into the existing policy. K3s
+binds to `tailscale0` with node CIDR `100.64.0.0/10`; etcd traffic is limited
+to control planes. Unset and revoke the token afterwards.
+`./scripts/configure-tailscale.sh --fleet` provisions only the mesh; use
+`./add-node.sh` for K3s membership.
 
 ### Local LAN
 
-Use this when every node sits on the same switch, VLAN or router and already
-has a fixed RFC1918 address (static or DHCP reservation). No provider API,
-overlay or host network change is involved: K3s binds to the interface that
-owns each address, which may be the only NIC and the default route behind a
-NAT router.
+Every node shares one switch, VLAN or router with a fixed RFC1918 address
+(static or DHCP reservation). No host network changes: K3s binds to the
+interface that owns each address, even a single NIC behind NAT.
 
 ```bash
 export K3S_NODE_TRANSPORT=lan
@@ -120,16 +103,13 @@ export K3S_API_VIP=192.168.10.5
 export K3S_CONTROL_PLANE_SSH_USER=admin K3S_WORKER_SSH_USER=admin
 ```
 
-Interactively, the installer proposes the default-route address and its
-connected subnet. Every address in `K3S_NODE_NETWORK_CIDR` can reach the K3s
-API, etcd, kubelet and Longhorn ports, so prefer a dedicated node VLAN or a
-narrow range that excludes personal and IoT devices. Private nodes accept SSH
-only from control planes; administer them with a jump through a control plane
+Every address in `K3S_NODE_NETWORK_CIDR` can reach the K3s API, etcd, kubelet
+and Longhorn ports: prefer a dedicated node VLAN or a narrow range without
+personal or IoT devices. Private nodes accept SSH only from control planes
 (`ssh -J admin@192.168.10.10 admin@192.168.10.20`).
 
-A public default route never carries vRack or LAN node traffic: the
-default-route interface is accepted only when its source address is RFC1918.
-For internet exposure from a NAT'd LAN, see
+vRack and LAN traffic never uses a public default route; that interface is
+accepted only with an RFC1918 source. For internet exposure behind NAT, see
 [Cloudflare origin behind NAT](../dns.md#origin-behind-nat).
 
 ## Role-specific installation
@@ -142,25 +122,21 @@ For internet exposure from a NAT'd LAN, see
 | Scheduling | Inherit or explicitly select the cluster policy | Workload node |
 | Persistent host controls | UFW and Lynis | UFW |
 
-Both roles configure AppArmor, the Registry mirror, iSCSI/NFS and Longhorn host
-prerequisites. Added nodes have no public ingress advertisement and do not
-install shared platform services, Fail2ban or CrowdSec. Conflicting existing
-roles or node identities are rejected instead of converted.
+Both roles get AppArmor, the Registry mirror and Longhorn host prerequisites
+(iSCSI/NFS). Added nodes get no public ingress, shared platform services,
+Fail2ban or CrowdSec. Conflicting roles or identities are rejected.
 
-When the [HA profile](high-availability.md) is already active, its DaemonSet
-automatically adds an ingress/Tunnel pair on each new control plane. Enrollment
-inherits the stored storage policy and distributes Vault recovery material to
-verified control planes. Update any enabled [fencing inventory](node-fencing.md)
-for the new membership before relying on automatic host recovery.
+With [HA](high-availability.md) active, new control planes also get an
+ingress/Tunnel pair, the stored storage policy and Vault recovery material.
+Update any [fencing inventory](node-fencing.md) for the new membership.
 
-The assistant manages a consistent K3s server configuration. If a cluster has
-custom critical flags, align them before adding servers: K3s requires matching
-network, component and secrets-encryption settings across control planes. See
-[embedded-etcd requirements](https://docs.k3s.io/datastore/ha-embedded).
+Align custom critical K3s flags before adding servers: network, component and
+secrets-encryption settings must match
+([embedded-etcd requirements](https://docs.k3s.io/datastore/ha-embedded)).
 
 ## Remote enrollment
 
-Run these commands on a registered control plane with its local K3s kubeconfig:
+Run on a registered control plane with its local K3s kubeconfig:
 
 ```bash
 # Expand one control plane to three:
@@ -170,57 +146,42 @@ Run these commands on a registered control plane with its local K3s kubeconfig:
 ./add-node.sh --role worker --mode remote --count 2
 ```
 
-`--count` means additional nodes and retains interactive per-node prompts.
-The final control-plane count must be odd. The plan is checked before any
-datastore conversion; each new server joins sequentially and must become Ready.
-Control-plane enrollment then serves the [Kubernetes API endpoint](#kubernetes-api-endpoint)
-from every server; on vRack and LAN it needs `--api-vip` until the endpoint is recorded.
+- `--count` is the number of additional nodes; each is still prompted for.
+- The final control-plane count must be odd. Servers join one at a time and
+  must become Ready.
+- Control planes then serve the [API endpoint](#kubernetes-api-endpoint); on
+  vRack and LAN this needs `--api-vip` until the endpoint is recorded.
+- The registry host derives from the platform domain; `PLATFORM_DOMAIN`,
+  `K3S_REGISTRY_HOST` and `K3S_REGISTRY_ENDPOINT` override it.
 
-Remote enrollment loads the installed platform domain and derives its registry
-hostname. It forwards registry settings to the new host; explicit `PLATFORM_DOMAIN`,
-`K3S_REGISTRY_HOST` and `K3S_REGISTRY_ENDPOINT` environment overrides take precedence.
+The first control-plane addition to a SQLite cluster backs up the database and
+server credentials to `/var/backups/swirl-cloud/k3s/pre-etcd-<timestamp>` (root
+only) and restarts the bootstrap server with embedded etcd. External or unknown
+datastores are rejected. Worker additions never convert the datastore.
 
-When adding control planes to a SQLite cluster, the assistant saves an
-integrity-checked database backup and server credentials/configuration under
-`/var/backups/swirl-cloud/k3s/pre-etcd-<timestamp>`, restricted to root. It then
-restarts the bootstrap K3s server with embedded etcd and waits for readiness.
-Existing embedded-etcd membership is reused; external or unknown datastores
-are rejected. Adding workers does not convert the datastore.
-
-For unattended enrollment, supply the role, mode, transport and targets:
+Unattended enrollment (the vRack addresses must already exist):
 
 ```bash
-# These vRack addresses must already be configured:
 ./add-node.sh --role control-plane --mode remote --transport vrack \
   --ips 10.40.0.12,10.40.0.13 --server-url https://10.40.0.10:6443 \
   --node-network-cidr 10.40.0.0/24 --api-vip 10.40.0.5 --ssh-user admin \
   --control-plane-schedulable preserve --non-interactive
-
-./add-node.sh --role worker --mode remote --transport vrack \
-  --ips 10.40.0.20 --server-url https://10.40.0.10:6443 \
-  --node-network-cidr 10.40.0.0/24 --ssh-user admin \
-  --control-plane-schedulable preserve --non-interactive
 ```
 
-For a LAN, use `--transport lan` with the same `--ips` form and the LAN
-`--server-url` and `--node-network-cidr`.
-For Tailscale, use `--transport tailscale` and replace `--ips` with
-`--hosts admin@host-02,admin@host-03`. Supply the existing cluster's
-[Tailscale inputs](#tailscale); the assistant discovers private
-addresses and assigns tags by role. `--ips` and `--hosts` imply unattended mode;
-`--non-interactive` and `--yes` also disable prompts.
+- Workers: `--role worker` with the same options except `--api-vip`.
+- LAN: `--transport lan` with LAN addresses.
+- Tailscale: `--transport tailscale --hosts admin@host-02,admin@host-03`
+  instead of `--ips`, plus the [Tailscale inputs](#tailscale).
+- `--ips`, `--hosts`, `--non-interactive` and `--yes` all disable prompts.
 
-List-based retries may include already joined control planes. Identities are
-verified and only new members count toward the plan. Complete a failed batch
-with the same target list; do not reset etcd or reinstall registered servers.
+To finish a failed batch, rerun with the same target list; joined members are
+verified and reused. Never reset etcd or reinstall registered servers.
 
 ## Control-plane administration
 
-After enrollment, private nodes allow SSH from the registered control planes'
-private InternalIPs. Worker addresses are excluded. The current SSH source is
-verified before changing rules, and later runs preserve the managed allowlist.
-New nodes record their SSH account so future reconciliation can reuse it.
-To refresh existing private nodes after control-plane membership changes:
+Private nodes allow SSH only from control planes' private InternalIPs, and each
+records its SSH account. After control-plane membership changes, refresh them
+from a surviving control plane, using its own private address:
 
 ```bash
 ./scripts/reconcile-control-plane-access.sh \
@@ -228,24 +189,19 @@ To refresh existing private nodes after control-plane membership changes:
   --ssh-user admin
 ```
 
-Run this from a surviving control plane using its own private source address.
-`--ssh-port` and `--identity-file` select the SSH connection settings. The helper
-changes only its managed SSH rules, preserves unrelated firewall rules, and
-fails if a private node cannot be reached. It does not restart K3s.
+`--ssh-port` and `--identity-file` are optional. Only managed SSH rules change;
+an unreachable node fails the run. K3s is not restarted.
 
-`--server-url` may point to another registered control plane's private IP;
-`--control-plane-ip` identifies the enrollment host's actual SSH source. Both
-are checked against control-plane membership. Once the
-[API endpoint](#kubernetes-api-endpoint) is recorded and answers from the
-enrolling control plane, new nodes register through it instead. Registered K3s
-agents learn all API server addresses through their
-[built-in client load balancer](https://docs.k3s.io/architecture#how-agent-node-registration-works);
-kubectl clients use the endpoint.
+`--server-url` may name any registered control plane; `--control-plane-ip` is
+the enrolling host's SSH source. Once the [API endpoint](#kubernetes-api-endpoint)
+is recorded, new nodes register through it, kubectl uses it, and agents use the
+K3s
+[client load balancer](https://docs.k3s.io/architecture#how-agent-node-registration-works).
 
 ## Kubernetes API endpoint
 
-With three or more control planes, every control plane serves one private API
-address, so kubectl and joining nodes keep working while any one server is down
+With three or more control planes, all of them serve one private API address,
+so kubectl and joins survive any one server going down
 ([ADR 0028](../adr/0028-kubernetes-api-endpoint.md)):
 
 | Transport | Endpoint | Failover |
@@ -253,39 +209,33 @@ address, so kubectl and joining nodes keep working while any one server is down
 | vRack, LAN | `K3S_API_VIP`, an unused node-network address held by keepalived | Unicast VRRP moves the VIP when its holder stops or its `/readyz` fails |
 | Tailscale | Tailscale Service `svc:<mesh>-api`, `https://<mesh>-api.<tailnet>.ts.net:6443` | Tailscale routes to hosts still advertising it; a server drains the Service while its API is not ready |
 
-Control-plane enrollment sets it up after the joins. On vRack and LAN, supply
-the VIP with `--api-vip` or `K3S_API_VIP`; the installer asks for it when it
-adds control planes. Tailscale needs Tailscale Services on the tailnet and
-Tailscale 1.86 or later on control planes. Enrollment creates the Service,
-auto-approves the control-plane tag as its host and grants tailnet admins,
-control planes and workers TCP 6443. Every server certificate lists the
-endpoint. A server that is missing it restarts only while a fresh etcd majority
-remains, one server at a time. `kube-system/swirl-cloud-api-endpoint` records
-the endpoint for later enrollments.
+Control-plane enrollment sets it up. vRack and LAN need `--api-vip` or
+`K3S_API_VIP`. Tailscale needs Tailscale Services enabled and Tailscale 1.86+
+on control planes; enrollment creates the Service and grants admins, control
+planes and workers TCP 6443. Every server certificate lists the endpoint
+(servers missing it restart one at a time, keeping an etcd majority).
+`kube-system/swirl-cloud-api-endpoint` records it.
 
-Write an administrator kubeconfig that uses the endpoint, then copy it to a
-trusted device over a private channel; it holds cluster-administrator
-credentials:
+Write an administrator kubeconfig (mode 0600) for the endpoint and copy it to a
+trusted device over a private channel:
 
 ```bash
 ./scripts/configure-k3s-api-endpoint.sh --kubeconfig ~/cluster-admin.yaml
 ```
 
-The vRack or LAN VIP is reachable only inside the node network. From elsewhere,
-forward it through a control plane you can reach, for example
-`ssh -L 6443:10.40.0.5:6443 admin@<control plane>`, and set the kubeconfig
-server to `https://127.0.0.1:6443`, which every server certificate covers.
-Tailscale clients older than 1.94 need `tailscale set --accept-routes` to reach
-Services.
+The VIP is reachable only inside the node network. From elsewhere, use
+`ssh -L 6443:10.40.0.5:6443 admin@<control plane>` and server
+`https://127.0.0.1:6443` (covered by every certificate). Tailscale clients
+older than 1.94 need `tailscale set --accept-routes`.
 
-`./scripts/configure-k3s-api-endpoint.sh --verify` checks the endpoint from a
-control plane. A Tailscale Service host may not reach its own Service, so on
-Tailscale also run `kubectl get --raw /readyz` from an administrator device.
-Before relying on failover, repeat that check with each control plane stopped
-in turn, as part of the [HA drill](high-availability.md#verify-before-relying-on-ha).
+`./scripts/configure-k3s-api-endpoint.sh --verify` checks it from a control
+plane. On Tailscale, also run `kubectl get --raw /readyz` from an admin device
+(a Service host may not reach its own Service). Repeat with each control plane
+stopped during the [HA drill](high-availability.md#verify-before-relying-on-ha).
 
-After removing or replacing a control plane, or on a cluster enrolled before
-the endpoint existed, reconcile it from a control plane:
+After removing or replacing a control plane, or on an older cluster, reconcile
+it (needs an odd membership of three or more; omitted options come from the
+record):
 
 ```bash
 ./scripts/configure-k3s-api-endpoint.sh --reconcile --transport lan \
@@ -293,27 +243,28 @@ the endpoint existed, reconcile it from a control plane:
   --control-plane-ip 192.168.10.10 --ssh-user admin
 ```
 
-Recorded values fill omitted endpoint options. To create the Tailscale Service
-for an existing cluster, run
-`printf '%s\n' "$TAILSCALE_API_TOKEN" | ./scripts/configure-tailscale.sh --role control-plane --api-service --api-token-stdin`
-with the cluster's [Tailscale inputs](#tailscale). It prints the Service IPv4
-and name for `--transport tailscale --address <IPv4> --hostname <name>
---service svc:<mesh>-api`.
+To create the Tailscale Service on an existing cluster, run this with the
+[Tailscale inputs](#tailscale), then reconcile with the printed values as
+`--transport tailscale --address <IPv4> --hostname <name> --service svc:<mesh>-api`:
+
+```bash
+printf '%s\n' "$TAILSCALE_API_TOKEN" | \
+  ./scripts/configure-tailscale.sh --role control-plane --api-service --api-token-stdin
+```
 
 ## Scheduling and storage
 
-New control planes inherit the cluster scheduling policy. Select it explicitly
-with `--control-plane-schedulable true|false|preserve`. When adding workers to a
-schedulable cluster, interactive enrollment offers controller-only mode after
-workers are Ready; unattended enrollment requires an explicit choice. Clusters
-without workers must keep control planes schedulable.
+New control planes inherit the scheduling policy; override it with
+`--control-plane-schedulable true|false|preserve`. When workers join a
+schedulable cluster, interactive runs offer controller-only mode; unattended
+runs need an explicit choice. Without workers, control planes stay schedulable.
 
-Topology reconciliation updates control-plane taints and Longhorn's setting,
-Helm values, default StorageClass and existing volumes. The availability mode
-follows the [stored HA profile](high-availability.md#reconciliation-and-recovery);
-without a stored mode it defaults to `false`. An explicit `false` cannot turn
-off stored HA without `--allow-ha-disable`. That override needs a separately
-planned migration: it does not migrate applications or shrink volume replicas.
+Topology reconciliation sets control-plane taints and Longhorn's settings, Helm
+values, default StorageClass and volumes. The mode follows the
+[stored HA profile](high-availability.md#reconciliation-and-recovery) (default
+`false`). Turning stored HA off needs `HIGH_AVAILABILITY_ENABLED=false` plus
+`--allow-ha-disable` and a separately planned migration; it does not migrate
+applications or shrink replicas.
 
 | Storage topology | Longhorn default replicas |
 | --- | ---: |
@@ -321,32 +272,20 @@ planned migration: it does not migrate applications or shrink volume replicas.
 | Non-HA: no workers, regardless of control-plane count | 1 |
 | Non-HA: one or more registered workers | Registered worker count |
 
-In HA mode, schedulable control planes participate in storage alongside workers;
-controller-only control planes are excluded. The [host requirements](high-availability.md#prepare-hosts-and-capacity)
-therefore need at least three workers for controller-only mode. Invalid HA
-topology fails before taints, labels, Helm values or Longhorn resources change.
-Eligibility uses registered roles and scheduling policy; it does not prove disk
-capacity or completed replica rebuilding.
+- **HA:** schedulable control planes store data; controller-only ones do not,
+  so that mode needs three workers
+  ([host requirements](high-availability.md#prepare-hosts-and-capacity)). Same-host
+  replicas are forbidden. Invalid topology fails before any change.
+- **Non-HA with workers:** control-plane replicas move to workers.
+- Replica counts are only ever raised, and NotReady nodes do not lower them.
+  Reducing replicas or PVC size is a separate storage task.
 
-In non-HA mode, workers exclude all control planes from storage scheduling.
-Existing control-plane replicas are evicted toward worker storage while a
-worker is Ready. Extra control planes alone do not add volume replicas in this
-mode.
+Requested counts do not prove redundancy: before a failure test, check each
+volume's healthy replicas sit on distinct nodes. Writer fencing is in
+[HA recovery](high-availability.md#reconciliation-and-recovery).
 
-Temporary NotReady nodes do not lower the default replica count. Existing volumes
-are only increased to the target: larger counts survive node removal or a mode
-change, and PVC capacities remain unchanged. Reducing replication requires a
-separate storage operation. HA also disables replica soft anti-affinity in the
-setting/Helm defaults and removes existing volume overrides that allow copies
-on the same host.
-
-Before testing node failure, verify each volume's healthy replicas and their
-distinct node IDs; requested replica counts do not establish redundancy.
-[HA recovery](high-availability.md#reconciliation-and-recovery) covers writer
-fencing and safe recovery of persistent singletons.
-
-For an HA cluster prepared through the [activation workflow](high-availability.md#activate-in-order),
-with three control planes that run workloads:
+After the [HA activation workflow](high-availability.md#activate-in-order), with
+three control planes that run workloads:
 
 ```bash
 HIGH_AVAILABILITY_ENABLED=true ./scripts/reconcile-cluster-topology.sh \
@@ -355,31 +294,30 @@ HIGH_AVAILABILITY_ENABLED=true ./scripts/reconcile-cluster-topology.sh \
 
 ## Local joins
 
-Local mode joins only the machine running the command. Connect to it over
-private SSH from the bootstrap control plane so the SSH source check succeeds:
+Local mode joins only the current machine. Reach it over private SSH from the
+bootstrap control plane so the SSH source check passes:
 
 ```bash
 ./add-node.sh --role worker --mode local
 ./add-node.sh --role control-plane --mode local
 ```
 
-On the existing control plane, obtain the appropriate credential:
+Get the join credential on the existing control plane:
 
 ```bash
 # Additional control plane:
 sudo cat /var/lib/rancher/k3s/server/token
 
-# Worker:
+# Worker (or a short-lived token: sudo k3s token create --ttl 1h):
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
-Paste the token into the hidden prompt or use `--token-stdin`; do not pass it
-as a command-line argument. Control-plane joins also require the exact K3s
-version and scheduling policy. The existing cluster must already use embedded
-etcd and permit private API/etcd traffic.
+Paste it at the hidden prompt or use `--token-stdin`, never an argument.
+Control-plane joins also need `--k3s-version` (exact server version), the
+scheduling policy, and a cluster already on embedded etcd.
 
-Local mode cannot prepare another host's datastore or validate final membership.
-Finish the planned batch, then reconcile from the original control plane:
+Local mode cannot convert the datastore or check final membership. Finish the
+batch, then from the original control plane:
 
 ```bash
 kubectl wait --for=condition=Ready node --all --timeout=5m
@@ -388,32 +326,25 @@ kubectl wait --for=condition=Ready node --all --timeout=5m
 ```
 
 After local control-plane joins, also run the
-[API endpoint reconciliation](#kubernetes-api-endpoint) so the new servers
-serve the endpoint and the VRRP peers include them.
+[endpoint reconciliation](#kubernetes-api-endpoint).
 
-Run `./add-node.sh --help`, or append `--help` after both role and mode for the
-complete options. For initial multi-node planning see [installation](../deployment.md#topology-and-scheduling);
-[Ansible installation](../deployment.md#ansible-installation) uses the same enrollment
-workflow. `ansible/deploy.yml` reconciles the installed platform and does not
-add nodes.
+`./add-node.sh --role <role> --mode <mode> --help` lists all options. See
+[installation](../deployment.md#topology-and-scheduling) for initial planning;
+[Ansible installation](../deployment.md#ansible-installation) uses the same
+workflow, and `ansible/deploy.yml` does not add nodes.
 
 ## Application cluster nodes
 
-An `int`, `uat` or `prod` target is a separate cluster, not a worker pool joined
-to the platform. Bootstrap its first host with
-[`install-application-cluster.sh`](../../scripts/install-application-cluster.sh),
-then register it centrally as described in
-[installation](../deployment.md#application-deployment-clusters).
+`int`, `uat` and `prod` targets are separate clusters. Bootstrap the first host
+with [`install-application-cluster.sh`](../../scripts/install-application-cluster.sh)
+and register it per [installation](../deployment.md#application-deployment-clusters).
 
-The initial application bootstrap supports one control plane per target.
-Additional target nodes require a deliberate native K3s expansion: use that
-target's server/token and exact K3s version, preserve its pod CIDR, API audiences,
-private Tailscale addresses, registry mirror and private-port firewall, and
-configure its own backup/quorum plan before adding servers. Keep central
-platform credentials and storage/HA helpers out of this workflow.
+The bootstrap supports one control plane. More nodes are a manual native K3s
+expansion: use the target's own token and exact K3s version; keep its pod CIDR,
+API audiences, Tailscale addresses, registry mirror and private-port firewall;
+plan its backups and quorum; keep platform credentials and HA helpers out.
 
-Add each new target node's Tailscale address to its environment's `nodeCIDRs`,
-update tailnet grants, and rerun registration with that target's administrator
-kubeconfig. Registration verifies every registered target node's address,
-readiness and encrypted gateway route before publishing the updated allocation.
-It does not provision extra nodes or copy Vault administrator credentials.
+Then add each node's Tailscale address to the environment's `nodeCIDRs`, update
+tailnet grants, and rerun registration with the target's admin kubeconfig. It
+checks each node's address, readiness and encrypted gateway route; it does not
+provision nodes or copy Vault credentials.

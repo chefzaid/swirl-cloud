@@ -1,11 +1,10 @@
 # Security Detection
 
-Prometheus alerts on metrics; some attacks only show in events. Every five
-minutes the `security-detection` CronJob in `infra` checks the identity events
-and the Kubernetes API audit log in Elasticsearch, and the platform
-administrators in Keycloak, then posts its findings to Alertmanager. They reach
-the same notification route as other alerts, with `owner: security`,
-`source: security-detection` and a [runbook](alert-runbooks.md#security-detection).
+Some attacks show only in events, not metrics. Every five minutes the
+`security-detection` CronJob in `infra` checks the identity events, the
+Kubernetes API audit log and the Keycloak administrators, and posts findings to
+Alertmanager with `owner: security`, `source: security-detection` and a
+[runbook](alert-runbooks.md#security-detection).
 
 ## Rules
 
@@ -16,32 +15,31 @@ the same notification route as other alerts, with `owner: security`,
 | `KubernetesSecretReadByNewIdentity` | An identity reading Secrets that it did not read during the previous seven days; starts after seven days of audit history | 15 minutes |
 | `NewPlatformAdministrator` | A user added to `platform-admins` in the platform realm, or given the `admin` role in the master realm, compared with the previous run | reported for a day |
 
-Each run re-posts the current findings with a 30-minute end time, so an alert
-stays active while its evidence is in the window and resolves on its own. A
-failed run (for example Elasticsearch unavailable) raises
-[KubernetesJobFailed](alert-runbooks.md#kubernetesjobfailed), and the
-`security-monitoring` control of the [compliance evidence](compliance-evidence.md)
-fails when no run succeeded for 30 minutes.
-
-The job also ends expired [just-in-time administrator grants](../security.md#just-in-time-administration).
+Each run re-posts current findings with a 30-minute end time, so an alert stays
+active while its evidence is in the window, then resolves. A failed run (for
+example Elasticsearch down) raises
+[KubernetesJobFailed](alert-runbooks.md#kubernetesjobfailed); the
+`security-monitoring` [compliance](compliance-evidence.md) control fails after
+30 minutes without a successful run. The job also ends expired
+[just-in-time administrator grants](../security.md#just-in-time-administration).
 
 ## Data and access
 
 The job reads `identity-audit-*` ([identity events](../security.md#identity-events))
 and `kubernetes-audit-*` ([API audit log](../security.md#kubernetes-api-audit-log))
-with its own Elasticsearch account, `security_detection`, which may read those
-indices and keep the administrator baseline in `security-detection-state`. The
-account's password is generated in the cluster by an External Secrets password
-generator; the Elasticsearch security bootstrap creates the account from it on
-every sync. Keycloak is read with the bootstrap administrator, so its logins
-appear in the master realm's events every five minutes.
+as the Elasticsearch user `security_detection`. That user may also write
+`security-detection-state` (administrator baseline), `security-findings-*` and
+`access-grants`. Its password comes from an in-cluster External Secrets
+generator; the Elasticsearch security bootstrap creates the account on every
+sync. Keycloak is read with the bootstrap administrator, so its logins appear in
+the master realm's events every five minutes.
 
 ## Change or add a rule
 
 Rules live in [`k8s/platform/security-detection.yaml`](../../k8s/platform/security-detection.yaml).
 Add a function that returns findings (`alertname`, `severity`, identifying
-labels, `summary`, `description`), list it in the rule loop, add its runbook
-section, and test it with a harmless event, for example:
+labels, `summary`, `description`), add it to the rule loop, write its runbook
+section and test with a harmless event:
 
 ```bash
 kubectl create rolebinding detection-test --clusterrole=view --serviceaccount=default:default -n default

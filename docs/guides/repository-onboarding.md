@@ -1,173 +1,143 @@
 # Add, Synchronize And Deploy Repositories
 
 Run `./add-repos.sh` from this checkout on a configured control-plane host. It
-imports GitHub repositories into GitLab, configures two-way synchronization,
-and deploys selected applications. Rerun it to add repositories, change public
-settings or resume interrupted setup.
-
-The installer calls this helper after platform and Argo CD setup when repository
-onboarding is selected. [Ansible](../deployment.md#optional-host-and-account-changes)
-uses the same helper and unattended inputs. Application declarations stay in
-their repositories; `swirl-cloud` has no application inventory.
+imports GitHub repositories into GitLab, configures two-way synchronization and
+deploys selected applications. Rerun it to add repositories, change public settings
+or resume interrupted setup. The installer and
+[Ansible](../deployment.md#optional-host-and-account-changes) call the same helper
+when repository onboarding is selected. Application declarations stay in their
+repositories; `swirl-cloud` has no application inventory.
 
 ## Guided flow
 
 1. Enter a GitHub username, hidden personal access token and comma-separated
-   repositories such as `catalog,org/api`; bare names belong to that user.
-2. Confirm the public GitLab HTTPS URL and destination group. Defaults come from
-   the installed platform identity/domain or GitLab Ingress. Nested groups are
-   supported; repository names are preserved.
-3. The helper creates missing groups/projects privately, configures synchronization
-   and verifies the initial copy. It manages the GitHub workflow, encrypted Actions
-   secrets/variables and GitLab push/tag webhook. A conflicting workflow is reported
-   rather than overwritten.
-4. Select deployments: accept all successful imports, choose a comma-separated
-   subset or enter `none`. Each selected repository must have the
-   [onboarding contract](application-onboarding.md).
-5. Supply declared app inputs; previous public choices are defaults. After
-   validation, the helper commits public configuration with `[skip ci]` and sets
-   up declared registry/Vault/identity resources, bootstrap prerequisites and DNS.
-6. An API pipeline receives the configured source SHA and a unique run ID. The
-   app publishes images and applies its Argo CD Application. The helper waits for
-   required jobs, the exact release revision to become `Synced`/`Healthy`, and
-   declared Deployment rollouts.
+   repositories such as `catalog,org/api` (bare names belong to that user).
+2. Confirm the public GitLab HTTPS URL and destination group, defaulted from the
+   installed platform or GitLab Ingress. Nested groups work; names are preserved.
+3. The helper creates missing groups/projects as private, configures sync and
+   verifies the first copy. It manages the GitHub workflow, encrypted Actions
+   secrets/variables and the GitLab push/tag webhook; a conflicting workflow is
+   reported, not overwritten.
+4. Select deployments: all successful imports (default), a comma-separated subset or
+   `none`. Each must have the [onboarding contract](application-onboarding.md).
+5. Supply declared app inputs (previous choices are defaults). The helper commits
+   public configuration with `[skip ci]` and sets up declared registry, Vault,
+   identity, bootstrap and DNS resources.
+6. An API pipeline gets the source SHA and a unique run ID. The app publishes images
+   and applies its Argo CD Application. The helper waits for required jobs, the
+   exact revision `Synced`/`Healthy`, and declared Deployment rollouts.
 
-Selecting deployment authorizes these configuration commits and service changes.
-The helper reports `[READY]` only after delivery and readiness succeed. Missing contracts,
-prerequisites or required jobs produce `[CANNOT DEPLOY]`; imports remain available
-for correction and retry, and failures make the command exit nonzero.
+Selecting a deployment authorizes these commits and service changes. `[READY]`
+means delivery and readiness succeeded; missing contracts, prerequisites or required
+jobs report `[CANNOT DEPLOY]` and exit nonzero, keeping imports for retry. New
+projects are imported with CI disabled until selected for deployment; existing
+projects keep their CI setting.
 
-New projects have CI disabled during import; selecting a valid deployment enables
-CI and the shared runner. Skipped new projects keep CI disabled. Existing projects
-retain their CI setting, so ordinary synchronized source commits can still start
-existing pipelines.
-
-For version 1 contracts, when public configuration changes, an existing automatically synced Application
-is paused before the settings commit is published. Workloads remain running.
-The app's release job reapplies its committed Application after publishing images,
-restoring its sync policy. First deployment is also owned by that release job;
-onboarding does not start application workloads ahead of it.
+For version 1, a public configuration change pauses an auto-synced Application
+(workloads keep running) before the settings commit; the app's release job, which
+also owns first deployment, reapplies it and restores sync.
 
 ## Projects without GitHub
 
-Projects that already live in the platform GitLab group deploy without any
-GitHub account, import or mirroring:
+Projects already in the platform GitLab group deploy without GitHub, import or
+mirroring (`REPOSITORY_SOURCE=gitlab` is equivalent to `--gitlab`):
 
 ```bash
 ./add-repos.sh --gitlab
 GITLAB_PROJECTS=billing,portal DEPLOY_REPOSITORIES=all ./add-repos.sh --yes --gitlab
 ```
 
-`GITLAB_PROJECTS` names projects directly in `GITLAB_GROUP_PATH` (discovered from
-the installed platform). Each must exist with a pushed default branch and its
-`infra/onboarding.json`; the rest of the flow (contract checks, credentials, DNS,
-delivery and verification) is the same as for imported repositories.
-Contracts that substitute `{{GITHUB_OWNER}}` and `{{GITHUB_REPOSITORY}}` receive
-the GitLab group's last path segment and the project name. Missing projects are
-reported and skipped.
+`GITLAB_PROJECTS` names projects directly in `GITLAB_GROUP_PATH` (discovered from the
+installed platform). Each needs a pushed default branch with `infra/onboarding.json`;
+missing projects are skipped. The rest of the flow is unchanged. `{{GITHUB_OWNER}}`
+and `{{GITHUB_REPOSITORY}}` become the group's last path segment and project name.
 
 ## Environment deployment
 
-Swirl Demo App uses contract version 2. First [register the local or remote environments](../deployment.md#application-deployment-clusters)
-and enable [shared data access](application-onboarding.md#shared-application-data).
-Run `add-repos.sh` once on the central platform to import the one repository.
-Version 2 needs Cloudflare Zone Read, DNS Edit and SSL and Certificates Edit
-on the managed parent zone for DNS, origin certificates and edge-coverage checks.
-Onboarding provisions registry access, separate data credentials and browser
-clients for every registered target, reconciles their DNS/TLS, and writes the
-public inventory and target settings into the application repository.
-It also provisions project-scoped integration/release runners and their scoped
-Application permissions. The default branch must be protected; the project no
-longer uses the shared instance runner. See [delivery permissions](../deployment.md#application-delivery).
+Swirl Demo App uses contract version 2. First
+[register the environments](../deployment.md#application-deployment-clusters) and
+enable [shared data access](application-onboarding.md#shared-application-data), then
+run `add-repos.sh` once on the central platform. The Cloudflare token needs Zone
+Read, DNS Edit and SSL and Certificates Edit on the managed parent zone.
 
-`APP_SUBDOMAIN` is one shared app label. With `platform.hostnameStyle: suffix`,
-`demo` produces `demo-int.example.com`, `demo-uat.example.com` and
-`demo.example.com`. The [installation guide](../deployment.md#application-deployment-clusters)
-also covers nested hostnames and their certificate requirements.
-Onboarding applies that label to all registered environments. It defaults the
-initial deployment to `int`; export `ONBOARDING_DEPLOYMENT_ENVIRONMENT=uat` or
-`prod` to choose a different initial target. This does not change the normal CI
-dropdown. Later deployments and release promotions use [GitLab CI](../deployment.md#application-delivery).
+For every registered target, onboarding provisions registry access, separate data
+credentials and browser clients, reconciles DNS/TLS, and writes the public inventory
+and target settings into the repository. It also creates project-scoped
+integration/release runners and their Application permissions; the default branch
+must be protected and the shared instance runner is no longer used. See
+[delivery permissions](../deployment.md#application-delivery).
 
-Onboarding prepares every registered target and checks certificate/DNS
-prerequisites for all of them, even when the initial deployment selects only one.
-For staged adoption, register environments as their infrastructure and DNS
-prerequisites become ready.
+`APP_SUBDOMAIN` is one label for all environments. With
+`platform.hostnameStyle: suffix`, `demo` gives `demo-int.example.com`,
+`demo-uat.example.com` and `demo.example.com`; nested hostnames and their
+certificates are in the [installation guide](../deployment.md#application-deployment-clusters).
+The initial deployment goes to `int`; set `ONBOARDING_DEPLOYMENT_ENVIRONMENT=uat` or
+`prod` to change it. Later deployments and promotions use
+[GitLab CI](../deployment.md#application-delivery).
 
-Newly registered targets require another application-onboarding run to provision
-their data, identity and DNS before first deployment. Existing Applications keep
-independently pinned revisions while public settings are updated; they need no
-automatic-sync pause. Onboarding verifies the selected runtime commit separately
-from the final Git commit containing its Application pointer.
+Certificate/DNS prerequisites are checked for every registered target, even if only
+one is deployed, so register environments as they become ready; a new target needs
+another onboarding run. Existing Applications keep their pinned revisions (no sync
+pause).
 
 ## Prerequisites and credentials
 
-The host needs Bash, Git, curl, jq, GNU date, Python, PyYAML and libsodium. The
-installer supplies the Ubuntu/Debian packages. Deployment also needs the
-control-plane kubeconfig, `kubectl`, Argo CD in `infra`, the instance runner and
-requested shared services. Local Helm charts require Helm. Vault must be unsealed
-with its KV-v2 `secret/` mount; External Secrets and public ingress/TLS must work.
-Before publishing configuration, onboarding checks the selected application namespace foundation,
-the AppProject's repository/destination permissions and certificate coverage for
-the declared hosts. Repository credentials must complete a fresh successful
-ExternalSecret refresh before delivery starts.
+- Host: Bash, Git, curl, jq, GNU date, Python, PyYAML and libsodium (the installer
+  provides the Ubuntu/Debian packages). Local Helm charts need Helm.
+- Deployment: control-plane kubeconfig, `kubectl`, Argo CD in `infra`, the instance
+  runner and requested shared services. Vault unsealed with KV-v2 `secret/`; working
+  External Secrets and public ingress/TLS.
+- Before publishing, onboarding checks the app namespace foundation, AppProject
+  repository/destination permissions and certificate coverage for declared hosts.
+  Repository credentials must complete a fresh ExternalSecret refresh before
+  delivery.
 
-Use a GitHub [fine-grained PAT](https://github.com/settings/personal-access-tokens/new),
-not an account password. Selected repositories require **Administration, Actions,
-Contents, Secrets, Variables and Workflows: read/write**. Organization rules must
-permit the token and Actions. Branch protection must permit workflow installation,
-configuration commits, synchronization and release pushes. Rejected operations
-are reported; the helper does not relax protection. Empty or archived sources
-are unsupported.
+Use a GitHub [fine-grained PAT](https://github.com/settings/personal-access-tokens/new)
+with **Administration, Actions, Contents, Secrets, Variables and Workflows:
+read/write** on the selected repositories. Organization rules must allow the token
+and Actions; branch protection must allow workflow installation, configuration
+commits, sync and release pushes (the helper never relaxes it). Empty or archived
+sources are unsupported.
 
 | Credential | Scope and handling |
 |---|---|
 | GitHub PAT | Encrypted Actions secret `REPOSITORY_SYNC_ADMIN_TOKEN` and GitLab webhook Authorization header; rerun with a replacement before expiry. |
 | GitLab sync project token | `write_repository` and `self_rotate`; the monthly GitHub workflow rotates it near expiry. |
-| GitLab setup administrator token | Issued locally through `gitlab-rails` and revoked on exit. An explicit `GITLAB_ADMIN_TOKEN` with `api` scope is accepted and retained. |
-| App registry deploy token | `read_registry` and `read_repository`, stored at the app-declared Vault path; valid credentials are verified and reused. |
-| Argo CD repository access | A generic `infra/repository-<hash>` ExternalSecret projects the verified app registry/repository credential from Vault; no separate unmanaged password is copied into Git. |
-| Cloudflare API token | **Zone Read** and **DNS Edit** for the selected zone; environment or hidden prompt. Onboarding uses an existing HA Tunnel rather than creating one. |
-| Vault setup access | Private `VAULT_BOOTSTRAP_TOKEN_FILE`, default `/var/lib/swirl-cloud/vault-bootstrap-token`; access through a local port-forward. Declared paths need read/create/update and KV metadata-read access. |
-| Optional Keycloak setup access | Uses the platform administrator Secret and a local port-forward; no client credentials are committed. |
+| GitLab setup administrator token | Issued locally through `gitlab-rails` and revoked on exit. An explicit `GITLAB_ADMIN_TOKEN` with `api` scope is accepted and kept. |
+| App registry deploy token | `read_registry` and `read_repository` at the app-declared Vault path; valid credentials are reused. |
+| Argo CD repository access | ExternalSecret `infra/repository-<hash>` projects the registry/repository credential from Vault; nothing goes into Git. |
+| Cloudflare API token | **Zone Read** and **DNS Edit** for the zone (plus SSL and Certificates Edit for version 2); environment or hidden prompt. Uses the existing HA Tunnel. |
+| Vault setup access | `VAULT_BOOTSTRAP_TOKEN_FILE`, default `/var/lib/swirl-cloud/vault-bootstrap-token`, via a local port-forward. Declared paths need read/create/update and KV metadata-read. |
+| Optional Keycloak setup access | Platform administrator Secret via a local port-forward; no client credentials are committed. |
 
-Secrets stay in memory or private temporary credential files during setup, outside
-Git and the progress journal. Declared secret inputs use hidden prompts. Keep
-unattended inputs outside repositories with mode `0600`; operator-supplied files
-are not automatically deleted.
+Secrets stay in memory or private temporary files, never in Git or the journal.
+Keep unattended input files outside repositories with mode `0600`; they are not
+deleted automatically.
 
-Setup normally reaches GitLab through a temporary loopback `kubectl port-forward`
-for API requests, cloning and registry authentication. This avoids depending on
-the operator host's DNS or browser authentication. An explicit `GITLAB_URL`
-overrides that control route; when the GitLab Service is unavailable, imports
-fall back to public GitLab. Deployment still requires access to the cluster.
+Setup reaches GitLab through a temporary loopback `kubectl port-forward` (API, clone,
+registry auth), so it does not depend on host DNS or browser login. An explicit
+`GITLAB_URL` overrides this; if the GitLab Service is unavailable, imports fall back
+to public GitLab. Deployment still needs cluster access.
 
 Synchronization uses `GITLAB_PUBLIC_URL`: GitHub Actions must reach public GitLab
-API/Git routes, and GitLab must reach `api.github.com`. Browser-only Cloudflare
-Access must not intercept those synchronization requests. Argo CD and app CI use
-the installed private service zone; temporary loopback addresses are never saved
-as application endpoints. See [installed context discovery](application-onboarding.md#public-rendering-context)
-for defaults and explicit overrides.
+API/Git routes and GitLab must reach `api.github.com`, with no browser-only
+Cloudflare Access in the way. Argo CD and app CI use the private service zone;
+loopback addresses are never saved. Defaults and overrides:
+[installed context discovery](application-onboarding.md#public-rendering-context).
 
 ## Application configuration
 
-The [app-author reference](application-onboarding.md) defines supported files,
-inputs, service setup and CI behavior. Public choices are saved in
-`infra/onboarding-values.json`; reruns replace prior rendered values so changed
-domains/groups survive releases. Existing Vault values are retained, not rotated.
-
-Applications follow the [namespace and discovery contract](../operations.md#namespace-and-discovery)
-for dashboards and source analysis. Their selected deployment paths remain
-app-owned; onboarding does not add nodes or activate [HA](high-availability.md).
-The shared `apps` foundation is available even when Odoo is disabled.
-
-For hostname changes and direct/Tunnel routing, follow
-[application DNS ownership](../dns.md#application-dns-ownership).
+The [app-author reference](application-onboarding.md) defines files, inputs,
+services and CI behavior. Public choices live in `infra/onboarding-values.json`, so
+changed domains or groups survive releases; existing Vault values are never rotated.
+Onboarding does not add nodes or enable [HA](high-availability.md). The shared
+`apps` foundation exists even when Odoo is disabled. For hostname changes and
+direct/Tunnel routing see [application DNS ownership](../dns.md#application-dns-ownership).
 
 ## Automation and reruns
 
-`--yes` never prompts. Supply `DEPLOY_REPOSITORIES=all`, `none`, or a comma-separated
-subset, plus required app inputs. A private JSON file is keyed by GitHub slug:
+`--yes` never prompts. Supply `DEPLOY_REPOSITORIES=all`, `none` or a comma-separated
+subset, plus app inputs in a private JSON file keyed by GitHub slug:
 
 ```json
 {
@@ -191,59 +161,51 @@ DEPLOY_REPOSITORIES=all \
 unset GITHUB_ADMIN_TOKEN CLOUDFLARE_API_TOKEN
 ```
 
-`--inputs` and `--state-dir` also work interactively. Their environment equivalents
-are `REPOSITORY_INPUTS_FILE` and `REPOSITORY_STATE_DIR`. Unknown app input names
-fail validation. The state directory is created privately and must have mode
-`0700` if it exists.
-
-Export these inputs with `CONFIGURE_REPOSITORY_SYNC=true` for the installer or
-Ansible. `ONBOARDING_TIMEOUT` controls the required-job wait in seconds: default
-`3600`, range `30`–`43200`. Application synchronization waits up to 15 minutes
-within that setting, then checks declared Deployment rollouts.
+- `--inputs`/`--state-dir` also work interactively (`REPOSITORY_INPUTS_FILE`,
+  `REPOSITORY_STATE_DIR`). Unknown input names fail validation. An existing state
+  directory must be mode `0700`.
+- For the installer or Ansible, export these with `CONFIGURE_REPOSITORY_SYNC=true`.
+- `ONBOARDING_TIMEOUT`: required-job wait in seconds, default `3600`, range
+  `30`-`43200`. Application sync waits up to 15 minutes within it, then Deployment
+  rollouts are checked.
 
 Progress defaults to `~/.local/state/swirl-cloud/repositories`. Each locked journal
-records project/cluster identity, configuration and pipeline progress without
-credentials. Rerun from the same host/state directory to resume a recorded
-pipeline or retry failed jobs. An active earlier pipeline must finish before
-settings change. Missing or manual required jobs cannot count as deployment
-success; inspect the reported pipeline and correct its cause before rerunning.
+records project/cluster identity, configuration and pipeline progress, never
+credentials. Rerun from the same host and state directory to resume a pipeline or
+retry failed jobs. An active earlier pipeline must finish before settings change.
+Missing or manual required jobs never count as success; fix the reported pipeline
+first.
 
-Pipeline creation intent is journaled before the API request. If its response is
-lost, rerunning looks for the matching source SHA and `ONBOARDING_RUN_ID` instead
-of immediately creating another pipeline. An unresolved request stops recovery.
-Check GitLab before removing only `pipeline_intent` from the private journal,
-and do so only after confirming that request created no pipeline. An ambiguous
-HTTP timeout cannot guarantee exactly one pipeline without that confirmation.
+Pipeline intent is journaled before the API request. If the response is lost, a
+rerun looks for the matching source SHA and `ONBOARDING_RUN_ID` instead of creating
+another pipeline; an unresolved request stops recovery. Remove only
+`pipeline_intent` from the journal, and only after confirming in GitLab that the
+request created no pipeline.
 
 Failures can leave configuration commits, credentials, DNS or a paused Application
-in place. Completed setup is retained; there is no automatic repository deletion
-or data rollback. After configuration is published, the corrected release
-restores the Application's policy. If publication never happened, a rerun can
-restore the prior policy after verifying the source is unchanged. Other selected
-repositories continue. A new host can recover public choices
-from Git; transferring the private journal is necessary to resume its recorded
-pipeline rather than start a new operation.
+in place. Completed setup is kept; nothing is deleted or rolled back automatically.
+If configuration was published, the corrected release restores the Application's
+policy; if not, a rerun restores it after verifying the source is unchanged. Other
+selected repositories continue. A new host recovers public choices from Git but
+needs the private journal to resume a recorded pipeline.
 
 ## Synchronization and validation
 
-Reruns preserve visibility; private GitHub sources require private GitLab
-projects. Sync fast-forwards the lagging side and merges compatible divergence
-without force pushes. Resolve merge conflicts and conflicting tags before
-retrying. Deletion on only one side is restored. Issues, pull requests, releases,
-packages, Git LFS objects and hosting metadata require separate migration.
+Reruns preserve visibility; private GitHub sources need private GitLab projects.
+Sync fast-forwards the lagging side and merges compatible divergence without force
+pushes. Resolve merge and tag conflicts before retrying. A deletion on one side only
+is restored.
 
-GitLab is the delivery and metadata authority: CI pipelines, the Registry,
-protected environments, merge requests, issues, releases, packages and LFS live
-there, and Argo CD reads from it. GitHub is a Git mirror; synchronization
-exchanges branches and tags only and never copies forge metadata in either
-direction. That metadata is therefore protected only by GitLab's own recovery
-([backups and recovery](../operations.md#backups-and-recovery); native GitLab backup is still open in TODO §12). Add
-cross-forge metadata synchronization only for a concrete requirement.
+GitLab is the delivery and metadata authority (CI, Registry, protected environments,
+merge requests, issues, releases, packages, LFS) and Argo CD reads from it. GitHub
+is a Git mirror: sync exchanges only branches and tags. Forge metadata is protected
+only by GitLab's own recovery ([backups and recovery](../operations.md#backups-and-recovery);
+native GitLab backup is still open in TODO §12).
 
-The platform GitOps URL is an independent installer choice. Importing this
-repository copies source; it does not replace platform installation or Odoo setup.
+Importing this repository copies source only; the platform GitOps URL is a separate
+installer choice.
 
-Run [repository validation](../testing.md#validation), then verify onboarding
-changes with a disposable repository using the [app contract](application-onboarding.md):
-confirm private-source visibility, synchronization, a successful pinned pipeline,
-application readiness and an idempotent rerun.
+Run [repository validation](../testing.md#validation), then test onboarding changes
+with a disposable repository and the [app contract](application-onboarding.md):
+private-source visibility, sync, a successful pinned pipeline, app readiness and an
+idempotent rerun.

@@ -1,9 +1,9 @@
 # Capacity Planning
 
-Kubernetes schedules pods by their **requests**: the CPU and memory a pod
-reserves, whether it uses them or not. A cluster runs out of room when requests
-reach its allocatable capacity, even if real usage is low. Plan capacity on
-requests, keep usage in view, and keep enough spare room to lose a server.
+Kubernetes schedules pods by their **requests**, the CPU and memory a pod
+reserves whether it uses them or not. A cluster is full when requests reach its
+allocatable capacity, even if usage is low. Plan on requests, watch usage, and
+keep room to lose a server.
 
 ## Targets
 
@@ -16,18 +16,16 @@ requests, keep usage in view, and keep enough spare room to lose a server.
 ## Dashboard and alerts
 
 Grafana's **Capacity Planning** dashboard (Applications folder) shows requested
-and used CPU and memory, requested capacity per server, requests against the
-capacity left after losing the largest server (empty on a single server), the
-cores and memory to add to bring requests below 70 %, and filesystems and
-volumes whose free space is shrinking with the days left at the current rate.
+and used CPU and memory, requests per server, requests after losing the largest
+server (empty on a single server), the cores and memory to add, and the storage
+running out with days left at the current rate.
 
 | Alert | Fires when |
 | --- | --- |
 | [`ClusterCapacityRequestsHigh`](alert-runbooks.md#clustercapacityrequestshigh) | Requests stay above 90 % of allocatable CPU or memory for 30 minutes |
 | [`ClusterCannotSurviveNodeLoss`](alert-runbooks.md#clustercannotsurvivenodeloss) | Requests exceed the capacity left without the largest server for an hour |
 
-Storage alerts for filling filesystems and volumes are in the
-[capacity runbooks](alert-runbooks.md#capacity).
+Filesystem and volume alerts are in the [capacity runbooks](alert-runbooks.md#capacity).
 
 | Series | Meaning |
 | --- | --- |
@@ -39,18 +37,18 @@ Storage alerts for filling filesystems and volumes are in the
 
 ## Deciding what to do
 
-1. **Lower requests first.** When requests are high but usage is low, the
-   rightsizing table in **Cost Showback** lists the namespaces that reserve far
-   more than they use. Lower requests in the owning manifests; application
-   repositories own theirs.
-2. **Add a server** when usage itself approaches the targets, or to survive a
-   host failure. Size it from the cores and memory to add, then follow
+1. **Lower requests first** when requests are high but usage is low. The
+   rightsizing table in [Cost Showback](cost-showback.md#dashboard) lists
+   namespaces that reserve far more than they use. Lower requests in the owning
+   manifests; application repositories own theirs.
+2. **Add a server** when usage nears the targets, or to survive a host failure.
+   Size it from the cores and memory to add, then follow
    [node enrollment](node-enrollment.md).
 3. **Grow storage** when a volume will fill within a month: clean up through the
    service or expand the claim.
 
-Long-term usage trends per namespace are in the
-[platform reports](platform-reports.md), which keep hourly allocation for 13 months.
+The [platform reports](platform-reports.md) keep hourly allocation per namespace
+for 13 months, for long-term trends.
 
 ## Related Guides
 

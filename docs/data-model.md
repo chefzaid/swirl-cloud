@@ -1,10 +1,8 @@
 # Data Model Reference
 
-The platform has no business domain of its own. Its data model is the set of
-durable records it owns: credentials in Vault, shared databases, persistent
-volumes, public state ConfigMaps and root-only host files. This reference lists
-each record, its owner and how it changes. Application schemas belong to their
-repositories.
+The durable records the platform owns: Vault credentials, shared databases,
+persistent volumes, state ConfigMaps and root-only host files. Application
+schemas belong to their repositories.
 
 ## Relationship Overview
 
@@ -26,7 +24,7 @@ flowchart LR
 
 | Path | Contents | Consumers |
 | --- | --- | --- |
-| `secret/infra/<service>` | Administrator, database and OIDC client credentials for `postgres`, `mongodb`, `keycloak`, `grafana`, `elasticsearch`, `sonarqube`, `gitlab`, `dbgate`, `kafka-ui`, `portainer`, `monitoring`, `platform-ui`, `odoo` | Platform ExternalSecrets in `infra` and `corp` |
+| `secret/infra/<service>` | Administrator, database and OIDC client credentials for `postgres`, `mongodb`, `keycloak`, `grafana`, `elasticsearch`, `sonarqube`, `gitlab`, `dbgate`, `kafka-ui`, `portainer`, `monitoring`, `platform-ui`, `odoo`; the Longhorn volume encryption key in `longhorn` | Platform ExternalSecrets in `infra` and `corp` |
 | `secret/infra/gitlab` | `root_password`, runner, retention and `sonar_discovery_api_token` tokens | GitLab bootstrap, runner, retention and discovery jobs |
 | `secret/infra/application-redis` | Platform Redis administrator password | Platform only; never applications |
 | `secret/infra/smtp` | Platform mail relay: `enabled`, host, port, TLS mode, login, sender and alert recipients; seeded with mail off ([guide](guides/platform-mail.md)) | `platform-mail` Secrets in `infra` and `corp`, Alertmanager's rendered configuration, the outage watch Worker's secret |
@@ -37,14 +35,15 @@ flowchart LR
 
 Policies: `external-secrets-policy` reads `infra/*` and `apps/*`; environment
 roles read only their own prefix; `platform-admin` grants everything to the
-Keycloak `platform-admins` group. See [recovery credentials](security.md#recovery-credentials).
+Keycloak `platform-admins` group. See
+[recovery credentials](security.md#recovery-credentials).
 
 ## Shared Databases
 
 | Service | Store | Owned databases or keys |
 | --- | --- | --- |
-| PostgreSQL (`infra/postgres`, 2 Gi) | Logical databases | `keycloak`, SonarQube, Odoo (`odoo`), per-environment application databases such as `swirl_demo_app_int`, and legacy application databases such as `swirl_demo_app_db` |
-| MongoDB (`infra/mongodb`, 5 Gi) | Databases | Available to applications; no platform service or current workspace application depends on it |
+| PostgreSQL (`infra/postgres`, 2 Gi) | Logical databases | `keycloak`, SonarQube, `odoo`, per-environment databases (`swirl_demo_app_int`) and legacy ones (`swirl_demo_app_db`) |
+| MongoDB (`infra/mongodb`, 5 Gi) | Databases | For applications; no platform service or current application uses it |
 | Redis (`infra/redis`, ephemeral) | Keys with environment prefixes | Disposable cache and rate-limit state; never durable jobs |
 | Kafka (`infra/kafka`, 1 Gi broker, 1 Gi controller) | Topics and consumer groups with environment prefixes | Application events |
 
@@ -69,7 +68,7 @@ GitLab Omnibus keeps its own bundled PostgreSQL inside `gitlab-data`.
 | `corp/odoo-data-pvc` | 10 Gi | Odoo filestore |
 | `gitlab-runners/gitlab-runner-cache` | 5 Gi | Runner cache |
 
-Capacity requests are not physical usage; see [storage and retention](operations.md#storage-and-retention).
+Sizes are requests, not usage.
 
 ## Platform State Records
 
@@ -101,25 +100,23 @@ Capacity requests are not physical usage; see [storage and retention](operations
 
 ## Change Rules
 
-- Never delete a PVC or database as part of a migration; retain originals until a verified cutover.
-- Record HA and data migrations in their private journals and state ConfigMaps; do not hand-edit phases.
+- Never delete a PVC or database in a migration; keep originals until a verified cutover.
+- HA and data migrations record their phase in private journals and state
+  ConfigMaps; never hand-edit phases.
 - Change identity values only through a planned migration of accounts and resources.
 - Write credentials to Vault first, then refresh ExternalSecrets.
 - Keep journals, dumps, keys and inventories outside Git.
 
 ## Privacy And Retention
 
-Container logs are deleted one day after their daily index starts, Lynis
-audits after 365 days, Prometheus metrics after 15 days and GitLab's embedded
-metrics after one day.
-Registry images and packages expire after the configured retention period
-(default 1 095 days). Secret-scanner reports contain metadata, not secret values.
-See [storage and retention](operations.md#storage-and-retention).
+Container logs are deleted one day after their daily index starts, Kubernetes
+API audit records after 30 days, Lynis audits after 365 days, Prometheus metrics
+after 15 days and GitLab's embedded metrics after one day. Registry images and
+packages expire after the configured retention (default 1 095 days).
+Secret-scanner reports hold metadata, not secret values. See
+[storage and retention](operations.md#storage-and-retention).
 
 ## Related Guides
 
-- [Architecture](architecture.md)
-- [Security](security.md)
-- [Operations](operations.md)
-- [PostgreSQL HA](guides/postgres-ha.md)
-- [Kafka HA](guides/kafka-ha.md)
+- [Architecture](architecture.md), [Security](security.md), [Operations](operations.md)
+- [PostgreSQL HA](guides/postgres-ha.md), [Kafka HA](guides/kafka-ha.md)
