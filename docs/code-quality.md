@@ -45,6 +45,7 @@ See [testing](testing.md#test-layers) for the full layer map.
   Middlewares, and `websecure` carries the HSTS and `nosniff` policy that
   `configure-cloudflare.sh` sets at the edge
 - every alert names an owner and links to its section of the [alert runbooks](guides/alert-runbooks.md)
+- the rendered Prometheus configuration and rules pass `promtool`, and every `# swirl-cloud:file` marker resolves
 - every manifest in the `platform.env` inventories exists without duplicates
 - Service selectors, named ports, RBAC and chart file references resolve
 - every Elasticsearch `index.lifecycle.name` names a policy that a rendered job or init container stores

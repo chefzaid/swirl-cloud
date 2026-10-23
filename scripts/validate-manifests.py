@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
 DIGEST = re.compile(r"@sha256:[a-f0-9]{64}$")
+FILE_MARKER = re.compile(r"^( *)# swirl-cloud:file (\S+)$", re.M)
 
 
 def require(condition, message):
@@ -27,6 +28,15 @@ def require(condition, message):
 
 def run(*command, **kwargs):
     return subprocess.check_output(command, text=True, cwd=ROOT, **kwargs)
+
+
+def inline_files(text):
+    """Fill `# swirl-cloud:file` markers as templates/resources.yaml does."""
+    def body(match):
+        source = ROOT / "k8s/files" / match[2]
+        require(source.is_file(), f"missing k8s/files/{match[2]}")
+        return "\n".join(match[1] + line if line else line for line in source.read_text().removesuffix("\n").split("\n"))
+    return FILE_MARKER.sub(body, text)
 
 
 def documents(text):
@@ -317,6 +327,16 @@ def lifecycle_policies(rendered, label):
     require(named <= stored, f"{label}: lifecycle policies never stored: {', '.join(sorted(named - stored))}")
 
 
+def prometheus_config(runtime, stage):
+    """The rendered Prometheus configuration and rules pass promtool."""
+    config = runtime[("v1", "ConfigMap", "infra", "prometheus-config")]["data"]
+    for name, content in config.items():
+        (stage / name).write_text(content)
+    # Only syntax: the referenced rule and credential files exist in the pod, not here.
+    run("promtool", "check", "config", "--syntax-only", str(stage / "prometheus.yml"))
+    run("promtool", "check", "rules", str(stage / "rules.yaml"))
+
+
 def ingress_policy(contract):
     """Entry-point middlewares of the separately installed Traefik release and its edge header policy."""
     def layer(base, override):
@@ -394,7 +414,7 @@ def source_inputs():
     resources = []
     for group in GROUPS:
         for path in (ROOT / "k8s" / group).glob("*.yaml"):
-            for doc in documents(path.read_text()):
+            for doc in documents(inline_files(path.read_text())):
                 workload_policy(doc)
                 for image in images(doc):
                     require(DIGEST.search(image), f"{path.name}: image must have an immutable digest: {image}")
@@ -481,9 +501,11 @@ def render_profiles(output):
         run("helm", "lint", str(ROOT / "k8s"), "--strict", *options, env=env)
         rendered = run("helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--skip-tests", *options, env=env)
         require(set(TOKEN.findall(rendered)) <= {"__RUNNER_TOKEN__"}, f"{label}: unresolved deployment placeholders")
+        require(not FILE_MARKER.search(rendered), f"{label}: unresolved file markers")
         runtime = index(documents(rendered))
         resource_wiring(list(runtime.values()))
         lifecycle_policies(rendered, label)
+        prometheus_config(runtime, stage)
         owned = {identity(doc) for block in rendered.split("\n---")
                  if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
         require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")

@@ -1,0 +1,220 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules.yaml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager.__INTERNAL_DNS_ZONE__:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: kube-state-metrics
+    static_configs:
+      - targets: ["kube-state-metrics.__INTERNAL_DNS_ZONE__:8080"]
+
+  - job_name: node-exporter
+    kubernetes_sd_configs:
+      - role: endpoints
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: host-agents;node-exporter;metrics
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  - job_name: kubernetes-nodes
+    scheme: https
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - target_label: __address__
+        replacement: kubernetes.default.svc.cluster.local:443
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/$1/proxy/metrics
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+
+  - job_name: kubernetes-cadvisor
+    scheme: https
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - target_label: __address__
+        replacement: kubernetes.default.svc.cluster.local:443
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+
+  # Separately installed platform releases are selected by their chart
+  # labels and named metrics ports; their charts need no annotations.
+  - job_name: traefik
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: traefik;metrics
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  # Listener telemetry permits unauthenticated reads, so standbys report too.
+  - job_name: vault
+    metrics_path: /v1/sys/metrics
+    params:
+      format: [prometheus]
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: vault;server;http
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  # One probe per public Ingress host through the blackbox exporter.
+  - job_name: availability-probes
+    metrics_path: /probe
+    params:
+      module: [https_available]
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    kubernetes_sd_configs:
+      - role: ingress
+    relabel_configs:
+      # Skip wildcard and host-less rules.
+      - source_labels: [__address__]
+        action: drop
+        regex: '(\*.*)?'
+      - source_labels: [__address__]
+        target_label: __param_target
+        replacement: https://$1/
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - target_label: __address__
+        replacement: blackbox-exporter.__INTERNAL_DNS_ZONE__:9115
+
+  - job_name: argocd
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: argocd;metrics
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+        target_label: component
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  # The manager API port also serves /metrics; see longhorn-manager-metrics.
+  - job_name: longhorn
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [longhorn-system]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: longhorn-manager;manager
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  # <datastore>-exporter containers and CloudNativePG instances; each
+  # target's job is the datastore name.
+  - job_name: datastores
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_cnpg_io_cluster]
+        action: keep
+        regex: (postgres|mongodb|redis|kafka|elasticsearch)-exporter;metrics;|postgres;metrics;postgres-ha
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        regex: (postgres|mongodb|redis|kafka|elasticsearch).*
+        target_label: job
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
+  - job_name: external-secrets
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: external-secrets;metrics
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+  # Applications opt in from their owning repository with these pod annotations:
+  # prometheus.io/scrape=true, prometheus.io/path=/metrics, prometheus.io/port=<port>.
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: "true"
+      - source_labels: [__meta_kubernetes_pod_container_init]
+        action: drop
+        regex: "true"
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+        action: replace
+        target_label: __scheme__
+        regex: (https?)
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        target_label: container
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app

@@ -17,7 +17,7 @@ while (( $# )); do
     shift
 done
 cd "$ROOT"
-for command in git shellcheck python3 helm ansible-playbook node jq sqlite3 flock openssl; do
+for command in git shellcheck python3 helm promtool ansible-playbook node jq sqlite3 flock openssl; do
     command -v "$command" >/dev/null || { printf 'Required validation tool is missing: %s\n' "$command" >&2; exit 1; }
 done
 python3 -c 'import yaml' || { printf 'Python PyYAML is required.\n' >&2; exit 1; }

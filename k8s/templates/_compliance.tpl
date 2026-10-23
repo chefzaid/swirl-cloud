@@ -1,7 +1,7 @@
 {{- /*
 Prometheus recording rules generated from files/compliance-controls.yaml.
 swirl_cloud_compliance_check_status: 2 passing, 1 no evidence, 0 failing.
-The aggregations and the drift alert are static rules in platform/monitoring.yaml.
+The aggregations and the drift alert are static rules in files/prometheus/rules.yaml.
 */ -}}
 {{- define "swirl-cloud.compliance-rule-groups" -}}
 {{- $catalog := .Files.Get "files/compliance-controls.yaml" | fromYaml -}}

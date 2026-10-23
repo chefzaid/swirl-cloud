@@ -120,8 +120,8 @@ Extra scrape jobs, each covered by `PrometheusTargetDown`: `traefik`, `vault`,
 CloudNativePG), `mongodb`, `redis` (including Redis HA), `kafka` and
 `elasticsearch` (exporters; Elasticsearch signs in as `metrics_monitor`);
 `external-secrets`; and GitLab's `/-/metrics` (its bundled Prometheus is
-disabled; see **GitLab Delivery**). Prometheus restarts when
-[monitoring.yaml](../k8s/platform/monitoring.yaml) changes.
+disabled; see **GitLab Delivery**). Prometheus restarts when its
+[configuration or rules](../k8s/files/prometheus/) change.
 
 Vault serves `/v1/sys/metrics` without a token, reporting `vault_core_unsealed`
 even while sealed, and reads telemetry settings only at startup: after an
@@ -302,7 +302,7 @@ keep a verified recovery copy first.
 |---|---|
 | Container and application logs | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), Elasticsearch ILM policy `swirl-cloud-logs` |
 | Lynis audit indices | [elk.yaml](../k8s/platform/elk.yaml), separate ILM policy |
-| Shared Prometheus metrics | [monitoring.yaml](../k8s/platform/monitoring.yaml), time and size limits |
+| Shared Prometheus metrics | [monitoring.yaml](../k8s/platform/monitoring.yaml) (Prometheus arguments), time and size limits |
 | Images and packages | [GitLab retention job](../k8s/platform/gitlab-registry-retention.yaml) |
 | CI artifacts | Each application's pipeline settings |
 

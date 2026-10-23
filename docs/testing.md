@@ -31,8 +31,9 @@ python3 scripts/verify-high-availability.py  # read-only HA readiness on a live 
 
 Run `./scripts/validate-repository.sh` from the repository root before changing
 installation or deployment behavior. It is offline and needs Bash, Git,
-ShellCheck, Python 3 with PyYAML, Helm, Ansible, Node.js, jq, SQLite's `sqlite3`
-CLI, `flock`, OpenSSL and the time zone database (`tzdata`). CI installs them. A
+ShellCheck, Python 3 with PyYAML, Helm, Prometheus's `promtool`, Ansible, Node.js,
+jq, SQLite's `sqlite3` CLI, `flock`, OpenSSL and the time zone database (`tzdata`).
+CI installs them. A
 missing tool fails validation instead of skipping checks.
 
 The nine render profiles cover single-node and HA, `infra` and Odoo scope,

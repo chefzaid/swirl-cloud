@@ -1,0 +1,763 @@
+groups:
+  - name: swirl-cloud.capacity
+    rules:
+      - alert: NodeFilesystemSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          ) < 0.20
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodefilesystemspacelow
+          summary: Filesystem free space is below 20%
+          description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanizePercentage }} free.'
+      - alert: NodeFilesystemSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          ) < 0.10
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodefilesystemspacecritical
+          summary: Filesystem free space is below 10%
+          description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} is critically low on space.'
+      # Backups, image pulls and upgrades need about 30 GiB on the K3s host
+      # filesystem; kubelet image GC starts at 85 % used, before evictions.
+      - alert: NodeMaintenanceHeadroomLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint=~"/|/var|/var/lib|/var/lib/rancher.*"}
+          < 30 * 1024 * 1024 * 1024
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodemaintenanceheadroomlow
+          summary: Less than 30 GiB free for maintenance
+          description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanize1024 }}B free. Free space before backups, upgrades or image pulls.'
+      - alert: NodeFilesystemFillingWithinDay
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}[6h], 24 * 3600) < 0
+          and node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"} < 0.30
+        for: 30m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodefilesystemfillingwithinday
+          summary: Filesystem is predicted to fill within 24 hours
+          description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} is consuming its remaining space quickly.'
+      - alert: PersistentVolumeSpaceLow
+        expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.20
+        for: 15m
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#persistentvolumespacelow
+          summary: Persistent volume free space is below 20%
+          description: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has {{ $value | humanizePercentage }} free; expand the claim or reduce retention.'
+      - alert: PersistentVolumeSpaceCritical
+        expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.10
+        for: 5m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#persistentvolumespacecritical
+          summary: Persistent volume free space is below 10%
+          description: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is critically low on space.'
+      - alert: PersistentVolumeFillingWithinDay
+        expr: |
+          predict_linear(kubelet_volume_stats_available_bytes[6h], 24 * 3600) < 0
+          and kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.30
+        for: 30m
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#persistentvolumefillingwithinday
+          summary: Persistent volume is predicted to fill within 24 hours
+          description: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is consuming its remaining space quickly.'
+  - name: swirl-cloud.kubernetes
+    rules:
+      - alert: KubernetesDeploymentUnavailable
+        expr: kube_deployment_spec_replicas > kube_deployment_status_replicas_available
+        for: 10m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesdeploymentunavailable
+          summary: Kubernetes Deployment has unavailable replicas
+          description: '{{ $labels.namespace }}/{{ $labels.deployment }} has fewer available replicas than desired.'
+      - alert: KubernetesStatefulSetUnavailable
+        expr: kube_statefulset_replicas > kube_statefulset_status_replicas_ready
+        for: 10m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesstatefulsetunavailable
+          summary: Kubernetes StatefulSet has unavailable replicas
+          description: '{{ $labels.namespace }}/{{ $labels.statefulset }} has fewer ready replicas than desired.'
+      - alert: KubernetesPodCrashLooping
+        expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[10m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetespodcrashlooping
+          summary: Pod is crash-looping
+          description: '{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} is in CrashLoopBackOff.'
+      - alert: KubernetesContainerOOMKilled
+        expr: increase(kube_pod_container_status_restarts_total[15m]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetescontaineroomkilled
+          summary: Container restarted after an OOM kill
+          description: '{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} exhausted its memory limit.'
+      - alert: KubernetesPersistentVolumeReleased
+        expr: kube_persistentvolume_status_phase{phase="Released"} == 1
+        for: 30m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetespersistentvolumereleased
+          summary: Released persistent volume still consumes storage
+          description: 'PersistentVolume {{ $labels.persistentvolume }} has remained Released for at least 30 minutes.'
+      - alert: KubernetesPersistentVolumeClaimPending
+        expr: kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
+        for: 15m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetespersistentvolumeclaimpending
+          summary: PersistentVolumeClaim is pending
+          description: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has not bound to storage.'
+      # Failed CronJob runs stay in history; ignore those superseded by a later success.
+      - alert: KubernetesJobFailed
+        expr: |
+          kube_job_status_failed > 0
+          unless on (namespace, job_name)
+          (
+            (kube_job_status_start_time * on (namespace, job_name) group_left (owner_name) kube_job_owner{owner_kind="CronJob"})
+            < on (namespace, owner_name) group_left ()
+            label_replace(kube_cronjob_status_last_successful_time, "owner_name", "$1", "cronjob", "(.+)")
+          )
+        for: 5m
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesjobfailed
+          summary: Kubernetes Job failed
+          description: '{{ $labels.namespace }}/{{ $labels.job_name }} has a failed execution.'
+  - name: swirl-cloud.platform
+    rules:
+      - alert: KubernetesNodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesnodenotready
+          summary: Kubernetes node is not Ready
+          description: 'Node {{ $labels.node }} has not reported Ready for five minutes.'
+      - alert: VaultSealed
+        expr: vault_core_unsealed == 0
+        for: 2m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#vaultsealed
+          summary: Vault is sealed
+          description: 'Vault pod {{ $labels.pod }} is sealed; secrets cannot be read until it is unsealed.'
+      # Vault refuses requests once no audit device can record them.
+      - alert: VaultAuditDeviceFailing
+        expr: increase(vault_audit_log_request_failure[10m]) > 0 or increase(vault_audit_log_response_failure[10m]) > 0
+        labels:
+          severity: critical
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#vaultauditdevicefailing
+          summary: Vault audit device is failing
+          description: 'Vault pod {{ $labels.pod }} failed to write audit entries in the last ten minutes.'
+      # Longhorn exports one series per robustness state, set to 1 for the current state.
+      - alert: LonghornVolumeDegraded
+        expr: longhorn_volume_robustness{state="degraded"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#longhornvolumedegraded
+          summary: Longhorn volume is degraded
+          description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) is missing healthy replicas or still rebuilding.'
+      - alert: LonghornVolumeBackupStale
+        # Silent until off-node volume backups are active (the target holds
+        # at least one backup); then every volume must stay within 36 hours.
+        expr: |
+          (time() - longhorn_volume_last_backup_at > 36 * 3600)
+          and on() (sum(longhorn_backup_target_backup_volume_count) > 0)
+        for: 1h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#longhornvolumebackupstale
+          summary: Longhorn volume backup is overdue
+          description: 'Volume for {{ $labels.pvc }} has no off-node backup from the last 36 hours; check the daily recurring job and the backup target.'
+      - alert: LonghornVolumeFaulted
+        expr: longhorn_volume_robustness{state="faulted"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#longhornvolumefaulted
+          summary: Longhorn volume is faulted
+          description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) has no usable replica.'
+      - alert: KeycloakPasswordFailuresHigh
+        expr: sum by (realm) (increase(keycloak_credentials_password_hashing_validations_total{outcome!="valid"}[15m])) > 20
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#keycloakpasswordfailureshigh
+          summary: Many failed Keycloak password checks
+          description: 'Realm {{ $labels.realm }} rejected {{ $value | printf "%.0f" }} passwords in 15 minutes; check for credential guessing against the SSO identity.'
+      - alert: ExternalSecretNotReady
+        expr: externalsecret_status_condition{condition="Ready",status="False"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#externalsecretnotready
+          summary: ExternalSecret is not Ready
+          description: '{{ $labels.namespace }}/{{ $labels.name }} has not synchronized from Vault for 15 minutes; inspect kubectl describe externalsecret.'
+      - alert: ElasticsearchUnreachable
+        expr: elasticsearch_clusterinfo_up == 0 or absent(elasticsearch_cluster_health_status{color="green"})
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#elasticsearchunreachable
+          summary: Elasticsearch is unreachable
+          description: 'The exporter cannot read Elasticsearch cluster health; logs and audits are not being indexed.'
+      - alert: ElasticsearchClusterRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#elasticsearchclusterred
+          summary: Elasticsearch cluster health is red
+          description: 'At least one primary shard is unassigned; some logs or audits cannot be written or searched.'
+      - alert: ElasticsearchClusterYellow
+        expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+        for: 30m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#elasticsearchclusteryellow
+          summary: Elasticsearch cluster health is yellow
+          description: 'Replica shards are unassigned; on a single node, check for indices that request replicas.'
+      - alert: DatastoreDown
+        expr: pg_up == 0 or cnpg_collector_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#datastoredown
+          summary: Shared datastore is unavailable
+          description: '{{ $labels.job }} exporter on {{ $labels.pod }} cannot reach its datastore.'
+      - alert: ArgoCDApplicationUnhealthy
+        expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#argocdapplicationunhealthy
+          summary: Argo CD application is unhealthy
+          description: 'Application {{ $labels.name }} has been {{ $labels.health_status }} for fifteen minutes.'
+      - alert: ArgoCDApplicationOutOfSync
+        expr: argocd_app_info{sync_status="OutOfSync"} == 1
+        for: 30m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#argocdapplicationoutofsync
+          summary: Argo CD application is out of sync
+          description: 'Application {{ $labels.name }} has not matched its Git revision for thirty minutes.'
+      # Traefik is scraped by two jobs; group by certificate identity.
+      - alert: TLSCertificateExpiringSoon
+        expr: (min by (cn, sans) (traefik_tls_certs_not_after) - time()) < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#tlscertificateexpiringsoon
+          summary: TLS certificate expires within 14 days
+          description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
+      - alert: TLSCertificateExpiryCritical
+        expr: (min by (cn, sans) (traefik_tls_certs_not_after) - time()) < 3 * 86400
+        for: 10m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#tlscertificateexpirycritical
+          summary: TLS certificate expires within 3 days
+          description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
+  - name: swirl-cloud.host-audit
+    rules:
+      - alert: LynisAuditFailed
+        expr: swirl_cloud_lynis_last_run_exit_code != 0
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#lynisauditfailed
+          summary: Managed Lynis audit failed
+          description: 'The last Lynis run on {{ $labels.node }} exited with code {{ $value }}; inspect journalctl -u swirl-cloud-lynis.service.'
+      - alert: LynisAuditMissing
+        expr: time() - swirl_cloud_lynis_last_success_timestamp_seconds > 35 * 86400
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#lynisauditmissing
+          summary: Monthly Lynis audit is overdue
+          description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
+      # Known findings are triaged in docs/security.md; alert only when an image
+      # exceeds its own 6 h critical maximum or arrives with critical findings.
+      # 6 h fits the size-bound retention; widen it with TODO §26.
+      - alert: TrivyNewCriticalVulnerability
+        expr: |
+          max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+          unless on (exported_namespace, image_repository)
+          (
+            max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})
+            <= max_over_time(max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})[6h:15m] offset 1h)
+          )
+        for: 30m
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#trivynewcriticalvulnerability
+          summary: New critical vulnerabilities in a running image
+          description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
+      - alert: HostFirewallDisabled
+        expr: swirl_cloud_host_firewall_active == 0
+        for: 5m
+        labels:
+          severity: critical
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostfirewalldisabled
+          summary: Host firewall is not enforcing
+          description: 'UFW is inactive or INPUT is not default-deny on {{ $labels.instance }}; every listening port may be reachable. Check: sudo ufw status verbose, then rerun scripts/configure-node-security.sh.'
+      - alert: HostIntrusionPreventionDown
+        expr: swirl_cloud_intrusion_service_up == 0
+        for: 15m
+        labels:
+          severity: critical
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostintrusionpreventiondown
+          summary: Host intrusion prevention is not running
+          description: '{{ $labels.service }} is inactive on {{ $labels.instance }}; its public SSH has no brute-force protection. Check: sudo systemctl status {{ $labels.service }}.'
+      - alert: HostIntrusionMetricsStale
+        expr: time() - swirl_cloud_intrusion_metrics_timestamp_seconds > 1800
+        for: 10m
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostintrusionmetricsstale
+          summary: Intrusion-prevention metrics are stale
+          description: '{{ $labels.instance }} has not refreshed Fail2ban/CrowdSec metrics for 30 minutes. Check: sudo systemctl status swirl-cloud-intrusion-metrics.timer.'
+      - alert: HostBruteForceWave
+        expr: |
+          sum by (instance) (increase(swirl_cloud_fail2ban_banned_total[1h])) > 50
+          or sum by (instance) (swirl_cloud_crowdsec_decisions) > 200
+        for: 10m
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostbruteforcewave
+          summary: Brute-force wave against a host
+          description: '{{ $labels.instance }} is banning attackers at an unusual rate ({{ $value | humanize }}). Bans are working; consider key-only SSH on the private interface (TODO §4).'
+      - alert: NodeRebootRequired
+        expr: swirl_cloud_reboot_required == 1 and time() - swirl_cloud_reboot_required_since_timestamp_seconds > 7 * 86400
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#noderebootrequired
+          summary: Node reboot has been pending for over a week
+          description: 'Installed updates on {{ $labels.node }} have required a reboot for more than seven days; schedule a maintenance window.'
+      - alert: HostMaintenanceServiceFailed
+        expr: swirl_cloud_systemd_unit_last_run_success == 0
+        for: 15m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostmaintenanceservicefailed
+          summary: Host maintenance service failed
+          description: 'The last run of {{ $labels.unit }} on {{ $labels.node }} failed; inspect journalctl -u {{ $labels.unit }}.'
+      - alert: K3sRecoveryBackupMissing
+        expr: time() - swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service"} > 36 * 3600
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#k3srecoverybackupmissing
+          summary: Daily K3s recovery backup is overdue
+          description: 'No successful swirl-cloud-k3s-backup.service run on {{ $labels.node }} for more than 36 hours; check swirl-cloud-k3s-backup.timer.'
+      - alert: VaultUnsealTimerStopped
+        expr: time() - swirl_cloud_systemd_unit_last_run_timestamp_seconds{unit="swirl-cloud-vault-unseal.service"} > 15 * 60
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#vaultunsealtimerstopped
+          summary: Vault unseal timer is not running
+          description: 'swirl-cloud-vault-unseal.service has not run on {{ $labels.node }} for 15 minutes; Vault would stay sealed after a restart.'
+  - name: swirl-cloud.ingress
+    rules:
+      - alert: IngressServiceErrorRateHigh
+        expr: |
+          sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[10m]))
+          / sum by (service) (rate(traefik_service_requests_total[10m])) > 0.05
+          and sum by (service) (rate(traefik_service_requests_total[10m])) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-[a-z0-9]+)?-" $labels.service }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#ingressserviceerrorratehigh
+          summary: Ingress service is returning server errors
+          description: '{{ $labels.service }} has answered more than 5% of requests with 5xx for 15 minutes; see the Ingress Traffic dashboard.'
+  - name: applications.indezy
+    rules:
+      - alert: IndezyOfferSiteFailing
+        expr: max by (site) (indezy_offers_site_consecutive_failures{namespace="apps",app="indezy-server"}) >= 3
+        for: 10m
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyoffersitefailing
+          summary: An Indezy job board keeps failing
+          description: 'Indezy failed to read {{ $labels.site }} {{ $value | printf "%.0f" }} times in a row; its offers are no longer refreshed.'
+      - alert: IndezyOfferSiteFindsNothing
+        expr: |
+          max by (site) (max_over_time(indezy_offers_site_last_found{namespace="apps",app="indezy-server"}[24h])) == 0
+          and max by (site) (indezy_offers_site_last_success_age_seconds{namespace="apps",app="indezy-server"}) < 86400
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyoffersitefindsnothing
+          summary: An Indezy job board yields no offer
+          description: 'Every successful reading of {{ $labels.site }} over 24 hours found no offer; its pages have probably changed.'
+      - alert: IndezyGeocodingTimeouts
+        expr: sum(increase(indezy_offers_geocoding_timeouts_total{namespace="apps",app="indezy-server"}[1h])) > 20
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezygeocodingtimeouts
+          summary: Indezy cannot reach the geocoding service
+          description: '{{ $value | printf "%.0f" }} place lookups to geo.api.gouv.fr failed in an hour; new offers lack coordinates until it answers.'
+  - name: swirl-cloud.monitoring
+    rules:
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#prometheustargetdown
+          summary: Prometheus target is down
+          description: '{{ $labels.job }} target {{ $labels.instance }} has been unreachable for ten minutes.'
+      - alert: AlertNotificationsFailing
+        # Failures carry a reason label that the totals lack: aggregate each
+        # side by integration before comparing them.
+        expr: |
+          sum by (integration) (increase(alertmanager_notifications_failed_total[1h])) > 0
+          and
+          (
+            sum by (integration) (increase(alertmanager_notifications_total[1h]))
+            - sum by (integration) (increase(alertmanager_notifications_failed_total[1h]))
+          ) < 1
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#alertnotificationsfailing
+          summary: Alert notifications are not being delivered
+          description: 'Every {{ $labels.integration }} notification from Alertmanager failed in the last hour; alerts may reach only the other receiver.'
+  # Helm replaces the next line with per-check rules generated from
+  # k8s/files/compliance-controls.yaml (status 2 passing, 1 no evidence, 0 failing).
+  # swirl-cloud:compliance-evidence-rules
+  - name: swirl-cloud.compliance
+    rules:
+      - record: swirl_cloud_compliance_control_status
+        expr: min by (control) (swirl_cloud_compliance_check_status)
+      - record: swirl_cloud_compliance_framework_control_status
+        expr: |
+          min by (framework, control) (
+            swirl_cloud_compliance_requirement * on (control) group_left swirl_cloud_compliance_control_status
+          )
+      - record: swirl_cloud_compliance_framework_passing_ratio
+        expr: |
+          (
+            count by (framework) (swirl_cloud_compliance_framework_control_status == 2)
+            or count by (framework) (swirl_cloud_compliance_framework_control_status) * 0
+          )
+          / count by (framework) (swirl_cloud_compliance_framework_control_status)
+      # Drift: a control is worse than its usual state (six-hour median), so
+      # brief evaluation gaps such as an exporter restart do not count.
+      - alert: ComplianceControlRegressed
+        expr: swirl_cloud_compliance_control_status < quantile_over_time(0.5, swirl_cloud_compliance_control_status[6h])
+        for: 30m
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#compliancecontrolregressed
+          summary: A compliance control started failing or lost its evidence
+          description: 'Control {{ $labels.control }} is now {{ if eq $value 0.0 }}failing{{ else }}without evidence{{ end }}. Open the Compliance Evidence dashboard or run ./install.sh --compliance.'
+  # Service levels (docs/guides/service-levels.md): 99.5 % probe availability.
+  # Multi-window burn rates: 14.4x over 1 h and 5 m pages, 6x over 6 h and 30 m warns.
+  - name: swirl-cloud.slo
+    rules:
+      - record: swirl_cloud_slo:probe_success:ratio_rate5m
+        expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[5m]))
+      - record: swirl_cloud_slo:probe_success:ratio_rate30m
+        expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[30m]))
+      - record: swirl_cloud_slo:probe_success:ratio_rate1h
+        expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[1h]))
+      - record: swirl_cloud_slo:probe_success:ratio_rate6h
+        expr: avg by (instance, namespace) (avg_over_time(probe_success{job="availability-probes"}[6h]))
+      - record: swirl_cloud_slo:objective
+        expr: vector(0.995)
+      - alert: SLOAvailabilityBudgetBurnFast
+        expr: |
+          (1 - swirl_cloud_slo:probe_success:ratio_rate1h) > 14.4 * (1 - 0.995)
+          and (1 - swirl_cloud_slo:probe_success:ratio_rate5m) > 14.4 * (1 - 0.995)
+        for: 2m
+        labels:
+          severity: critical
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#sloavailabilitybudgetburnfast
+          summary: Endpoint is burning its availability budget fast
+          description: '{{ $labels.instance }} failed {{ $value | humanizePercentage }} of probes over the last hour; at this rate the month''s 0.5 % budget is gone in about two days.'
+      - alert: SLOAvailabilityBudgetBurnSlow
+        expr: |
+          (1 - swirl_cloud_slo:probe_success:ratio_rate6h) > 6 * (1 - 0.995)
+          and (1 - swirl_cloud_slo:probe_success:ratio_rate30m) > 6 * (1 - 0.995)
+        for: 15m
+        labels:
+          severity: warning
+          owner: '{{ if match "^apps(-.+)?$" $labels.namespace }}application{{ else }}platform{{ end }}'
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#sloavailabilitybudgetburnslow
+          summary: Endpoint is steadily burning its availability budget
+          description: '{{ $labels.instance }} failed {{ $value | humanizePercentage }} of probes over six hours; the month''s 0.5 % budget lasts about five days at this rate.'
+  # Service indicators that endpoint probes do not cover (docs/guides/service-levels.md).
+  - name: swirl-cloud.sli
+    rules:
+      - record: swirl_cloud_sli:datastore_up
+        expr: |
+          label_replace(
+            max by (job) (pg_up or mongodb_up or redis_up or (kafka_brokers >= bool 1)),
+            "service", "$1", "job", "(.*)"
+          )
+      # CI failures caused by the platform (runner, system, timeouts), not by
+      # job scripts or cancellations, over all jobs in the window.
+      - record: swirl_cloud_sli:ci_platform_failures:ratio_rate6h
+        expr: |
+          (sum(increase(gitlab_runner_failed_jobs_total{failure_reason!~"script_failure|job_canceled"}[6h])) or vector(0))
+          / clamp_min(sum(increase(gitlab_runner_jobs_total[6h])), 1)
+      - record: swirl_cloud_sli:ci_queue_seconds:p90_6h
+        expr: histogram_quantile(0.9, sum by (le) (rate(gitlab_runner_job_queue_duration_seconds_bucket[6h])))
+      - record: swirl_cloud_sli:argocd_sync_failures:ratio_rate6h
+        expr: |
+          (sum(increase(argocd_app_sync_total{phase=~"Error|Failed"}[6h])) or vector(0))
+          / clamp_min(sum(increase(argocd_app_sync_total[6h])), 1)
+      - alert: CIJobsQueueingLong
+        expr: swirl_cloud_sli:ci_queue_seconds:p90_6h > 600
+        for: 1h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#cijobsqueueinglong
+          summary: CI jobs wait more than ten minutes for a runner
+          description: 'Nine in ten CI jobs started within {{ $value | humanizeDuration }} over six hours; raise runner concurrency or add capacity.'
+  # Capacity planning (docs/guides/capacity-planning.md) works on requests, which
+  # reserve capacity whether used or not: below 70 % and surviving a server loss.
+  - name: swirl-cloud.capacity-planning
+    rules:
+      - record: swirl_cloud_capacity:requests:ratio
+        expr: |
+          sum by (resource) (kube_pod_container_resource_requests{resource=~"cpu|memory",node!=""} and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))
+          / sum by (resource) (kube_node_status_allocatable{resource=~"cpu|memory"})
+      - record: swirl_cloud_capacity:node_requests:ratio
+        expr: |
+          sum by (node, resource) (kube_pod_container_resource_requests{resource=~"cpu|memory",node!=""} and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))
+          / sum by (node, resource) (kube_node_status_allocatable{resource=~"cpu|memory"})
+      # Requests against the capacity left after losing the largest server.
+      - record: swirl_cloud_capacity:requests_after_node_loss:ratio
+        expr: |
+          (
+            sum by (resource) (kube_pod_container_resource_requests{resource=~"cpu|memory",node!=""} and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))
+            / (sum by (resource) (kube_node_status_allocatable{resource=~"cpu|memory"}) - max by (resource) (kube_node_status_allocatable{resource=~"cpu|memory"}))
+          )
+          and on () (count(kube_node_info) > 1)
+      # CPU cores or memory bytes to add so requests stay below 70 %.
+      - record: swirl_cloud_capacity:additional_needed
+        expr: |
+          clamp_min(
+            sum by (resource) (kube_pod_container_resource_requests{resource=~"cpu|memory",node!=""} and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1)) / 0.7
+            - sum by (resource) (kube_node_status_allocatable{resource=~"cpu|memory"}),
+            0
+          )
+      - record: swirl_cloud_capacity:filesystem_days_until_full
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          / -deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}[6h]) / 86400 > 0
+      - record: swirl_cloud_capacity:volume_days_until_full
+        expr: |
+          kubelet_volume_stats_available_bytes
+          / -deriv(kubelet_volume_stats_available_bytes[6h]) / 86400 > 0
+      - alert: ClusterCapacityRequestsHigh
+        expr: swirl_cloud_capacity:requests:ratio > 0.9
+        for: 30m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clustercapacityrequestshigh
+          summary: Cluster {{ $labels.resource }} requests are above 90 % of capacity
+          description: 'Running pods request {{ $value | humanizePercentage }} of allocatable {{ $labels.resource }}; new or restarted pods may not schedule. See the Capacity Planning dashboard.'
+      - alert: ClusterCannotSurviveNodeLoss
+        expr: swirl_cloud_capacity:requests_after_node_loss:ratio > 1
+        for: 1h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clustercannotsurvivenodeloss
+          summary: Workloads would not fit after losing the largest server
+          description: 'Requested {{ $labels.resource }} is {{ $value | humanizePercentage }} of the capacity left without the largest server; a host failure would leave pods unscheduled.'
+  # Cost showback (docs/guides/cost-showback.md): each server's monthly cost
+  # (scripts/configure-node-cost.sh) splits 65 % CPU / 35 % memory across pods
+  # by the larger of request and usage; the rest is idle cost.
+  - name: swirl-cloud.cost
+    interval: 1m
+    rules:
+      - record: swirl_cloud_cost_pod_cpu_cores
+        expr: |
+          sum by (node, namespace, pod) (
+            max by (node, namespace, pod, container) (
+              (kube_pod_container_resource_requests{resource="cpu",node!=""}
+                and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))
+              or rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[5m])
+            )
+          )
+      - record: swirl_cloud_cost_pod_memory_bytes
+        expr: |
+          sum by (node, namespace, pod) (
+            max by (node, namespace, pod, container) (
+              (kube_pod_container_resource_requests{resource="memory",node!=""}
+                and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))
+              or container_memory_working_set_bytes{container!="",container!="POD"}
+            )
+          )
+      - record: swirl_cloud_cost_node_monthly
+        expr: max by (node, currency) (swirl_cloud_node_monthly_cost)
+      # Divide by capacity, or by the allocation when bursting pods exceed it,
+      # so pod costs never add up to more than the server costs.
+      - record: swirl_cloud_cost_cpu_core_monthly
+        expr: |
+          0.65 * swirl_cloud_cost_node_monthly
+          / on (node) group_left max by (node) (
+            kube_node_status_allocatable{resource="cpu"} or sum by (node) (swirl_cloud_cost_pod_cpu_cores)
+          )
+      - record: swirl_cloud_cost_memory_gib_monthly
+        expr: |
+          0.35 * swirl_cloud_cost_node_monthly
+          / on (node) group_left max by (node) (
+            kube_node_status_allocatable{resource="memory"} / 2^30 or sum by (node) (swirl_cloud_cost_pod_memory_bytes) / 2^30
+          )
+      - record: swirl_cloud_cost_pod_monthly
+        expr: |
+          swirl_cloud_cost_pod_cpu_cores * on (node) group_left (currency) swirl_cloud_cost_cpu_core_monthly
+          + swirl_cloud_cost_pod_memory_bytes / 2^30 * on (node) group_left (currency) swirl_cloud_cost_memory_gib_monthly
+      # Workload: the pod's app label, else its name without generated suffixes.
+      - record: swirl_cloud_cost_workload_monthly
+        expr: |
+          sum by (namespace, workload, currency) (
+            label_replace(
+              label_replace(
+                swirl_cloud_cost_pod_monthly
+                * on (namespace, pod) group_left (label_app) max by (namespace, pod, label_app) (kube_pod_labels),
+                "workload", "$1", "pod", "^(.+?)(-[a-f0-9]{32}|-[a-f0-9]{8,10})?(-[a-z0-9]{5}|-[0-9]+)?$"
+              ),
+              "workload", "$1", "label_app", "(.+)"
+            )
+          )
+      - record: swirl_cloud_cost_namespace_monthly
+        expr: sum by (namespace, currency) (swirl_cloud_cost_pod_monthly)
+      - record: swirl_cloud_cost_idle_monthly
+        expr: |
+          clamp_min(
+            swirl_cloud_cost_node_monthly
+            - on (node, currency) (sum by (node, currency) (swirl_cloud_cost_pod_monthly) or swirl_cloud_cost_node_monthly * 0),
+            0
+          )
+      - record: swirl_cloud_cost_shared_monthly
+        expr: max by (item, currency) (swirl_cloud_shared_monthly_cost)
+      - record: swirl_cloud_cost_total_monthly
+        expr: |
+          (
+            sum by (currency) (swirl_cloud_cost_node_monthly)
+            + on (currency) sum by (currency) (swirl_cloud_cost_shared_monthly)
+          )
+          or sum by (currency) (swirl_cloud_cost_node_monthly)

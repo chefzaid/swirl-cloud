@@ -11,7 +11,7 @@ label:
 
 Start with `./install.sh --status`: it prints a `Next:` command for each problem.
 Change thresholds in
-[`k8s/platform/monitoring.yaml`](../../k8s/platform/monitoring.yaml), not in
+[`k8s/files/prometheus/rules.yaml`](../../k8s/files/prometheus/rules.yaml), not in
 Alertmanager.
 
 ## Capacity

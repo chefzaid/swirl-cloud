@@ -21,7 +21,7 @@ only Odoo.
 | `k8s/platform/` | Delivery, identity, observability, ingress and other shared services, including support for application namespaces. |
 | `k8s/corp/` | Centrally owned Odoo, gated by `appsEnabled`. External applications do not belong here. |
 | `k8s/addons/` | The root Argo CD Application and the Descheduler, with its manual run Job kept apart from ordinary reconciliation. |
-| `k8s/files/` | Programs and data embedded in chart ConfigMaps: Kafka startup, node fencing, the compliance control catalog and Odoo addons. |
+| `k8s/files/` | Programs and data embedded in chart ConfigMaps: Prometheus configuration and rules, Grafana dashboards, Dark Reader, Kafka startup, node fencing, the compliance control catalog and Odoo addons. A ConfigMap value of only `# swirl-cloud:file <path>` takes `k8s/files/<path>`. |
 | `k8s/templates/` | Helm rendering and opt-in HA resources. |
 | `k8s/charts/` | Pinned, vendored dependency charts for offline rendering and bootstrap. |
 | `k8s/profiles/` | Two guards that stop installed root Applications still referencing retired image profiles. |

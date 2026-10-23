@@ -5,9 +5,23 @@
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}
 {{- $content := $root.Files.Get $path -}}
-{{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "platform/monitoring.yaml" -}}
-{{- $extra := eq $source "platform/monitoring.yaml" | ternary ($root.Files.Get "files/compliance-controls.yaml") "" -}}
-{{- $checksum := printf "%s\n%s%s" ($root.Files.Get $source) (include "swirl-cloud.identity" $root) $extra | sha256sum -}}
+{{- /* A block scalar holding only "# swirl-cloud:file <path>" takes files/<path>, indented to the marker. */ -}}
+{{- range $marker := regexFindAll "(?m)^ *# swirl-cloud:file \\S+$" $content -1 -}}
+{{- $file := printf "files/%s" (regexReplaceAll "^ *# swirl-cloud:file " $marker "") -}}
+{{- $body := $root.Files.Get $file -}}
+{{- if not $body -}}
+{{- fail (printf "%s: missing %s" $path $file) -}}
+{{- end -}}
+{{- $indent := regexReplaceAll "^( *).*$" $marker "${1}" | len -}}
+{{- $content = replace $marker ($body | trimSuffix "\n" | indent $indent) $content -}}
+{{- end -}}
+{{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "files/prometheus/*" -}}
+{{- $files := "" -}}
+{{- range $file, $_ := $root.Files.Glob $source -}}
+{{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
+{{- end -}}
+{{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary ($root.Files.Get "files/compliance-controls.yaml") "" -}}
+{{- $checksum := printf "%s\n%s%s" $files (include "swirl-cloud.identity" $root) $extra | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
 {{- end -}}
 {{- if eq $path "platform/monitoring.yaml" -}}

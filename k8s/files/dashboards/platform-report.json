@@ -1,0 +1,1277 @@
+{
+  "uid": "platform-report",
+  "title": "Platform Report",
+  "description": "Monthly service levels, cost and compliance from hourly snapshots kept 13 months in Elasticsearch (platform-reports-*). Pick a month with the time picker; costs are the average monthly rate over the selected period.",
+  "tags": [
+    "report",
+    "slo",
+    "cost",
+    "compliance",
+    "provisioned"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now/M",
+    "to": "now/M"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Availability, all endpoints",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:availability",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "ratio"
+            }
+          ],
+          "bucketAggs": [],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Monthly platform cost",
+      "description": "Average of the recorded monthly total over the period.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:total",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No costs recorded"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Idle capacity cost",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:idle",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No costs recorded"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Compliance controls passing",
+      "description": "Average share of automated controls passing across frameworks.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:compliance",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "passing"
+            }
+          ],
+          "bucketAggs": [],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Availability by endpoint",
+      "description": "Share of successful probes over the period against the 99.5 % objective.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:availability",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "ratio"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "endpoint",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Availability",
+            "desc": false
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true,
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Availability"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.99
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.995
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "endpoint": "Endpoint",
+              "Average ratio": "Availability"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Cost by namespace",
+      "description": "Average monthly cost charged to each namespace over the period.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:namespace",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "namespace",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Monthly cost",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true,
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Monthly cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "namespace": "Namespace",
+              "currency": "Currency",
+              "Average monthly_cost": "Monthly cost"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Cost by workload",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:workload",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "namespace",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "workload",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "4",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Monthly cost",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true,
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Monthly cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "namespace": "Namespace",
+              "workload": "Workload",
+              "currency": "Currency",
+              "Average monthly_cost": "Monthly cost"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Compliance controls",
+      "description": "Share of hours each automated control passed during the period.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:compliance",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "passing"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "control",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Hours passing",
+            "desc": false
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true,
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hours passing"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.9
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.99
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "control": "Control",
+              "Average passing": "Hours passing"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Availability over time",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:availability",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "ratio"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "max": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "hidden",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "CPU allocated by namespace",
+      "description": "Cores charged (larger of requests and usage), averaged per interval.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:usage",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "cpu_cores"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "namespace",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "10",
+                "order": "desc",
+                "orderBy": "1"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 20,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Vulnerabilities past deadline",
+      "description": "Open Critical (15 days) and High (30 days) image x vulnerability pairs older than their deadline; ./install.sh --vulnerability-report lists them.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:vulnerabilities",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "past_deadline"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "severity",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "10",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Open Critical and High vulnerabilities",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:vulnerabilities",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "open"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "severity",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "10",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Service indicators",
+      "description": "Average over the period of hourly values: data store availability, CI queue time (p90, seconds), CI failures caused by the platform and Argo CD sync failures.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:sli",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "indicator",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "50",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "indicator": "Indicator",
+              "Average value": "Average"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Game days",
+      "description": "Pod-loss drills (scripts/game-day.py --record): endpoint availability during the drill and the slowest recovery in seconds.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:game_day",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "min",
+              "field": "ratio"
+            },
+            {
+              "id": "4",
+              "type": "max",
+              "field": "value"
+            },
+            {
+              "id": "5",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "namespace",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "20",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            },
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "scope",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "10",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Min ratio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "namespace": "Namespace",
+              "scope": "Scenario",
+              "Min ratio": "Lowest availability",
+              "Max value": "Slowest recovery (s)",
+              "Count": "Drills"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
