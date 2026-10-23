@@ -11,8 +11,8 @@ if [[ -r "$PLATFORM_CONFIG" ]]; then
   source "$PLATFORM_CONFIG"
 fi
 REPOSITORY_NAME="${REPOSITORY_NAME:-$(basename "$REPOSITORY_ROOT")}"
-# An explicit target may be an application in a different group from the platform.
-# Only discover the platform group when the caller did not select a project.
+# An explicit project may be outside the platform group; look the group up only
+# when no project is given.
 if [[ -z "${GITLAB_PROJECT_PATH:-}" ]]; then
   # shellcheck source=lib/platform-identity.sh
   source "$SCRIPT_DIR/lib/platform-identity.sh"
@@ -21,8 +21,8 @@ if [[ -z "${GITLAB_PROJECT_PATH:-}" ]]; then
 fi
 PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-}"
 GITLAB_URL="${GITLAB_URL:-${PLATFORM_DOMAIN:+https://gitlab.$PLATFORM_DOMAIN}}"
-# Only operator API traffic uses this temporary/private origin. Persisted sync
-# variables below must continue to use the public GitLab URL.
+# Only this script's API calls use this (possibly private) origin; the stored
+# sync variables keep the public GitLab URL.
 GITLAB_API_BASE_URL="${GITLAB_API_BASE_URL:-$GITLAB_URL}"
 GITHUB_OWNER="${GITHUB_OWNER:-}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-$REPOSITORY_NAME}"
@@ -237,8 +237,8 @@ else
   info "The managed GitLab token and GitHub Actions secrets are current"
 fi
 
-# Refresh the GitHub PAT on every run, even when the GitLab token is current.
-# The webhook and the workflow must both use the newly supplied credential.
+# Store the GitHub PAT on every run, even when the GitLab token is current, so
+# the webhook and workflow use the newly supplied credential.
 github_key_id="$(jq -er '.key_id' "$work_dir/github-public-key.json")"
 github_public_key="$(jq -er '.key' "$work_dir/github-public-key.json")"
 encrypted_admin_token="$(encrypt_github_secret "$github_public_key" "$GITHUB_ADMIN_TOKEN")"
@@ -303,8 +303,8 @@ if [[ "$INITIALIZE_REPOSITORY_SYNC" == "true" ]]; then
     --header 'Content-Type: application/json' \
     --data-binary "@$work_dir/workflow-dispatch.json" >/dev/null
 
-  # A nonempty default branch alone does not prove synchronization succeeded.
-  # Wait for the new dispatch to finish its branch/tag equality verification.
+  # A default branch alone does not prove the sync worked; wait for the new
+  # dispatch to verify that branches and tags match.
   run_id=""
   dispatch_attempts=1
   for attempt in $(seq 1 90); do

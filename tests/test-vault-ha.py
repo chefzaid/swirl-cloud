@@ -215,8 +215,8 @@ class VaultHATests(VaultFixture):
         self.assertFalse(any(c['tool']=='helm' or c['args'][0]=='delete' for c in self.calls()))
 
     def test_migration_orphans_controller_then_checks_quorum_before_pod_replacement(self):
-        # Replace only backup and polling boundaries; main uses real guarded
-        # deletes, real quorum checks, and its actual migration orchestration.
+        # Stub only the backup and health poll; deletes, quorum checks and the
+        # migration orchestration are real.
         result=self.shell(f'''source {ROOT}/scripts/configure-vault-ha.sh
 save_migration_backup() {{ echo snapshot >> "$FIXTURE/events"; }}
 wait_healthy() {{ verify_ha; echo quorum >> "$FIXTURE/events"; }}
@@ -255,8 +255,8 @@ main --migrate-existing
         self.save()
 
     def routine_rollout(self):
-        # Real orchestration, quorum checks and UID deletes; fail a broken
-        # health poll immediately instead of waiting on an offline fixture.
+        # Real orchestration, quorum checks and UID deletes; the health poll fails
+        # at once instead of waiting on the offline fixture.
         return self.shell(f'''source {ROOT}/scripts/configure-vault-ha.sh
 wait_healthy() {{ verify_ha; }}
 main

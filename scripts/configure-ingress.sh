@@ -17,8 +17,8 @@ NAMESPACE="${INGRESS_NAMESPACE:-infra}"
 MODE="${HIGH_AVAILABILITY_ENABLED:-}"
 CANDIDATE="${INGRESS_MIGRATION_CANDIDATE:-false}"
 [[ "$CANDIDATE" =~ ^(true|false)$ ]] || fail 'INGRESS_MIGRATION_CANDIDATE must be true or false.'
-# The origin repeats the zone's HSTS setting from configure-cloudflare.sh's
-# inputs; Traefik sends no Strict-Transport-Security header for max-age 0.
+# The origin mirrors the zone's HSTS inputs (configure-cloudflare.sh); with
+# max-age 0 Traefik sends no Strict-Transport-Security header.
 ENABLE_HSTS="${CLOUDFLARE_ENABLE_HSTS:-}"
 HSTS_MAX_AGE="${CLOUDFLARE_HSTS_MAX_AGE:-}"
 [[ "$ENABLE_HSTS" =~ ^(true|false)?$ ]] || fail 'CLOUDFLARE_ENABLE_HSTS must be true or false.'
@@ -37,8 +37,8 @@ fi
 if [[ "$CANDIDATE" != true ]] && jq -e 'any(.[]; .name == "ingress-nginx")' <<< "$releases" >/dev/null; then
     fail 'Migrate the existing ingress-nginx release first; see docs/guides/platform-migration.md. Use INGRESS_MIGRATION_CANDIDATE=true for an isolated ClusterIP candidate.'
 fi
-# Without either input a rerun keeps the deployed origin value, since the zone
-# keeps its own; only a first installation takes the defaults.
+# With neither input a rerun keeps the deployed max-age, as the zone keeps its
+# own; only a first installation uses the defaults.
 if [[ -z "$ENABLE_HSTS$HSTS_MAX_AGE" ]] && jq -e 'any(.[]; .name == "traefik")' <<< "$releases" >/dev/null; then
     HSTS_MAX_AGE="$(kubectl get middlewares.traefik.io security-headers -n "$NAMESPACE" --ignore-not-found -o json | jq -r '.spec.headers.stsSeconds // 0')"
 fi
@@ -47,8 +47,8 @@ HSTS_MAX_AGE="${HSTS_MAX_AGE:-$DEFAULT_CLOUDFLARE_HSTS_MAX_AGE}"
 [[ "${ENABLE_HSTS:-true}" == true ]] || HSTS_MAX_AGE=0
 temporary="$(mktemp -d /tmp/swirl-cloud-ingress.XXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
-# Render the one TLS identity input for direct invocations of this helper too,
-# and the origin HSTS max-age, which only this step resolves.
+# Fill in the TLS Secret name (also for direct runs of this helper) and the
+# HSTS max-age, which only this step resolves.
 python3 - "$VALUES" "$temporary/base.yaml" "$TLS_SECRET_NAME" "$HSTS_MAX_AGE" <<'PY'
 from pathlib import Path
 import sys

@@ -1,19 +1,18 @@
-# Swirl Cloud control catalog: platform controls mapped to regulatory and
-# benchmark requirements, with the evidence that shows each control working.
+# Swirl Cloud control catalog: platform controls, the requirements they map to,
+# and the evidence for each.
 #
-# Automated checks are Prometheus queries evaluated continuously (generated
-# recording rules, see templates/resources.yaml) and on demand by
-# scripts/compliance-report.py:
-#   present: must return at least one series, proving the evidence exists;
+# Automated checks are Prometheus queries, run as recording rules
+# (templates/_compliance.tpl) and by scripts/compliance-report.py:
+#   present: returns at least one series when the evidence exists;
 #   failing: returns series only while the control is not met.
-# A check passes when evidence is present and nothing is failing, fails when
-# anything is failing, and reports "no evidence" otherwise. Reuse an existing
-# alert (ALERTS{alertname=...}) as the failing signal so thresholds live in one
-# place. Manual evidence names what an operator must supply for an audit.
+# A check fails if anything is failing, passes if evidence is present, and
+# otherwise reports "no evidence". Prefer an existing alert
+# (ALERTS{alertname=...}) as the failing query so thresholds live in one place.
+# Manual evidence names what an operator supplies for an audit.
 #
-# Requirement references: NIS2 Directive (EU) 2022/2555 Article 21(2) and 23;
-# ISO/IEC 27001:2022 Annex A; DORA Regulation (EU) 2022/2554; GDPR Articles 30,
-# 32 and 33; CIS Kubernetes and Ubuntu Linux benchmarks.
+# References: NIS2 Directive (EU) 2022/2555 Art. 21(2) and 23; ISO/IEC
+# 27001:2022 Annex A; DORA (EU) 2022/2554; GDPR Art. 30, 32 and 33; CIS
+# Kubernetes and Ubuntu Linux benchmarks.
 version: 1
 frameworks:
   nis2: NIS2 Directive

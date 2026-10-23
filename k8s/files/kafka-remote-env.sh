@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Keep existing in-cluster clients unchanged; remote clients must authenticate.
+# Adds a SCRAM-only REMOTE listener; the in-cluster PLAINTEXT listener is unchanged.
 configure_remote_kafka() {
     [[ "${BM_KAFKA_REMOTE_ENABLED:-false}" == true ]] || return 0
     [[ "${KAFKA_PROCESS_ROLES:?}" == broker ]] || return 0
@@ -14,8 +14,8 @@ configure_remote_kafka() {
     export KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP:?},REMOTE:SASL_PLAINTEXT"
     export KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
     export KAFKA_LISTENER_NAME_REMOTE_SASL_ENABLED_MECHANISMS=SCRAM-SHA-512
-    # Confluent encodes '-' as three underscores. Assemble the name so it
-    # cannot resemble an unresolved platform placeholder in source rendering.
+    # Confluent encodes '-' as three underscores. Build the name in parts so the
+    # source never looks like an unrendered placeholder.
     jaas_variable='KAFKA_LISTENER_NAME_REMOTE_SCRAM'
     jaas_variable+='___'
     jaas_variable+='SHA'

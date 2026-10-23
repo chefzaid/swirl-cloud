@@ -1,8 +1,6 @@
 // Cloudflare Worker deployed by scripts/configure-outage-watch.py (ADR 0030).
-// Every five minutes it checks the public endpoints from Cloudflare's network
-// and emails the platform alert recipients, over SMTP through the platform mail
-// relay, when an endpoint goes down or answers again. It runs outside the
-// cluster, so it still reports while the cluster or GitLab is down.
+// Checks the public endpoints every five minutes from outside the cluster and
+// emails changes through the platform mail relay, even while the cluster is down.
 import { connect } from 'cloudflare:sockets';
 import { DurableObject } from 'cloudflare:workers';
 
@@ -94,7 +92,7 @@ function changeReport(env, changes, state, now) {
   const lines = changes.map((change) => (change.down
     ? `DOWN  ${change.url}  ${change.detail} (failed the last ${FAILED_CHECKS_BEFORE_DOWN} checks)`
     : `UP    ${change.url}  ${change.detail} (down for ${duration(now - change.since)})`));
-  // A drill's own emails say so, so that they are not read as an outage.
+  // Mark drill emails so they are not read as an outage.
   const drill = changes.every((change) => change.url === DRILL_ENDPOINT) ? 'Drill: ' : '';
   return {
     subject: drill + (down.length
@@ -161,8 +159,7 @@ class SmtpSession {
     this.buffer = '';
   }
 
-  // Returns the code of the next complete reply; replies carry no secrets, but
-  // only the code is reported.
+  // Returns the code of the next complete reply; errors name only the code.
   async expect(codes) {
     const allowed = [].concat(codes);
     for (;;) {

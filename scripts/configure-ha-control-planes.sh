@@ -11,8 +11,8 @@ error() { echo "[ERROR] $*" >&2; exit 1; }
 prepare_local() {
     [[ "${HIGH_AVAILABILITY_ENABLED:-false}" == true ]] || return 0
     local file temporary
-    # CLI arguments replace configuration-file lists; custom locations could
-    # omit this drop-in entirely. Refuse those layouts rather than claim safety.
+    # CLI arguments replace config-file lists and a custom config location skips
+    # this drop-in; refuse those layouts rather than claim safety.
     if sudo grep -Eq -- 'kube-controller-manager-arg|disable-controller-manager|--config([=[:space:]]|$)|K3S_CONFIG_FILE' \
         /etc/systemd/system/k3s.service /etc/systemd/system/k3s.service.env /etc/default/k3s /etc/sysconfig/k3s 2>/dev/null; then
         error "Custom K3s controller/config arguments require review before managed storage safety"
@@ -43,8 +43,8 @@ verify_local() {
     systemctl is-active --quiet k3s || return 1
     invocation="$(systemctl show k3s.service --property=InvocationID --value)"
     [[ "$invocation" =~ ^[a-f0-9]{32}$ ]] || return 1
-    # Verify the actual controller startup command for the current service
-    # invocation. No logs or credentials are emitted by this check.
+    # Check the controller command logged by the current service invocation;
+    # nothing from the log is printed.
     sudo journalctl "_SYSTEMD_INVOCATION_ID=$invocation" --no-pager -o cat |
         awk '/Running kube-controller-manager / {
             good = /--disable-force-detach-on-timeout=true([ "\t]|$)/ && !/--disable-force-detach-on-timeout=false/

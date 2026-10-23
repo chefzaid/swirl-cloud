@@ -10,8 +10,8 @@ spec:
     matchLabels:
       app: keycloak
 ---
-# K3s owns the CoreDNS Deployment and reapplies it on restart. Persist the
-# availability policy at admission, including attempts to scale it back to one.
+# K3s reapplies the CoreDNS Deployment on restart, so admission enforces the
+# availability settings, including against scaling back to one.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:

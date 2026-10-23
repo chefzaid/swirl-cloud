@@ -28,9 +28,8 @@ def main():
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", args.application):
         parser.error("Application must be a lowercase Kubernetes name of at most 40 characters")
     if not os.environ.get("GITLAB_ADMIN_TOKEN"):
-        # Reuse the installer's short-lived local administrator credential. Its
-        # shell owns revocation even if Python exits with an error; no token is
-        # printed, written into the checkout or passed in command arguments.
+        # Borrow the installer's short-lived admin token. The shell revokes it on
+        # exit, even after a Python error, and never prints, saves or passes it as an argument.
         command = '''set -euo pipefail
 info() { printf '[INFO] %s\\n' "$*" >&2; }
 fail() { printf '[ERROR] %s\\n' "$*" >&2; exit 1; }

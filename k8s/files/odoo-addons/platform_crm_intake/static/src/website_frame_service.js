@@ -2,11 +2,9 @@ import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 
 /**
- * Runs only in the chat page that the company website frames
- * (/platform_crm_intake/chat). With ?open=1 it opens the chat once Odoo has
- * restored its windows; otherwise it only restores them. It reopens the chat
- * when the website asks and tells the website whether a chat window is
- * open, so the website can show or hide the frame.
+ * Runs only in the website's chat frame (/platform_crm_intake/chat). Opens the
+ * chat on ?open=1 or when the website asks, and reports whether a chat window
+ * is open so the website can show or hide the frame.
  */
 export const websiteFrameService = {
     dependencies: ["im_livechat.livechat", "mail.store"],

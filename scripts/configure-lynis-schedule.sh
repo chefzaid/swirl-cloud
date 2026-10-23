@@ -151,8 +151,8 @@ WantedBy=timers.target
 TIMER
 
 systemctl daemon-reload
-# The distro's daily timer rewrites the canonical report that Filebeat follows;
-# mask it so the monthly schedule above is the only audit run.
+# The distro's daily timer rewrites the report Filebeat follows; mask it so the
+# monthly run is the only one.
 if systemctl cat lynis.timer >/dev/null 2>&1; then
   systemctl mask --now lynis.timer >/dev/null
 fi

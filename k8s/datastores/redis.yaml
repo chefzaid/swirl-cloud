@@ -94,8 +94,8 @@ spec:
           readOnly: true
       - name: redis-exporter
         image: quay.io/oliver006/redis_exporter:v1.92.1-alpine@sha256:f6f0528b12a26d2f89d73d74dd323005022142c7f7bde939f7bbba9adde48fce
-        # The ACL Secret can exist before Redis enforces it; an unexpected
-        # password makes every scrape fail authentication.
+        # The ACL Secret can exist before Redis enforces it, and an unexpected
+        # password fails every scrape.
         command: ["sh", "-ec"]
         args:
         - |

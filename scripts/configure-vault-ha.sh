@@ -78,8 +78,8 @@ delete_exact_object() {
 
 rollout_changed_peers() {
   local state controller_uid revision pods candidate pod pod_uid replacement attempt replaced
-  # OnDelete leaves healthy old pods running after Helm succeeds. Wait until
-  # the StatefulSet controller has actually observed this desired template.
+  # OnDelete keeps old pods running after Helm succeeds; wait until the
+  # controller has observed the new template.
   for (( attempt=0; attempt<60; attempt++ )); do
     state="$(kubectl get statefulset vault -n "$NAMESPACE" -o json)"
     if jq -e '.status.observedGeneration >= .metadata.generation and
@@ -103,8 +103,8 @@ rollout_changed_peers() {
       any(.metadata.ownerReferences[]?; .kind == "StatefulSet" and .name == "vault") and
       .metadata.deletionTimestamp == null and .metadata.labels["controller-revision-hash"] != $revision)' \
       <<< "$pods" >/dev/null || return 0
-    # Refresh Raft health immediately before every deletion. Its selected peer
-    # is the current leader, so outdated standbys sort ahead of the active pod.
+    # Recheck Raft health before each deletion. verify_ha selects the leader,
+    # so outdated standbys sort ahead of it.
     verify_ha || error "Vault health changed before replacement; remaining peers were retained"
     candidate="$(jq -r --arg revision "$revision" --arg active "$VAULT_POD" '
       [.items[] | select(.metadata.name | test("^vault-[012]$")) |
@@ -220,8 +220,8 @@ main() {
   fi
   wait_healthy
   if [[ "$pod_migration" == true ]]; then
-    # Both new servers are already unsealed, caught up, and voting. Only now
-    # replace the old pod so it uses audit-vault-0; retain its original audit PVC.
+    # Both new servers are unsealed, caught up and voting. Only now replace the
+    # old pod so it uses audit-vault-0; its original audit PVC is kept.
     pod_uid="$(kubectl get pod vault-0 -n "$NAMESPACE" -o jsonpath='{.metadata.uid}')"
     verify_ha || error "Raft health changed; refusing to replace vault-0"
     delete_exact_object "/api/v1/namespaces/$NAMESPACE/pods/vault-0" "$pod_uid" Background

@@ -109,9 +109,8 @@ private_node_policy() {
   [[ "$NODE_ROLE" == "worker" || "$PRIVATE_CONTROL_PLANE" == "true" ]]
 }
 
-# Enrollment persists this marker before installing the private firewall.
-# A later local installer must not turn the same host into a public bootstrap
-# server just because --private-control-plane was omitted.
+# Enrollment writes this marker before the private firewall, so a later local
+# run without --private-control-plane cannot make the host a public server.
 inherit_private_control_plane_policy() {
   local configuration="" saved="" address private_ip private_interface
   [[ "$NODE_ROLE" == control-plane ]] || return 0
@@ -178,8 +177,8 @@ inherit_private_control_plane_policy() {
   info "Preserving the enrolled control plane's private firewall policy"
 }
 
-# Keep the actual SSH source separate from the complete management allowlist.
-# A persisted list survives a later full firewall reconciliation from another CP.
+# The SSH source is kept apart from the full management allowlist. The saved
+# list survives a later full firewall run from another control plane.
 prepare_control_plane_ssh_policy() {
   local address saved=""
   local -a addresses=()
@@ -242,8 +241,8 @@ reconcile_control_plane_ssh() {
     [[ -z "$address" ]] || trusted_private_ipv4 "$address" || err "Invalid saved control-plane SSH policy"
   done <<< "$previous"
   allow_control_plane_ssh "$cluster_interface"
-  # Only remove addresses previously recorded as managed, after their replacements
-  # are active. All unrelated host rules and the active SSH source are preserved.
+  # Remove only previously managed addresses, after their replacements are
+  # active. Other host rules and the active SSH source stay.
   while IFS= read -r address; do
     [[ -n "$address" && ",$CONTROL_PLANE_SSH_IPS," != *",$address,"* ]] || continue
     sudo ufw --force delete allow in on "$cluster_interface" from "$address" to any port "$HARDENED_SSH_PORT" proto tcp comment 'Swirl Cloud control-plane SSH' >/dev/null
@@ -334,9 +333,8 @@ configure_tailscale_firewall_integration() {
 make_ufw_authoritative_for_tailscale() {
   tailscale_transport_selected || return 0
 
-  # Keep Tailscale's existing admission path active while UFW is rebuilt. Only
-  # hand authority to UFW after its exact tailscale0 rules are enabled, avoiding
-  # a window where neither layer admits the current private SSH connection.
+  # Runs only after UFW's tailscale0 rules are enabled, so some layer always
+  # admits the current private SSH connection.
   sudo tailscale set --ssh=false --netfilter-mode=nodivert >/dev/null || \
     err "Unable to make UFW authoritative for Tailscale traffic"
 }
@@ -347,8 +345,8 @@ validate_worker_private_ssh_before_firewall() {
 
   private_node_policy || return 0
   if [[ "${INHERITED_PRIVATE_CONTROL_PLANE:-false}" == true && -z "${SSH_CONNECTION:-}" ]]; then
-    # A local console run can preserve an already validated policy. First-time
-    # enrollment and all SSH runs still require the original SSH proof below.
+    # A local console run may keep an already validated policy. Enrollment and
+    # SSH runs still need the SSH proof below.
     [[ -n "${K3S_PRIVATE_ADDRESS:-}" && -n "$(interface_owning_ip "$K3S_PRIVATE_ADDRESS")" ]] || \
       err "Private console reconciliation lost its validated local interface"
     return 0
@@ -363,8 +361,8 @@ validate_worker_private_ssh_before_firewall() {
     err "Refusing to configure worker UFW: route source $route_source is outside $K3S_NODE_NETWORK_CIDR"
   [[ -n "$route_interface" ]] || err "Refusing to configure worker UFW: private route has no interface"
 
-  # A LAN host behind a NAT router may carry cluster traffic on its only NIC.
-  # A public default route must never carry vRack/LAN node traffic.
+  # A LAN host behind NAT may use its only NIC for cluster traffic, but a public
+  # default route must never carry vRack/LAN node traffic.
   if ! tailscale_transport_selected && ! default_route_is_private; then
     default_interface="$(default_route_interface)"
     [[ "$route_interface" != "$default_interface" ]] || \
@@ -420,8 +418,8 @@ backup_file_if_exists() {
   fi
 }
 
-# Leaves an identical root-owned file untouched, so reruns do not churn inodes
-# and timestamps that AIDE and auditd report as changes.
+# Leaves an identical file untouched so reruns do not change inodes and
+# timestamps, which AIDE and auditd would report.
 write_root_file() {
   local destination_path="$1"
   local mode="${2:-0644}"
@@ -841,8 +839,8 @@ configure_ufw() {
     CLOUDFLARE_PROXY_ONLY=false
   fi
 
-  # Fetch and validate the allowlist before resetting UFW so a network/API
-  # failure can never leave the host firewall disabled.
+  # Fetch the allowlist before resetting UFW so an API failure cannot leave the
+  # firewall disabled.
   if [[ "$NODE_ROLE" == "control-plane" && "$CLOUDFLARE_PROXY_ONLY" == "true" ]]; then
     ensure_packages ca-certificates curl jq
     cloudflare_response="$(curl -fsS https://api.cloudflare.com/client/v4/ips)" || err "Unable to download Cloudflare proxy networks"
@@ -865,8 +863,8 @@ configure_ufw() {
 
   info "Allowing required inbound ports..."
   if [[ "$NODE_ROLE" == "control-plane" ]] && ! private_node_policy; then
-    # Password SSH remains available on the internet-facing control plane by
-    # operator request; CrowdSec and Fail2ban protect it in internet mode.
+    # Password SSH stays open here by operator request; CrowdSec and Fail2ban
+    # protect it.
     sudo ufw allow "$HARDENED_SSH_PORT/tcp" >/dev/null
     if [[ "$CLOUDFLARE_PROXY_ONLY" == "true" ]]; then
       info "Restricting ports 80/443 to Cloudflare proxy networks..."
@@ -882,9 +880,8 @@ configure_ufw() {
     info "Allowing private-node SSH from verified control planes on $cluster_interface..."
     allow_control_plane_ssh "$cluster_interface"
 
-    # Kubernetes NodePort and Docker-published traffic may traverse FORWARD
-    # instead of INPUT. Deny both paths on every provider/non-cluster interface
-    # while preserving stateful replies for worker-initiated outbound traffic.
+    # NodePort and Docker-published traffic can use FORWARD instead of INPUT, so
+    # deny both on every non-cluster interface. Replies to outbound traffic pass.
     mapfile -t untrusted_interfaces < <(
       {
         ip -4 -o address show scope global
@@ -933,8 +930,8 @@ configure_ufw() {
       sudo ufw allow in on "$cluster_interface" from "$K3S_NODE_NETWORK_CIDR" to any port 10000:31000 proto tcp comment 'Longhorn engines and replicas' >/dev/null
     fi
   else
-    # A single-node cluster does not need a public Kubernetes API. Worker
-    # enrollment adds an explicit local-network rule through add-k3s-workers.sh.
+    # A single node needs no public Kubernetes API; add-k3s-workers.sh adds a
+    # local-network rule when workers join.
     warn "K3S_NODE_NETWORK_CIDR is unset; the K3s API and peer ports are not exposed publicly."
   fi
 
@@ -949,10 +946,9 @@ configure_ufw() {
   configure_worker_forwarding_guard "${untrusted_interfaces[@]}"
 }
 
-# `ufw --force reset` can leave IPv4 chains loaded under iptables-nft. ufw-init
-# then treats the firewall as started from the IPv4 chain alone, never loads the
-# IPv6 user rules, and `ufw enable` fails, leaving UFW disabled (seen on
-# 2026-10-04). Retry with a full reload, verify both families, and fail closed.
+# Under iptables-nft, `ufw --force reset` can leave IPv4 chains loaded; ufw-init
+# then skips the IPv6 rules and `ufw enable` fails (seen 2026-10-04). Retry with
+# a full reload, check both families, and fail closed.
 enable_ufw_verified() {
   if ! sudo ufw --force enable >/dev/null 2>&1; then
     warn "ufw enable failed; reloading every UFW rule file"
@@ -964,7 +960,7 @@ enable_ufw_verified() {
       { [[ "$(sudo sed -n 's/^IPV6=//p' /etc/default/ufw)" != yes ]] || sudo ip6tables -S INPUT | grep -qx -- '-P INPUT DROP'; }; then
     return 0
   fi
-  # Keep the host closed except SSH and cluster interfaces while an operator investigates.
+  # Keep only SSH and cluster interfaces open while an operator investigates.
   local interface
   for interface in cni0 flannel.1 tailscale0; do
     ip link show "$interface" >/dev/null 2>&1 && sudo iptables -I INPUT 1 -i "$interface" -j ACCEPT
@@ -1036,9 +1032,8 @@ configure_package_audit_tools() {
   edit_root_file /etc/default/debsums 's/^CRON_CHECK=.*/CRON_CHECK=weekly/'
 }
 
-# Lynis PKGS-7346. Every kernel update leaves the previous kernel's
-# configuration-only ("rc") packages behind; they hold no binaries. Other rc
-# packages may be deliberately retained configuration and are left alone.
+# Lynis PKGS-7346. Kernel updates leave config-only ("rc") packages behind.
+# Other rc packages may be kept on purpose and are left alone.
 purge_residual_kernel_packages() {
   local -a residual=()
   mapfile -t residual < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 2>/dev/null | \
@@ -1049,8 +1044,8 @@ purge_residual_kernel_packages() {
   fi
 }
 
-# Lynis AUTH-9262. pam_pwquality only applies when a password is changed; it
-# never affects existing passwords, key-based login or service accounts.
+# Lynis AUTH-9262. pam_pwquality applies only to password changes, not to
+# existing passwords, key login or service accounts.
 configure_password_quality() {
   ensure_packages libpam-pwquality
   write_root_file /etc/security/pwquality.conf.d/90-swirl-cloud.conf <<'EOF'
@@ -1191,14 +1186,14 @@ EOF
   fi
 }
 
-# node-exporter's textfile collector reads host-written metrics such as the
-# managed Lynis run; the directory exists on every node so it never errors.
+# node-exporter reads host metrics (such as the Lynis run) from here; the
+# directory exists on every node so the collector never errors.
 configure_metrics_textfile_directory() {
   sudo install -d -o root -g root -m 0755 /var/lib/node_exporter/textfile_collector
 }
 
-# Unattended security updates install packages but never reboot. Export the
-# pending-reboot flag so Prometheus can alert when a reboot stays outstanding.
+# Unattended upgrades never reboot. Export the pending-reboot flag so
+# Prometheus can alert when a reboot stays outstanding.
 configure_reboot_required_metrics() {
   write_root_file /usr/local/sbin/swirl-cloud-reboot-metrics 0755 <<'EOF'
 #!/bin/bash
@@ -1366,9 +1361,8 @@ EOF
   sudo systemctl enable --now swirl-cloud-rkhunter.timer >/dev/null
 }
 
-# Record the result of host maintenance services for Prometheus. Drop-ins are
-# written even before a unit exists, so installation order does not matter;
-# the collector path is optional so a missing directory never blocks a unit.
+# Record host maintenance service results for Prometheus. Drop-ins may exist
+# before their unit, and the optional collector path never blocks a unit.
 configure_host_unit_metrics() {
   local unit
   write_root_file /usr/local/sbin/swirl-cloud-unit-metrics 0755 <<'EOF'
@@ -1418,12 +1412,9 @@ EOF
   sudo systemctl daemon-reload
 }
 
-# Lynis FINT-4350: weekly, report-only AIDE check through the packaged
-# dailyaidecheck units. Cluster, storage, container, log and backup paths churn
-# constantly and are excluded; in home directories only ~/.ssh and login shell
-# files are monitored. Package installs and
-# updates are filtered out, and each remaining change is reported once to the
-# journal (there is no mailer). The first database build runs asynchronously.
+# Lynis FINT-4350: weekly, report-only AIDE check via the packaged dailyaidecheck
+# units. High-churn paths are excluded and package changes filtered; reports go
+# to the journal (no mailer). The first database build runs in the background.
 configure_file_integrity() {
   if ! dpkg -s aide-common >/dev/null 2>&1; then
     apt_update
@@ -1470,9 +1461,8 @@ EOF
   fi
 }
 
-# Role- and exposure-independent controls that never touch the firewall or
-# Kubernetes networking, so they can be reconciled on a live host. SSH changes
-# are limited to validated session options.
+# Controls that never touch the firewall or Kubernetes networking, so they are
+# safe on a live host. SSH changes are limited to validated session options.
 configure_host_baseline() {
   configure_login_banner
   configure_metrics_textfile_directory
@@ -1493,8 +1483,7 @@ configure_host_baseline() {
 }
 
 disable_unused_rpcbind() {
-  # NFSv4 clients do not require rpcbind. Keep it only when this node is
-  # actively using an older NFS mount; otherwise close the unused listener.
+  # NFSv4 does not need rpcbind; keep it only while an NFS mount is active.
   if findmnt -rn -t nfs,nfs4 >/dev/null 2>&1; then
     warn "An NFS mount is active; leaving rpcbind unchanged."
     return 0
@@ -1557,18 +1546,16 @@ EOF
 }
 EOF
 
-  # Ubuntu releases that temporarily ship both packages can define the same
-  # cloud-init log twice, causing every logrotate run to fail. Preserve the
-  # duplicate outside logrotate's accepted filename pattern.
+  # Some Ubuntu releases define the cloud-init log twice, which fails every
+  # logrotate run. Move the duplicate out of logrotate.d.
   if sudo test -f "$cloud_init_config" && sudo test -f "$duplicate_config" && \
      sudo cmp -s "$cloud_init_config" "$duplicate_config"; then
     sudo install -d -o root -g root -m 0700 /var/backups/swirl-cloud/config/etc/logrotate.d
     sudo mv "$duplicate_config" /var/backups/swirl-cloud/config/etc/logrotate.d/cloud-init-base.disabled-swirl-cloud
   fi
 
-  # Older revisions left backup files inside logrotate.d, where logrotate
-  # interpreted them as active policies. Move those backups out of the include
-  # directory before validating the complete configuration.
+  # logrotate reads *.bak-* files in logrotate.d as policies; move them out
+  # before validating.
   while IFS= read -r legacy_backup; do
     sudo install -d -o root -g root -m 0700 /var/backups/swirl-cloud/config/etc/logrotate.d
     sudo mv "$legacy_backup" "/var/backups/swirl-cloud/config/etc/logrotate.d/$(basename "$legacy_backup")"
@@ -1589,9 +1576,8 @@ configure_fail2ban() {
   ensure_service fail2ban
 }
 
-# Export Fail2ban and CrowdSec activity for node-exporter so Prometheus can
-# alert when protection stops or an attack wave starts. Counts only; banned
-# addresses stay on the host.
+# Export Fail2ban and CrowdSec counts so Prometheus can alert when protection
+# stops or an attack starts. Banned addresses stay on the host.
 configure_intrusion_metrics() {
   write_root_file /usr/local/sbin/swirl-cloud-intrusion-metrics 0755 <<'EOF'
 #!/bin/bash
@@ -1772,14 +1758,12 @@ if private_node_policy; then
   trusted_private_ipv4 "$CONTROL_PLANE_IP" || \
     err "CONTROL_PLANE_IP must be an RFC1918 or Tailscale IPv4 address"
   if [[ "$K3S_NODE_NETWORK_CIDR" == "100.64.0.0/10" ]]; then
-    # Cross-provider workers may need a provider address for initial bootstrap
-    # and outbound updates. configure_tailscale_firewall_integration runs before
-    # any UFW reset and refuses to continue until tailscale0 is ready.
+    # A provider address may stay for bootstrap and outbound traffic.
+    # configure_tailscale_firewall_integration requires tailscale0 before UFW.
     info "Tailscale worker transport selected; validating the overlay before closing public ingress."
   else
-    # vRack or LAN addressing is configured and private SSH is proven before
-    # UFW. A provider NIC may remain for bootstrap/outbound traffic, but
-    # receives no inbound allowance in configure_ufw.
+    # Private SSH is proven before UFW. A provider NIC may stay for outbound
+    # traffic but gets no inbound rule in configure_ufw.
     info "vRack/LAN private node selected; validating private SSH before closing public ingress."
   fi
 fi
@@ -1790,8 +1774,7 @@ if [[ "$RECONCILE_CONTROL_PLANE_SSH" == "true" ]]; then
 fi
 prepare_control_plane_ssh_policy
 
-# Search workloads need this node setting; application init containers must
-# never receive privileged access just to set a host-wide sysctl.
+# Search workloads need this; setting it here keeps init containers unprivileged.
 current_map_count="$(sysctl -n vm.max_map_count)"
 if (( current_map_count < 1048576 )); then
   current_map_count=1048576

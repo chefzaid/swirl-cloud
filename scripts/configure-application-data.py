@@ -73,10 +73,8 @@ def credentials(api, path, expected):
 
 
 def redis_acl_user(username, password, key_prefix):
-    # Cache clears need KEYS for the selected prefix. ACL key rules also check
-    # each DEL/GET/SET; KEYS/SCAN can still enumerate other prefixes' names.
-    # INFO serves client health checks. Administrative/all-database commands
-    # are unavailable.
+    # KEYS serves cache clears and INFO health checks. Key rules guard every
+    # read and write, but KEYS/SCAN still list other prefixes' key names.
     return (f"user {username} on #{hashlib.sha256(password.encode()).hexdigest()} "
             f"~{key_prefix}* resetchannels -@all +get +mget +set +del +unlink +exists "
             "+expire +pexpire +ttl +pttl +ping +info +hello +select +keys +scan +client|setinfo +client|setname")
@@ -222,9 +220,9 @@ def provision_redis(api, spec, admin):
 def prepare_legacy_redis(api):
     """Stage compatibility credentials without disabling existing anonymous clients.
 
-    This fixed user preserves the previous legacy trust boundary during rollout.
-    Environment workloads never receive its credentials. The saved ACL file is
-    ready for the subsequent authenticated profile activation.
+    The fixed full-access user serves existing platform clients during the auth
+    rollout; environment workloads never get its credentials. The saved ACL file
+    is ready for the authenticated profile.
     """
     admin = credentials(api, REDIS_ADMIN_PATH, {"username": "default"})
     legacy = credentials(api, REDIS_LEGACY_PATH, {"username": REDIS_LEGACY_USER})

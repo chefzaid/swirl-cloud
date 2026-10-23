@@ -345,8 +345,7 @@ class Migration:
         resources = self.render(ha, "phase-manifests.yaml")
         self.validate_images(resources)
         self.checkpoint()
-        # Merge only this service's map. Preserve PostgreSQL, fencing, source path,
-        # sync policy and every unrelated Argo field, including existing HA mode.
+        # Merge only this service's map; keep every other Argo field, including HA mode.
         for app in self.get("applications.argoproj.io", namespace=None, all_namespaces=True)["items"]:
             if app["metadata"]["name"] == "swirl-cloud" and app["metadata"]["namespace"] == NAMESPACE:
                 self.kube("patch", "application.argoproj.io", "swirl-cloud", "-n", app["metadata"]["namespace"], "--type", "merge",
@@ -403,8 +402,8 @@ class Migration:
             self.ready_pods("kafka", 3)
             self.ready_pods("kafka-controller", 3)
             self.publish("replicating", profile(cluster_id, "expanded"))
-            # Clients must remain stopped. Re-read inventory so internal topics and
-            # any topic created before the maintenance pause are included.
+            # Clients stay stopped. Re-read topics to include internal ones and any
+            # created before the maintenance pause.
             parts = self.topics()
             if not full_replication(parts):
                 plan = assignment(parts)
@@ -412,8 +411,8 @@ class Migration:
                 self.tool(self.broker(), ["sh", "-ceu", "cat > /tmp/swirl-cloud-kafka-ha-reassignment.json"], json.dumps(plan).encode())
                 self.admin("kafka-reassign-partitions", "--reassignment-json-file", "/tmp/swirl-cloud-kafka-ha-reassignment.json", "--execute")
                 self.wait(lambda: full_replication(self.topics()), "Partition replication did not reach RF=3/full ISR; write policy remains unchanged")
-            # Enforce broker overrides as well as rendered defaults, so a prior
-            # dynamic setting cannot silently defeat the final durability policy.
+            # Set broker overrides as well as defaults, so an earlier dynamic setting
+            # cannot weaken the durability policy.
             config = "min.insync.replicas=2,unclean.leader.election.enable=false"
             features = self.admin("kafka-features", "describe")
             elr_enabled = bool(re.search(r"Feature:\s+eligible.leader.replicas.version\s+.*FinalizedVersionLevel:\s+1\b", features))

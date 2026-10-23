@@ -101,8 +101,8 @@ class Kubernetes:
                           lambda: 'Bearer ' + (directory / 'token').read_text().strip())
 
     def snapshot(self):
-        # Default resourceVersion requests current API data, not an explicitly
-        # stale cache read. An unreachable/quorumless API fails the entire run.
+        # No resourceVersion: read current data, not a cache. An unreachable or
+        # quorumless API fails the run.
         nodes = self.http.request('GET', self.base + '/api/v1/nodes')
         leases = self.http.request('GET', self.base + '/apis/coordination.k8s.io/v1/namespaces/kube-node-lease/leases')
         require(isinstance(nodes.get('items'), list) and isinstance(leases.get('items'), list), 'Incomplete Kubernetes inventory')
@@ -277,14 +277,14 @@ def run(inventory, secret_dir, kubernetes, provider=Redfish, apply=False, now=No
         if target is None:
             continue
         redfish = provider(entry, secret_dir)
-        system = redfish.system()  # UUID and CA validation before any power request.
+        system = redfish.system()  # Validates UUID and CA before any power request.
         if not apply:
             print(f"Eligible host verified (check only): {entry['name']}")
             continue
         nodes, leases = kubernetes.snapshot()
         require(eligible(entry, inventory, nodes, leases, clock()) is not None, 'Target recovered before the power request')
         if system.get('PowerState') != 'Off':
-            # Refresh the physical identity immediately before ForceOff as well.
+            # Re-check the physical identity right before ForceOff.
             system = redfish.system()
             nodes, leases = kubernetes.snapshot()
             require(eligible(entry, inventory, nodes, leases, clock()) is not None, 'Target recovered before ForceOff')
@@ -323,8 +323,8 @@ def main():
         print(f'Fencing refused: {error}', file=sys.stderr)
         return 1
     except Exception:
-        # Inventory/HTTP exceptions may carry credentials or provider response
-        # bodies. Do not emit traceback or repr for this privileged automation.
+        # Exceptions may carry credentials or provider responses; never print a
+        # traceback or repr.
         print('Fencing refused: unexpected input or provider failure; no further actions attempted', file=sys.stderr)
         return 1
     return 0

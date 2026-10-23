@@ -335,14 +335,13 @@ class Services:
                 return "replaced; previous credentials retained for safe consumer refresh"
             except HTTPFailure as error:
                 if not error.cas:
-                    # A 5xx after POST can occur after the server committed the
-                    # value. Never revoke a credential that may now be in use.
+                    # A 5xx after POST may follow a committed write; never revoke a
+                    # credential that may now be in use.
                     retain_token = write_started and error.status >= 500
                     raise
             except ServiceError:
-                # Lost POST responses/readback failures are ambiguous. A rerun
-                # reads the published value; an unused token is safer than
-                # revoking a credential already projected into running pods.
+                # A lost POST response or failed readback is ambiguous: keep the token,
+                # since a rerun reads the published value and pods may already use it.
                 retain_token = write_started
                 raise
             finally:

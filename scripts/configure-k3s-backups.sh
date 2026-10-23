@@ -34,8 +34,8 @@ if ! sudo test -d "${K3S_DATA_DIR:-/var/lib/rancher/k3s}/server/db/etcd/member" 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sqlite3 >/dev/null
 fi
 
-# The backup unit requires these read-only mounts even before Vault or offsite
-# credentials have been configured during a fresh installation.
+# The backup unit mounts these read-only, even before Vault or off-node
+# credentials exist.
 sudo install -d -o root -g root -m 0700 /etc/swirl-cloud /var/lib/swirl-cloud
 
 if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]]; then
@@ -71,8 +71,8 @@ sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-bac
 sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup-verify.timer" /etc/systemd/system/swirl-cloud-k3s-backup-verify.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now swirl-cloud-k3s-backup.timer >/dev/null
-# The weekly verification reads back the off-node copy, so it runs only while
-# backup.env names a restic repository, whichever run wrote that file.
+# The verification reads the off-node copy, so it runs only while backup.env
+# names a restic repository.
 if sudo grep -qs '^RESTIC_REPOSITORY=.' /etc/swirl-cloud/backup.env; then
   sudo systemctl enable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
 else
@@ -92,8 +92,8 @@ if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \
     '{apiVersion:"v1",kind:"Secret",metadata:{name:"swirl-cloud-longhorn-backup",namespace:"longhorn-system"},type:"Opaque",stringData:{AWS_ACCESS_KEY_ID:$access,AWS_SECRET_ACCESS_KEY:$secret,AWS_ENDPOINTS:$endpoint,VIRTUAL_HOSTED_STYLE:"false"}}' \
     | kubectl apply -f - >/dev/null
   backup_target="s3://$BACKUP_S3_BUCKET@$BACKUP_S3_REGION/longhorn"
-  # Longhorn configures backups through the default BackupTarget resource; the
-  # former backup-target settings no longer exist in the pinned release.
+  # The pinned Longhorn release configures backups only through the default
+  # BackupTarget resource.
   kubectl patch backuptargets.longhorn.io default -n longhorn-system --type=merge \
     -p "$(jq -cn --arg url "$backup_target" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '{spec:{backupTargetURL:$url,credentialSecret:"swirl-cloud-longhorn-backup",syncRequestedAt:$now}}')" >/dev/null

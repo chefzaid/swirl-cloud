@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Explicitly replicate host recovery material only to authenticated control planes.
+# Copy Vault recovery files to verified control planes only.
 set -euo pipefail
 set +x
 umask 077
@@ -39,8 +39,8 @@ receive_material() {
   printf '%s' "$key" > "$temporary/vault-unseal-key"
   printf '%s' "$token" > "$temporary/vault-bootstrap-token"
   unset key token
-  # Validate both before writing either; existing different material is never
-  # replaced, since that could belong to another initialized Vault cluster.
+  # Check both before writing either. Different existing material is never
+  # replaced: it may belong to another Vault cluster.
   for file in vault-unseal-key vault-bootstrap-token; do
     if [[ -e "$STATE_DIR/$file" || -L "$STATE_DIR/$file" ]]; then
       check_secret_file "$STATE_DIR/$file"
@@ -61,7 +61,7 @@ receive_material() {
 }
 
 main() {
-  # Receiver flags are only used by the authenticated SSH sender below.
+  # Only the authenticated SSH sender below passes the receiver flags.
   if [[ "${1:-}" == --receive-stdin ]]; then
     [[ $# == 3 ]] || error "Receiver needs node name and private address"
     receive_material "$2" "$3"
@@ -102,7 +102,7 @@ main() {
   local -a ssh_options=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -p "$port")
   local -a scp_options=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -P "$port")
   if [[ -n "$identity" ]]; then ssh_options+=(-i "$identity"); scp_options+=(-i "$identity"); fi
-  # Global cleanup variables survive EXIT even when main has returned.
+  # Globals, so the EXIT trap still sees them after main returns.
   remote_dir=""; target=""
   cleanup() {
     if [[ "$remote_dir" == /tmp/swirl-cloud-vault-recovery.* && -n "$target" ]]; then
@@ -121,8 +121,8 @@ main() {
     [[ "$actual_source" == "$source_ip" && "$actual_target" == "$address" && "$actual_port" == "$port" ]] || error "Private SSH source or destination verification failed"
     remote_dir="$(ssh -n "${ssh_options[@]}" "$target" 'mktemp -d /tmp/swirl-cloud-vault-recovery.XXXXXX')"
     [[ "$remote_dir" =~ ^/tmp/swirl-cloud-vault-recovery\.[A-Za-z0-9]+$ ]] || error "Invalid remote staging directory"
-    # Only scripts and unit files use SCP. Recovery values are never staged in
-    # the SSH account's home or temporary directory.
+    # SCP copies only scripts and units; recovery values go over stdin and are
+    # never staged on the target.
     scp "${scp_options[@]}" "$SCRIPT_DIR/sync-vault-recovery.sh" "$SCRIPT_DIR/vault-unseal.sh" \
       "$SCRIPT_DIR/../config/host/swirl-cloud-vault-unseal.service" "$SCRIPT_DIR/../config/host/swirl-cloud-vault-unseal.timer" \
       "$target:$remote_dir/"

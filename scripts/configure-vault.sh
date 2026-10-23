@@ -99,8 +99,8 @@ source "$SSO_ADMIN_LIBRARY"
 
 sudo install -d -o root -g root -m 0700 "$VAULT_STATE_DIR"
 
-# A surviving peer is sufficient for configuration. Never treat a replacement
-# vault-0 with empty storage as permission to initialize a second cluster.
+# Any surviving peer is enough to configure. An empty replacement vault-0 must
+# never lead to initializing a second cluster.
 if sudo test -s "$VAULT_UNSEAL_KEY_FILE"; then
   sudo env VAULT_NAMESPACE="$NAMESPACE" VAULT_UNSEAL_KEY_FILE="$VAULT_UNSEAL_KEY_FILE" \
     KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" bash "$SCRIPT_DIR/vault-unseal.sh" || \
@@ -160,8 +160,8 @@ root_token="$(sudo cat "$VAULT_BOOTSTRAP_TOKEN_FILE")"
 
 if [[ "$sealed" == "true" ]]; then
   info "Unsealing Vault..."
-  # Stream an anonymous API request: operator unseal requires a terminal when
-  # reading a key interactively, and a key argument would expose it in exec metadata.
+  # Use the API over stdin: operator unseal needs a terminal, and a key argument
+  # would show in exec metadata.
   printf '%s' "$unseal_key" | jq -Rs '{key: .}' | \
     kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- \
       env VAULT_ADDR="$VAULT_ADDR" vault write -format=json sys/unseal - >/dev/null
@@ -217,9 +217,8 @@ if ! vault_cmd_auth "$root_token" auth list -format=json | jq -e '."kubernetes/"
 fi
 
 info "Configuring Kubernetes auth backend..."
-# Vault runs in Kubernetes and its service account has system:auth-delegator.
-# Leaving the reviewer JWT and CA unset makes Vault re-read its projected token
-# and cluster CA as they rotate, instead of persisting credentials that expire.
+# With the reviewer JWT and CA unset, Vault (whose service account has
+# system:auth-delegator) re-reads its projected token and CA as they rotate.
 vault_cmd_auth "$root_token" write auth/kubernetes/config \
   kubernetes_host="https://kubernetes.default.svc:443" \
   token_reviewer_jwt="" \
@@ -323,9 +322,8 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/monitoring >/
     gitlab_alert_token="$(openssl rand -hex 16)" >/dev/null
 fi
 
-# Platform mail stays off until configure-platform-mail.py stores the
-# operator's relay (ADR 0029). Every field exists so the platform-mail
-# ExternalSecrets sync on installations without mail.
+# Mail stays off until configure-platform-mail.py stores a relay (ADR 0029).
+# Every field exists so the platform-mail ExternalSecrets sync without mail.
 if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/smtp >/dev/null 2>&1; then
   info "Seeding Vault secret: infra/smtp (platform mail off)"
   vault_cmd_auth "$root_token" kv put secret/infra/smtp \
@@ -415,11 +413,9 @@ if ! vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak >/de
     realm_export_json="$realm_export_json" >/dev/null
 fi
 
-# The shared SSO realm is reconciled after Keycloak starts, rather than relying
-# on startup import (which Keycloak intentionally ignores for an existing
-# realm/database). Installer-provided administrator credentials are
-# authoritative and may be updated on a reconciliation run. Generated OIDC
-# client secrets remain stable once they have been seeded.
+# Keycloak ignores startup import for an existing realm, so the SSO realm is
+# reconciled after startup. Installer admin credentials win on reruns;
+# generated OIDC client secrets stay stable once seeded.
 keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
 requested_sso_username="${KEYCLOAK_SSO_BOOTSTRAP_USERNAME:-}"
 requested_sso_password="${KEYCLOAK_SSO_BOOTSTRAP_PASSWORD:-}"
@@ -625,8 +621,7 @@ fi
 install_host_unseal_service
 sudo systemctl start swirl-cloud-vault-unseal.service
 
-# Remove the legacy in-cluster unseal path only after the host-side copy and
-# systemd timer have both been installed successfully.
+# Remove the old in-cluster unseal path only after the host timer is installed.
 kubectl delete cronjob/vault-unseal rolebinding/vault-unseal role/vault-unseal \
   serviceaccount/vault-unseal -n "$NAMESPACE" --ignore-not-found >/dev/null
 kubectl delete secret vault-init -n "$NAMESPACE" --ignore-not-found >/dev/null

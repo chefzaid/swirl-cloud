@@ -117,16 +117,13 @@ spec:
                   raw = response.read()
                   return json.loads(raw) if raw else None
 
-              # Reconcile the bootstrap identity as an administrator. Portainer
-              # links the matching preferred_username after the OAuth callback.
-              # Subsequent GitOps syncs also reassert its role and managed
-              # credential instead of treating a 409 as success.
+              # Reconcile the bootstrap administrator on every sync (a 409 still gets
+              # the update below); Portainer links it by preferred_username at login.
               settings = api("/settings")
               user_body = {
                   "Username": sso_username,
-                  # Portainer only permits a password during creation while
-                  # internal authentication is active. The authenticated update
-                  # below works after OAuth has become authoritative.
+                  # Creation accepts a password only under internal authentication;
+                  # the update below sets it once OAuth is active.
                   "Password": sso_password if settings["AuthenticationMethod"] == 1 else "",
                   "Role": 1,
               }

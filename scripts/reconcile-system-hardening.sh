@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Admission protects future replacements. Reconcile existing controllers too;
-# validate admission hardening before changing a stored template.
+# Admission hardens objects only when they are written, so patch existing
+# controllers too, once a server dry run shows the hardening applies.
 for target in \
   deployment/kube-system/local-path-provisioner \
   deployment/kube-system/metrics-server \
@@ -23,7 +23,7 @@ for target in \
   fi
   patch='{"metadata":{"annotations":{"security.swirl-cloud.io/template-hardening":"v2"}}}'
   ready=false
-  # Policy informer caches update asynchronously after kubectl apply.
+  # Policy caches update asynchronously after kubectl apply, so retry.
   for (( attempt=0; attempt<30; attempt++ )); do
     preview="$(kubectl patch "$kind" "$name" -n "$namespace" --type=merge \
       -p "$patch" --dry-run=server -o json)"

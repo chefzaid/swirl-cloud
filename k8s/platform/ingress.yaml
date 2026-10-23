@@ -127,9 +127,8 @@ spec:
                   number: 9000
 
 ---
-# Sonar scanners authenticate with project tokens and cannot follow an
-# interactive browser redirect. The longer /api path preserves that machine
-# interface while the UI and header-SSO entry point remain Keycloak protected.
+# Sonar scanners use project tokens and cannot follow a login redirect, so the
+# more specific /api path skips SSO; the UI stays Keycloak protected.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

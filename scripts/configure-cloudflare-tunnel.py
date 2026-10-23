@@ -51,8 +51,8 @@ class Cloudflare:
 
 
 def tunnel_configuration(domain):
-    # The platform transports its zone; application repositories own DNS and
-    # Kubernetes Ingress routes. Adding an app never changes this configuration.
+    # The tunnel carries the whole zone; applications own their DNS and Ingress
+    # routes, so adding one never changes this configuration.
     hosts = [domain, f"*.{domain}"]
     return {"config": {"ingress": [
         {"hostname": host, "service": "https://127.0.0.1:8444",
@@ -71,8 +71,8 @@ def verify_origin(port, domain, ca_file):
             tls.sendall(f'GET /__bm_tunnel_origin_probe__ HTTP/1.1\r\nHost: {domain}\r\nConnection: close\r\n\r\n'.encode())
             response = http.client.HTTPResponse(tls)
             response.begin()
-            # An unowned apex returns the catch-all 404. Authentication redirects
-            # are also valid: this gate needs a verified working TLS listener.
+            # A catch-all 404 or a sign-in redirect is fine: this only checks the
+            # verified TLS listener.
             if not 200 <= response.status < 500:
                 raise RuntimeError(f'Origin returned HTTP {response.status}')
 
@@ -120,8 +120,8 @@ def verify_origins(namespace, domain):
     for pod in ready:
         process, port = forward_origin(namespace, pod['metadata']['name'])
         try:
-            # Secret propagation and Traefik reconciliation are asynchronous. Retry the
-            # verified handshake briefly; never weaken verification to proceed.
+            # Secrets and Traefik reconcile asynchronously: retry briefly, never with
+            # weaker verification.
             for attempt in range(10):
                 try:
                     verify_origin(port, domain, ROOT / 'config/cloudflare-origin-ca.pem')

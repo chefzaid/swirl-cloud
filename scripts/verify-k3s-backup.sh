@@ -1,24 +1,22 @@
 #!/bin/bash
-# Weekly proof that the off-node restic copy of the recovery archives reads
-# back: check the repository with a rotating subset of its pack data, then
-# stream the newest archive out of restic and verify its recorded SHA-256 and
-# that it is a complete tar.gz. The plaintext archive never touches the disk.
+# Weekly check that the off-node restic copy reads back: restic check on a
+# rotating data subset, then stream the newest archive and verify its SHA-256
+# and tar.gz. The plaintext archive never touches the disk.
 set -euo pipefail
 set +x
 
 [[ "$EUID" -eq 0 ]] || { echo "Run this verification as root." >&2; exit 1; }
 BACKUP_ENVIRONMENT_FILE="${BACKUP_ENVIRONMENT_FILE:-/etc/swirl-cloud/backup.env}"
 if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
-  # This root-owned file is written with shell-safe escaped values; restic
-  # reads the repository, password and S3 credentials from the environment.
+  # Root-owned, with shell-escaped values; restic reads its repository and
+  # credentials from the environment.
   set -a
   # shellcheck disable=SC1090
   source "$BACKUP_ENVIRONMENT_FILE"
   set +a
 fi
 
-# Each run reads one of VERIFY_DATA_SUBSETS parts of the pack data, so the
-# whole repository is downloaded once every VERIFY_DATA_SUBSETS weeks.
+# Each weekly run reads one of VERIFY_DATA_SUBSETS parts of the pack data.
 VERIFY_DATA_SUBSETS="${VERIFY_DATA_SUBSETS:-4}"
 VERIFY_LOCK_WAIT_SECONDS="${VERIFY_LOCK_WAIT_SECONDS:-3600}"
 [[ "$VERIFY_DATA_SUBSETS" =~ ^[1-9][0-9]*$ ]] || { echo "VERIFY_DATA_SUBSETS must be a positive integer." >&2; exit 1; }
@@ -31,9 +29,8 @@ fi
 command -v restic >/dev/null || { echo "restic is required to verify off-node backups." >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq is required." >&2; exit 1; }
 
-# The backup, upload and prune hold this lock. Wait for a running backup
-# instead of skipping: a skipped run would be recorded as a success. Create it
-# root-only, as the backup does, so no other user can open and hold it.
+# Shared with the backup. Wait instead of skipping, which would be recorded as
+# a success; root-only so no other user can hold it.
 umask 077
 exec 9>/run/lock/swirl-cloud-k3s-backup.lock
 flock -w "$VERIFY_LOCK_WAIT_SECONDS" 9 || {
@@ -41,9 +38,8 @@ flock -w "$VERIFY_LOCK_WAIT_SECONDS" 9 || {
   exit 1
 }
 
-# Count whole UTC weeks (Monday to Sunday) since the epoch: unlike ISO week
-# numbers, which repeat a subset after week 53, this keeps a strict cycle, and
-# a rerun in the same week reads the same subset.
+# Whole UTC weeks (Monday-Sunday) since the epoch: unlike ISO weeks this never
+# repeats a subset after week 53, and a rerun reads the same subset.
 week="$(( ($(date -u +%s) / 86400 + 3) / 7 ))"
 subset="$(( week % VERIFY_DATA_SUBSETS + 1 ))/$VERIFY_DATA_SUBSETS"
 restic check --read-data-subset "$subset" || {
@@ -51,8 +47,7 @@ restic check --read-data-subset "$subset" || {
   exit 1
 }
 
-# Archive names carry their UTC creation time, so the greatest name is the
-# newest archive whatever host or clock recorded the snapshot.
+# Names carry the UTC creation time, so the greatest name is the newest archive.
 newest="$(restic snapshots --tag swirl-cloud-k3s --json | jq -c '
   [.[] | .id as $id | .paths[]
    | select(test("^/.+/k3s-[0-9]{8}T[0-9]{6}Z\\.tar\\.gz$"))
@@ -66,8 +61,8 @@ source_label="$archive from off-node snapshot ${snapshot_id:0:8}"
 recorded_digest="$(restic dump "$snapshot_id" "$archive.sha256" | awk 'NR == 1 { print $1 }')" || recorded_digest=""
 [[ "$recorded_digest" =~ ^[0-9a-f]{64}$ ]] || { echo "$source_label has no readable SHA-256 record." >&2; exit 1; }
 
-# Stream once: tee feeds the digest while tar decompresses and lists the whole
-# archive, which also checks the gzip CRC and that RESTORE.txt is present.
+# One stream: tee feeds the digest while tar lists the archive, which also
+# checks the gzip CRC and that RESTORE.txt is present.
 digest_file="$(mktemp)"
 trap 'rm -f -- "$digest_file"' EXIT
 exec 3> >(sha256sum | awk '{ print $1 }' > "$digest_file")

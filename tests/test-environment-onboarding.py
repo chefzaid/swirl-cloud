@@ -316,7 +316,7 @@ class CertificateTests(unittest.TestCase):
     def test_existing_swirl_website_apex_blocks_dns_even_when_address_and_empty_comment_would_match(self):
         inventory = local_inventory("suffix")
         target = inventory["environments"]["prod"]
-        # This record would pass the old DNS-only ownership condition.
+        # A DNS-only ownership check would accept this record.
         existing_record = {"type": "A", "content": target["ingressAddress"], "comment": ""}
         self.assertEqual(existing_record["content"], target["ingressAddress"])
         def kubectl(arguments, **_kwargs):

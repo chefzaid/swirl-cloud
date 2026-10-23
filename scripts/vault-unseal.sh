@@ -13,8 +13,8 @@ status() {
     vault status -format=json 2>/dev/null || true
 }
 
-# Explicit pods support isolated recovery tests. Timer runs discover all servers
-# so losing vault-0 does not disable recovery on the surviving members.
+# VAULT_POD pins one pod for recovery tests. Timer runs find every server, so
+# losing vault-0 does not stop the others from unsealing.
 if [[ -n "${VAULT_POD:-}" ]]; then
   phase="$(kubectl --request-timeout=10s get pod "$VAULT_POD" -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
   [[ "$phase" == Running ]] || exit 0

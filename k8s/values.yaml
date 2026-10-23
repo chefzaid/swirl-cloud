@@ -22,10 +22,9 @@ nodeFencing:
   inventorySecret: node-fencing-inventory
   nodeNames: []
 
-# Application cache and rate-limit state. Durable application jobs live in
-# PostgreSQL. Sentinel replication is asynchronous; a failover can lose recent
-# cache writes. Three voters plus a replica-write requirement prevent a lone
-# isolated Redis primary from continuing indefinitely.
+# Application cache and rate-limit state; durable jobs live in PostgreSQL.
+# Replication is asynchronous, so a failover can lose recent writes. Three
+# voters and min-replicas-to-write stop an isolated primary from carrying on.
 redis-ha:
   fullnameOverride: shared-redis-ha
   image:
@@ -127,22 +126,22 @@ redis-ha:
 trivy-operator:
   enabled: true
   fullnameOverride: trivy-operator
-  # Include standalone pods, including Longhorn's custom-controller workloads.
-  # The operator skips pods already covered through built-in workload owners.
+  # "pod" covers standalone pods such as Longhorn's; pods owned by the other
+  # kinds are not scanned twice.
   targetWorkloads: "replicaset,statefulset,daemonset,cronjob,pod"
   operator:
-    # Completed jobs also occupy the operator's concurrency limit. Let the
-    # operator delete jobs immediately after it persists their reports.
+    # Completed jobs count against the concurrency limit; delete them as soon
+    # as their reports are stored.
     scanJobTTL: ""
     scanSecretTTL: 10m
-    # Large GitLab scans need time for analysis and report compression/upload.
-    # Keep the Job deadline above the scanner timeout so errors can be reported.
+    # Large GitLab scans are slow. Keep this above trivy.timeout so a scanner
+    # timeout is still reported.
     scanJobTimeout: 25m
     scanJobsConcurrentLimit: 2
     scannerReportTTL: 24h
     builtInTrivyServer: true
-    accessGlobalSecretsAndServiceAccount: true
     # Scans use each application workload's own imagePullSecrets.
+    accessGlobalSecretsAndServiceAccount: true
     metricsFindingsEnabled: true
     metricsVulnIdEnabled: true
     metricsExposedSecretInfo: true
@@ -171,9 +170,8 @@ trivy-operator:
     seccompProfile:
       type: RuntimeDefault
   resources:
-    # Report caching and detailed metrics reached the previous 512Mi limit,
-    # causing repeated health-check timeouts and stale vulnerability reports.
-    # CPU peaked at 0.06 core over 6 h on 2026-10-05.
+    # Report caching and detailed metrics hit a 512Mi limit (health-check
+    # timeouts, stale reports). CPU peaked at 0.06 core over 6 h on 2026-10-05.
     requests:
       cpu: 100m
       memory: 384Mi

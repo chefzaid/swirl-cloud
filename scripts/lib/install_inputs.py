@@ -291,9 +291,8 @@ INPUTS = (
 BY_NAME = {item.name: item for item in INPUTS}
 assert len(BY_NAME) == len(INPUTS) and set(item.section for item in INPUTS) <= set(SECTIONS)
 
-# Any secret may instead name a protected file holding it (NAME_FILE=/path), so
-# the input file itself can stay free of inline credentials. The file is read
-# only when the engine imports the inputs; it works before Vault exists.
+# Any secret may instead name a protected file (NAME_FILE=/path), keeping
+# credentials out of the input file. It is read at import, before Vault exists.
 FILE_SUFFIX = "_FILE"
 SECRET_FILES = {item.name + FILE_SUFFIX: item for item in INPUTS if item.secret}
 MAX_SECRET_FILE = 64 * 1024

@@ -1,10 +1,7 @@
 # Security detection rules over identity events, the Kubernetes API audit log
-# and Keycloak state, run every five minutes; findings are posted to
-# Alertmanager like Prometheus alerts. See docs/guides/security-detection.md.
-#
-# The job reads audit indices with its own Elasticsearch account. Its password
-# is generated in the cluster (External Secrets Password generator) and the
-# Elasticsearch security bootstrap creates the account from it.
+# and Keycloak state, every five minutes; findings go to Alertmanager like
+# Prometheus alerts (docs/guides/security-detection.md). The job's Elasticsearch
+# account uses a password generated here; the Elasticsearch bootstrap creates it.
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: Password
 metadata:

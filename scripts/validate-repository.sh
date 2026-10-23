@@ -48,8 +48,8 @@ for playbook in ansible/*.yml; do
 done
 printf '[PASS] Ansible playbook syntax\n'
 
-# These suites exercise data-loss, secret-handling and physical fencing paths.
-# The selection and reason for each exception are documented in docs/testing.md.
+# Safety suites for data-loss, secret-handling and fencing paths; the selection
+# is explained in docs/testing.md.
 bash tests/test-k3s-backups.sh
 bash tests/test-k3s-api-endpoint.sh
 bash tests/test-k3s-kubelet-memory.sh
@@ -67,11 +67,9 @@ if [[ "$LIVE" == true ]]; then
     live_api_versions="$(kubectl api-versions | tr '\n' ' ')"
     skipped_total=0
     for manifest in "$WORK"/rendered/*.yaml; do
-        # A dry-run cannot validate what this cluster cannot hold yet: objects in
-        # a namespace the profile declares, or in cnpg-system, and CloudNativePG
-        # resources before HA activation installs that operator and its CRDs.
-        # Those objects are counted, not validated; any other missing namespace
-        # or API still fails.
+        # Count, not validate, what this cluster cannot hold yet: objects in a
+        # namespace the profile declares or in cnpg-system, and CloudNativePG
+        # resources before HA activation installs the operator. Anything else fails.
         skipped="$(python3 - "$manifest" "$manifest.live" "$live_namespaces" "$live_api_versions" <<'PY'
 import sys, yaml
 source, target = sys.argv[1], sys.argv[2]

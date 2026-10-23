@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dynamic KRaft startup. Existing original PVCs must never silently reformat.
+# KRaft startup that never reformats existing storage.
 set -euo pipefail
 # shellcheck source=/dev/null
 . /etc/confluent/docker/bash-config

@@ -1,16 +1,9 @@
 # K3s/containerd runtime-default profile with Ubuntu AppArmor stacking support.
-#
-# New Ubuntu kernels force profile changes requested by an unprivileged,
-# unconfined runc process to stack with "unconfined". Container processes then
-# have either of these labels:
-#
-#   cri-containerd.apparmor.d
-#   cri-containerd.apparmor.d//&unconfined
-#
-# The upstream containerd profile only permits signals and ptrace between the
-# first form. The two additional peer rules below preserve the same-container
-# boundary while allowing programs such as Karma/Chrome and Go tools to manage
-# their own child processes under the stacked label.
+# Recent Ubuntu kernels stack profile changes from unprivileged, unconfined runc
+# with "unconfined", so container processes run as cri-containerd.apparmor.d or
+# cri-containerd.apparmor.d//&unconfined. Upstream allows signals and ptrace only
+# for the first form; the extra peer rules below cover the stacked label so tools
+# such as Karma/Chrome and Go can manage their own child processes.
 
 abi <abi/3.0>,
 #include <tunables/global>

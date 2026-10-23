@@ -199,8 +199,8 @@ def token_rotation_state(old_registration, rotate=False, *, environment=None):
 def publish_registration(platform, target, registration, current_inventory, updated_inventory, token_secret_name, pending):
     annotations = registration["metadata"]["annotations"]
     annotations[TOKEN_SECRET_ANNOTATION] = token_secret_name
-    # Persist the revocation journal with the new credential before publication.
-    # A failed inventory update or deletion can then be resumed on any rerun.
+    # Save the revocation journal with the new credential before publishing it,
+    # so a rerun can finish a failed inventory update or deletion.
     annotations[PENDING_TOKENS_ANNOTATION] = json.dumps(pending)
     platform.apply(registration)
     cm = object_("ConfigMap", "deployment-environments", namespace="infra", data={"environments.json": json.dumps(updated_inventory, sort_keys=True)})
@@ -534,8 +534,8 @@ def service_boundary(context):
 
 
 def middleware_boundary(context):
-    # Traefik preserves arbitrary plugin configuration; dyn keeps its presence check
-    # available when the CRD type checker omits that schemaless property.
+    # Traefik accepts arbitrary plugin configuration; dyn() lets CEL test for
+    # that schemaless property, which the CRD type checker omits.
     name = "application-middleware-" + context["environment"]
     return [object_("ValidatingAdmissionPolicy", name, api="admissionregistration.k8s.io/v1", spec={
         "failurePolicy": "Fail", "matchConstraints": {"resourceRules": [{"apiGroups": ["traefik.io"], "apiVersions": ["v1alpha1"], "operations": ["CREATE", "UPDATE"], "resources": ["middlewares"]}]},

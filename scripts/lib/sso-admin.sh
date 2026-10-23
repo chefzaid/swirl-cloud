@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034 # Validation errors are read by scripts that source this library.
 
-# Shared validation for the administrator identity provisioned through the
-# configured Keycloak realm. Callers decide whether validation failures should be
-# interactive warnings or fatal errors by reading SSO_ADMIN_VALIDATION_ERROR.
+# Validates the administrator identity provisioned in the Keycloak realm. Callers
+# read SSO_ADMIN_VALIDATION_ERROR and decide whether a failure warns or aborts.
 
 SSO_ADMIN_VALIDATION_ERROR=""
 

@@ -12,8 +12,8 @@ source "$VAULT_ACCESS_LIBRARY"
 
 BACKUP_ENVIRONMENT_FILE="${BACKUP_ENVIRONMENT_FILE:-/etc/swirl-cloud/backup.env}"
 if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
-  # This root-owned file is written with shell-safe escaped values; restic
-  # reads the repository, password and S3 credentials from the environment.
+  # Root-owned, with shell-escaped values; restic reads its repository and
+  # credentials from the environment.
   set -a
   # shellcheck disable=SC1090
   source "$BACKUP_ENVIRONMENT_FILE"
@@ -35,8 +35,8 @@ ARCHIVE="$BACKUP_DIR/k3s-$TIMESTAMP.tar.gz"
 [[ "$BACKUP_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds." >&2; exit 1; }
 command -v k3s >/dev/null || { echo "k3s is required." >&2; exit 1; }
 [[ -s "$K3S_DATA_DIR/server/token" ]] || { echo "K3s server token is required for a restorable backup." >&2; exit 1; }
-# K3s can leave an empty etcd directory on SQLite servers. An initialized
-# member takes precedence over state.db retained by a migrated server.
+# SQLite servers can have an empty etcd directory, and migrated servers keep
+# state.db, so an initialized etcd member wins.
 if [[ -d "$K3S_ETCD_DIR/member" ]]; then
   DATASTORE=etcd
 elif [[ -f "$K3S_DB" ]]; then
@@ -49,9 +49,8 @@ fi
 
 umask 077
 install -d -o root -g root -m 0700 "$BACKUP_DIR"
-# The weekly off-node verification holds this lock too. Wait it out (its unit
-# stops after four hours) instead of skipping: a skipped night would be
-# recorded as a success.
+# The weekly verification holds this lock too (its unit stops after four
+# hours). Wait instead of skipping, which would be recorded as a success.
 exec 9>/run/lock/swirl-cloud-k3s-backup.lock
 flock -w "$BACKUP_LOCK_WAIT_SECONDS" 9 || {
   echo "The backup lock is still held after $BACKUP_LOCK_WAIT_SECONDS seconds; no archive was created." >&2
@@ -65,9 +64,8 @@ install -d -m 0700 "$staging_dir/k3s-db" "$staging_dir/k3s-server" \
   "$staging_dir/kubernetes" "$staging_dir/gitlab"
 
 if [[ "$DATASTORE" == "etcd" ]]; then
-  # Request a consistent snapshot from the local server into the protected
-  # staging directory. The completed archive follows the existing retention
-  # and encrypted off-node policy; no extra on-demand snapshots accumulate.
+  # Snapshot into staging so it follows the archive's retention and off-node
+  # policy, and no on-demand snapshots pile up.
   k3s etcd-snapshot save \
     --data-dir "$K3S_DATA_DIR" --name "swirl-cloud-$TIMESTAMP" \
     --etcd-snapshot-dir "$staging_dir/k3s-db" --etcd-s3=false
@@ -78,15 +76,12 @@ if [[ "$DATASTORE" == "etcd" ]]; then
   }
   snapshot_name="$(basename "${etcd_snapshots[0]}")"
 else
-  # SQLite's online backup API produces a transactionally consistent copy even
-  # while K3s is serving traffic and its WAL is changing.
+  # The online backup API gives a consistent copy while K3s keeps writing.
   backup_db="$staging_dir/k3s-db/state.db"
   sqlite3 "$K3S_DB" ".timeout 60000" ".backup '$backup_db'"
 
-  # Compact only the staging copy to current state. Superseded revisions,
-  # tombstones, previous values, and SQLite free pages are not needed to restore
-  # the current Kubernetes objects and can retain deleted secrets indefinitely.
-  # Never run these statements against the live K3s database.
+  # Compact the staging copy to current state: old revisions and free pages are
+  # not needed to restore and can keep deleted secrets. Never run on the live DB.
   sqlite3 "$backup_db" <<'SQL'
 BEGIN IMMEDIATE;
 DELETE FROM kine
@@ -125,8 +120,8 @@ if [[ -d "$K3S_CONFIG_DIR/config.yaml.d" ]]; then
   cp -a "$K3S_CONFIG_DIR/config.yaml.d" "$staging_dir/k3s-config/config.yaml.d"
 fi
 
-# Vault keys stay out of routine archives only when an exported recovery kit
-# (scripts/export-recovery-kit.sh --separate-archives) still holds these exact files.
+# Vault keys are left out only while a kit exported with
+# export-recovery-kit.sh --separate-archives holds these exact files.
 RECOVERY_KIT_MANIFEST="${RECOVERY_KIT_MANIFEST:-/var/lib/swirl-cloud/recovery-kit.json}"
 kit_holds() {
   [[ -f "$RECOVERY_KIT_MANIFEST" ]] && command -v jq >/dev/null 2>&1 || return 1
@@ -195,19 +190,16 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
     unset mongodb_username mongodb_password
   fi
 
-  # Odoo attachments live outside PostgreSQL. Copying them after the database
-  # dump keeps every file that the dump references; sessions are ephemeral.
+  # Attachments live outside PostgreSQL; copy them after the dump that references them.
   if kubectl get deployment odoo -n corp >/dev/null 2>&1; then
     kubectl exec -n corp deployment/odoo -c odoo -- tar -C /var/lib/odoo -czf - filestore \
       > "$staging_dir/application-data/odoo-filestore.tar.gz"
   fi
 
-  # A GitLab data backup restores only into the same GitLab version and with
-  # this installation's /etc/gitlab (gitlab-secrets.json, SSH host keys,
-  # gitlab.rb) from the gitlab-config volume. Its native backup is separate.
+  # GitLab data restores need the same version and this /etc/gitlab (secrets,
+  # SSH host keys, gitlab.rb). GitLab's native backup is separate.
   if kubectl get deployment gitlab -n infra >/dev/null 2>&1; then
-    # Recreate rollouts leave one live pod; configuration, version and image
-    # all come from that pod.
+    # Recreate rollouts leave one live pod; read everything from it.
     gitlab_pod="$(kubectl get pods -n infra -l app=gitlab -o json | jq -c '[.items[] |
       select(.status.phase == "Running" and .metadata.deletionTimestamp == null)] |
       if length == 1 then .[0] else empty end')"
@@ -312,8 +304,8 @@ if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
     restic init
   fi
   restic backup --tag swirl-cloud-k3s "$ARCHIVE" "$ARCHIVE.sha256"
-  # Every archive has its own path, so restic's default grouping by host and
-  # paths would keep each snapshot forever; group by host and tag instead.
+  # Each archive has its own path, so the default host+paths grouping would keep
+  # every snapshot forever.
   restic forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
 fi
 

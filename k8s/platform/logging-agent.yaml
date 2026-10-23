@@ -54,9 +54,8 @@ data:
         Name                      tail
         Alias                     kubernetes_containers
         Path                      /var/log/containers/*.log
-        # Trivy scan pods print compressed report payloads that the operator
-        # already stores as report resources; they are deleted before their
-        # metadata can be read and only add noise to the log index.
+        # Trivy scan pods print compressed reports the operator already stores as
+        # resources, and are deleted before their metadata can be read.
         Exclude_Path              /var/log/containers/scan-vulnerabilityreport-*_infra_*.log
         multiline.parser          cri, docker
         Tag                       kube.*
@@ -486,8 +485,7 @@ spec:
             - |
               until curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200 >/dev/null; do sleep 5; done
-              # The templates and indices below are pointed at this policy; stop if
-              # it was not stored.
+              # The templates and indices below use this policy; stop if it is missing.
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/ilm-policy.json \
@@ -516,9 +514,8 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/identity-audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/identity-audit >/dev/null
-              # Indices created under the former swirl-cloud-logs-7d policy (same
-              # phases) move here; that policy is removed by hand, see
-              # docs/operations.md#storage-and-retention.
+              # Also moves indices off the renamed swirl-cloud-logs-7d policy
+              # (docs/operations.md#storage-and-retention).
               curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
                 -H 'Content-Type: application/json' \
                 --data-binary '{"index.lifecycle.name":"swirl-cloud-logs"}' \
@@ -719,7 +716,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: filebeat
-          # The standard 9.4.6 image requires x86-64-v3; Wolfi supports this node.
+          # The standard image requires x86-64-v3; Wolfi supports this node.
           image: docker.elastic.co/beats/filebeat-wolfi:9.5.4@sha256:119f38ac1c161f660669e5b1a37de9f831920636a4bbe7181e7795f54d622e91
           args:
             - -e

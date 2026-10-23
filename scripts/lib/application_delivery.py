@@ -231,8 +231,7 @@ class ApplicationDelivery:
                 raise ServiceError("GitLab returned an unsupported runner token format")
             runner_ids.append(identity)
             saved.update({lane + "-id": str(identity), lane + "-token": token})
-            # Persist immediately, so interruption after creating the other lane
-            # never leaves a usable credential only in process memory.
+            # Save at once, so an interruption never leaves a usable token only in memory.
             self.apply(resource("Secret", self.name, NAMESPACE, type="Opaque",
                 data={key: base64.b64encode(value.encode()).decode() for key, value in saved.items()}))
         for document in self.runner_resources():

@@ -121,8 +121,8 @@ spec:
         - port: 53
           protocol: TCP
 ---
-# Only the UI path goes through the theme helper. The existing vault-ingress
-# continues to route /v1 (including all authenticated APIs) directly to Vault.
+# Only the UI path goes through the theme helper; vault-ingress routes /v1
+# (all authenticated APIs) directly to Vault.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

@@ -3,8 +3,8 @@
 # that a node could own, a VIP held by a server whose API is down, multicast
 # VRRP leaking onto the node network, and a certificate restart that would
 # break the etcd majority.
-# Mock functions are invoked from the sourced production helpers.
-# ShellCheck 0.10 reports indirect mock calls as SC2317; 0.11 uses SC2329.
+# Mocks are called from the sourced production helpers, which ShellCheck 0.10
+# reports as SC2317 and 0.11 as SC2329.
 # shellcheck disable=SC2317,SC2329
 set -euo pipefail
 

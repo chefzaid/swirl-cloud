@@ -231,8 +231,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "-2"
 spec:
   replicas: 1
-  # The single-node process holds an exclusive lock on its RWO data path.
-  # Never overlap old and new Elasticsearch pods during an update.
+  # Elasticsearch locks its RWO data path, so old and new pods must never overlap.
   strategy:
     type: Recreate
   selector:
@@ -569,8 +568,7 @@ data:
     async function ensureOwnershipIndex() {
       const existing = await elasticFetch(`/${ownershipIndex}`);
       if (existing.status >= 200 && existing.status < 300) {
-        // Indices created before the replica setting existed kept one replica,
-        // which a single node can never assign.
+        // Older indices may still have one replica, which a single node never assigns.
         await elasticRequest(`/${ownershipIndex}/_settings`, "PUT", { "index.number_of_replicas": 0 });
         return;
       }
@@ -1103,9 +1101,8 @@ data:
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Host $http_host;
           proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-          # Kibana's Basic provider session supplies a profile_uid, keeping
-          # profiles, favorites, and preferences distinct per person. Never
-          # accept a caller-supplied service or user credential here.
+          # Kibana's Basic session supplies a per-person profile_uid; never
+          # forward a caller-supplied service or user credential.
           proxy_set_header Authorization "";
           proxy_set_header Upgrade $http_upgrade;
           proxy_set_header Connection $connection_upgrade;

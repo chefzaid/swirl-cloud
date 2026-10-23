@@ -1,6 +1,6 @@
-# These controllers generate their own Deployments. Apply security settings to
-# the stored templates, so replacement Pods and Trivy's controller reports agree.
-# Never change the privileged Longhorn engine, instance-manager or CSI driver containers.
+# Longhorn generates these Deployments, so harden the stored templates; replacement
+# Pods and Trivy's reports then agree. Never touch the privileged engine,
+# instance-manager or CSI driver containers.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
@@ -75,8 +75,8 @@ metadata:
 spec:
   policyName: swirl-cloud-longhorn-csi-controller-hardening
 ---
-# K3s reconciles these manifests on restart. Admission preserves the hardening
-# without editing files managed by K3s or moving system services to another namespace.
+# K3s reapplies these manifests on restart; admission keeps the hardening
+# without editing K3s-managed files.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
@@ -337,8 +337,8 @@ metadata:
 spec:
   policyName: swirl-cloud-longhorn-driver-deployer-hardening
 ---
-# Only the two socket clients are hardened; the driver retains host mount privileges.
-# Root is required by the existing root-owned CSI and registration sockets.
+# Only the two socket clients are hardened; the driver keeps host mount privileges.
+# They run as root because the CSI and registration sockets are root-owned.
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:

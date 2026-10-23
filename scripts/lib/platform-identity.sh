@@ -54,8 +54,8 @@ platform_identity_validate() {
 }
 
 platform_identity_load() {
-    # A public ConfigMap records installed choices. Explicit environment inputs
-    # take precedence; values are decoded as data and are never sourced/eval'd.
+    # Installed choices come from a public ConfigMap; explicit environment inputs
+    # win. Values are decoded as data, never sourced or eval'd.
     local name value identity_script identity_json
     TLS_SECRET_NAME="${TLS_SECRET_NAME:-${CLOUDFLARE_TLS_SECRET_NAME:-}}"
     identity_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/platform-identity.py"

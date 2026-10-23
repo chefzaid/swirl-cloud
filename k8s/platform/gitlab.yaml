@@ -63,9 +63,8 @@ data:
               integration.type_identifier = :prometheus
               integration.endpoint_identifier = "clusterprometheus"
               integration.token = alert_token
-              # GitLab intentionally prevents changing endpoint credentials
-              # through normal model validation. This reconciler owns this
-              # one deterministic endpoint and supplies a valid 32-hex token.
+              # GitLab model validation blocks changing endpoint credentials;
+              # this reconciler owns this one endpoint and supplies a valid 32-hex token.
               integration.save!(validate: false)
             end
           end

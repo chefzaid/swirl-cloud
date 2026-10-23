@@ -1,8 +1,5 @@
 #!/bin/bash
-# ==============================================================================
-# install-control-plane.sh
-# Installs the K3s control plane and deploys infrastructure components
-# ==============================================================================
+# Installs the K3s control plane and deploys the platform components.
 set -euo pipefail
 set +x
 umask 077
@@ -1038,8 +1035,8 @@ elif [[ "$SERVER_EXPOSURE" != internet ]]; then
 fi
 if [[ "$HIGH_AVAILABILITY_ENABLED" == true ]]; then
     CONFIGURE_CLOUDFLARE=true
-    # Tunnel mode has no public origin address. A node administration record
-    # may be managed separately using an explicit --origin-ip.
+    # HA ingress uses a Cloudflare Tunnel, so there is no origin address to publish;
+    # configure-cloudflare.sh --origin-ip can still manage a node record.
     export CLOUDFLARE_PUBLISH_NODE_DNS=false
 fi
 if [[ "$AUTO_APPROVE" == true && "$CONFIGURE_CLOUDFLARE" == true ]]; then
@@ -1118,8 +1115,8 @@ NEEDS_HELM=true
 if [[ "$INSTALL_PREREQS" == "true" ]]; then
     step "Installing system prerequisites..."
     sudo apt-get update -qq
-    # Runtime and reconciliation tools, plus the repository validator's tools
-    # (Node.js only syntax-checks embedded scripts, so the distro release is enough).
+    # Runtime tools plus the validator's; the distro Node.js is enough because it
+    # only syntax-checks embedded scripts.
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         ansible \
         open-iscsi \

@@ -1,6 +1,5 @@
-# Vault audit logs use a dedicated volume and an in-pod rotator. Process
-# namespace sharing is required only so the unprivileged sidecar can send
-# Vault SIGHUP after atomically renaming the active audit file.
+# Audit logs use a dedicated volume and an in-pod rotator. The process namespace
+# is shared only so the unprivileged sidecar can send Vault SIGHUP after rotating.
 server:
   image:
     repository: docker.io/hashicorp/vault
@@ -112,9 +111,8 @@ server:
     limits:
       cpu: '1'
       memory: 512Mi
-  # The chart's single-server Raft configuration plus Prometheus telemetry;
-  # vault-ha-values.yaml replaces it with the same telemetry. Unauthenticated
-  # metrics also let standbys answer. Vault reads this at startup only.
+  # Chart's single-server Raft config plus Prometheus telemetry (vault-ha-values.yaml
+  # replaces it). Unauthenticated metrics let standbys answer. Read at startup only.
   ha:
     raft:
       config: |

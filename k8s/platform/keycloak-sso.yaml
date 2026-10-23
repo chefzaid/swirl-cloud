@@ -116,9 +116,8 @@ data:
       sed -n 's/^[^"]*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$response_file" | head -n 1
     }
 
-    # Keep the JSON-escaped representation so an existing, user-edited name
-    # can be embedded in the reconciliation payload without lossy shell
-    # decoding. Keycloak clears omitted firstName/lastName fields on PUT.
+    # Keep the JSON-escaped form so a user-edited name goes back into the
+    # payload unchanged; Keycloak clears omitted firstName/lastName on PUT.
     extract_json_string() {
       field="$1"
       sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\(\([^"\\]\|\\.\)*\)".*/\1/p' "$response_file" | head -n 1
@@ -134,8 +133,7 @@ data:
     sso_email_json="$(printf '%s' "$SSO_PRIMARY_EMAIL" | json_escape)"
     sso_first_name="${SSO_DISPLAY_NAME%% *}"
     if [ "$sso_first_name" = "$SSO_DISPLAY_NAME" ]; then
-      # Keycloak's default profile expects both standard name fields. A
-      # one-word bootstrap display name remains readable and valid.
+      # Keycloak's default profile expects both name fields; reuse a one-word name.
       sso_last_name="$SSO_DISPLAY_NAME"
     else
       sso_last_name="${SSO_DISPLAY_NAME#"$sso_first_name"}"
@@ -175,8 +173,8 @@ data:
       "defaultLocale":"en"
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
-    # The realm's mail server follows the platform mail relay (ADR 0029), so
-    # password reset and verification emails work while platform mail is on.
+    # Realm mail follows the platform mail relay (ADR 0029) for password reset
+    # and verification emails.
     if [ "${PLATFORM_MAIL_ENABLED:-false}" = true ]; then
       if [ "${PLATFORM_MAIL_TLS:-ssl}" = ssl ]; then
         mail_ssl=true
@@ -207,9 +205,8 @@ data:
     # French), with a language selector; the administration console too.
     expect_success "$(request PUT "realms/master" '{"internationalizationEnabled":true,"supportedLocales":["en","fr"],"defaultLocale":"en"}')"
 
-    # Keycloak 26 ignores attributes that are not declared in the realm user
-    # profile. Keep the bootstrap identity's future LDAP migration marker as an
-    # explicitly managed, administrator-owned field.
+    # Keycloak 26 ignores attributes missing from the user profile; declare the
+    # bootstrap identity's LDAP migration marker as an administrator-owned field.
     user_profile_body='{
       "attributes":[
         {
@@ -279,12 +276,10 @@ data:
     ensure_role platform-user "May sign in to Platform applications and services"
     ensure_role platform-admin "Administrator of Platform applications and services"
 
-    # Services such as GitLab, Grafana, Argo CD, Vault, Kafka UI, and
-    # Portainer request the groups scope explicitly. A client-level groups
-    # mapper alone does not register that scope with Keycloak, so the browser
-    # authorization request is otherwise rejected before credentials are read.
-    # Splitting the list also yields protocol mappers, and a new realm's
-    # microprofile-jwt scope has a mapper named "groups"; skip mapper entries.
+    # GitLab, Grafana, Argo CD and others request the groups scope; a client
+    # mapper alone does not register it, so Keycloak would reject the request.
+    # The split list also holds mappers (microprofile-jwt has one named
+    # "groups"); skip those.
     expect_success "$(request GET "realms/$realm/client-scopes")"
     groups_scope_id="$(
       tr -d '\n' < "$response_file" |
@@ -353,9 +348,8 @@ data:
       if [ "$public_client" = false ]; then
         secret_property=",\"secret\":\"$client_secret\""
       else
-        # Public browser/CLI clients cannot protect a secret, so require PKCE.
-        # Confidential clients authenticate at the token endpoint and must be
-        # allowed to use integrations that do not emit a PKCE challenge.
+        # Public browser/CLI clients cannot keep a secret, so require PKCE.
+        # Confidential clients stay usable by integrations without PKCE.
         pkce_property=',"pkce.code.challenge.method":"S256"'
       fi
       client_body="{
@@ -386,9 +380,8 @@ data:
       # simple clients are not forced to advertise it.
       expect_success "$(request PUT "realms/$realm/clients/$internal_id/optional-client-scopes/$groups_scope_id")"
 
-      # Application clients authorize on the compact platform-admins group.
-      # Do not emit the realm-admin composite's dozens of management roles in
-      # every app token; the Keycloak console's own clients remain untouched.
+      # Apps authorize on the platform-admins group, so keep realm-admin's many
+      # management roles out of their tokens; console clients are untouched.
       status="$(request DELETE "realms/$realm/clients/$internal_id/default-client-scopes/$roles_scope_id")"
       case "$status" in 204|404) ;; *) expect_success "$status" ;; esac
 
@@ -447,8 +440,7 @@ data:
     ensure_client portainer false "$PORTAINER_CLIENT_SECRET" \
       '["https://portainer.__PUBLIC_DOMAIN__"]' \
       '["https://portainer.__PUBLIC_DOMAIN__"]' 'https://portainer.__PUBLIC_DOMAIN__'
-    # Odoo 19's bundled auth_oauth module uses the OAuth2 implicit response.
-    # It therefore has no safe way to hold a client secret and is public.
+    # Odoo 19's auth_oauth uses the implicit flow, so it cannot hold a secret.
     ensure_client odoo true '' \
       '["https://odoo.__PUBLIC_DOMAIN__/auth_oauth/signin"]' \
       '["https://odoo.__PUBLIC_DOMAIN__"]' 'https://odoo.__PUBLIC_DOMAIN__' true
@@ -471,9 +463,8 @@ data:
     role_mappings="[$platform_admin_role,$platform_user_role]"
     expect_success "$(request POST "realms/$realm/groups/$group_id/role-mappings/realm" "$role_mappings")"
 
-    # Delegate full administration of this realm to the platform-admins group.
-    # The matching master-realm identity below additionally administers every
-    # realm from the top-level Keycloak console.
+    # platform-admins administers this realm; the master identity below
+    # administers every realm.
     expect_success "$(request GET "realms/$realm/clients?clientId=realm-management")"
     realm_management_id="$(extract_id)"
     test -n "$realm_management_id"
@@ -539,10 +530,8 @@ data:
     expect_success "$(request PUT "realms/$realm/users/$user_id/groups/$group_id")"
     expect_success "$(request POST "realms/$realm/users/$user_id/role-mappings/realm" "$role_mappings")"
 
-    # Keycloak realms are hard identity boundaries. Provision a matching local
-    # identity in master so the same managed username/password can administer
-    # the entire Keycloak instance, not only the Platform realm. If LDAP later
-    # owns this master identity, preserve its federated credential linkage.
+    # Realms are hard identity boundaries: a matching master identity lets the
+    # same credentials administer all of Keycloak. Keep its LDAP link if federated.
     expect_success "$(request GET "realms/master/users?username=$SSO_BOOTSTRAP_USERNAME&exact=true")"
     master_user_id="$(extract_id)"
     master_user_is_federated=false
@@ -596,10 +585,9 @@ data:
     master_admin_role="$(tr -d '\n' < "$response_file")"
     expect_success "$(request POST "realms/master/users/$master_user_id/role-mappings/realm" "[$master_admin_role]")"
 
-    # Store login and admin events in every realm (identity audit evidence).
-    # The jboss-logging listener also writes each event to the container log,
-    # which the logging agent keeps in the identity-audit-* indices for a year.
-    # Admin event details stay off so representations never reach the store.
+    # Store login and admin events in every realm (identity audit evidence);
+    # jboss-logging also logs them, kept a year in identity-audit-* indices.
+    # Admin event details stay off so representations are never stored.
     event_retention_seconds=7776000
     events_body='{
       "eventsEnabled":true,
@@ -613,9 +601,8 @@ data:
     realms="$(tr -d '\n' < "$response_file" | grep -o '"realm":"[^"]*"' | sed 's/^"realm":"//; s/"$//')"
     for event_realm in $realms; do
       expect_success "$(request PUT "realms/$event_realm/events/config" "$events_body")"
-      # Admin event expiry is a realm attribute, and a realm PUT replaces the
-      # whole attribute map, so merge into the current map (frontendUrl and
-      # similar settings live there).
+      # Admin event expiry is a realm attribute and a realm PUT replaces the
+      # whole map (frontendUrl lives there too), so merge into the current one.
       expect_success "$(request GET "realms/$event_realm")"
       realm_json="$(tr -d '\n' < "$response_file")"
       case "$realm_json" in
@@ -766,10 +753,8 @@ spec:
             - --cookie-samesite=lax
             - --cookie-refresh=1h
             - --cookie-expire=8h
-            # Realm administrators carry enough authorization claims to exceed
-            # browser cookie/header limits. Store the encrypted session in the
-            # shared internal Redis service and keep only a ticket in the
-            # cross-subdomain cookie; this also makes both replicas consistent.
+            # Administrator sessions exceed browser cookie limits; keep them encrypted
+            # in Redis (shared by both replicas) and only a ticket in the cookie.
             - --session-store-type=redis
             - --redis-connection-url=redis://redis.__INTERNAL_DNS_ZONE__:6379/1
             - --reverse-proxy=true

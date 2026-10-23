@@ -45,9 +45,8 @@ spec:
       containers:
       - name: kafka-controller
         image: docker.io/confluentinc/cp-kafka:8.3.2@sha256:5e8f3ab5b4977c9a8fd6137d26af2caad878aca316f24c55f08206217e3cec48
-        # CP 8.3's wrapper rejects an advertised controller listener even
-        # though Kafka 4.3 requires it. Render the standard templates directly
-        # and retain the vendor's ensure/launch phases.
+        # CP 8.3's wrapper rejects an advertised controller listener, which
+        # Kafka 4.3 requires: render the templates and keep ensure/launch.
         command: ["/bin/bash", "-ec"]
         args:
         - >-

@@ -14,9 +14,8 @@ REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-htt
 REMOVED_REGISTRY_HOSTS="${K3S_REMOVED_REGISTRY_HOSTS:-${PLATFORM_DOMAIN:+gitlab.$PLATFORM_DOMAIN}}"
 RETAIN_LEGACY_REGISTRY="${K3S_RETAIN_LEGACY_REGISTRY:-false}"
 REGISTRY_CONFIG="${K3S_REGISTRY_CONFIG:-/etc/rancher/k3s/registries.yaml}"
-# Containerd keeps each pulled layer twice: compressed and unpacked. Dropping
-# the compressed copy after unpacking roughly halves image storage; nodes then
-# cannot serve or export those layers, which K3s does not need here.
+# Dropping each layer's compressed copy after unpacking roughly halves image
+# storage; nodes then cannot serve or export layers, which K3s does not need.
 DISCARD_UNPACKED_LAYERS="${K3S_DISCARD_UNPACKED_LAYERS:-true}"
 CONTAINERD_DROPIN="${K3S_CONTAINERD_DROPIN:-/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/20-swirl-cloud-images.toml}"
 sudo_command=()

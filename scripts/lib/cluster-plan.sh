@@ -22,10 +22,9 @@ cluster_plan_target_count() {
 }
 
 cluster_plan_inventory() {
-    # Count registered nodes, including NotReady nodes, so reruns cannot silently
-    # replace a failed etcd member or plan removal of an existing worker.
-    # An operator's kubeconfig can point at a different cluster. Only inventory
-    # the local server that this installer is allowed to extend.
+    # Count registered nodes, NotReady ones too, so a rerun cannot replace a failed
+    # etcd member or plan removal of a worker. Inventory only the local server:
+    # an operator's kubeconfig may point at another cluster.
     systemctl cat k3s.service >/dev/null 2>&1 || return 0
     command -v k3s >/dev/null 2>&1 || {
         error "The local K3s service has no binary; restore it before planning enrollment."

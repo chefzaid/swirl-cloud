@@ -62,10 +62,9 @@ def normalize_schema(data):
 
 
 def restore_grantors(sql, source_bootstrap):
-    # PostgreSQL 16+ checks GRANTED BY against the executing grantor's rights.
-    # Restore each pg_dumpall membership as its original grantor, then return to
-    # the authenticated operator superuser. Identifiers come from pg_dumpall's
-    # SQL quoting; names containing newlines are rejected during preflight.
+    # PostgreSQL 16+ checks GRANTED BY against the executing role, so each membership
+    # is restored as its original grantor, then as the operator superuser again.
+    # Identifiers keep pg_dumpall's quoting; preflight rejects names with newlines.
     def replace(match):
         grantor = match[2]
         decoded = grantor[1:-1].replace('""', '"') if grantor.startswith('"') else grantor
@@ -294,8 +293,8 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         return {"roles": roles, "databases": databases, "memberships": memberships, "settings": settings, "data": data}
 
     def row_hash(self, pod, database, query, source):
-        # PostgreSQL sorts fixed-size hashes with work_mem/disk spill; the client
-        # streams them instead of aggregating a potentially large DB in memory.
+        # PostgreSQL sorts the hashes (spilling to disk); the client streams them
+        # instead of aggregating a large database in memory.
         command = ["psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-d", database]
         if source:
             command = ["sh", "-ceu", 'export PGUSER="$POSTGRES_USER"; exec "$@"', "sh", *command]
@@ -375,9 +374,8 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         self.sql(source, "postgres", "SELECT pg_reload_conf();", True)
         require(self.sql(source, "postgres", "SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;", True) == "0",
                 "Source HBA fencing failed validation; inspect private backup before proceeding")
-        # HUP processing is asynchronous. Confirm a fresh TCP connection is
-        # rejected by HBA (rather than merely lacking a password) before killing
-        # existing sessions and taking the final backup.
+        # Reloads are asynchronous: confirm HBA rejects a fresh TCP connection (not
+        # just for a missing password) before ending sessions and the final backup.
         for _ in range(30):
             command = [*self.kubectl, "exec", "-n", NAMESPACE, source, "-c", "postgres", "--", "sh", "-ceu",
                        'PGCONNECT_TIMEOUT=2 psql -w -h 127.0.0.1 -U "$POSTGRES_USER" -d postgres -c "SELECT 1"']
@@ -387,8 +385,7 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
             time.sleep(0.1)
         else:
             raise RuntimeError("Source TCP fencing was not confirmed; keep maintenance in place and inspect HBA")
-        # Reload acknowledgement plus a new connection ensure the fence is read;
-        # existing sessions must also be terminated to prevent late writes.
+        # The fence now holds for new connections; end existing ones to stop late writes.
         self.sql(source, "postgres", "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid();", True)
         require(self.sql(source, "postgres", "SELECT count(*) FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid();", True) == "0",
                 "Source still has client connections after fencing")
@@ -413,8 +410,7 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         self.sql(target, "postgres", "DROP DATABASE " + ident(bootstrap) + " WITH (FORCE);\nDROP ROLE " + ident(self.state["bootstrapOwner"]) + ";")
         self.sql(target, "postgres", restore_grantors(globals_sql.decode(), source_bootstrap))
         for entry in dumps:
-            # The operator may reconnect to its maintenance DB; FORCE prevents a
-            # stale management connection from obstructing its brief recreation.
+            # FORCE keeps a reconnecting operator session from blocking the drop.
             database = entry["database"]
             self.sql(target, "template1", "DROP DATABASE IF EXISTS " + ident(database) + " WITH (FORCE);")
             with (self.directory / entry["file"]).open("rb") as dump:

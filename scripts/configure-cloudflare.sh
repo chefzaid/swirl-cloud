@@ -59,9 +59,8 @@ CURL_CONFIG=""
 
 IFS=',' read -r -a DEFAULT_HOST_LABELS <<< "$DEFAULT_CLOUDFLARE_HOST_LABELS"
 
-# Browser-facing administration interfaces belong here. Cluster automation uses
-# Kubernetes service DNS and therefore does not need to bypass Access on these
-# public hostnames.
+# Browser admin UIs sit behind Access. Cluster automation uses service DNS, so
+# it never needs an Access bypass on these public hostnames.
 IFS=',' read -r -a DEFAULT_ACCESS_HOST_LABELS <<< "$DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS"
 
 GREEN='\033[0;32m'
@@ -407,8 +406,8 @@ configure_registry_bot_compatibility() {
 
     fight_mode="$(jq -r '(.result.fight_mode // .result.stale_zone_configuration.fight_mode // false)' <<< "$bot_response")"
     if [[ "$fight_mode" == "true" ]]; then
-        # Basic Bot Fight Mode is zone-wide and cannot be skipped by hostname.
-        # Cloudflare's DDoS protection, custom WAF, and rate limits stay enabled.
+        # Basic Bot Fight Mode is zone-wide with no hostname exception. DDoS
+        # protection, custom WAF rules and rate limits stay on.
         bot_setting_file="$WORK_DIR/registry-bot-management.json"
         jq -n '{fight_mode:false}' > "$bot_setting_file"
         update_response="$(cf_request PUT "/zones/$ZONE_ID/bot_management" "$bot_setting_file")"
@@ -425,8 +424,8 @@ configure_registry_bot_compatibility() {
     fi
 
     if [[ "$sbfm_active" == "true" ]]; then
-        # Super Bot Fight Mode is Ruleset Engine based, so it supports a precise
-        # hostname exception without weakening protection on browser services.
+        # Super Bot Fight Mode allows a per-hostname skip rule, so browser
+        # services stay protected.
         skip_rule_file="$WORK_DIR/rule-registry-sbfm-skip.json"
         skip_expression="(http.host eq \"$registry_host\")"
         jq -n \
@@ -617,8 +616,8 @@ configure_access() {
     idp_response="$(cf_request GET "/accounts/$ACCOUNT_ID/access/identity_providers")"
     require_success "$idp_response" "Reading Access identity providers"
     idp_auth_url="https://keycloak.$ZONE_NAME/auth/realms/$KEYCLOAK_REALM/protocol/openid-connect/auth"
-    # Display names can change. The Keycloak client and realm identify the
-    # managed provider so a rename preserves its ID and existing Access links.
+    # Match on the Keycloak client and realm too, so a renamed provider keeps
+    # its ID and existing Access links.
     idp_matches="$(jq --arg name "$CLOUDFLARE_ACCESS_IDP_NAME" --arg auth_url "$idp_auth_url" '
         [.result[] | select(.name == $name or
             (.type == "oidc" and .config.client_id == "cloudflare-access" and .config.auth_url == $auth_url))]
@@ -1248,8 +1247,8 @@ step "Applying the Cloudflare security and performance baseline"
 set_zone_setting ssl strict "Full (strict) TLS"
 set_zone_setting always_use_https on "Always Use HTTPS"
 set_zone_setting min_tls_version "$MIN_TLS_VERSION" "minimum edge TLS version"
-# Cloudflare's 'zrt' value enables TLS 1.3 0-RTT. Avoid replayable early data
-# because this zone hosts login pages, APIs, and administrative actions.
+# Not 'zrt' (0-RTT): early data is replayable, and this zone serves logins,
+# APIs and admin actions.
 set_zone_setting tls_1_3 on "TLS 1.3 without 0-RTT"
 set_zone_setting automatic_https_rewrites on "Automatic HTTPS Rewrites"
 set_zone_setting brotli on "Brotli compression"
@@ -1257,19 +1256,14 @@ set_zone_setting http3 on "HTTP/3"
 set_zone_setting opportunistic_encryption on "opportunistic encryption"
 set_zone_setting websockets on "WebSockets"
 set_zone_setting early_hints on "Early Hints"
-# Edge locations fill from the upper tier nearest the origin instead of each
-# contacting the origin, which raises the hit ratio for cacheable responses.
+# Edges fill from the tier nearest the origin, raising the cache hit ratio.
 set_zone_value argo/tiered_caching on "Tiered Cache"
 set_zone_value cache/tiered_cache_smart_topology_enable on "Smart Tiered Cache topology"
 set_zone_setting ipv6 on "IPv6 compatibility"
-# This zone serves REST APIs, Git webhooks, CLIs, and CI agents in addition to
-# browsers. Browser Integrity Check challenges legitimate non-browser clients;
-# authentication and Cloudflare's network-level protections remain in place.
-# The selected cluster-only internal zone is resolved exclusively by CoreDNS and is
-# intentionally absent from every Cloudflare DNS and edge rule.
+# Browser Integrity Check challenges the zone's APIs, Git webhooks, CLIs and CI
+# agents. The cluster-only internal zone is CoreDNS-only, never in Cloudflare.
 set_zone_setting browser_check off "Browser Integrity Check for API compatibility"
-# These HTML-rewriting/content-blocking features are a poor fit for dashboards
-# and cross-host assets and can cause missing images or modified application UI.
+# These rewrite or block content and break dashboards and cross-host assets.
 set_zone_setting hotlink_protection off "Hotlink Protection for application compatibility"
 set_zone_setting email_obfuscation off "Email Address Obfuscation for application compatibility"
 

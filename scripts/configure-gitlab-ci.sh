@@ -19,8 +19,8 @@ RUNNER_DESCRIPTION="${RUNNER_DESCRIPTION:-swirl-cloud-kubernetes}"
 RUNNER_TAGS="${RUNNER_TAGS:-swirl-cloud,kubernetes}"
 RETENTION_TOKEN_NAME="${RETENTION_TOKEN_NAME:-swirl-cloud-registry-retention}"
 RETENTION_TOKEN_LIFETIME_DAYS="${RETENTION_TOKEN_LIFETIME_DAYS:-364}"
-# Bound a single job artifact archive so a malformed path or unexpectedly large
-# report cannot exhaust the self-hosted GitLab data volume in one upload.
+# Cap each job's artifact upload so one oversized report cannot fill the
+# GitLab data volume.
 MAX_ARTIFACTS_SIZE_MB="${MAX_ARTIFACTS_SIZE_MB:-512}"
 VAULT_POD="${VAULT_POD:-}"
 VAULT_TOKEN_FILE="${VAULT_BOOTSTRAP_TOKEN_FILE:-/var/lib/swirl-cloud/vault-bootstrap-token}"

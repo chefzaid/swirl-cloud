@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reuse TLS for shared infra/apps; optionally include centrally managed corp.
+# Ensure the wildcard TLS Secret in infra and apps (and corp with --apps-enabled true).
 set -euo pipefail
 umask 077
 

@@ -1,6 +1,5 @@
-# Application policy pack (ADR 0027): rules for workloads in application
-# namespaces, bound in Warn and Audit mode so nothing is rejected yet.
-# scripts/policy-report.py evaluates existing workloads with server-side dry runs.
+# Application policy pack (ADR 0027), bound in Warn and Audit mode so nothing
+# is rejected yet. scripts/policy-report.py checks existing workloads.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:

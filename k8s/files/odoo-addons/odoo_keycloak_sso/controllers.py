@@ -13,9 +13,8 @@ class KeycloakAutoLogin(OAuthLogin):
         if request.httprequest.method == 'GET' and not request.session.uid and not local_login and not oauth_error:
             providers = self.list_providers()
             if providers:
-                # Odoo's redirect helper treats destinations as local by
-                # default and strips the Keycloak origin. OAuth providers
-                # are explicitly external destinations.
+                # request.redirect strips external origins such as Keycloak's
+                # unless local=False.
                 return request.redirect(providers[0]['auth_link'], 303, local=False)
         return super().web_login(*args, **kwargs)
 

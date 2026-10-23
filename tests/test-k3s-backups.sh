@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exercise datastore selection and recovery archives against a mocked cluster.
-# Mock functions are invoked from the sourced production script.
-# ShellCheck 0.10 reports indirect mock calls as SC2317; 0.11 uses SC2329.
+# Mocks are called from the sourced production script, which ShellCheck 0.10
+# reports as SC2317 and 0.11 as SC2329.
 # shellcheck disable=SC2317,SC2329
 set -euo pipefail
 
@@ -79,8 +79,8 @@ run_backup() (
         esac
     }
     export -f install k3s kubectl
-    # Only replace privilege checks and fixed host paths. All datastore, archive,
-    # integrity, and retention logic comes from the production script.
+    # Replace only the root check and fixed host paths; all other logic is the
+    # production script's.
     # shellcheck disable=SC1090
     source <(sed \
         -e '/^\[\[ "\$EUID" -eq 0 \]\]/d' \
@@ -104,7 +104,7 @@ cmp "$TEST_DIR/data/server/token" "$TEST_DIR/sqlite-extracted/k3s-server/token"
 cmp "$TEST_DIR/config/config.yaml.d/20-swirl-cloud-private-node-network.yaml" \
     "$TEST_DIR/sqlite-extracted/k3s-config/config.yaml.d/20-swirl-cloud-private-node-network.yaml"
 
-# Retain state.db to prove an etcd migration can never silently back up stale SQLite.
+# Keep state.db: a migrated etcd server must never back up stale SQLite.
 mkdir "$TEST_DIR/data/server/db/etcd/member"
 run_backup etcd >/dev/null
 mapfile -t etcd_archives < <(find "$TEST_DIR/etcd" -name 'k3s-*.tar.gz')
@@ -188,8 +188,8 @@ if grep -Fq 'GitLab' "$TEST_DIR/gitlab-absent-extracted/RESTORE.txt"; then
     exit 1
 fi
 
-# Execute failure cases in independent shells so errexit remains active even
-# while the caller checks the exit status.
+# Run failure cases in their own shells so errexit stays active while the
+# caller checks the exit status.
 export SCRIPT_DIR TEST_DIR
 export -f run_backup
 if MOCK_SNAPSHOT_FAIL=true bash -c 'set -e; run_backup snapshot-failed' >/dev/null 2>&1; then

@@ -69,8 +69,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mongodb
-          # MongoDB 8.x refuses Linux 6.19-7.0.13; 7.0.40 is the newest
-          # stable version compatible with Ubuntu 26.04's current 7.0.0 kernel.
+          # MongoDB 8.x refuses Linux 6.19-7.0.13, and Ubuntu 26.04 ships kernel 7.0.0,
+          # so stay on 7.0.
           image: docker.io/library/mongo:7.0.43-jammy@sha256:84c4a18b60a0e73d1577112b0a600b46cab477c64cfe0ff36d0647bbca055bd0
           securityContext:
             allowPrivilegeEscalation: false

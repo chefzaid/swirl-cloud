@@ -152,9 +152,8 @@ fi
 [[ -n "$ROLE" ]] || error "--role is required."
 ROLE="$(normalize_role "$ROLE")" || error "Role must be control-plane or worker."
 
-# A direct interactive run gathers the complete mesh identity. Parent
-# installers pass these values explicitly so piped credentials are never mixed
-# with prompts.
+# Prompt only on a direct interactive run; parent installers pass these values
+# so piped credentials never mix with prompts.
 if [[ -z "$API_TOKEN" && -z "$AUTH_KEY" && "$API_TOKEN_STDIN" != "true" && "$AUTH_KEY_STDIN" != "true" && "$NON_INTERACTIVE" != "true" ]]; then
     prompt_value TAILNET "Tailnet name or login domain ('-' means this token's tailnet)" "$TAILNET"
     prompt_value MESH_NAME "Unique mesh/cluster name (isolates this cluster's policy tags)" "$MESH_NAME"

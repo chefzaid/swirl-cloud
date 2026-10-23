@@ -60,7 +60,7 @@ if [[ "$mode" == --check ]]; then
 fi
 
 [[ -r "$POLICY_SOURCE" ]] || error "Audit policy not found: $POLICY_SOURCE"
-# A later drop-in or CLI argument that replaces kube-apiserver-arg would silently drop auditing.
+# A later drop-in that sets kube-apiserver-arg replaces this list and silently drops auditing.
 for file in "$CONFIG_ROOT"/config.yaml.d/*.yaml; do
     sudo test -f "$file" || continue
     [[ "$file" > "$DROPIN_PATH" ]] && sudo grep -Eq '^[[:space:]]*kube-apiserver-arg:' "$file" && \

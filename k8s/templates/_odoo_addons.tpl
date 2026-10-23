@@ -1,9 +1,8 @@
 {{- /*
-Odoo add-ons mounted read-only at /mnt/extra-addons, built from
-files/odoo-addons/<module>/. platform/ manifests are plain files, so
-corp/odoo.yaml carries markers that the renderer replaces with these blocks
-(see swirl-cloud.render in resources.yaml). ConfigMap keys cannot contain
-"/", so nested paths are stored as "a__b" and mapped back through items.
+Odoo add-ons from files/odoo-addons/<module>/, mounted read-only at
+/mnt/extra-addons. swirl-cloud.render (resources.yaml) replaces the markers in
+corp/odoo.yaml with these blocks. ConfigMap keys cannot contain "/", so nested
+paths are stored as "a__b" and mapped back through items.
 */ -}}
 {{- define "swirl-cloud.odoo-addons" -}}
 {{- toJson (list
@@ -84,7 +83,7 @@ binaryData:
 {{- end }}
 {{- end -}}
 
-{{- /* Changes to any add-on file restart Odoo, whose bootstrap upgrades it. */ -}}
+{{- /* Any add-on file change restarts Odoo; the bootstrap upgrades platform_crm_intake on each start. */ -}}
 {{- define "swirl-cloud.odoo-addon-checksum" -}}
 {{- $root := . -}}
 {{- $parts := list -}}

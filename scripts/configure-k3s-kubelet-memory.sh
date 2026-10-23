@@ -71,7 +71,7 @@ kubelet_healthy() {
 }
 
 main() {
-    # The temporary file stays global: the EXIT trap runs after main returns.
+    # temporary is not local: the EXIT trap runs after main returns.
     local mode="${1:-}" service changed=false file
     SUDO=(sudo)
     # Read-only checks run from status screens and must never wait for a password.

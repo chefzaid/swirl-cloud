@@ -50,8 +50,8 @@ spec:
     parameters:
       synchronous_commit: "on"
       max_connections: "100"
-    # Operator replication/certificate rules precede user rules. Staging blocks
-    # application TCP access while local exec restores and replicas still work.
+    # Operator replication and certificate rules come first. Staging rejects
+    # application TCP access; replicas and local exec restores still work.
     pg_hba:
 {{- if $pg.active }}
       - host all all all scram-sha-256

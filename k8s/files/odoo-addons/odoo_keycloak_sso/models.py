@@ -8,9 +8,8 @@ class ResUsers(models.Model):
 
     @api.model
     def _auth_oauth_signin(self, provider, validation, params):
-        # Keep one administrator identity: attach the verified bootstrap
-        # email to Odoo's existing administrator instead of signing up a
-        # second, unprivileged user.
+        # Sign the bootstrap email in as Odoo's existing administrator instead
+        # of creating a second, unprivileged user.
         sso_primary_email = os.environ['SSO_PRIMARY_EMAIL']
         if validation.get('email') == sso_primary_email:
             administrator = self.env.ref('base.user_admin').sudo()

@@ -12,9 +12,8 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  # Vault is intentionally a control-plane service. Keeping its audit volume
-  # node-local avoids making Vault startup depend on Longhorn replica health;
-  # stdout remains the independent audit output collected by Fluent Bit.
+  # Node-local, so Vault startup never depends on Longhorn replica health;
+  # the stdout audit device, collected by Fluent Bit, is the independent copy.
   storageClassName: local-path
   resources:
     requests:
@@ -69,8 +68,8 @@ metadata:
     # conditions is admitted before its secrets are synchronized.
     argocd.argoproj.io/sync-wave: "-4"
 spec:
-  # Environment namespaces use their own restricted stores. The legacy store
-  # can read platform credentials and must never be available to branch apps.
+  # Environment namespaces use their own restricted stores; this one reads
+  # platform credentials and must never reach branch apps.
   conditions:
     - namespaces: [infra, host-agents, apps, corp, gitlab-runners]
   provider:

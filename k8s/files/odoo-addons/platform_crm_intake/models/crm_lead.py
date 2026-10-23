@@ -88,7 +88,7 @@ class CrmLead(models.Model):
             with self.env.cr.savepoint():
                 lead = Lead.create(lead_values)
         except psycopg2.errors.UniqueViolation:
-            # A concurrent retry committed first. This transaction's snapshot
-            # cannot see it; Odoo replays the request in a new transaction.
+            # A concurrent retry committed first, invisible to this snapshot;
+            # Odoo replays the request in a new transaction.
             raise ConcurrencyError("Concurrent intake submission for the same reference") from None
         return {"id": lead.id, "created": True}

@@ -567,9 +567,8 @@ spec:
           port: 8069
         - protocol: TCP
           port: 8072
-    # The website's server calls the lead intake API in-cluster with its scoped
-    # key (docs/guides/odoo-website.md). Only pods that carry the opt-in label
-    # may connect, and only to the HTTP port; the chat bus stays edge-only.
+    # The website's server calls the lead intake API in-cluster
+    # (docs/guides/odoo-website.md): opted-in pods only, HTTP port only.
     - from:
         - namespaceSelector:
             matchLabels:

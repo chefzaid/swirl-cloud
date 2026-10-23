@@ -312,8 +312,8 @@ command -v scp >/dev/null 2>&1 || error "scp is required."
 command -v kubectl >/dev/null 2>&1 || error "kubectl is required; run this script on a configured control-plane node."
 command -v jq >/dev/null 2>&1 || error "jq is required."
 kubectl cluster-info >/dev/null 2>&1 || error "Cannot reach the Kubernetes API with the current kubeconfig."
-# Standalone enrollment must inherit the installed identity just like the main
-# installer; remote hosts receive a minimal bundle without platform.env.
+# Load the installed identity as the main installer does; remote hosts get a
+# minimal bundle without platform.env.
 command -v python3 >/dev/null 2>&1 || error "python3 is required to read the installed cluster identity."
 # shellcheck source=lib/platform-identity.sh
 source "$SCRIPT_DIR/lib/platform-identity.sh"
@@ -370,8 +370,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
-    # New nodes must inherit an actual scheduling mode even when the caller
-    # asks to preserve the existing cluster's scheduling policy.
+    # "preserve" keeps existing nodes as they are; new nodes need a concrete mode.
     JOIN_CONTROL_PLANE_SCHEDULABLE="$CONTROL_PLANE_SCHEDULABLE"
     if [[ "$JOIN_CONTROL_PLANE_SCHEDULABLE" == "preserve" ]]; then
         JOIN_CONTROL_PLANE_SCHEDULABLE=true
@@ -827,8 +826,8 @@ preflight_control_plane_count() {
             [[ -n "$existing_role" ]] || new_count=$((new_count + 1))
         done
     else
-        # Interactive counts describe new servers. List-based reruns above can
-        # include already joined nodes and count only genuinely new members.
+        # The interactive count is of new servers; the list branch above counts
+        # only hosts not yet joined.
         new_count="$worker_count"
     fi
     planned_count=$((current_count + new_count))

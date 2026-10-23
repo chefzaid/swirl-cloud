@@ -44,9 +44,8 @@ ports:
     exposedPort: 443
     http:
       tls: {enabled: true}
-      # Normalize routing headers even when the trusted edge forwards a
-      # visitor-supplied value; keep only its client-address chain. Then
-      # repeat the edge's response header policy at the origin.
+      # Drop visitor-supplied routing headers the edge passes on (its client-address
+      # chain stays), then repeat the edge's response header policy.
       middlewares: [infra-forwarded-headers@kubernetescrd, infra-security-headers@kubernetescrd]
     transport:
       respondingTimeouts:
@@ -103,8 +102,8 @@ tlsOptions:
   default:
     minVersion: VersionTLS12
 extraObjects:
-  # GitLab/Rack also traverses the forwarded chain. Share the same edge
-  # inventory instead of maintaining a second hard-coded Cloudflare list.
+  # GitLab/Rack also reads the forwarded chain; it shares this edge list
+  # instead of keeping a second hard-coded Cloudflare list.
   - apiVersion: v1
     kind: ConfigMap
     metadata:
@@ -128,10 +127,9 @@ extraObjects:
           X-Forwarded-Uri: ""
           X-Forwarded-Prefix: ""
           X-Forwarded-Method: ""
-  # The zone's Cloudflare header policy (configure-cloudflare.sh) on every HTTPS
-  # response: HSTS with subdomains and no preload, and nosniff. configure-ingress.sh
-  # renders CLOUDFLARE_HSTS_MAX_AGE, or 0 (no header) when CLOUDFLARE_ENABLE_HSTS
-  # is false. Applications own framing and Content Security Policy.
+  # Repeats the zone's Cloudflare header policy (configure-cloudflare.sh): HSTS
+  # with subdomains, no preload, and nosniff. configure-ingress.sh sets max-age, or
+  # 0 (no header) when CLOUDFLARE_ENABLE_HSTS=false. Apps own framing and CSP.
   - apiVersion: traefik.io/v1alpha1
     kind: Middleware
     metadata:
