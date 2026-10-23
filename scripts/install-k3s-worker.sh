@@ -553,6 +553,8 @@ if [[ "$ENROLLMENT_ROLE" == "control-plane" ]]; then
     # Every API server audits; the drop-in is in place before K3s first starts.
     bash "$SCRIPT_DIR/configure-k3s-audit.sh"
 fi
+# Every kubelet keeps memory for the host and evicts pods before the node swaps.
+bash "$SCRIPT_DIR/configure-k3s-kubelet-memory.sh"
 K3S_NODE_NETWORK_CIDR="$NODE_NETWORK_CIDR" K3S_PRIVATE_ADDRESS="$NODE_IP" \
     "$SECURITY_HARDENER" "${security_args[@]}"
 

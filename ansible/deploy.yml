@@ -634,6 +634,11 @@
     - name: Configure the enforced K3s AppArmor runtime profile
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-k3s-apparmor.sh"
 
+    - name: Reserve node memory for the host and K3s (applies at the next K3s restart)
+      ansible.builtin.command: "{{ repository_root }}/scripts/configure-k3s-kubelet-memory.sh"
+      register: kubelet_memory
+      changed_when: "'configured' in kubelet_memory.stdout"
+
     - name: Configure daily consistent K3s recovery archives
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-k3s-backups.sh"
       environment:

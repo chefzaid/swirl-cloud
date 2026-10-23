@@ -52,12 +52,13 @@ printf '[PASS] Ansible playbook syntax\n'
 # The selection and reason for each exception are documented in docs/testing.md.
 bash tests/test-k3s-backups.sh
 bash tests/test-k3s-api-endpoint.sh
+bash tests/test-k3s-kubelet-memory.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
              test-odoo-website.py test-platform-mail.py test-outage-watch.py; do
     python3 "tests/$suite"
 done
-printf '[PASS] Fourteen deployment and recovery safety suites\n'
+printf '[PASS] Fifteen deployment and recovery safety suites\n'
 
 if [[ "$LIVE" == true ]]; then
     command -v kubectl >/dev/null || { printf 'kubectl is required for --live.\n' >&2; exit 1; }

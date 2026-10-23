@@ -1187,6 +1187,9 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     step "Configuring Kubernetes API audit logging..."
     "$SCRIPT_DIR/scripts/configure-k3s-audit.sh"
 
+    step "Reserving node memory for the host and K3s..."
+    "$SCRIPT_DIR/scripts/configure-k3s-kubelet-memory.sh"
+
     if [[ "$INSTALL_K3S" == "true" ]]; then
         info "Installing K3s with bundled ingress disabled; the shared Helm release owns Traefik..."
         download_installer https://get.k3s.io k3s-install.sh k3s_installer

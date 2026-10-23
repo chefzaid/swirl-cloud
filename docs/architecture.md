@@ -175,7 +175,8 @@ for private SSH and API access. With three or more control planes, the
 - Installer and GitOps render the same resources from the same inputs.
 - Every image is pinned by digest; every workload declares token mounting and
   CPU/memory budgets, and probes that tolerate a loaded node (a liveness probe
-  restarts a container only after a minute without an answer).
+  restarts a container only after a minute without an answer). Each kubelet
+  reserves memory for the host and K3s and evicts pods before the node swaps.
 - Stateful migrations are explicit, journaled and refuse implicit downgrades.
 - Documentation distinguishes implemented behavior from [planned work](../TODO.md).
 

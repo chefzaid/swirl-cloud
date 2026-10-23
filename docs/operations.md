@@ -587,6 +587,30 @@ kubectl create -f k8s/addons/descheduler-run-job.yaml
 kubectl get jobs -n infra -l app=descheduler -w
 ```
 
+## Node memory and eviction
+
+[`configure-k3s-kubelet-memory.sh`](../scripts/configure-k3s-kubelet-memory.sh)
+writes the K3s drop-in `/etc/rancher/k3s/config.yaml.d/30-swirl-cloud-kubelet-memory.yaml`
+on every node. The kubelet keeps 1 GiB for the host (`system-reserved`) and a
+share for K3s itself scaled to the node's memory as GKE does (`kube-reserved`:
+25 % of the first 4 GiB, 20 % of the next 4, 10 % of the next 8, 6 % up to
+128 GiB, 2 % above; 3.5 GiB on a 32 GiB node). Pods can neither be scheduled into
+nor grow into that memory. Below 1.5 GiB available for a minute the kubelet
+evicts the pod furthest above its memory request, with up to 60 seconds to stop;
+below 500 MiB it evicts at once. A CI job that requests 128 MiB and uses 3 GiB
+goes first, before the node swaps and every probe slows.
+
+The installer, node enrollment and Ansible write the drop-in before K3s starts.
+On an existing node it applies at the next K3s restart; to apply it now, run
+`scripts/configure-k3s-kubelet-memory.sh --restart` when no CI job is running.
+The kubelet (and on a server the API) restarts for about 15 seconds; running
+pods keep running. Set `KUBE_RESERVED_MEMORY` or `SYSTEM_RESERVED_MEMORY` (for
+example `4Gi`) to size a node by hand. `./install.sh --status` reports whether
+it is active; `kubectl get node -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.memory,ALLOCATABLE:.status.allocatable.memory`
+shows what pods can use. `Evicted` pods in `kubectl get events -A` show the
+reservation at work; a node that evicts often needs more memory or lower
+requests.
+
 ## Maintenance
 
 Use this section to update container images and UI themes. For an installation

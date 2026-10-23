@@ -302,6 +302,19 @@ def check_audit(report):
         "missing": "not configured; rerun the installer or scripts/configure-k3s-audit.sh"}.get(state, "unknown (needs passwordless sudo)"))
 
 
+def check_kubelet_memory(report):
+    if subprocess.run(["systemctl", "cat", "k3s.service"], capture_output=True).returncode:
+        return
+    result = subprocess.run([str(ROOT / "scripts/configure-k3s-kubelet-memory.sh"), "--check"], capture_output=True,
+                            text=True, stdin=subprocess.DEVNULL, timeout=30)
+    state = result.stdout.strip()
+    report.add(PASS if state == "active" else WARN, "Kubelet memory reservation", {
+        "active": "memory reserved for the host and K3s; pods are evicted before the node swaps",
+        "pending-restart": "configured; applies at the next K3s restart (scripts/configure-k3s-kubelet-memory.sh --restart)",
+        "configured": "configured but K3s is not running",
+        "missing": "not configured; rerun the installer or scripts/configure-k3s-kubelet-memory.sh"}.get(state, "unknown (needs passwordless sudo)"))
+
+
 def check_backup(report, max_age_hours):
     if BACKUP_METRICS.exists():
         text = BACKUP_METRICS.read_text()
@@ -343,6 +356,7 @@ def main():
     check_disk(report)
     check_firewall(report)
     check_audit(report)
+    check_kubelet_memory(report)
     check_backup(report, args.backup_max_age_hours)
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,

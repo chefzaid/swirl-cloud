@@ -129,6 +129,8 @@ sudo install -m 0644 "$work/application-cluster-firewall.service" /etc/systemd/s
 sudo systemctl daemon-reload
 sudo systemctl enable application-cluster-firewall.service >/dev/null
 sudo systemctl restart application-cluster-firewall.service
+# The kubelet keeps memory for the host; the drop-in is in place before K3s first starts.
+"$ROOT/scripts/configure-k3s-kubelet-memory.sh"
 if [[ "$installed" == false ]]; then
     curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 https://get.k3s.io -o "$work/install-k3s.sh"
     sudo env INSTALL_K3S_VERSION="$DEFAULT_K3S_INSTALL_VERSION" sh "$work/install-k3s.sh" server \
