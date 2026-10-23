@@ -47,11 +47,13 @@ spec:
               path: /healthz
               port: http
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
             periodSeconds: 30
+            timeoutSeconds: 5
           volumeMounts:
             - name: theme
               mountPath: /theme

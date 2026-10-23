@@ -101,6 +101,24 @@ def workload_policy(doc):
         for budget in ("requests", "limits"):
             values = container.get("resources", {}).get(budget, {})
             require(values.get("cpu") and values.get("memory"), f"{label}/{container['name']}: missing {budget}")
+        probe_policy(f"{label}/{container['name']}", container)
+
+
+def probe_policy(label, container):
+    """A loaded node answers slowly: a restart or a removal from its Service must wait for a real failure."""
+    liveness = container.get("livenessProbe")
+    if liveness:
+        require(liveness.get("timeoutSeconds", 1) >= 5, f"{label}: a liveness probe needs a timeout of 5 seconds or more")
+        require(liveness.get("periodSeconds", 10) * liveness.get("failureThreshold", 3) >= 60,
+                f"{label}: a liveness probe must fail for a minute before a restart")
+    readiness = container.get("readinessProbe")
+    if readiness:
+        require(readiness.get("timeoutSeconds", 1) >= 3, f"{label}: a readiness probe needs a timeout of 3 seconds or more")
+    literal = {env["name"] for env in container.get("env", []) if "value" in env}
+    for kind in ("startupProbe", "livenessProbe", "readinessProbe"):
+        command = " ".join((container.get(kind) or {}).get("exec", {}).get("command", []))
+        for name in re.findall(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)", command):
+            require(name in literal, f"{label}: {kind} expands $({name}) only from a literal env value")
 
 
 def embedded_syntax(doc):

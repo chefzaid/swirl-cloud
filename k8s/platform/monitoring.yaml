@@ -210,12 +210,14 @@ spec:
               port: telemetry
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 50m
@@ -293,7 +295,7 @@ spec:
             tcpSocket:
               port: metrics
             periodSeconds: 30
-            timeoutSeconds: 3
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 20m
@@ -380,6 +382,7 @@ spec:
               path: /-/healthy
               port: http
             periodSeconds: 10
+            timeoutSeconds: 3
           resources:
             requests:
               cpu: 10m
@@ -459,6 +462,7 @@ spec:
             tcpSocket:
               port: metrics
             periodSeconds: 10
+            timeoutSeconds: 3
           resources:
             requests:
               cpu: 10m
@@ -512,6 +516,7 @@ spec:
             tcpSocket:
               port: metrics
             periodSeconds: 10
+            timeoutSeconds: 3
           resources:
             requests:
               cpu: 10m
@@ -1665,12 +1670,14 @@ spec:
               path: /-/ready
               port: http
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /-/healthy
               port: http
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -1793,12 +1800,14 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /-/healthy
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 5
           # CPU peaked at 0.07 core over 6 h on 2026-10-05.
           resources:
             requests:
@@ -2277,12 +2286,14 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /api/health
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 100m

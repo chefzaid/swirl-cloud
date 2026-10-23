@@ -308,12 +308,14 @@ spec:
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /metrics
               port: metrics
             initialDelaySeconds: 20
             periodSeconds: 30
+            timeoutSeconds: 5
           lifecycle:
             preStop:
               exec:

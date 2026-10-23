@@ -174,7 +174,8 @@ for private SSH and API access. With three or more control planes, the
 - Installation inputs define identity; the checkout stays organization-neutral.
 - Installer and GitOps render the same resources from the same inputs.
 - Every image is pinned by digest; every workload declares token mounting and
-  CPU/memory budgets.
+  CPU/memory budgets, and probes that tolerate a loaded node (a liveness probe
+  restarts a container only after a minute without an answer).
 - Stateful migrations are explicit, journaled and refuse implicit downgrades.
 - Documentation distinguishes implemented behavior from [planned work](../TODO.md).
 

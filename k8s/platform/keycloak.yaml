@@ -112,11 +112,13 @@ spec:
             path: /auth/health/ready
             port: management
           periodSeconds: 10
+          timeoutSeconds: 3
         livenessProbe:
           httpGet:
             path: /auth/health/live
             port: management
           periodSeconds: 30
+          timeoutSeconds: 5
         resources:
           requests:
             cpu: 100m

@@ -93,7 +93,8 @@ credentials, journals or recovery files.
    ownership, a runtime dependency, identity, secret flow, data durability or
    delivery.
 2. Add resources to the owning manifest under `k8s/`, digest-pin every image,
-   declare `automountServiceAccountToken` and CPU/memory requests and limits.
+   declare `automountServiceAccountToken` and CPU/memory requests and limits, and
+   keep probes within the [probe policy](code-quality.md#manifest-and-deployment-policy).
 3. Register new manifests, ExternalSecrets or wait targets in
    [`config/platform.env`](../config/platform.env) so the installer and Ansible
    apply and wait for them in order.

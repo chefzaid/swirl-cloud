@@ -508,12 +508,14 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 6
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /web/login?local=1
               port: http
             periodSeconds: 20
             failureThreshold: 6
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 100m

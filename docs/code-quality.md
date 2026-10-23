@@ -35,6 +35,12 @@ Missing tools fail validation instead of skipping checks. See
 - every platform image is pinned by an `@sha256` digest
 - every Deployment, StatefulSet, DaemonSet, Job and CronJob declares
   `automountServiceAccountToken` and CPU/memory requests and limits for every container
+- every liveness probe has a timeout of 5 seconds or more and restarts only after a
+  minute of failures (`periodSeconds` × `failureThreshold` ≥ 60), every readiness
+  probe a timeout of 3 seconds or more, and no exec probe uses `$(VAR)` for a variable
+  without a literal `value` (a probe expands only those, so a Secret's value is empty).
+  A shared node under load answers slowly; killing a datastore or Keycloak then
+  disconnects every application and starts a chain of restarts
 - every Ingress uses the `traefik` class and references an existing Service port
 - Ingress hostnames match `DEFAULT_CLOUDFLARE_HOST_LABELS`
 - Traefik entry points, alone and with the HA values layered, use only defined
@@ -66,6 +72,9 @@ Missing tools fail validation instead of skipping checks. See
 - `uses undefined middleware` or `HTTPS origin headers differ from the Cloudflare
   edge policy` names the Traefik values profile; align `config/traefik-values.yaml`
   with the edge as described in [ingress controller](dns.md#ingress-controller).
+- `a liveness probe needs a timeout` or `must fail for a minute` names the
+  container: raise `timeoutSeconds` (10 for a datastore) or `failureThreshold`; give
+  a slow start a `startupProbe` instead of a long `initialDelaySeconds`.
 - Render failures print the profile label; reproduce it with the
   [local render](development.md#render-locally).
 
