@@ -100,10 +100,13 @@ spec:
           tcpSocket:
             port: 9093
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 6
         readinessProbe:
           tcpSocket:
             port: 9093
           periodSeconds: 5
+          timeoutSeconds: 5
         resources:
           requests:
             cpu: 100m
@@ -223,10 +226,13 @@ spec:
           tcpSocket:
             port: 9092
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 6
         readinessProbe:
           tcpSocket:
             port: 9092
           periodSeconds: 5
+          timeoutSeconds: 5
         resources:
           requests:
             cpu: 100m

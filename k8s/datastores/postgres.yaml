@@ -120,26 +120,28 @@ spec:
           mountPath: /tmp
         - name: postgres-run
           mountPath: /var/run/postgresql
+        # A probe expands $(VAR) only from literal env values (the user and database come from a Secret and a
+        # ConfigMap, so they were empty), and pg_isready needs neither: it asks the server whether it accepts
+        # connections. Restarting a database that is only slow drops every client and replays its WAL, which
+        # loads the node further, so liveness waits two minutes of failed checks, and the startup probe gives crash
+        # recovery ten minutes before liveness applies.
+        startupProbe:
+          exec:
+            command: ["pg_isready", "-q"]
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 60
         livenessProbe:
           exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            command: ["pg_isready", "-q"]
+          periodSeconds: 20
+          timeoutSeconds: 10
+          failureThreshold: 6
         readinessProbe:
           exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 5
+            command: ["pg_isready", "-q"]
           periodSeconds: 5
+          timeoutSeconds: 5
         resources:
           requests:
             cpu: 100m

@@ -105,11 +105,14 @@ spec:
               port: 27017
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
           readinessProbe:
             tcpSocket:
               port: 27017
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 100m
