@@ -702,7 +702,8 @@ so a new customer should not expect the EUR 12 reference server's price.
    (§32, §34, §42).
 
 §43 holds the obligations the vendor takes on by selling and operating the
-product. §44 covers go-to-market and market validation.
+product. §44 covers go-to-market and market validation. §45 adds everyday
+features for any company.
 
 Recovery and operating gaps (Part V P0/P1) stay ahead of this roadmap: a product
 cannot be sold before its own backups, MFA and alerting are proven.
@@ -910,6 +911,27 @@ no public claim until it is measured (the rule in the website's TODO).
 - [ ] Opt-in install report. It is off by default; the hub asks once, in French or English, and shows the full payload, and `--telemetry show|on|off` controls it. Document payload schema v1 in the external-services inventory: a random rotatable ID, version, profile, node count and size class, phase durations, error codes and verification counts. A test enforces that the payload carries no hostnames, addresses, domains, or user or application names. The endpoint runs on the vendor's EU installation, and `SOVEREIGNTY_MODE=strict` refuses it. Software that makes a device send information needs consent unless an exemption applies ([EDPB Guidelines 2/2023 v2.0, 2024-10-16](https://edpb.europa.eu/system/files/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf)).
 - [ ] Funding deadlines; the owner decides ([Needs Input](#needs-input)). NLnet NGI Zero gives first grants of EUR 5 000–50 000 for work released under open licences, with the next deadline at 2026-11-03 12:00 CET ([NLnet](https://www.nlnet.nl/propose), read 2026-10-23). A §33 work package such as the self-hosted mesh or the edge without Cloudflare could fit (unverified). The Hexatrust accelerator takes companies with fewer than 15 employees, under EUR 500 000 revenue, more than 51 % European-owned, and an MVP or one client; applications close 2026-11-02 ([LeMondeInformatique, 2026-10-05](https://www.lemondeinformatique.fr/actualites/lire-hexatrust-lance-la-6eme-edition-de-son-programme-accelerateur-100832.html)).
 
+### 45. Everyday company features (added 2026-10-23)
+
+Features that make the platform useful to any company, whatever its sector or
+regulation: people, data, office life, field sites and the platform's own
+running cost.
+
+- [ ] Joiner, mover and leaver automation: one HR record (Odoo Employees or the §27 directory) drives account creation in Keycloak, GitLab, Odoo, chat, wiki and mail with role-based groups, moves groups when the job changes, and on departure disables every account, revokes tokens, sessions and keys, transfers owned projects and files, and writes a record. Done when a test employee is created, moved and removed with no manual step. Builds on §27's deprovisioning.
+- [ ] Staff remote access: a company VPN with Keycloak sign-in (NetBird or Headscale, shared with the §33 ADR) so employees reach internal tools from home or travel without exposing them publicly; device posture from §37 can gate access. Client setup in one page for Windows, macOS, Linux, iOS and Android.
+- [ ] Company data warehouse and business dashboards: scheduled syncs from Odoo, application databases and the platform reports into an analytical store (ClickHouse or PostgreSQL with DuckDB, ADR), with a self-service BI tool (Metabase or Apache Superset) behind Keycloak, row-level access by group, and starter dashboards for sales, finance and operations. Business users answer their own questions without a developer.
+- [ ] Internal tools builder: a low-code tool (NocoDB, Appsmith or ToolJet, ADR) on claimed databases (§34) and the Odoo API, so teams build forms, approval flows and admin screens themselves; apps are versioned in GitLab and deployed through the same environments.
+- [ ] "Ask the company": permission-aware search and question answering across the wiki, Odoo, GitLab, files and chat through the AI gateway (§41), returning only documents the user may open, with links to sources and no prompt logging by default. Extends the §28 RAG start from one source to many.
+- [ ] Meeting notes: transcription and summaries of Jitsi meetings (§40) and uploaded recordings with a local speech model (Whisper or equivalent) on the platform, opt-in per meeting with a visible indicator, results stored with the meeting's access rights and deleted on a retention schedule.
+- [ ] Private translation and writing aids: document and text translation (LibreTranslate or a local model through the gateway) and a writing assistant in the wiki and Odoo, so confidential text never leaves the company.
+- [ ] Document management with capture: a scanned-document inbox (Paperless-ngx, ADR) with local OCR, full-text search, tags and retention, which sends recognized supplier invoices to Odoo as draft bills. Done when a scanned invoice arrives in Odoo with amounts and supplier filled.
+- [ ] Business telephony: a self-hosted phone system (Wazo Platform or Asterisk, ADR) with SIP trunk configuration, softphones for desktop and mobile, call queues and voicemail by email, and Odoo CRM integration (click-to-call, caller lookup, call log on the contact).
+- [ ] Sites and connected devices: an MQTT broker and a time-series store (EMQX or Mosquitto with TimescaleDB, ADR) with dashboards and alerts in Grafana, plus a small edge node for a shop, warehouse or factory that keeps working offline and syncs to the main installation. Done when a test sensor's readings reach a dashboard through an edge node that lost its uplink for an hour.
+- [ ] Cloud development environments: browser or IDE-connected workspaces (Coder or code-server, ADR) started from a golden-path template (§35) with Keycloak sign-in, project secrets and quotas, stopped automatically when idle, so a new developer is productive on day one with no local setup.
+- [ ] Office-hours scheduling for non-production: `int`, `uat`, preview environments and dev workspaces scale to zero outside declared working hours and wake on first request or on demand, with the freed capacity shown in Capacity Planning. On fixed-price servers this makes room for more projects instead of buying another server.
+- [ ] Platform undo: before a risky change (upgrade, migration, module removal), `./install.sh --checkpoint` takes consistent snapshots of volumes, databases and manifests; `--rollback <checkpoint>` restores them, with checkpoints expiring automatically. Done when a deliberately broken upgrade on a disposable host is rolled back with data intact.
+- [ ] Phone notifications and approvals: a self-hosted push service (ntfy, ADR) and a small mobile-friendly page where administrators receive critical alerts and approve or deny just-in-time access, deployment promotions and support sessions (§39) from their phone, signed in through Keycloak.
+
 ---
 
 ## Part V — Priority index of open items
@@ -966,3 +988,5 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P3 | Docker Compose importer and dated server costs | Self-service claims (§34) first; price source and date recorded for each server | §34–35 |
 | P2 | Custom application domains, passkeys, staff device coverage and asset inventory | Buyers ask for their own domains and phishing-resistant MFA; device and asset evidence fill NIS2 Art. 21(2)(i) and the questionnaire pack (§36) | §35–37 |
 | P3 | Error tracking, DAST, feature flags, data subject requests, awareness exercises, energy showback and new modules (wiki, helpdesk, web analytics, signing, SaaS mailbox backup) | Module catalog (§40) and self-service claims (§34) first; each with SSO, backups and a restore test | §34–37, §40 |
+| P2 | Joiner/mover/leaver automation, staff VPN and office-hours scheduling | Useful to every customer from the first installation; §27 directory decision for the HR source; scale-to-zero measured in Capacity Planning | §45 |
+| P3 | Data warehouse and BI, internal tools builder, company search, meeting notes, translation, document capture, telephony, IoT and edge sites, dev workspaces, platform undo and phone approvals | Module catalog (§40), AI gateway (§41) and self-service claims (§34) first; each with SSO, backups and a restore test | §45 |
