@@ -5,12 +5,15 @@
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}
 {{- $content := $root.Files.Get $path -}}
-{{- /* A block scalar holding only "# swirl-cloud:file <path>" takes files/<path>, indented to the marker. */ -}}
+{{- /* A block scalar holding only "# swirl-cloud:file <path>" takes files/<path>, indented to the marker; images are base64 for binaryData. */ -}}
 {{- range $marker := regexFindAll "(?m)^ *# swirl-cloud:file \\S+$" $content -1 -}}
 {{- $file := printf "files/%s" (regexReplaceAll "^ *# swirl-cloud:file " $marker "") -}}
 {{- $body := $root.Files.Get $file -}}
 {{- if not $body -}}
 {{- fail (printf "%s: missing %s" $path $file) -}}
+{{- end -}}
+{{- if regexMatch "\\.(png|ico|jpe?g|gif|webp)$" $file -}}
+{{- $body = b64enc $body -}}
 {{- end -}}
 {{- $indent := regexReplaceAll "^( *).*$" $marker "${1}" | len -}}
 {{- $content = replace $marker ($body | trimSuffix "\n" | indent $indent) $content -}}

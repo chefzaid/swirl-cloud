@@ -48,6 +48,32 @@ subjects:
   namespace: infra
 
 ---
+# Application icons, served at /icons/<file>: an application's Ingress sets
+# gethomepage.dev/icon: /icons/<file> (docs/guides/application-onboarding.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-icons
+  namespace: infra
+  labels:
+    app: homepage
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: swirl-cloud
+data:
+  indezy.svg: |
+    # swirl-cloud:file homepage-icons/indezy.svg
+  swirl.svg: |
+    # swirl-cloud:file homepage-icons/swirl.svg
+  swirl-demo-app.svg: |
+    # swirl-cloud:file homepage-icons/swirl-demo-app.svg
+  thoughty.svg: |
+    # swirl-cloud:file homepage-icons/thoughty.svg
+  travelmapster.svg: |
+    # swirl-cloud:file homepage-icons/travelmapster.svg
+binaryData:
+  designxprint.png: |-
+    # swirl-cloud:file homepage-icons/designxprint.png
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -575,10 +601,16 @@ spec:
           mountPath: /tmp
         - name: next-cache
           mountPath: /app/.next/cache
+        - name: homepage-icons
+          mountPath: /app/public/icons
+          readOnly: true
       volumes:
       - name: homepage-config
         configMap:
           name: homepage-config
+      - name: homepage-icons
+        configMap:
+          name: homepage-icons
       - name: homepage-logs
         emptyDir: {}
 

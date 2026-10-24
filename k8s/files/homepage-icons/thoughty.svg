@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="thoughty-tile" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="0.55" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#9333EA"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#thoughty-tile)"/>
+  <path d="M30.5 52C24.2 48.3 17.2 47.4 9.5 48.8V27.2C17.2 25.6 24.4 26.8 30.5 31Z" fill="#FFFFFF" fill-opacity="0.86"/>
+  <path d="M33.5 52C39.8 48.3 46.8 47.4 54.5 48.8V27.2C46.8 25.6 39.6 26.8 33.5 31Z" fill="#FFFFFF"/>
+  <path d="M32 4C33.1 10.6 35.1 12.6 41.7 13.7C35.1 14.8 33.1 16.8 32 23.4C30.9 16.8 28.9 14.8 22.3 13.7C28.9 12.6 30.9 10.6 32 4Z" fill="#FFFFFF"/>
+</svg>

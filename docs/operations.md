@@ -102,6 +102,7 @@ deployment health checks. Their CI still submits Sonar analysis.
 | Runtime metrics | Grafana **Applications / <application>** | None for baseline metrics; add [scrape annotations](#metrics-and-logs) for endpoint metrics. |
 | Container logs | Kibana **Applications / <application> / Logs** | Write logs to stdout/stderr. |
 | Source analysis | Sonar project and scheduled analyses | Argo CD tracking must name a repository in the configured GitLab hosts/group; implement the [scanner contract](#scanner-contract). |
+| Homepage tile | Listed on `cloud.<your-domain>` with live pod status | `gethomepage.dev/*` annotations on the Ingress. For the application's own icon, add it to [`k8s/files/homepage-icons/`](../k8s/files/homepage-icons/) and a key in the `homepage-icons` ConfigMap ([homepage.yaml](../k8s/platform/homepage.yaml)), then set `gethomepage.dev/icon: /icons/<file>`; the portal serves it from its own origin. |
 
 ### Platform health
 

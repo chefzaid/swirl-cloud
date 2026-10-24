@@ -2,6 +2,7 @@
 """Offline deployment validation: source inputs and installer/GitOps rendering."""
 
 import argparse
+import base64
 import copy
 import itertools
 import json
@@ -19,6 +20,7 @@ GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
 DIGEST = re.compile(r"@sha256:[a-f0-9]{64}$")
 FILE_MARKER = re.compile(r"^( *)# swirl-cloud:file (\S+)$", re.M)
+BINARY_FILE = re.compile(r"\.(png|ico|jpe?g|gif|webp)$")
 
 
 def require(condition, message):
@@ -35,6 +37,8 @@ def inline_files(text):
     def body(match):
         source = ROOT / "k8s/files" / match[2]
         require(source.is_file(), f"missing k8s/files/{match[2]}")
+        if BINARY_FILE.search(match[2]):
+            return match[1] + base64.b64encode(source.read_bytes()).decode()
         return "\n".join(match[1] + line if line else line for line in source.read_text().removesuffix("\n").split("\n"))
     return FILE_MARKER.sub(body, text)
 
