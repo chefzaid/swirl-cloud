@@ -492,10 +492,12 @@ every node. Pods cannot use the reserved memory.
 | Soft eviction | Under 1.5 GiB available for a minute; pods get up to 60 seconds |
 | Hard eviction | Under 500 MiB available, at once |
 
-The pod furthest above its memory request goes first, so a CI job requesting
-128 MiB and using 3 GiB is evicted before the node swaps. Frequent `Evicted`
-events in `kubectl get events -A` mean the node needs more memory or lower
-requests.
+The pod furthest above its memory request goes first. CI jobs request 2 GiB,
+about what a test job uses ([gitlab-runner.yaml](../k8s/platform/gitlab-runner.yaml)),
+so the scheduler holds a job while the node's memory is fully requested; a job
+still pending after the runner's 10-minute `poll_timeout` fails and needs a
+retry. Frequent `Evicted` events in `kubectl get events -A` mean the node needs
+more memory or lower requests.
 
 The installer, node enrollment and Ansible write the drop-in before K3s starts.
 On a running node it applies at the next K3s restart, or now with
