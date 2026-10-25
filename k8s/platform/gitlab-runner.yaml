@@ -213,14 +213,16 @@ data:
         pull_policy = ["if-not-present"]
         privileged = false
         poll_timeout = 600
+        # Test jobs peak at about 2 GiB (2026-10-23). Requesting it makes the
+        # scheduler hold a job while the node is full instead of thrashing.
         cpu_request = "100m"
-        memory_request = "128Mi"
+        memory_request = "2Gi"
         ephemeral_storage_request = "512Mi"
         cpu_limit = "2"
         memory_limit = "3Gi"
         ephemeral_storage_limit = "4Gi"
         helper_cpu_request = "50m"
-        helper_memory_request = "64Mi"
+        helper_memory_request = "128Mi"
         helper_ephemeral_storage_request = "64Mi"
         helper_cpu_limit = "500m"
         helper_memory_limit = "512Mi"
@@ -266,7 +268,7 @@ spec:
       labels:
         app: gitlab-runner
       annotations:
-        gitlab.__PUBLIC_DOMAIN__/config-version: "6"
+        gitlab.__PUBLIC_DOMAIN__/config-version: "7"
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "9252"

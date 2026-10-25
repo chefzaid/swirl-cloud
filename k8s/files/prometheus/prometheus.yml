@@ -45,6 +45,12 @@ scrape_configs:
         replacement: /api/v1/nodes/$1/proxy/metrics
       - source_labels: [__meta_kubernetes_node_name]
         target_label: node
+    # K3s serves its embedded API server, etcd/kine and controllers here too:
+    # about 57,000 series that no dashboard or rule reads.
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        action: drop
+        regex: (apiserver|apiextensions|aggregator|authentication|authorization|etcd|kine|scheduler|workqueue|rest_client|watch_cache)_.+
 
   - job_name: kubernetes-cadvisor
     scheme: https

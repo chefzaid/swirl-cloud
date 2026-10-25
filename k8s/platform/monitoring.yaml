@@ -818,14 +818,16 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
-          # CPU peaked at 0.07 core over 6 h on 2026-10-05.
+          # CPU peaked at 0.07 core over 6 h on 2026-10-05. The CPU limit sets
+          # GOMAXPROCS: with one, a chunk read stalled on disk freezes every
+          # handler, probes included.
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 768Mi
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: "2"
+              memory: 2Gi
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus/prometheus.yml
