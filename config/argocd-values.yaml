@@ -65,18 +65,19 @@ global:
     seccompProfile:
       type: RuntimeDefault
 controller:
-  # Collect garbage before the 1Gi container limit; retain headroom for
-  # non-Go allocations and reconciliation subprocesses. See docs/deployment.md.
+  # Collect garbage before the 2Gi container limit; retain headroom for
+  # non-Go allocations and reconciliation subprocesses. Rebuilding the cluster
+  # cache after a restart passed 1Gi. See docs/deployment.md.
   env:
     - name: GOMEMLIMIT
-      value: 768MiB
+      value: 1536MiB
   resources:
     requests:
       cpu: 250m
       memory: 256Mi
     limits:
       cpu: '1'
-      memory: 1Gi
+      memory: 2Gi
 repoServer:
   resources:
     requests:
