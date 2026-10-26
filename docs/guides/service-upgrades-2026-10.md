@@ -39,6 +39,7 @@ parent; a one-off trim with snapshot unmapping enabled returned the freed blocks
 | MongoDB | 7.0.43 Jammy | 7.0.45 Jammy |
 | DBGate | 7.3.1 | 7.3.2 |
 | GitLab CE | 19.4.1 | 19.4.3 |
+| Homepage | v2.4.0 | v2.7.0 |
 
 Each stays in its release line, so no data format, feature-compatibility or
 GitLab upgrade-path step applies; GitLab Runner stays on 19.4.1, the same minor
@@ -51,9 +52,15 @@ release. Checked offline against the previous digests:
   configuration differs only in `MONGO_VERSION`.
 - DBGate and GitLab: identical image configuration (entrypoint, user, volumes,
   ports, environment).
+- Homepage v2.7.0 (Next.js 16.4.1, Node 24): the configuration reference only adds
+  optional settings, Kubernetes discovery is unchanged, the probed
+  `/api/revalidate` and `/api/healthcheck` remain, and the new MCP endpoint and
+  sign-in stay off unless `HOMEPAGE_MCP_ENABLED` or an auth secret is set. Homepage
+  now also restarts when an icon in `k8s/files/homepage-icons/` changes, since it
+  finds local icons only at start.
 
 The images were not rescanned and the upgrades were not run on a cluster. After
 the sync, check `./install.sh --status`, GitLab's
 `/-/readiness` and a push and pipeline, a Keycloak sign-in (PostgreSQL), DBGate's
-connections, then rescan the four images for the dated exceptions in
+connections and the portal at `cloud.<your-domain>`, then rescan the five images for the dated exceptions in
 [security](../security.md#vulnerability-triage).
