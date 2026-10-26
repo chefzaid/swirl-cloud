@@ -391,6 +391,23 @@ until the next lookup (every 6 hours). Test with
 `kubectl -n apps exec deploy/indezy-server -- wget -qO- 'https://geo.api.gouv.fr/communes?nom=Paris'`.
 A short outage of this public service needs no action.
 
+### IndezyApiErrors
+
+Over 5 % of the Indezy API's requests (at least 20 in 10 minutes, the actuator's
+own left out) answered with a 5xx for 10 minutes. The **Server Errors by Route**
+panel of the **Indezy Overview** dashboard names the failing routes, and Kibana's
+**Indezy — warnings and errors** search their log lines, each with the
+`request_id` the response's `X-Request-Id` header carries. The cause is usually
+the database ([DatastoreDown](#datastoredown)) or a release to roll back.
+
+### IndezyApiSlow
+
+The 95th percentile of the Indezy API's requests (attachments and the actuator
+left out) stayed over a second for 15 minutes. The **Slowest Routes** panel of
+the **Indezy Overview** dashboard names them; the offer search under concurrent
+use is the known one (its target is 300 ms, Indezy's TODO). Check the pod's CPU
+throttling and the database's load before scaling the Deployment.
+
 ## Service levels
 
 ### CIJobsQueueingLong

@@ -500,6 +500,34 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezygeocodingtimeouts
           summary: Indezy cannot reach the geocoding service
           description: '{{ $value | printf "%.0f" }} place lookups to geo.api.gouv.fr failed in an hour; new offers lack coordinates until it answers.'
+      # The API's own requests: the actuator's probes and scrapes are left out, and 20 requests in 10 minutes at least, so
+      # a quiet night's single failure or slow call does not page anyone.
+      - alert: IndezyApiErrors
+        expr: |
+          sum(rate(http_server_requests_seconds_count{namespace="apps",app="indezy-server",uri!~".*actuator.*",status=~"5.."}[10m]))
+          / sum(rate(http_server_requests_seconds_count{namespace="apps",app="indezy-server",uri!~".*actuator.*"}[10m])) > 0.05
+          and sum(increase(http_server_requests_seconds_count{namespace="apps",app="indezy-server",uri!~".*actuator.*"}[10m])) >= 20
+        for: 10m
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyapierrors
+          summary: The Indezy API answers with server errors
+          description: '{{ $value | humanizePercentage }} of Indezy API requests failed with a 5xx over the last 10 minutes.'
+      # Files are sent and received at the user's connection speed: their routes are left out.
+      - alert: IndezyApiSlow
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{namespace="apps",app="indezy-server",uri!~".*actuator.*",uri!~".*/attachments.*"}[10m]))) > 1
+          and sum(increase(http_server_requests_seconds_count{namespace="apps",app="indezy-server",uri!~".*actuator.*",uri!~".*/attachments.*"}[10m])) >= 20
+        for: 15m
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyapislow
+          summary: The Indezy API is slow
+          description: 'One Indezy API request in twenty took over {{ $value | humanizeDuration }} for 15 minutes.'
   - name: swirl-cloud.monitoring
     rules:
       - alert: PrometheusTargetDown
