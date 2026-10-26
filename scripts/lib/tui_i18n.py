@@ -262,6 +262,8 @@ FR = {
     "Separate keys": "Séparer les clés", "Keep in archives": "Garder dans les archives",
     "Path of the recovery kit to verify": "Chemin du kit de reprise à vérifier",
     "Currency (ISO 4217 code)": "Devise (code ISO 4217)",
+    "Where the price comes from, for example the offer or invoice (optional)":
+        "Origine du prix, par exemple l'offre ou la facture (facultatif)",
     "No run logs yet.": "Aucun journal d'exécution pour l'instant.",
     "Run logs (newest first)": "Journaux d'exécution (plus récents d'abord)",
     "Support bundle written:": "Archive de support écrite :",

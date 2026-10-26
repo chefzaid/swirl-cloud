@@ -454,8 +454,9 @@ def maintenance(dialog, values):
             if amount:
                 currency = dialog.text("Currency (ISO 4217 code)", values.get("COST_CURRENCY") or "EUR")
                 if currency:
+                    source = dialog.text("Where the price comes from, for example the offer or invoice (optional)", "")
                     run_logged("Server cost", [str(ROOT / "scripts/configure-node-cost.sh"), "--monthly-cost", amount,
-                                               "--currency", currency])
+                                               "--currency", currency] + (["--price-source", source] if source else []))
         elif choice == "compliance":
             run_logged("Compliance report", [sys.executable, str(ROOT / "scripts/compliance-report.py"), "--evidence-pack",
                                              "--access-review"])

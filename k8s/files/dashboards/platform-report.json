@@ -1272,6 +1272,101 @@
           }
         }
       ]
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Server price age",
+      "description": "Days since each server's recorded price (scripts/configure-node-cost.sh --price-date, --price-source). Red after six months: providers change their prices, so recheck the offer and record it again.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "floor((time() - max by (node, source) (swirl_cloud_node_cost_priced_timestamp_seconds)) / 86400) or (max by (node) (swirl_cloud_node_monthly_cost) * 0 - 1 unless on (node) swirl_cloud_node_cost_priced_timestamp_seconds)"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 182
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no date recorded",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "node": "Server",
+              "source": "Price source",
+              "Value": "Age (days)"
+            }
+          }
+        }
+      ]
     }
   ]
 }

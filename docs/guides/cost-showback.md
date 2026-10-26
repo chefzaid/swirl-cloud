@@ -26,6 +26,11 @@ scripts/configure-node-cost.sh --monthly-cost 89.90 --currency EUR \
 - Each run replaces that server's figures, so repeat every `--shared` entry when
   you change one.
 - `--show` prints the recorded values; `--remove` deletes them.
+- `--price-date` (default today) and `--price-source` (for example
+  `"Hetzner AX52 order"`) date the prices. The Platform Report shows each
+  server's price age and turns it red after six months, or when no date was
+  recorded: providers change their prices, so recheck the offer and record it
+  again.
 - The currency defaults to `EUR`.
 - The installer records the control plane's cost from the optional
   `SERVER_MONTHLY_COST` and `COST_CURRENCY` inputs. The setup hub offers

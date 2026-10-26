@@ -45,7 +45,9 @@ example *Previous month*). It shows:
 - the share of hours each compliance control passed;
 - open Critical and High vulnerabilities and those past their deadline;
 - service indicators and recorded game days;
-- availability and CPU allocation over time.
+- availability and CPU allocation over time;
+- each server's price age, red after six months (live, from Prometheus, not the
+  snapshots).
 
 Export a table with **Inspect → Data → Download CSV**. For audits, attach the
 month's compliance evidence pack.
