@@ -40,6 +40,10 @@ parent; a one-off trim with snapshot unmapping enabled returned the freed blocks
 | DBGate | 7.3.1 | 7.3.2 |
 | GitLab CE | 19.4.1 | 19.4.3 |
 | Homepage | v2.4.0 | v2.7.0 |
+| Grafana | 13.2.2 | 13.2.4 |
+| Prometheus | v3.15.0 | v3.15.1 |
+| Portainer CE | 2.45.1 | 2.45.3 |
+| Helper images: NGINX, Python, Node.js, curl | 1.30.5, 3.14.7, 24.21.0, 8.22.0 | 1.30.6, 3.14.9, 24.22.1, 8.23.0 |
 
 Each stays in its release line, so no data format, feature-compatibility or
 GitLab upgrade-path step applies; GitLab Runner stays on 19.4.1, the same minor
@@ -50,8 +54,10 @@ release. Checked offline against the previous digests:
 - MongoDB: the 7.0.45 packages, database tools 100.19.1 (the bundled tools behind
   the Go `crypto/tls` exception) and Ubuntu security updates; the image
   configuration differs only in `MONGO_VERSION`.
-- DBGate and GitLab: identical image configuration (entrypoint, user, volumes,
-  ports, environment).
+- DBGate, GitLab, Grafana, Prometheus and Portainer: identical image
+  configuration (entrypoint, user, volumes, ports, environment); the helper
+  images differ only in their version variables and labels. Ruby stays on
+  3.4.11 and cloudflared on 2026.9.3 until their new images can be compared.
 - Homepage v2.7.0 (Next.js 16.4.1, Node 24): the configuration reference only adds
   optional settings, Kubernetes discovery is unchanged, the probed
   `/api/revalidate` and `/api/healthcheck` remain, and the new MCP endpoint and

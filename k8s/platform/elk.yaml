@@ -341,7 +341,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: configure-security
-          image: docker.io/curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+          image: docker.io/curlimages/curl:8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac
           envFrom:
             - secretRef:
                 name: elasticsearch-security-bootstrap
@@ -706,7 +706,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: sync
-        image: docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+        image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
         command: ["node", "/opt/keycloak-sync/sync.mjs"]
         envFrom:
         - secretRef:
@@ -779,7 +779,7 @@ spec:
             fsGroup: 10001
           containers:
           - name: sync
-            image: docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+            image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
             command: ["node", "/opt/keycloak-sync/sync.mjs"]
             envFrom:
             - secretRef:
@@ -862,7 +862,7 @@ spec:
           type: RuntimeDefault
       initContainers:
       - name: configure-lynis-index
-        image: docker.io/curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+        image: docker.io/curlimages/curl:8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac
         env:
         - name: ELASTICSEARCH_USERNAME
           valueFrom:
@@ -1242,7 +1242,7 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 6
       - name: public-auth-filter
-        image: docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+        image: docker.io/library/nginx:1.30.6-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951
         command: ["/bin/sh", "-ec"]
         args:
         - |
