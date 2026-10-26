@@ -1,6 +1,13 @@
+# A loaded node answers slowly: restart or withdraw only on a real failure
+# (the probe policy in scripts/validate-manifests.py).
 server:
   service:
     type: ClusterIP
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readinessProbe:
+    timeoutSeconds: 3
 
   resources:
     requests:
@@ -65,6 +72,8 @@ global:
     seccompProfile:
       type: RuntimeDefault
 controller:
+  readinessProbe:
+    timeoutSeconds: 3
   # Collect garbage before the 2Gi container limit; retain headroom for
   # non-Go allocations and reconciliation subprocesses. Rebuilding the cluster
   # cache after a restart passed 1Gi. See docs/deployment.md.
@@ -79,6 +88,11 @@ controller:
       cpu: '1'
       memory: 2Gi
 repoServer:
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readinessProbe:
+    timeoutSeconds: 3
   resources:
     requests:
       cpu: 100m

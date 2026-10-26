@@ -35,8 +35,8 @@ See [testing](testing.md#test-layers) for the full layer map.
   `automountServiceAccountToken` and CPU/memory requests and limits for every container
 - every liveness probe has a timeout of 5 seconds or more and restarts only after
   a minute of failures (`periodSeconds` × `failureThreshold` ≥ 60); every readiness
-  probe has a timeout of 3 seconds or more, in the manifests and in the Traefik
-  and `cloudflared` values. A loaded node answers slowly, and restarting a
+  probe has a timeout of 3 seconds or more, in the manifests and in the Traefik,
+  `cloudflared` and Argo CD values. A loaded node answers slowly, and restarting a
   datastore or Keycloak disconnects every application
 - no exec probe uses `$(VAR)` unless the variable has a literal `value`; probes
   expand only those, so a Secret's value would be empty

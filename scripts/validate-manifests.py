@@ -341,6 +341,18 @@ def prometheus_config(runtime, stage):
     run("promtool", "check", "rules", str(stage / "rules.yaml"))
 
 
+def argocd_probe_policy(contract):
+    """The separately installed Argo CD release follows the probe policy; chart 10.9.2 defaults to 1-second probes."""
+    require(contract["DEFAULT_ARGOCD_CHART_VERSION"] == "10.9.2", "Argo CD chart changed: recheck its probe defaults here")
+    values = yaml.safe_load((ROOT / "config/argocd-values.yaml").read_text())
+    default = {"timeoutSeconds": 1, "periodSeconds": 10, "failureThreshold": 3}
+    for component, kinds in (("server", ("livenessProbe", "readinessProbe")), ("repoServer", ("livenessProbe", "readinessProbe")),
+                             ("controller", ("readinessProbe",))):
+        settings = values.get(component) or {}
+        probe_policy(f"config/argocd-values.yaml: {component}",
+                     {kind: {**default, **(settings.get(kind) or {})} for kind in kinds})
+
+
 def ingress_policy(contract):
     """Entry-point middlewares of the separately installed Traefik release and its edge header policy."""
     def layer(base, override):
@@ -436,6 +448,7 @@ def source_inputs():
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")
     ingress_policy(contract)
+    argocd_probe_policy(contract)
     for path in (ROOT / ".github/workflows").glob("*.y*ml"):
         for action in re.findall(r"^\s+(?:- )?uses:\s*(\S+)", path.read_text(), re.M):
             require(action.startswith("./") or re.search(r"@[a-f0-9]{40}$|@sha256:[a-f0-9]{64}$", action), f"Unpinned action: {action}")
