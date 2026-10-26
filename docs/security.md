@@ -317,6 +317,12 @@ Debian bookworm status of the PostgreSQL and DBGate findings
 | CVE-2025-7458 | SQLite | No DSA, minor | PostgreSQL and DBGate do not use SQLite for data |
 | CVE-2026-6653 | libxml2 | Postponed, minor (fixed only in 2.11) | PostgreSQL XML functions; reachable only by authenticated database clients (denial of service) |
 
+On 2026-10-26 PostgreSQL moved to the tag's 2026-10-21 rebuild
+(`sha256:bbf83594798e…`). Against the triaged build it changes only Debian
+security updates: OpenSSL 3.0.22, Perl `5.36.0-7+deb12u4`, PCRE2 and `tzdata`.
+The PostgreSQL packages and glibc are unchanged, so no reindex is needed. It has
+not been rescanned: recheck these findings on the new digest before 2026-11-04.
+
 ### Exposed-secret findings
 
 Triage of 2026-10-05. None is a usable credential; each is accepted until
