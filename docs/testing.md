@@ -62,6 +62,7 @@ The validator runs only these safety suites:
 | `test-k3s-backups.sh` | Unrestorable or incomplete archives (stale SQLite backups after etcd migration, missing recovery tokens or Vault keys, unsafe GitLab configuration copies), off-node uploads without repository credentials, restic retention that keeps every archive, success reported while the lock is held, and a weekly verification that passes a failed `restic check`, a bad checksum, a corrupt, foreign or empty repository, or runs during a backup. |
 | `test-k3s-api-endpoint.sh` | An API VIP already held or outside the node network, a VIP on a server whose API is not ready, multicast VRRP fallback, and a certificate restart that leaves no fresh etcd majority. |
 | `test-k3s-kubelet-memory.sh` | A K3s reservation that does not scale with node memory, a drop-in that replaces other kubelet arguments, and an eviction threshold that drops K3s's disk thresholds. |
+| `test-install-record.sh` | An installation record that stops the installer when it cannot be written, records that grow without bound, and a `--status` summary that misses a failed run. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |

@@ -2,7 +2,8 @@
 """Bounded, read-only verification of an installed Swirl Cloud platform.
 
 Checks nodes, workloads, ExternalSecrets, Argo CD Applications, Vault seal state,
-Longhorn volumes, TLS secrets, public Ingress endpoints and the nightly backup.
+Longhorn volumes, TLS secrets, public Ingress endpoints, the nightly backup and
+the last installer run.
 Login redirects and 401/403 answers count as reachable: administration hosts are
 protected by design. Exits 1 when a check fails (or warns, with --strict).
 """
@@ -25,6 +26,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 ROOT = Path(__file__).resolve().parents[1]
 BACKUP_METRICS = Path("/var/lib/node_exporter/textfile_collector/swirl_cloud_unit_swirl_cloud_k3s_backup_service.prom")
 BACKUP_UNIT = "swirl-cloud-k3s-backup"
+INSTALL_RECORDS = Path("/var/lib/swirl-cloud/install-runs")
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 YOUNG_POD_SECONDS = 300
 
@@ -55,6 +57,7 @@ HINTS = {
     "API audit log": lambda d: "./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)",
     "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
     "Platform mail": lambda d: "set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md",
+    "Last installation": lambda d: "./install.sh > Maintenance > Earlier run logs, then rerun ./install.sh (reruns converge)",
 }
 
 
@@ -337,6 +340,45 @@ def check_backup(report, max_age_hours):
                    (values.get("LastTriggerUSec") or "never") + ". Check again after the next scheduled run.")
 
 
+def read_install_record(path):
+    events = []
+    for line in path.read_text(errors="replace").splitlines():
+        try:
+            events.append(json.loads(line))
+        except ValueError:
+            continue
+    start = next((event for event in events if event.get("event") == "start"), {})
+    finish = next((event for event in events if event.get("event") == "finish"), None)
+    steps = [event.get("name", "") for event in events if event.get("event") == "step"]
+    return start, finish, steps
+
+
+def describe_install(start, finish, steps):
+    when = start.get("at", "unknown time")
+    if finish is None:
+        return f"{when}: no finish recorded (still running, or stopped by a crash or kill) after {len(steps)} step(s)"
+    minutes = int(finish.get("seconds", 0)) / 60
+    return f"{when}: {finish.get('result', 'unknown')} after {minutes:.0f} min, {len(steps)} step(s)"
+
+
+def check_install_record(report):
+    records = sorted(INSTALL_RECORDS.glob("*.jsonl"), reverse=True) if INSTALL_RECORDS.is_dir() else []
+    if not records:
+        return  # Installed before installer runs were recorded.
+    try:
+        start, finish, steps = read_install_record(records[0])
+        summary = describe_install(start, finish, steps) + f" (revision {start.get('revision', 'unknown')}, {start.get('mode', 'unknown')})"
+        details = [describe_install(*read_install_record(path)) for path in records[1:4]]
+    except (OSError, ValueError, TypeError) as error:
+        report.add(WARN, "Last installation", f"record {records[0].name} is unreadable: {error}")
+        return
+    if finish is not None and finish.get("result") == "success":
+        report.add(PASS, "Last installation", summary, details)
+    else:
+        last = f"last step: {steps[-1]}" if steps else "stopped before its first step"
+        report.add(WARN, "Last installation", summary, [last] + details)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print machine-readable results")
@@ -358,6 +400,7 @@ def main():
     check_audit(report)
     check_kubelet_memory(report)
     check_backup(report, args.backup_max_age_hours)
+    check_install_record(report)
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,
                                 capture_output=True, text=True, stdin=subprocess.DEVNULL)

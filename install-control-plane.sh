@@ -229,7 +229,7 @@ info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 fail()  { error "$@"; }
-step()  { echo -e "${BLUE}[STEP]${NC}  $*"; }
+step()  { echo -e "${BLUE}[STEP]${NC}  $*"; install_record_step "$@"; }
 
 ask_with_default() {
     installer_prompt_yes_no "$1" "${2:-N}" "$AUTO_APPROVE"
@@ -263,6 +263,9 @@ source "$SCRIPT_DIR/scripts/lib/installer-settings.sh"
 # shellcheck source=scripts/lib/installer-selection.sh
 source "$SCRIPT_DIR/scripts/lib/installer-selection.sh"
 
+# shellcheck source=scripts/lib/install-record.sh
+source "$SCRIPT_DIR/scripts/lib/install-record.sh"
+
 cleanup_private_credentials() {
     TAILSCALE_API_TOKEN=""
     OVH_APPLICATION_KEY=""
@@ -293,7 +296,14 @@ cleanup_private_credentials() {
         rm -r -- "$RENDERED_CONFIG_DIR"
     fi
 }
-trap cleanup_private_credentials EXIT HUP INT TERM
+# Credentials are cleared first, so a recording problem can never skip it.
+finish_installer() {
+    local status=$?
+    cleanup_private_credentials
+    install_record_finish "$status"
+}
+trap finish_installer EXIT
+trap cleanup_private_credentials HUP INT TERM
 
 download_installer() {
     local url="$1" filename="$2" destination_variable="$3" destination
@@ -359,6 +369,13 @@ fi
 [[ $EUID -eq 0 ]] && error "Do not run as root. The script uses sudo when needed."
 if systemctl cat k3s-agent.service >/dev/null 2>&1; then
     error "This host is a K3s worker. Run this installer on the bootstrap control-plane host."
+fi
+
+# ---------- Installation record --------------------------------------------------
+# Runs that stop before this point have changed nothing on the host.
+if [[ -n "$INSTALL_ENV_FILE" ]]; then install_record_start env-file
+elif [[ "$AUTO_APPROVE" == true ]]; then install_record_start yes
+else install_record_start prompts
 fi
 
 info "============================================="
