@@ -117,7 +117,8 @@ the infrastructure project's GitLab **Monitor > Alerts** page and, with
 [platform mail](guides/platform-mail.md), emails critical and warning alerts.
 
 Extra scrape jobs, each covered by `PrometheusTargetDown`: `traefik`, `vault`,
-`argocd` and `longhorn` (by chart label and named port); `postgres` (including
+`argocd` and `longhorn` (by chart label and named port); `cloudflared` (HA tunnel
+connectors only); `postgres` (including
 CloudNativePG), `mongodb`, `redis` (including Redis HA), `kafka` and
 `elasticsearch` (exporters; Elasticsearch signs in as `metrics_monitor`);
 `external-secrets`; and GitLab's `/-/metrics` (its bundled Prometheus is

@@ -341,7 +341,7 @@ change and ask the owner before pushing it.
 - [x] CrowdSec/Fail2ban metrics and `HostIntrusionPreventionDown`, `HostIntrusionMetricsStale` and `HostBruteForceWave` alerts. *(live, 2026-10-04)*
 - [x] `TrivyNewCriticalVulnerability` alerts against each image's own baseline; its 6 h window fits today's ~12 h Prometheus history, widen it with §26. *(2026-10-04)*
 - [x] Scraped: Traefik, Vault, Argo CD, Longhorn, PostgreSQL, MongoDB, Redis and Kafka.
-- [ ] Not scraped: cloudflared (only runs in HA Tunnel mode).
+- [x] cloudflared tunnel connectors are scraped (job `cloudflared`, named port `tunnel-metrics` in [traefik-ha-values.yaml](config/traefik-ha-values.yaml)) and covered by `PrometheusTargetDown`; untested until HA ingress is active. *(2026-10-26)*
 - [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
 - [ ] Define recoverable Elasticsearch log/audit retention and configure a snapshot repository if that history must survive volume loss (§16).
 - [x] Outage watch from outside the cluster: a Cloudflare Worker checks public hosts every five minutes and emails changes ([ADR 0030](docs/adr/0030-outage-watch-outside-the-cluster.md), [guide](docs/guides/service-levels.md#outage-watch)). *(live, 2026-10-09)* Deactivated since 2026-10-26 (next item).
