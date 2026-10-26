@@ -91,6 +91,14 @@ podSecurityContext:
   runAsUser: 65532
   runAsGroup: 65532
   seccompProfile: {type: RuntimeDefault}
+# A loaded node answers slowly: restart or withdraw only on a real failure
+# (the probe policy in scripts/validate-manifests.py).
+readinessProbe:
+  timeoutSeconds: 3
+  failureThreshold: 3
+livenessProbe:
+  timeoutSeconds: 5
+  failureThreshold: 6
 resources:
   requests: {cpu: 100m, memory: 90Mi}
   limits: {cpu: "1", memory: 512Mi}

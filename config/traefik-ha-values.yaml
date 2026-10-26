@@ -22,12 +22,14 @@ deployment:
       readinessProbe:
         httpGet: {path: /ready, port: 2000}
         periodSeconds: 5
-      # A connector withdraws if its co-located ingress stops answering.
+        timeoutSeconds: 3
+      # A connector withdraws if its co-located ingress stops answering for a minute.
       livenessProbe:
         httpGet: {path: /ping, port: 9000}
         initialDelaySeconds: 30
         periodSeconds: 10
-        failureThreshold: 3
+        timeoutSeconds: 5
+        failureThreshold: 6
       volumeMounts:
         - name: cloudflare-tunnel
           mountPath: /etc/cloudflared

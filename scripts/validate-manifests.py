@@ -372,6 +372,13 @@ def ingress_policy(contract):
     base = yaml.safe_load((ROOT / "config/traefik-values.yaml").read_text())
     ha = layer(base, yaml.safe_load((ROOT / "config/traefik-ha-values.yaml").read_text()))
     for profile, values in (("config/traefik-values.yaml", base), ("config/traefik-ha-values.yaml layered", ha)):
+        # Traefik chart 41.6.0 probe defaults (timeouts of 2 seconds) apply where the values set none.
+        require(contract["DEFAULT_TRAEFIK_CHART_VERSION"] == "41.6.0", "Traefik chart changed: recheck its probe defaults here")
+        probe_policy(f"{profile}: traefik", {
+            "livenessProbe": {"timeoutSeconds": 2, "periodSeconds": 10, "failureThreshold": 3, **(values.get("livenessProbe") or {})},
+            "readinessProbe": {"timeoutSeconds": 2, **(values.get("readinessProbe") or {})}})
+        for container in (values.get("deployment") or {}).get("additionalContainers") or []:
+            probe_policy(f"{profile}: {container['name']}", container)
         defined = {doc["metadata"]["name"]: doc for doc in values.get("extraObjects") or []
                    if doc["kind"] == "Middleware" and doc["metadata"]["namespace"] == "infra"}
         for entry, port in (values.get("ports") or {}).items():
