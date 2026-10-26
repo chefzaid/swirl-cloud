@@ -343,7 +343,8 @@ change and ask the owner before pushing it.
 - [ ] Not scraped: cloudflared (only runs in HA Tunnel mode).
 - [ ] Define remote-cluster telemetry ownership and add authenticated metrics/log shipping, cluster/environment labels, quotas and node/backup alerts before relying on remote production targets (§19).
 - [ ] Define recoverable Elasticsearch log/audit retention and configure a snapshot repository if that history must survive volume loss (§16).
-- [x] Outage watch from outside the cluster: a Cloudflare Worker checks public hosts every five minutes and emails changes ([ADR 0030](docs/adr/0030-outage-watch-outside-the-cluster.md), [guide](docs/guides/service-levels.md#outage-watch)). *(live, 2026-10-09)*
+- [x] Outage watch from outside the cluster: a Cloudflare Worker checks public hosts every five minutes and emails changes ([ADR 0030](docs/adr/0030-outage-watch-outside-the-cluster.md), [guide](docs/guides/service-levels.md#outage-watch)). *(live, 2026-10-09)* Deactivated since 2026-10-26 (next item).
+- [ ] **Waiting for the owner:** re-enable the outage watch, deactivated on 2026-10-26 at the owner's request because of its endpoint down/up emails. `scripts/configure-outage-watch.py --remove` deleted the Worker and its state, so nothing checks the public endpoints from outside the cluster and Alertmanager is paused too (above). To re-enable, run `scripts/configure-outage-watch.py` with `CLOUDFLARE_API_TOKEN` exported ([guide](docs/guides/service-levels.md#outage-watch)). Until then, rerun `install-control-plane.sh` without Cloudflare or platform mail configuration, or remove the Worker again afterwards: with both configured it redeploys the watch.
 
 The historical Trivy snapshot was **119 critical / 924 high findings across 90
 image reports**, plus 11 critical exposed-secret findings in the GitLab image
@@ -906,7 +907,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P1 | Private/key-only SSH | Tested second session/console and break-glass login; recovery prerequisites complete (administrator MFA stays optional by decision, §11) | §4 |
 | P1 | `infra` network isolation and PSA enforcement | Dependency allowlists and host-agent placement validated before enforcement | §6 |
 | P1 | Vulnerability triage follow-up | Application image findings handed to their repositories; fixes rechecked before the dated exceptions expire (2026-11-04) | §21 |
-| P1 | Reactivate alert notifications | Owner's approval and choice of notifications first; paused 2026-10-11 | §14 |
+| P1 | Reactivate alert notifications and the outage watch | Owner's approval and choice of notifications first; Alertmanager paused 2026-10-11, outage watch removed 2026-10-26 | §14 |
 | P1 | Maintenance windows and remaining host hardening | Backup/unseal/console recovery verified before maintenance; AUTH-9282/9286 and USB-1000 decided | §4, §20 |
 | P1 | Capacity baseline, PostgreSQL headroom and Registry cleanup | Usage/growth alerts, protected recovery images, verified reclamation | §10, §12, §26 |
 | P1 | Version-2 app migration and removal of legacy anonymous Kafka access | Owning repos verify environment isolation and delivery before credentials/listener retirement | §10, §19 |
