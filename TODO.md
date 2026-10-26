@@ -475,6 +475,8 @@ and availability of a compatible upstream image must be checked separately.
 - [x] Exposed-secret findings triaged; no real credential to rotate ([security](docs/security.md#exposed-secret-findings)). *(2026-10-05)*
 - [x] No stale reports for retired owners remain. *(live, 2026-10-03)*
 - [x] Non-blocking CI job `report:platform-artifacts` scans the vendored charts and the CI image. *(2026-10-04)*
+- [x] Patch upgrades toward the dated exceptions: MongoDB 7.0.45 (database tools 100.19.1), DBGate 7.3.2, GitLab CE 19.4.3 and the PostgreSQL 18.6 rebuild, each checked offline against the previous image ([October upgrades](docs/guides/service-upgrades-2026-10.md)). *(2026-10-26)*
+- [ ] Rescan PostgreSQL, MongoDB, DBGate and GitLab on their new digests and update or close their exceptions in [security](docs/security.md#vulnerability-triage) before they expire on 2026-11-04; Homepage (v2.7.0 available), SonarQube (26.10 available, needs its database migration step) and Kafka UI (no newer release) still run the triaged versions.
 - [x] Application image findings handed to the owning repositories' **Bugs to fix**: TravelMapster (Debian bookworm runtime base), Thoughty and Indezy (`postgres:18.6-bookworm` helper image, an amd64-only 2026-08-13 build). *(2026-10-26)*
 
 ### 22. Odoo for the company website (CRM leads and Live Chat)

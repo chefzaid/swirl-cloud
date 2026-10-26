@@ -71,7 +71,7 @@ spec:
         - name: mongodb
           # MongoDB 8.x refuses Linux 6.19-7.0.13, and Ubuntu 26.04 ships kernel 7.0.0,
           # so stay on 7.0.
-          image: docker.io/library/mongo:7.0.43-jammy@sha256:84c4a18b60a0e73d1577112b0a600b46cab477c64cfe0ff36d0647bbca055bd0
+          image: docker.io/library/mongo:7.0.45-jammy@sha256:7fba8c37d681a79f22a85d2b06bd5ed121a7973c0a6ca20ed4887bb0a1548ce0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

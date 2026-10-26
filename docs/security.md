@@ -299,11 +299,11 @@ exploit-tested.
 | Elasticsearch, Kibana, Logstash 9.5.4 | Netty SNI routing; `piscina`; Bouncy Castle | Latest 9.5 patch. Netty SNI does not apply to the plain-HTTP in-cluster listeners. Exception. |
 | Kafka UI v1.5.0 | Netty SNI routing | Latest release; plain HTTP behind Traefik. Exception. |
 | SonarQube 26.9.0 Community | Netty SNI routing, Bouncy Castle | Latest Community release; plain HTTP behind Traefik. Exception. |
-| GitLab CE 19.4.1 | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck the next 19.4 patch. |
+| GitLab CE 19.4.1 (19.4.3 since 2026-10-26, not rescanned) | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck on 19.4.3. |
 | GitLab Runner helper 19.4.1 (Alpine) | `miniperl` regular-expression handling | Fixed in Alpine `5.42.2-r1`; 19.4.1 is the latest helper. Job helpers do not run untrusted Perl. Exception. |
 | Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Resolved: Longhorn 1.13.0 (2026-10-05) runs `csi-provisioner` v6.3.0. |
-| MongoDB 7.0.43 | Go `crypto/tls` in bundled tools | Exception; recheck the next 7.0 patch. |
-| PostgreSQL 18.6, DBGate 7.3.1 (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. A newer Debian base changes glibc collation and needs a reindex plan. Exception. |
+| MongoDB 7.0.43 (7.0.45 since 2026-10-26, not rescanned) | Go `crypto/tls` in bundled tools | Exception; 7.0.45 ships database tools 100.19.1, recheck it. |
+| PostgreSQL 18.6, DBGate 7.3.1 (7.3.2 since 2026-10-26) (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. A newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 
 Debian bookworm status of the PostgreSQL and DBGate findings
 ([security tracker](https://security-tracker.debian.org/tracker/), 2026-10-04):

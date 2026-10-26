@@ -30,3 +30,30 @@ check `vault-0` readiness and seal status instead.
 The pre-upgrade snapshots were deleted after verification. Each stays listed as
 removed because Longhorn keeps a removed snapshot that is the volume head's direct
 parent; a one-off trim with snapshot unmapping enabled returned the freed blocks.
+
+## Patch upgrades and rebuilds (2026-10-26)
+
+| Component | From | To |
+| --- | --- | --- |
+| PostgreSQL (platform and SonarQube) | 18.6 bookworm, 2026-09-19 build | 18.6 bookworm, 2026-10-21 rebuild |
+| MongoDB | 7.0.43 Jammy | 7.0.45 Jammy |
+| DBGate | 7.3.1 | 7.3.2 |
+| GitLab CE | 19.4.1 | 19.4.3 |
+
+Each stays in its release line, so no data format, feature-compatibility or
+GitLab upgrade-path step applies; GitLab Runner stays on 19.4.1, the same minor
+release. Checked offline against the previous digests:
+
+- PostgreSQL: only Debian security updates (OpenSSL 3.0.22, Perl `deb12u4`, PCRE2,
+  `tzdata`); same PostgreSQL packages and glibc, so no reindex.
+- MongoDB: the 7.0.45 packages, database tools 100.19.1 (the bundled tools behind
+  the Go `crypto/tls` exception) and Ubuntu security updates; the image
+  configuration differs only in `MONGO_VERSION`.
+- DBGate and GitLab: identical image configuration (entrypoint, user, volumes,
+  ports, environment).
+
+The images were not rescanned and the upgrades were not run on a cluster. After
+the sync, check `./install.sh --status`, GitLab's
+`/-/readiness` and a push and pipeline, a Keycloak sign-in (PostgreSQL), DBGate's
+connections, then rescan the four images for the dated exceptions in
+[security](../security.md#vulnerability-triage).
