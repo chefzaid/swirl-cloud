@@ -64,11 +64,43 @@ not charged. Currencies are reported side by side, never converted.
 | `swirl_cloud_cost_idle_monthly{node}` | Unallocated server cost |
 | `swirl_cloud_cost_shared_monthly{item}`, `swirl_cloud_cost_total_monthly` | Shared costs and the platform total |
 
+## Hyperscaler comparison
+
+Prometheus also prices the same resources at AWS on-demand list prices in Paris,
+so the fixed server cost can be compared with renting it from a hyperscaler.
+`swirl_cloud_hyperscaler_equivalent_monthly` has two bases:
+
+- `capacity`: every server's CPU and memory, as if rented whole;
+- `allocated`: only what pods are charged for, as if sized exactly to the workloads.
+
+Both add the requested volume sizes. Assumptions, stated on the series:
+
+| Item | Price (USD a month) | Derived from |
+| --- | --- | --- |
+| vCPU | 32.70 | c7i.2xlarge and r7i.2xlarge Linux hourly prices in eu-west-3, solved for CPU and memory, × 730 hours |
+| Memory (GiB) | 3.00 | the same two instances |
+| Volume (GiB) | 0.0928 | gp3 storage |
+
+The comparison leaves out traffic, backups, managed services, support plans,
+taxes, Savings Plans and reserved discounts. One Kubernetes CPU counts as one AWS
+vCPU (both are hardware threads). Longhorn replicas count once, because EBS
+replicates within its zone. The figures are in USD and are not converted.
+
+The prices come from the AWS price list published on 2026-10-23
+(`price_date` label). To refresh them, download
+`https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/eu-west-3/index.csv`.
+Read the on-demand, shared-tenancy Linux rows for `c7i.2xlarge` and `r7i.2xlarge`
+and the `gp3` storage row. Then update the three
+`swirl_cloud_hyperscaler_unit_price_monthly` rules in
+`k8s/files/prometheus/rules.yaml`, their `price_date`, and
+`tests/prometheus/hyperscaler-cost.yaml`.
+
 ## Dashboard
 
 Grafana's **Cost Showback** dashboard (Applications folder) shows the monthly
 total, its allocated, idle and shared parts, and cost per environment, namespace
-and workload, plus allocated and idle cost over time. Environments are namespaces
+and workload, plus allocated and idle cost over time, and the same capacity and
+the allocated capacity at AWS list prices. Environments are namespaces
 labeled `swirl-cloud.io/application-environment`; everything else is shared
 platform.
 

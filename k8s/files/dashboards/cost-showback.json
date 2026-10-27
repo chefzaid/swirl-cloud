@@ -236,6 +236,114 @@
       }
     },
     {
+      "id": 12,
+      "type": "stat",
+      "title": "Same capacity at AWS list prices",
+      "description": "What every server's CPU and memory plus the requested volumes would cost at AWS on-demand list prices in Paris (eu-west-3, Linux, USD, 730 hours, no discounts, traffic or managed services). Prices are dated in the price_date label; see the Cost Showback guide.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "swirl_cloud_hyperscaler_equivalent_monthly{basis=\"capacity\"}",
+          "legendFormat": "{{currency}} ({{price_date}})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Allocated capacity at AWS list prices",
+      "description": "What the CPU and memory charged to pods (the larger of requests and usage) plus the requested volumes would cost at the same AWS list prices, as if sized exactly to the workloads.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "swirl_cloud_hyperscaler_equivalent_monthly{basis=\"allocated\"}",
+          "legendFormat": "{{currency}} ({{price_date}})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "id": 5,
       "type": "piechart",
       "title": "Cost by environment",
@@ -248,7 +356,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -303,7 +411,7 @@
         "h": 9,
         "w": 16,
         "x": 8,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -354,7 +462,7 @@
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 17
       },
       "targets": [
         {
@@ -425,7 +533,7 @@
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 17
       },
       "targets": [
         {
@@ -586,7 +694,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 25
+        "y": 29
       },
       "targets": [
         {
@@ -638,7 +746,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 25
+        "y": 29
       },
       "targets": [
         {
@@ -688,7 +796,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 38
       },
       "targets": [
         {

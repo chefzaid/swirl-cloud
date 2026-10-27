@@ -911,3 +911,40 @@ groups:
             + on (currency) sum by (currency) (swirl_cloud_cost_shared_monthly)
           )
           or sum by (currency) (swirl_cloud_cost_node_monthly)
+      # The same CPU, memory and volume sizes at AWS on-demand list prices in
+      # Paris: Linux, USD, 730 hours, no discounts, traffic or managed services.
+      # Per vCPU and GiB from the c7i.2xlarge and r7i.2xlarge prices, volumes as
+      # gp3. Refresh: docs/guides/cost-showback.md#hyperscaler-comparison.
+      - record: swirl_cloud_hyperscaler_unit_price_monthly
+        expr: vector(32.70)
+        labels: {provider: aws, region: eu-west-3, currency: USD, price_date: "2026-10-23", unit: vcpu}
+      - record: swirl_cloud_hyperscaler_unit_price_monthly
+        expr: vector(3.00)
+        labels: {provider: aws, region: eu-west-3, currency: USD, price_date: "2026-10-23", unit: memory_gib}
+      - record: swirl_cloud_hyperscaler_unit_price_monthly
+        expr: vector(0.0928)
+        labels: {provider: aws, region: eu-west-3, currency: USD, price_date: "2026-10-23", unit: volume_gib}
+      # capacity: every server's CPU and memory; allocated: what pods are charged
+      # for. Both add the requested volume sizes.
+      - record: swirl_cloud_hyperscaler_equivalent_monthly
+        labels: {basis: capacity}
+        expr: |
+          sum without (unit) (
+            swirl_cloud_hyperscaler_unit_price_monthly{unit="vcpu"}
+              * on () group_left sum(kube_node_status_capacity{resource="cpu"})
+            or swirl_cloud_hyperscaler_unit_price_monthly{unit="memory_gib"}
+              * on () group_left () (sum(kube_node_status_capacity{resource="memory"}) / 2^30)
+            or swirl_cloud_hyperscaler_unit_price_monthly{unit="volume_gib"}
+              * on () group_left () (sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) / 2^30)
+          )
+      - record: swirl_cloud_hyperscaler_equivalent_monthly
+        labels: {basis: allocated}
+        expr: |
+          sum without (unit) (
+            swirl_cloud_hyperscaler_unit_price_monthly{unit="vcpu"}
+              * on () group_left sum(swirl_cloud_cost_pod_cpu_cores)
+            or swirl_cloud_hyperscaler_unit_price_monthly{unit="memory_gib"}
+              * on () group_left () (sum(swirl_cloud_cost_pod_memory_bytes) / 2^30)
+            or swirl_cloud_hyperscaler_unit_price_monthly{unit="volume_gib"}
+              * on () group_left () (sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) / 2^30)
+          )

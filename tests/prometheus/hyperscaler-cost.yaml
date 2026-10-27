@@ -1,0 +1,39 @@
+# promtool unit test for the AWS list-price comparison, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+fuzzy_compare: true  # Sums of decimal prices are not exact in floating point.
+tests:
+  # Two servers (8 + 4 vCPU, 32 + 16 GiB), 100 GiB of volume claims, and one
+  # running pod requesting 2 CPU and 4 GiB.
+  - interval: 1m
+    input_series:
+      - series: 'kube_node_status_capacity{resource="cpu",node="a"}'
+        values: '8x10'
+      - series: 'kube_node_status_capacity{resource="cpu",node="b"}'
+        values: '4x10'
+      - series: 'kube_node_status_capacity{resource="memory",node="a"}'
+        values: '34359738368x10'
+      - series: 'kube_node_status_capacity{resource="memory",node="b"}'
+        values: '17179869184x10'
+      - series: 'kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="infra",persistentvolumeclaim="data"}'
+        values: '107374182400x10'
+      - series: 'kube_pod_container_resource_requests{resource="cpu",node="a",namespace="apps",pod="web-1",container="web"}'
+        values: '2x10'
+      - series: 'kube_pod_container_resource_requests{resource="memory",node="a",namespace="apps",pod="web-1",container="web"}'
+        values: '4294967296x10'
+      - series: 'kube_pod_status_phase{phase="Running",namespace="apps",pod="web-1"}'
+        values: '1x10'
+    promql_expr_test:
+      # 12 × 32.70 + 48 × 3.00 + 100 × 0.0928
+      - expr: swirl_cloud_hyperscaler_equivalent_monthly{basis="capacity"}
+        eval_time: 5m
+        exp_samples:
+          - labels: 'swirl_cloud_hyperscaler_equivalent_monthly{basis="capacity",provider="aws",region="eu-west-3",currency="USD",price_date="2026-10-23"}'
+            value: 545.68
+      # 2 × 32.70 + 4 × 3.00 + 100 × 0.0928
+      - expr: swirl_cloud_hyperscaler_equivalent_monthly{basis="allocated"}
+        eval_time: 5m
+        exp_samples:
+          - labels: 'swirl_cloud_hyperscaler_equivalent_monthly{basis="allocated",provider="aws",region="eu-west-3",currency="USD",price_date="2026-10-23"}'
+            value: 86.68

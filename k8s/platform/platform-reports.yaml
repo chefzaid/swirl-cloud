@@ -130,6 +130,10 @@ data:
         add(`cost:${scope}:${metric.currency}`, { kind: "cost", scope, currency: metric.currency, monthly_cost: value });
       }
     }
+    for (const { metric, value } of await query("swirl_cloud_hyperscaler_equivalent_monthly")) {
+      const scope = `${metric.provider}_${metric.basis}`;
+      add(`cost:${scope}:${metric.currency}`, { kind: "cost", scope, currency: metric.currency, monthly_cost: value });
+    }
     for (const [indicator, expr] of [
       ["datastore", "avg by (service) (avg_over_time(swirl_cloud_sli:datastore_up[1h]))"],
       ["ci_queue_p90_seconds", "swirl_cloud_sli:ci_queue_seconds:p90_6h"],

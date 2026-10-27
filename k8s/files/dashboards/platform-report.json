@@ -312,6 +312,152 @@
       }
     },
     {
+      "id": 16,
+      "type": "stat",
+      "title": "Same capacity at AWS list prices",
+      "description": "What every server's CPU and memory plus the requested volumes would cost at AWS on-demand list prices in Paris (eu-west-3, Linux, USD, 730 hours, no discounts, traffic or managed services). Prices are dated in the price_date label; see the Cost Showback guide.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:aws_capacity",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No snapshot yet"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Allocated capacity at AWS list prices",
+      "description": "What the CPU and memory charged to pods (the larger of requests and usage) plus the requested volumes would cost at the same AWS list prices, as if sized exactly to the workloads.",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "platform-reports"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "platform-reports"
+          },
+          "query": "kind:cost AND scope:aws_allocated",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "monthly_cost"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "currency",
+              "settings": {
+                "min_doc_count": "1",
+                "size": "500",
+                "order": "asc",
+                "orderBy": "_term"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No snapshot yet"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "id": 5,
       "type": "table",
       "title": "Availability by endpoint",
@@ -324,7 +470,7 @@
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -447,7 +593,7 @@
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -555,7 +701,7 @@
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 20
       },
       "targets": [
         {
@@ -676,7 +822,7 @@
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 20
       },
       "targets": [
         {
@@ -798,7 +944,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 32
       },
       "targets": [
         {
@@ -866,7 +1012,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 32
       },
       "targets": [
         {
@@ -949,7 +1095,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 40
       },
       "targets": [
         {
@@ -1027,7 +1173,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 40
       },
       "targets": [
         {
@@ -1106,7 +1252,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 48
       },
       "targets": [
         {
@@ -1177,7 +1323,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 56
       },
       "targets": [
         {
@@ -1286,7 +1432,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 63
       },
       "targets": [
         {

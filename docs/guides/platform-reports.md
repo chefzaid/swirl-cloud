@@ -11,7 +11,7 @@ Report** dashboard turns them into a monthly report.
 | `kind` | Fields | Source |
 | --- | --- | --- |
 | `availability` | `endpoint`, `namespace`, `ratio` (share of successful probes in the hour) | [service levels](service-levels.md) |
-| `cost` | `scope` (`namespace`, `workload`, `idle`, `shared`, `total`), `namespace`, `workload`, `currency`, `monthly_cost` | [cost showback](cost-showback.md) |
+| `cost` | `scope` (`namespace`, `workload`, `idle`, `shared`, `total`, and `aws_capacity` and `aws_allocated` for the [hyperscaler comparison](cost-showback.md#hyperscaler-comparison)), `namespace`, `workload`, `currency`, `monthly_cost` | [cost showback](cost-showback.md) |
 | `usage` | `namespace`, `cpu_cores`, `memory_bytes` (larger of requests and usage) | cost showback allocation |
 | `compliance` | `control`, `status`, `passing` (1 or 0) | [compliance evidence](compliance-evidence.md) |
 | `compliance_framework` | `framework`, `ratio` (share of automated controls passing) | compliance evidence |
@@ -42,6 +42,7 @@ example *Previous month*). It shows:
 - availability overall and per endpoint against the 99.5 % objective;
 - average monthly platform cost, idle capacity cost, and cost per namespace and
   workload;
+- the same capacity and the allocated capacity at AWS list prices;
 - the share of hours each compliance control passed;
 - open Critical and High vulnerabilities and those past their deadline;
 - service indicators and recorded game days;
