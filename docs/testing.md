@@ -67,6 +67,7 @@ The validator runs only these safety suites:
 | `test-install-record.sh` | An installation or playbook run record that stops the run when it cannot be written, records that grow without bound or hold playbook variables, check-mode runs recorded as changes, and a `--status` summary that misses a failed run. |
 | `test-asset-inventory.py` | An asset inventory that reads Secrets, CSV sheets a spreadsheet would run as formulas, readable or overwritten output files, a source it could not read reported as complete, and outside services missing from the inventory. |
 | `test-licence-register.py` | A release bundle built without `THIRD_PARTY_NOTICES` under its manifest, and a licence register that misses an SBOM entry, keeps a stale or duplicate record, or has an invalid licence, source or `customer_use`. |
+| `test-console-i18n.py` | A French installer or status message that drops a value (an address, a path, an error), an installer message without a French entry or an entry that outlived its message, a failed lookup that hides the English message, and translated run records or `--json` output. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |

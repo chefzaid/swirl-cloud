@@ -136,7 +136,7 @@ verify_registrar_and_dnssec() {
     public_nameservers="$(dig +short NS "$ZONE_NAME" | sed 's/\.$//; s/.*/\L&/' | sort -u)"
 
     if [[ "$public_nameservers" != "$desired_nameservers" ]]; then
-        warn "Registrar delegation is not yet reconciled${registrar_name:+ at $registrar_name}."
+        warn "Registrar delegation is not yet reconciled${registrar_name:+ ($registrar_name)}."
         warn "Replace the registrar's current nameservers with exactly:"
         printf '  - %s\n' "${ZONE_NAMESERVERS[@]}" >&2
         if [[ "${registrar_name,,}" == *cloudflare* ]]; then

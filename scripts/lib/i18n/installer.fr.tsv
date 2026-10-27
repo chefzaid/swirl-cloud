@@ -1,0 +1,365 @@
+# French installer console messages for SWIRL_CLOUD_LANG=fr (scripts/lib/console_i18n.py).
+# English<TAB>French, the English exactly as the source writes it after step, info, warn
+# or error, shell variables included; tests/test-console-i18n.py keeps it complete.
+Access hostname $label is not present in CLOUDFLARE_HOST_LABELS.	Le nom d'hôte Access $label ne figure pas dans CLOUDFLARE_HOST_LABELS.
+Access protection is already correct for $fqdn.	La protection Access de $fqdn est déjà correcte.
+An unrelated Access identity provider already uses the requested display name.	Un autre fournisseur d'identité Access utilise déjà le nom d'affichage demandé.
+At least one Access hostname label is required.	Au moins un libellé de nom d'hôte Access est requis.
+Cloudflare returned no Zero Trust organization auth domain.	Cloudflare n'a renvoyé aucun domaine d'authentification d'organisation Zero Trust.
+Created the Cloudflare Zero Trust organization.	Organisation Cloudflare Zero Trust créée.
+Created the Keycloak OIDC identity provider for Cloudflare Access.	Fournisseur d'identité OIDC Keycloak créé pour Cloudflare Access.
+Created the Swirl Cloud email allowlist policy.	Politique de liste d'adresses e-mail autorisées Swirl Cloud créée.
+Deleted the retired Access application for $fqdn.	Application Access retirée supprimée pour $fqdn.
+Discovered the existing Cloudflare Access team: $ACCESS_TEAM_NAME	Équipe Cloudflare Access existante trouvée : $ACCESS_TEAM_NAME
+Enabled automatic redirect from Cloudflare Access to Keycloak.	Redirection automatique de Cloudflare Access vers Keycloak activée.
+Invalid Access hostname label: $label	Libellé de nom d'hôte Access invalide : $label
+Keycloak SSO credentials are not ready; apply platform/keycloak-sso.yaml before enabling Cloudflare Access.	Les identifiants SSO Keycloak ne sont pas prêts ; appliquez platform/keycloak-sso.yaml avant d'activer Cloudflare Access.
+More than one Access application targets $fqdn.	Plusieurs applications Access ciblent $fqdn.
+More than one Access identity provider matches the managed Keycloak client or display name.	Plusieurs fournisseurs d'identité Access correspondent au client Keycloak géré ou au nom d'affichage.
+More than one reusable Access policy is named Swirl Cloud administrators.	Plusieurs politiques Access réutilisables s'appellent Swirl Cloud administrators.
+Protected $fqdn with Keycloak-backed Access.	$fqdn est protégé par Access adossé à Keycloak.
+Reconciled Access protection for $fqdn.	Protection Access de $fqdn mise en conformité.
+Reconciled the Keycloak OIDC identity provider for Cloudflare Access.	Fournisseur d'identité OIDC Keycloak de Cloudflare Access mis en conformité.
+Reconciled the Swirl Cloud email allowlist policy.	Politique de liste d'adresses e-mail autorisées Swirl Cloud mise en conformité.
+Reconciling Zero Trust Access for Swirl Cloud admin interfaces	Mise en conformité de Zero Trust Access pour les interfaces d'administration Swirl Cloud
+The Swirl Cloud email allowlist policy is already correct.	La politique de liste d'adresses e-mail autorisées Swirl Cloud est déjà correcte.
+The live Cloudflare Access team is $organization_auth_domain; set CLOUDFLARE_ACCESS_TEAM_NAME to its first label.	L'équipe Cloudflare Access en service est $organization_auth_domain ; donnez à CLOUDFLARE_ACCESS_TEAM_NAME son premier libellé.
+Using the Keycloak callback registered for $callback_url.	Utilisation du rappel Keycloak enregistré pour $callback_url.
+Using the existing Cloudflare Zero Trust organization without changing its account-wide settings.	Utilisation de l'organisation Cloudflare Zero Trust existante sans modifier les réglages du compte.
+$description already set to $desired_value.	$description vaut déjà $desired_value.
+$operation failed${details:+: $details}	Échec de $operation${details:+: $details}
+Cloudflare rule already correct: $rule_description	Règle Cloudflare déjà correcte : $rule_description
+Created Cloudflare rule: $rule_description	Règle Cloudflare créée : $rule_description
+More than one Cloudflare rule is named: $rule_description	Plusieurs règles Cloudflare portent le nom : $rule_description
+Set $description to $desired_value.	$description réglé sur $desired_value.
+Updated Cloudflare rule: $rule_description	Règle Cloudflare mise à jour : $rule_description
+Basic Bot Fight Mode still challenges Registry API clients.	Le Bot Fight Mode de base soumet toujours les clients de l'API du registre à un défi.
+Cloudflare bot protection already permits non-browser Registry clients.	La protection anti-bots de Cloudflare autorise déjà les clients du registre hors navigateur.
+Disabled basic Bot Fight Mode; it cannot exempt Docker Registry clients by hostname.	Bot Fight Mode de base désactivé : il ne peut pas exempter les clients du registre Docker par nom d'hôte.
+Reading Bot Management failed. Add Zone -> Bot Management -> Read and Edit to the Cloudflare token; Docker clients cannot complete browser challenges.	La lecture de Bot Management a échoué. Ajoutez Zone -> Bot Management -> Read et Edit au jeton Cloudflare ; les clients Docker ne peuvent pas résoudre les défis de navigateur.
+Reconciling Cloudflare bot protection for Registry API clients	Mise en conformité de la protection anti-bots Cloudflare pour les clients de l'API du registre
+Reconciling the Swirl Cloud custom WAF rule	Mise en conformité de la règle WAF personnalisée Swirl Cloud
+Reconciling the Swirl Cloud login rate limit	Mise en conformité de la limite de débit des connexions Swirl Cloud
+Reconciling the Swirl Cloud private-response cache bypass	Mise en conformité du contournement de cache des réponses privées Swirl Cloud
+Reconciling trusted client addresses at the Cloudflare edge	Mise en conformité des adresses client de confiance en bordure Cloudflare
+Registry bot compatibility reconciliation is disabled.	La mise en conformité anti-bots du registre est désactivée.
+A Cloudflare Registrar domain should use these nameservers automatically; resolve the account/zone ownership mismatch and rerun.	Un domaine Cloudflare Registrar devrait utiliser ces serveurs de noms automatiquement ; corrigez l'incohérence de propriété compte/zone et relancez.
+Cloudflare Registrar has not published the DNSSEC record yet; rerun after propagation.	Cloudflare Registrar n'a pas encore publié l'enregistrement DNSSEC ; relancez après propagation.
+Cloudflare did not return the DNSSEC DS record.	Cloudflare n'a pas renvoyé l'enregistrement DNSSEC DS.
+Direct Internet access to origin ports 80/443 is now blocked.	L'accès Internet direct aux ports 80/443 de l'origine est désormais bloqué.
+Kubernetes returned an invalid Traefik workload inventory.	Kubernetes a renvoyé un inventaire de charges Traefik invalide.
+Origin firewall locking is disabled by CLOUDFLARE_LOCK_ORIGIN=false.	Le verrouillage du pare-feu de l'origine est désactivé par CLOUDFLARE_LOCK_ORIGIN=false.
+Public DNSSEC delegation matches Cloudflare.	La délégation DNSSEC publique correspond à Cloudflare.
+Public nameserver delegation has not propagated yet. Rerun this script after it does.	La délégation publique des serveurs de noms n'est pas encore propagée. Relancez ce script ensuite.
+Publish this DS record in the registrar's DNSSEC/DS section:	Publiez cet enregistrement DS dans la section DNSSEC/DS du registraire :
+Registrar DNSSEC publication requires interactive completion.	La publication DNSSEC chez le registraire doit être terminée en mode interactif.
+Registrar delegation is not yet reconciled${registrar_name:+ ($registrar_name)}.	La délégation chez le registraire n'est pas encore en conformité${registrar_name:+ ($registrar_name)}.
+Registrar nameserver delegation is correct${registrar_name:+ ($registrar_name)}.	La délégation des serveurs de noms chez le registraire est correcte${registrar_name:+ ($registrar_name)}.
+Registrar nameserver delegation requires interactive completion.	La délégation des serveurs de noms chez le registraire doit être terminée en mode interactif.
+Replace the registrar's current nameservers with exactly:	Remplacez les serveurs de noms actuels du registraire par exactement :
+Restricting the origin web ports to Cloudflare proxies	Restriction des ports web de l'origine aux proxys Cloudflare
+The public DS record has not propagated yet. Rerun this script after it does.	L'enregistrement DS public n'est pas encore propagé. Relancez ce script ensuite.
+Traefik edge trust differs from the current Cloudflare networks; reconcile ingress before publishing DNS.	La confiance de bordure de Traefik diffère des réseaux Cloudflare actuels ; mettez l'entrée en conformité avant de publier le DNS.
+Traefik is not installed yet; configure-ingress.sh must configure edge trust before serving traffic.	Traefik n'est pas encore installé ; configure-ingress.sh doit configurer la confiance de bordure avant de servir du trafic.
+UFW is inactive; restrict origin ports 80/443 to Cloudflare networks in the provider firewall.	UFW est inactif ; limitez les ports 80/443 de l'origine aux réseaux Cloudflare dans le pare-feu de l'hébergeur.
+UFW is not installed; restrict origin ports 80/443 to Cloudflare networks in the provider firewall.	UFW n'est pas installé ; limitez les ports 80/443 de l'origine aux réseaux Cloudflare dans le pare-feu de l'hébergeur.
+Verified ingress forwarded-header trust against the current edge inventory.	Confiance des en-têtes transférés de l'entrée vérifiée par rapport à l'inventaire de bordure actuel.
+sudo is unavailable; restrict origin ports 80/443 to Cloudflare networks in the provider firewall.	sudo n'est pas disponible ; limitez les ports 80/443 de l'origine aux réseaux Cloudflare dans le pare-feu de l'hébergeur.
+A cluster without workers must allow workloads on its control planes.	Un cluster sans worker doit accepter les charges sur ses plans de contrôle.
+CLUSTER_NODE_COUNT must be a positive integer at least CONTROL_PLANE_COUNT.	CLUSTER_NODE_COUNT doit être un entier positif au moins égal à CONTROL_PLANE_COUNT.
+CONTROL_PLANE_COUNT must be an odd positive integer (1, 3, 5, ...).	CONTROL_PLANE_COUNT doit être un entier positif impair (1, 3, 5, ...).
+CONTROL_PLANE_SCHEDULABLE must be true or false.	CONTROL_PLANE_SCHEDULABLE doit valoir true ou false.
+Cannot read existing cluster nodes; restore API access before planning enrollment.	Impossible de lire les nœuds existants du cluster ; rétablissez l'accès à l'API avant de planifier l'inscription.
+Control-plane and worker target lists must not overlap.	Les listes de cibles plan de contrôle et worker ne doivent pas se chevaucher.
+Embedded etcd quorum: $((CONTROL_PLANE_COUNT / 2 + 1)) servers; tolerates $((CONTROL_PLANE_COUNT / 2)) server failure(s).	Quorum etcd intégré : $((CONTROL_PLANE_COUNT / 2 + 1)) serveurs ; tolère la panne de $((CONTROL_PLANE_COUNT / 2)) serveur(s).
+Enter a whole number at least $CONTROL_PLANE_COUNT; remaining nodes are workers.	Saisissez un nombre entier au moins égal à $CONTROL_PLANE_COUNT ; les autres nœuds sont des workers.
+Enter an odd positive control-plane count: 1, 3, 5, ...; etcd requires a majority for quorum.	Saisissez un nombre impair de plans de contrôle : 1, 3, 5, ... ; etcd exige une majorité pour le quorum.
+Invalid control-plane target list.	Liste de cibles plan de contrôle invalide.
+Invalid worker target list.	Liste de cibles worker invalide.
+The cluster already has $existing_control_planes registered control planes; this installer does not remove nodes.	Le cluster compte déjà $existing_control_planes plans de contrôle enregistrés ; cet installateur ne retire pas de nœuds.
+The cluster already has $existing_workers registered workers; this installer does not remove nodes.	Le cluster compte déjà $existing_workers workers enregistrés ; cet installateur ne retire pas de nœuds.
+The control-plane target list must cover $CONTROL_PLANES_TO_ADD missing servers and exclude the bootstrap host.	La liste de cibles plan de contrôle doit couvrir les $CONTROL_PLANES_TO_ADD serveurs manquants et exclure le serveur d'amorçage.
+The local K3s service has no binary; restore it before planning enrollment.	Le service K3s local n'a pas de binaire ; restaurez-le avant de planifier l'inscription.
+The worker target list must cover $WORKERS_TO_ADD missing workers and cannot exceed $PLANNED_WORKER_COUNT planned workers.	La liste de cibles worker doit couvrir les $WORKERS_TO_ADD workers manquants sans dépasser les $PLANNED_WORKER_COUNT workers prévus.
+Topology plan: $CONTROL_PLANE_COUNT control plane(s), $PLANNED_WORKER_COUNT worker(s), $CLUSTER_NODE_COUNT total; control-plane schedulable=$CONTROL_PLANE_SCHEDULABLE.	Topologie prévue : $CONTROL_PLANE_COUNT plan(s) de contrôle, $PLANNED_WORKER_COUNT worker(s), $CLUSTER_NODE_COUNT au total ; charges sur le plan de contrôle=$CONTROL_PLANE_SCHEDULABLE.
+Use only one of K3S_CONTROL_PLANE_HOSTS and K3S_CONTROL_PLANE_IPS.	Utilisez un seul de K3S_CONTROL_PLANE_HOSTS et K3S_CONTROL_PLANE_IPS.
+Use only one of K3S_WORKER_HOSTS and K3S_WORKER_IPS.	Utilisez un seul de K3S_WORKER_HOSTS et K3S_WORKER_IPS.
+$worker_ip is outside $NODE_NETWORK_CIDR.	$worker_ip est hors de $NODE_NETWORK_CIDR.
+Cannot use passwordless sudo on $target. Configure SSH keys and NOPASSWD sudo, or connect as root.	Impossible d'utiliser sudo sans mot de passe sur $target. Configurez des clés SSH et sudo NOPASSWD, ou connectez-vous en root.
+Checking bootstrap SSH access to $bootstrap_target...	Vérification de l'accès SSH d'amorçage à $bootstrap_target...
+Checking public/bootstrap SSH before OVHcloud vRack configuration on $bootstrap_target...	Vérification du SSH public/d'amorçage avant la configuration OVHcloud vRack sur $bootstrap_target...
+Configuring $worker_ip on the OVHcloud private NIC before UFW changes...	Configuration de $worker_ip sur l'interface privée OVHcloud avant les changements UFW...
+Control-plane source $client_ip is outside trusted node CIDR $NODE_NETWORK_CIDR.	La source plan de contrôle $client_ip est hors du CIDR de nœuds de confiance $NODE_NETWORK_CIDR.
+Could not create a Tailscale worker auth key.	Impossible de créer une clé d'authentification Tailscale pour le worker.
+Could not create a safe Tailscale bootstrap directory on $bootstrap_target.	Impossible de créer un répertoire d'amorçage Tailscale sûr sur $bootstrap_target.
+Could not create a safe vRack configuration directory on $bootstrap_target.	Impossible de créer un répertoire de configuration vRack sûr sur $bootstrap_target.
+Could not determine the hostname of $bootstrap_target.	Impossible de déterminer le nom d'hôte de $bootstrap_target.
+Creating a one-use Tailscale $ENROLLMENT_ROLE key for $TAILSCALE_NODE_NAME.	Création d'une clé Tailscale $ENROLLMENT_ROLE à usage unique pour $TAILSCALE_NODE_NAME.
+Installing and connecting Tailscale on $bootstrap_target.	Installation et connexion de Tailscale sur $bootstrap_target.
+Invalid SSH bootstrap target: $target	Cible SSH d'amorçage invalide : $target
+Invalid SSH target: $target	Cible SSH invalide : $target
+Invalid Tailscale hostname '$TAILSCALE_NODE_NAME'; use lower-case letters, numbers, and hyphens.	Nom d'hôte Tailscale invalide '$TAILSCALE_NODE_NAME' ; utilisez des minuscules, des chiffres et des tirets.
+Private SSH did not become reachable at $private_target; bootstrap SSH remains available at $bootstrap_target and UFW was not changed.	Le SSH privé n'est pas devenu joignable sur $private_target ; le SSH d'amorçage reste disponible sur $bootstrap_target et UFW n'a pas été modifié.
+Private SSH is proven through $configured_interface; node UFW may now close public ingress.	Le SSH privé est prouvé via $configured_interface ; l'UFW du nœud peut maintenant fermer l'entrée publique.
+SSH did not become reachable over Tailscale at $tagged_target.	Le SSH n'est pas devenu joignable via Tailscale sur $tagged_target.
+SSH to $target does not originate from an RFC1918/Tailscale control-plane address (observed: ${client_ip:-unknown}).	Le SSH vers $target ne provient pas d'une adresse plan de contrôle RFC1918/Tailscale (observée : ${client_ip:-unknown}).
+SSH to $target reached $worker_ip instead of the entered worker local IP $expected_worker_ip.	Le SSH vers $target a atteint $worker_ip au lieu de l'IP locale saisie pour le worker, $expected_worker_ip.
+SSH to $target reached a non-private worker address (${worker_ip:-unknown}).	Le SSH vers $target a atteint une adresse de worker non privée (${worker_ip:-unknown}).
+SSH used $client_ip instead of the verified local control-plane source $CONTROL_PLANE_IP	Le SSH a utilisé $client_ip au lieu de la source locale vérifiée du plan de contrôle, $CONTROL_PLANE_IP
+Tailscale provisioning failed on $bootstrap_target.	Le provisionnement Tailscale a échoué sur $bootstrap_target.
+The OVHcloud Dedicated Server service name is required for API attachment.	Le nom de service OVHcloud Dedicated Server est requis pour le rattachement par API.
+The control plane cannot reach new Tailscale peer $worker_ip.	Le plan de contrôle ne joint pas le nouveau pair Tailscale $worker_ip.
+The worker did not return a valid Tailscale IPv4 address: ${worker_ip:-none}	Le worker n'a pas renvoyé d'adresse IPv4 Tailscale valide : ${worker_ip:-none}
+Worker address $worker_ip is outside trusted node CIDR $NODE_NETWORK_CIDR.	L'adresse de worker $worker_ip est hors du CIDR de nœuds de confiance $NODE_NETWORK_CIDR.
+vRack NIC configuration failed on $bootstrap_target; its public firewall was not changed.	La configuration de l'interface vRack a échoué sur $bootstrap_target ; son pare-feu public n'a pas été modifié.
+A GitLab administrator API token is required.	Un jeton d'API administrateur GitLab est requis.
+Creating a one-day GitLab administrator token through the local GitLab command line	Création d'un jeton administrateur GitLab valable un jour via la ligne de commande GitLab locale
+Set GITLAB_ADMIN_TOKEN; automatic local GitLab token creation was unavailable.	Renseignez GITLAB_ADMIN_TOKEN ; la création automatique d'un jeton GitLab local n'était pas disponible.
+The local GitLab command line could not issue a token; interactive credentials are required	La ligne de commande GitLab locale n'a pas pu émettre de jeton ; des identifiants interactifs sont requis
+An NFS mount is active; leaving rpcbind unchanged.	Un montage NFS est actif ; rpcbind reste inchangé.
+Building the initial AIDE database in the background (swirl-cloud-aide-init.service).	Construction de la base AIDE initiale en arrière-plan (swirl-cloud-aide-init.service).
+Host baseline applied.	Socle de sécurité de l'hôte appliqué.
+Purging configuration left by ${#residual[@]} removed kernel package(s).	Purge de la configuration laissée par ${#residual[@]} paquet(s) de noyau supprimé(s).
+ Control Plane Installer	 Installateur du plan de contrôle
+ Installation complete!	 Installation terminée !
+$@	$@
+$CONTROL_PLANES_TO_ADD additional control-plane node(s) will be added or reconciled over SSH.	$CONTROL_PLANES_TO_ADD nœud(s) de plan de contrôle supplémentaire(s) seront ajoutés ou mis en conformité par SSH.
+$K3S_PRIVATE_ADDRESS belongs to unsupported virtual interface $K3S_PRIVATE_INTERFACE.	$K3S_PRIVATE_ADDRESS appartient à l'interface virtuelle non prise en charge $K3S_PRIVATE_INTERFACE.
+$K3S_PRIVATE_ADDRESS is not configured on this host. Assign the fixed LAN address first; LAN transport does not change host networking.	$K3S_PRIVATE_ADDRESS n'est pas configurée sur ce serveur. Attribuez d'abord l'adresse LAN fixe ; le transport LAN ne modifie pas le réseau de l'hôte.
+$K3S_PRIVATE_ADDRESS is outside $K3S_NODE_NETWORK_CIDR.	$K3S_PRIVATE_ADDRESS est hors de $K3S_NODE_NETWORK_CIDR.
+$WORKERS_TO_ADD worker node(s) will be added or reconciled over SSH.	$WORKERS_TO_ADD nœud(s) worker seront ajoutés ou mis en conformité par SSH.
+$name must be true or false.	$name doit valoir true ou false.
+=============================================	=============================================
+A control-plane vRack/private IPv4 address is required.	Une adresse IPv4 vRack/privée du plan de contrôle est requise.
+A trusted vRack/private node CIDR is required.	Un CIDR de nœuds vRack/privé de confiance est requis.
+Aborted.	Abandon.
+Adding $USER to docker group (re-login required for non-sudo docker)...	Ajout de $USER au groupe docker (reconnexion nécessaire pour docker sans sudo)...
+Adding K3s worker nodes...	Ajout des nœuds worker K3s...
+Aligning local infrastructure superuser passwords...	Alignement des mots de passe des super-utilisateurs locaux de l'infrastructure...
+All Kubernetes feature groups were skipped.	Tous les groupes de fonctions Kubernetes ont été ignorés.
+Application environment registration failed; review its data authentication and TLS prerequisites.	L'enregistrement des environnements d'application a échoué ; vérifiez ses prérequis d'authentification aux données et de TLS.
+Applying the $SERVER_EXPOSURE control-plane host security policy...	Application de la politique de sécurité $SERVER_EXPOSURE du serveur de plan de contrôle...
+Applying the platform Argo CD Application...	Application de l'Application Argo CD de la plateforme...
+Applying unified Vault manifests (ingress, RBAC, and secret sync)...	Application des manifestes Vault unifiés (entrée, RBAC et synchronisation des secrets)...
+Attaching the control-plane private interface to OVHcloud vRack $OVH_VRACK_SERVICE_NAME...	Rattachement de l'interface privée du plan de contrôle au vRack OVHcloud $OVH_VRACK_SERVICE_NAME...
+Bootstrapping Vault auth/policies and seeding secrets...	Initialisation de l'authentification et des politiques Vault, et dépôt des secrets...
+CLOUDFLARE_ACCESS_TEAM_NAME must be a single lowercase DNS label.	CLOUDFLARE_ACCESS_TEAM_NAME doit être un seul libellé DNS en minuscules.
+CONFIGURE_CLOUDFLARE must be true or false.	CONFIGURE_CLOUDFLARE doit valoir true ou false.
+CONTROL_PLANE_NODE_NAME must identify the bootstrap control-plane node.	CONTROL_PLANE_NODE_NAME doit désigner le nœud de plan de contrôle d'amorçage.
+Cannot reach K8s cluster.	Impossible de joindre le cluster Kubernetes.
+Cloudflare configurator is not executable: $CLOUDFLARE_SCRIPT	Le configurateur Cloudflare n'est pas exécutable : $CLOUDFLARE_SCRIPT
+Cloudflare publishing requires Traefik ingress; enabling ingress installation.	La publication Cloudflare exige l'entrée Traefik ; installation de l'entrée activée.
+Cluster topology reconciler is not executable: $CLUSTER_TOPOLOGY_SCRIPT	Le réconciliateur de topologie du cluster n'est pas exécutable : $CLUSTER_TOPOLOGY_SCRIPT
+Configuration rendering requires python3-yaml; enable prerequisite installation.	Le rendu de la configuration exige python3-yaml ; activez l'installation des prérequis.
+Configuring Cloudflare DNS and Origin TLS...	Configuration du DNS Cloudflare et du TLS d'origine...
+Configuring Kubernetes API audit logging...	Configuration de la journalisation d'audit de l'API Kubernetes...
+Configuring Longhorn host storage prerequisites...	Configuration des prérequis de stockage Longhorn sur l'hôte...
+Configuring and validating the control-plane OVHcloud vRack interface before any firewall changes...	Configuration et validation de l'interface OVHcloud vRack du plan de contrôle avant tout changement de pare-feu...
+Configuring daily consistent K3s recovery archives...	Configuration des archives de reprise K3s quotidiennes et cohérentes...
+Configuring private K3s control-plane networking...	Configuration du réseau privé du plan de contrôle K3s...
+Configuring recurring off-node Longhorn volume backups...	Configuration des sauvegardes récurrentes des volumes Longhorn hors du nœud...
+Configuring the cluster-only $INTERNAL_DNS_ZONE service aliases...	Configuration des alias de service $INTERNAL_DNS_ZONE internes au cluster...
+Configuring the enforced K3s AppArmor runtime profile...	Configuration du profil AppArmor imposé à l'exécution de K3s...
+Configuring the platform mail relay...	Configuration du relais de messagerie de la plateforme...
+Connecting Cloudflare Access to Keycloak...	Connexion de Cloudflare Access à Keycloak...
+Creating infra namespace...	Création de l'espace de noms infra...
+Creating the shared application namespace...	Création de l'espace de noms partagé des applications...
+DEFAULT_HELM_VERSION must be a Helm 3 release such as v3.22.0.	DEFAULT_HELM_VERSION doit être une version de Helm 3, par exemple v3.22.0.
+Data stores require Vault-synced secrets; enabling Vault + External Secrets install.	Les bases de données exigent des secrets synchronisés depuis Vault ; installation de Vault + External Secrets activée.
+Deploying GitLab projects with --yes requires GITLAB_PROJECTS and DEPLOY_REPOSITORIES (all, none, or names).	Déployer des projets GitLab avec --yes exige GITLAB_PROJECTS et DEPLOY_REPOSITORIES (all, none ou des noms).
+Deploying Odoo in the corp namespace...	Déploiement d'Odoo dans l'espace de noms corp...
+Deploying core data stores...	Déploiement des bases de données principales...
+Deploying platform services...	Déploiement des services de la plateforme...
+Deploying the outage watch on Cloudflare...	Déploiement de la surveillance des pannes sur Cloudflare...
+Deployment inventory is not readable: $DEPLOYMENT_ENVIRONMENTS_FILE	L'inventaire de déploiement est illisible : $DEPLOYMENT_ENVIRONMENTS_FILE
+Direct Cloudflare ingress requires internet exposure.	L'entrée Cloudflare directe exige l'exposition à Internet.
+Do not run as root. The script uses sudo when needed.	Ne lancez pas en root. Le script utilise sudo quand il le faut.
+Ensuring HTTPS TLS secret...	Vérification du secret TLS HTTPS...
+GitLab CI configurator is not executable: $GITLAB_CI_SCRIPT	Le configurateur GitLab CI n'est pas exécutable : $GITLAB_CI_SCRIPT
+GitLab token helper is missing: $GITLAB_TOKEN_LIBRARY	L'assistant de jeton GitLab est absent : $GITLAB_TOKEN_LIBRARY
+HA needs three workers when control planes are unschedulable.	La haute disponibilité exige trois workers quand les plans de contrôle n'acceptent pas de charges.
+HA requires at least three planned control planes. Add servers before enabling it.	La haute disponibilité exige au moins trois plans de contrôle prévus. Ajoutez des serveurs avant de l'activer.
+HIGH_AVAILABILITY_ENABLED must be true or false.	HIGH_AVAILABILITY_ENABLED doit valoir true ou false.
+Helm ${DEFAULT_HELM_VERSION} archive checksum mismatch; refusing to install it.	L'empreinte de l'archive Helm ${DEFAULT_HELM_VERSION} ne correspond pas ; installation refusée.
+Host security script not found at $SECURITY_HARDEN_SCRIPT	Script de sécurité de l'hôte introuvable : $SECURITY_HARDEN_SCRIPT
+INSTALL_DEVELOPER_TOOLS must be true or false.	INSTALL_DEVELOPER_TOOLS doit valoir true ou false.
+Infrastructure and apps selected: deploying Odoo.	Infrastructure et applications sélectionnées : déploiement d'Odoo.
+Infrastructure-only installation selected.	Installation de l'infrastructure seule sélectionnée.
+Install and enroll the nodes first, then activate HA using docs/guides/high-availability.md.	Installez et inscrivez d'abord les nœuds, puis activez la haute disponibilité avec docs/guides/high-availability.md.
+Installation inputs in $INSTALL_ENV_FILE are valid.	Les paramètres d'installation de $INSTALL_ENV_FILE sont valides.
+Installer URL must use HTTPS: $url	L'URL de l'installateur doit utiliser HTTPS : $url
+Installing ArgoCD...	Installation d'Argo CD...
+Installing Descheduler addon resources (manual-run mode)...	Installation des ressources du module Descheduler (exécution manuelle)...
+Installing External Secrets Operator...	Installation d'External Secrets Operator...
+Installing HashiCorp Vault...	Installation de HashiCorp Vault...
+Installing K3s with bundled ingress disabled; the shared Helm release owns Traefik...	Installation de K3s sans son entrée intégrée ; la release Helm partagée gère Traefik...
+Installing Traefik ingress controller...	Installation du contrôleur d'entrée Traefik...
+Installing developer tools (Java 21, Maven, Docker)...	Installation des outils de développement (Java 21, Maven, Docker)...
+Installing pinned Helm ${DEFAULT_HELM_VERSION:-}...	Installation de la version épinglée de Helm ${DEFAULT_HELM_VERSION:-}...
+Installing system prerequisites...	Installation des prérequis système...
+Installing/upgrading Longhorn with $longhorn_replicas default replica(s) for new volumes...	Installation ou mise à jour de Longhorn avec $longhorn_replicas réplique(s) par défaut pour les nouveaux volumes...
+Internet-exposed mode selected: enabling UFW, Fail2ban, CrowdSec, and control-plane Lynis.	Mode exposé à Internet sélectionné : activation d'UFW, Fail2ban, CrowdSec et Lynis sur le plan de contrôle.
+Invalid installer filename: $filename	Nom de fichier d'installateur invalide : $filename
+Joining additional K3s control-plane servers...	Ajout des serveurs de plan de contrôle K3s supplémentaires...
+K3S_API_VIP is required when adding vRack or LAN control planes.	K3S_API_VIP est requis pour ajouter des plans de contrôle vRack ou LAN.
+K3S_API_VIP must be an unused address inside $K3S_NODE_NETWORK_CIDR.	K3S_API_VIP doit être une adresse libre dans $K3S_NODE_NETWORK_CIDR.
+K3S_NODE_NETWORK_CIDR is required with LAN nodes.	K3S_NODE_NETWORK_CIDR est requis avec des nœuds LAN.
+K3S_NODE_NETWORK_CIDR is required with vRack nodes.	K3S_NODE_NETWORK_CIDR est requis avec des nœuds vRack.
+K3S_PRIVATE_ADDRESS is required with vRack nodes.	K3S_PRIVATE_ADDRESS est requis avec des nœuds vRack.
+K3s AppArmor configurator is not executable: $K3S_APPARMOR_SCRIPT	Le configurateur AppArmor de K3s n'est pas exécutable : $K3S_APPARMOR_SCRIPT
+K3s backup configurator is not executable: $K3S_BACKUP_SCRIPT	Le configurateur de sauvegarde K3s n'est pas exécutable : $K3S_BACKUP_SCRIPT
+K3s detected: $(k3s --version | head -1)	K3s détecté : $(k3s --version | head -1)
+K3s private-network configurator not found or not executable: $K3S_NETWORK_SCRIPT	Configurateur du réseau privé K3s introuvable ou non exécutable : $K3S_NETWORK_SCRIPT
+K3s registry mirror configurator is not executable: $K3S_REGISTRY_MIRROR_SCRIPT	Le configurateur du miroir de registre K3s n'est pas exécutable : $K3S_REGISTRY_MIRROR_SCRIPT
+LAN transport requires an RFC1918 node CIDR: ${K3S_NODE_NETWORK_CIDR:-none}	Le transport LAN exige un CIDR de nœuds RFC1918 : ${K3S_NODE_NETWORK_CIDR:-none}
+LAN transport requires this control plane's RFC1918 IPv4 address (K3S_PRIVATE_ADDRESS).	Le transport LAN exige l'adresse IPv4 RFC1918 de ce plan de contrôle (K3S_PRIVATE_ADDRESS).
+Local LAN prerequisites are incomplete.	Les prérequis du LAN local sont incomplets.
+Local administrator password rotation script is not executable: $LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT	Le script de rotation des mots de passe administrateur locaux n'est pas exécutable : $LOCAL_ADMIN_PASSWORD_ROTATION_SCRIPT
+Local-only mode selected: enabling UFW and control-plane Lynis; skipping Fail2ban and CrowdSec.	Mode local seul sélectionné : activation d'UFW et de Lynis sur le plan de contrôle ; Fail2ban et CrowdSec ignorés.
+Longhorn host configurator is not executable: $LONGHORN_HOST_SCRIPT	Le configurateur d'hôte Longhorn n'est pas exécutable : $LONGHORN_HOST_SCRIPT
+No pinned Helm release for architecture $(uname -m); install Helm manually.	Aucune version épinglée de Helm pour l'architecture $(uname -m) ; installez Helm manuellement.
+Node enrollment script is not executable.	Le script d'inscription des nœuds n'est pas exécutable.
+Node enrollment script is not executable: $NODE_ENROLLMENT_SCRIPT	Le script d'inscription des nœuds n'est pas exécutable : $NODE_ENROLLMENT_SCRIPT
+OVH_VRACK_SERVICE_NAME and OVH_CONTROL_PLANE_SERVICE_NAME are required for API attachment.	OVH_VRACK_SERVICE_NAME et OVH_CONTROL_PLANE_SERVICE_NAME sont requis pour le rattachement par API.
+OVHcloud account attachment is manual: the existing vRack and every server must be attached in Control Panel before host configuration.	Le rattachement au compte OVHcloud est manuel : le vRack existant et chaque serveur doivent être rattachés dans l'espace client avant la configuration des hôtes.
+OVHcloud vRack configurator not found or not executable: $OVH_VRACK_SCRIPT	Configurateur OVHcloud vRack introuvable ou non exécutable : $OVH_VRACK_SCRIPT
+OVHcloud vRack prerequisites are incomplete or account verification failed.	Les prérequis OVHcloud vRack sont incomplets ou la vérification du compte a échoué.
+Odoo SSO depends on Keycloak; enabling platform service deployment.	Le SSO d'Odoo dépend de Keycloak ; déploiement des services de la plateforme activé.
+Odoo depends on PostgreSQL; enabling data store deployment.	Odoo dépend de PostgreSQL ; déploiement des bases de données activé.
+Onboarding repositories ($REPOSITORY_SOURCE) and selecting deployments...	Intégration des dépôts ($REPOSITORY_SOURCE) et choix des déploiements...
+Platform services depend on data stores; enabling data store deployment.	Les services de la plateforme dépendent des bases de données ; déploiement des bases de données activé.
+Platform verification failed; fix the [FAIL] items above, then rerun the installer or ./install.sh --status.	La vérification de la plateforme a échoué ; corrigez les points [FAIL] ci-dessus, puis relancez l'installateur ou ./install.sh --status.
+Preparing the bootstrap server's embedded etcd datastore...	Préparation du magasin etcd intégré du serveur d'amorçage...
+Preserving this enrolled control plane's private exposure policy.	Conservation de la politique d'exposition privée de ce plan de contrôle inscrit.
+Provide K3S_CONTROL_PLANE_HOSTS or K3S_CONTROL_PLANE_IPS for non-interactive server enrollment.	Fournissez K3S_CONTROL_PLANE_HOSTS ou K3S_CONTROL_PLANE_IPS pour inscrire des serveurs sans interaction.
+Provide K3S_WORKER_HOSTS or K3S_WORKER_IPS for non-interactive worker enrollment.	Fournissez K3S_WORKER_HOSTS ou K3S_WORKER_IPS pour inscrire des workers sans interaction.
+Publishing host security policy record...	Publication de l'enregistrement de politique de sécurité de l'hôte...
+REPOSITORY_SOURCE must be github or gitlab.	REPOSITORY_SOURCE doit valoir github ou gitlab.
+Reconciling control-plane scheduling and topology-dependent configuration...	Mise en conformité de l'ordonnancement du plan de contrôle et de la configuration liée à la topologie...
+Reconciling the tailnet policy and control-plane role...	Mise en conformité de la politique du tailnet et du rôle du plan de contrôle...
+Recording this server's monthly cost for cost showback...	Enregistrement du coût mensuel de ce serveur pour la refacturation...
+Registering application environments on this cluster...	Enregistrement des environnements d'application sur ce cluster...
+Repository assistant is not executable: $REPLICATE_REPO_SCRIPT	L'assistant de dépôts n'est pas exécutable : $REPLICATE_REPO_SCRIPT
+Repository replication with --yes requires GITHUB_USERNAME, GITHUB_ADMIN_TOKEN, GITHUB_REPOSITORIES, and DEPLOY_REPOSITORIES (all, none, or names).	La réplication des dépôts avec --yes exige GITHUB_USERNAME, GITHUB_ADMIN_TOKEN, GITHUB_REPOSITORIES et DEPLOY_REPOSITORIES (all, none ou des noms).
+Reserving node memory for the host and K3s...	Réservation de mémoire du nœud pour l'hôte et K3s...
+Set CLOUDFLARE_ACCESS_ALLOWED_EMAILS or CLOUDFLARE_ENABLE_ACCESS=false for --yes.	Renseignez CLOUDFLARE_ACCESS_ALLOWED_EMAILS ou CLOUDFLARE_ENABLE_ACCESS=false pour --yes.
+Set CLOUDFLARE_API_TOKEN for Cloudflare reconciliation with --yes.	Renseignez CLOUDFLARE_API_TOKEN pour la mise en conformité Cloudflare avec --yes.
+Skipping system prerequisites.	Prérequis système ignorés.
+Tailscale configurator not found or not executable: $TAILSCALE_SCRIPT	Configurateur Tailscale introuvable ou non exécutable : $TAILSCALE_SCRIPT
+Tailscale prerequisites are incomplete or account verification failed.	Les prérequis Tailscale sont incomplets ou la vérification du compte a échoué.
+The outage watch was not deployed; rerun scripts/configure-outage-watch.py (docs/guides/service-levels.md#outage-watch).	La surveillance des pannes n'a pas été déployée ; relancez scripts/configure-outage-watch.py (docs/guides/service-levels.md#outage-watch).
+The pinned Helm $arch checksum is missing or invalid.	L'empreinte épinglée de Helm $arch est absente ou invalide.
+The requested worker count is already present; no worker enrollment is needed.	Le nombre de workers demandé est déjà atteint ; aucune inscription de worker n'est nécessaire.
+This host is a K3s worker. Run this installer on the bootstrap control-plane host.	Ce serveur est un worker K3s. Lancez cet installateur sur le serveur de plan de contrôle d'amorçage.
+Using LAN address $K3S_PRIVATE_ADDRESS on $K3S_PRIVATE_INTERFACE for cluster traffic.	Utilisation de l'adresse LAN $K3S_PRIVATE_ADDRESS sur $K3S_PRIVATE_INTERFACE pour le trafic du cluster.
+Vault configurator is not executable: $VAULT_BOOTSTRAP_SCRIPT	Le configurateur Vault n'est pas exécutable : $VAULT_BOOTSTRAP_SCRIPT
+Verifying the installed platform...	Vérification de la plateforme installée...
+helm not found.	helm introuvable.
+kubectl not found.	kubectl introuvable.
+openssl not found.	openssl introuvable.
+vRack transport requires this control plane's RFC1918 IPv4 address.	Le transport vRack exige l'adresse IPv4 RFC1918 de ce plan de contrôle.
+Could not create the installation record in $INSTALL_RECORD_DIR; continuing without it.	Impossible de créer l'enregistrement d'installation dans $INSTALL_RECORD_DIR ; poursuite sans lui.
+$LOCAL_ADMIN_PASSWORD_ERROR	$LOCAL_ADMIN_PASSWORD_ERROR
+$SSO_ADMIN_VALIDATION_ERROR	$SSO_ADMIN_VALIDATION_ERROR
+Custom component selection enabled.	Sélection personnalisée des composants activée.
+Enter 1 for infra only or 2 for infra + apps.	Saisissez 1 pour l'infrastructure seule ou 2 pour l'infrastructure et les applications.
+INSTALL_SCOPE must be infra or apps.	INSTALL_SCOPE doit valoir infra ou apps.
+Invalid SERVER_EXPOSURE value: $1	Valeur de SERVER_EXPOSURE invalide : $1
+K3S_NODE_TRANSPORT must be vrack, tailscale or lan.	K3S_NODE_TRANSPORT doit valoir vrack, tailscale ou lan.
+Keycloak will provision '$KEYCLOAK_SSO_BOOTSTRAP_USERNAME' as the shared platform administrator.	Keycloak créera '$KEYCLOAK_SSO_BOOTSTRAP_USERNAME' comme administrateur partagé de la plateforme.
+Please answer 'internet' or 'local'.	Répondez 'internet' ou 'local'.
+ROTATE_LOCAL_ADMIN_PASSWORDS must be true or false.	ROTATE_LOCAL_ADMIN_PASSWORDS doit valoir true ou false.
+Set K3S_NODE_TRANSPORT=vrack|tailscale|lan when adding nodes non-interactively.	Renseignez K3S_NODE_TRANSPORT=vrack|tailscale|lan pour ajouter des nœuds sans interaction.
+Set LOCAL_ADMIN_PASSWORD when ROTATE_LOCAL_ADMIN_PASSWORDS=true. $LOCAL_ADMIN_PASSWORD_ERROR	Renseignez LOCAL_ADMIN_PASSWORD quand ROTATE_LOCAL_ADMIN_PASSWORDS=true. $LOCAL_ADMIN_PASSWORD_ERROR
+Set a valid KEYCLOAK_SSO_BOOTSTRAP_PASSWORD for a non-interactive platform installation. $SSO_ADMIN_VALIDATION_ERROR	Renseignez un KEYCLOAK_SSO_BOOTSTRAP_PASSWORD valide pour une installation sans interaction. $SSO_ADMIN_VALIDATION_ERROR
+Set a valid KEYCLOAK_SSO_BOOTSTRAP_USERNAME for a non-interactive platform installation. $SSO_ADMIN_VALIDATION_ERROR	Renseignez un KEYCLOAK_SSO_BOOTSTRAP_USERNAME valide pour une installation sans interaction. $SSO_ADMIN_VALIDATION_ERROR
+The installer will align supported local infrastructure superusers after platform deployment.	L'installateur alignera les super-utilisateurs locaux pris en charge après le déploiement de la plateforme.
+The passwords do not match.	Les mots de passe ne correspondent pas.
+Using the supplied component selection; unset components default to installed.	Utilisation de la sélection de composants fournie ; les composants non renseignés sont installés par défaut.
+BACKUP_S3_BUCKET is invalid.	BACKUP_S3_BUCKET est invalide.
+BACKUP_S3_ENDPOINT must use HTTPS.	BACKUP_S3_ENDPOINT doit utiliser HTTPS.
+BACKUP_S3_REGION is invalid.	BACKUP_S3_REGION est invalide.
+Backup encryption passwords do not match.	Les mots de passe de chiffrement des sauvegardes ne correspondent pas.
+Backups will remain local and will not survive loss of this server.	Les sauvegardes resteront locales et ne survivront pas à la perte de ce serveur.
+CLOUDFLARE_NODE_DNS_LABEL must be a single valid lowercase DNS label.	CLOUDFLARE_NODE_DNS_LABEL doit être un seul libellé DNS valide en minuscules.
+CLOUDFLARE_ZONE must match PLATFORM_DOMAIN for this deployment.	CLOUDFLARE_ZONE doit correspondre à PLATFORM_DOMAIN pour ce déploiement.
+CONFIGURE_OFFSITE_BACKUPS must be true or false.	CONFIGURE_OFFSITE_BACKUPS doit valoir true ou false.
+CONFIGURE_PLATFORM_MAIL must be true or false.	CONFIGURE_PLATFORM_MAIL doit valoir true ou false.
+CONFIGURE_REPOSITORY_SYNC must be true or false.	CONFIGURE_REPOSITORY_SYNC doit valoir true ou false.
+CONTROL_PLANE_NODE_NAME must be a single valid lowercase DNS label.	CONTROL_PLANE_NODE_NAME doit être un seul libellé DNS valide en minuscules.
+Cluster identity: node $CONTROL_PLANE_NODE_NAME, public domain $PLATFORM_DOMAIN, private domain $INTERNAL_DNS_ZONE	Identité du cluster : nœud $CONTROL_PLANE_NODE_NAME, domaine public $PLATFORM_DOMAIN, domaine privé $INTERNAL_DNS_ZONE
+Configuration renderer is not executable: $RENDER_CONFIG_SCRIPT	Le moteur de rendu de la configuration n'est pas exécutable : $RENDER_CONFIG_SCRIPT
+INTERNAL_DNS_ZONE is invalid.	INTERNAL_DNS_ZONE est invalide.
+Invalid organization configuration.	Configuration de l'organisation invalide.
+PLATFORM_MAIL_TLS must be ssl or starttls.	PLATFORM_MAIL_TLS doit valoir ssl ou starttls.
+Platform mail is left as it is; see docs/guides/platform-mail.md to set it up later.	La messagerie de la plateforme reste inchangée ; voir docs/guides/platform-mail.md pour la configurer plus tard.
+Platform mail needs PLATFORM_MAIL_HOST, PLATFORM_MAIL_USERNAME and PLATFORM_MAIL_PASSWORD.	La messagerie de la plateforme exige PLATFORM_MAIL_HOST, PLATFORM_MAIL_USERNAME et PLATFORM_MAIL_PASSWORD.
+REPOSITORY_SYNC_MAPPINGS was replaced by GITHUB_USERNAME, GITHUB_REPOSITORIES, and GITLAB_GROUP_PATH; see docs/guides/repository-onboarding.md.	REPOSITORY_SYNC_MAPPINGS a été remplacé par GITHUB_USERNAME, GITHUB_REPOSITORIES et GITLAB_GROUP_PATH ; voir docs/guides/repository-onboarding.md.
+S3 backup credentials are required.	Les identifiants S3 des sauvegardes sont requis.
+Set GITOPS_REPOSITORY_URL to an HTTP(S) .git repository accessible by Argo CD.	Renseignez dans GITOPS_REPOSITORY_URL un dépôt .git HTTP(S) accessible par Argo CD.
+Set ORGANIZATION_NAME to the company or organization display name.	Renseignez dans ORGANIZATION_NAME le nom d'affichage de l'entreprise ou de l'organisation.
+Set PLATFORM_DOMAIN to a valid base domain such as example.com.	Renseignez dans PLATFORM_DOMAIN un domaine de base valide, par exemple example.com.
+The backup encryption password must contain at least 16 characters.	Le mot de passe de chiffrement des sauvegardes doit compter au moins 16 caractères.
+The platform GitLab group must be a top-level group.	Le groupe GitLab de la plateforme doit être un groupe de premier niveau.
+The private service domain must differ from the public domain.	Le domaine privé des services doit différer du domaine public.
+Installing CrowdSec collection ${collection}...	Installation de la collection CrowdSec ${collection}...
+Installing CrowdSec package repository...	Installation du dépôt de paquets CrowdSec...
+Preserving the enrolled control plane's private firewall policy	Conservation de la politique de pare-feu privée du plan de contrôle inscrit
+Private SSH administration reconciled for verified control planes: $CONTROL_PLANE_SSH_IPS	Administration SSH privée mise en conformité pour les plans de contrôle vérifiés : $CONTROL_PLANE_SSH_IPS
+Private SSH preflight passed from $CONTROL_PLANE_IP to $route_source on $route_interface; UFW may now close public ingress.	Contrôle préalable du SSH privé réussi de $CONTROL_PLANE_IP vers $route_source sur $route_interface ; UFW peut maintenant fermer l'entrée publique.
+Tailscale preflight passed on $local_tailscale_ip; worker UFW can now close public ingress.	Contrôle préalable Tailscale réussi sur $local_tailscale_ip ; l'UFW du worker peut maintenant fermer l'entrée publique.
+$ENROLLMENT_ROLE '$node_name' did not register within 60 seconds.	$ENROLLMENT_ROLE '$node_name' ne s'est pas enregistré en 60 secondes.
+$ENROLLMENT_ROLE installation failed on $target.	L'installation $ENROLLMENT_ROLE a échoué sur $target.
+$host is outside $NODE_NETWORK_CIDR.	$host est hors de $NODE_NETWORK_CIDR.
+$node_ip is the Kubernetes API endpoint address, not a node.	$node_ip est l'adresse du point d'accès de l'API Kubernetes, pas un nœud.
+Backing up SQLite and preparing embedded etcd for the validated control-plane plan...	Sauvegarde de SQLite et préparation d'etcd intégré pour le plan de contrôle validé...
+Cannot verify control-plane SSH sources before enrollment	Impossible de vérifier les sources SSH du plan de contrôle avant l'inscription
+Confirming a fresh private SSH connection after $ENROLLMENT_ROLE UFW was enabled...	Confirmation d'une nouvelle connexion SSH privée après l'activation de l'UFW $ENROLLMENT_ROLE...
+Control plane '$node_name' already belongs to this cluster; keeping its existing server configuration.	Le plan de contrôle '$node_name' appartient déjà à ce cluster ; sa configuration serveur existante est conservée.
+Control-plane host list contains an empty item.	La liste des hôtes de plan de contrôle contient un élément vide.
+Copying the $ENROLLMENT_ROLE installer and enforced AppArmor profile to $target...	Copie de l'installateur $ENROLLMENT_ROLE et du profil AppArmor imposé vers $target...
+Copying the worker host-security policy to $target...	Copie de la politique de sécurité d'hôte du worker vers $target...
+Could not create a safe temporary directory on $target.	Impossible de créer un répertoire temporaire sûr sur $target.
+Could not determine the hostname of $host.	Impossible de déterminer le nom d'hôte de $host.
+Could not prepare the Kubernetes API Tailscale Service; no control planes were enrolled.	Impossible de préparer le service Tailscale de l'API Kubernetes ; aucun plan de contrôle n'a été inscrit.
+Duplicate control-plane enrollment target: $node_name	Cible d'inscription de plan de contrôle en double : $node_name
+Embedded etcd is not ready; no additional control planes were enrolled.	etcd intégré n'est pas prêt ; aucun plan de contrôle supplémentaire n'a été inscrit.
+Embedded-etcd configurator is missing: $K3S_HA_SCRIPT	Le configurateur d'etcd intégré est absent : $K3S_HA_SCRIPT
+Embedded-etcd preparation failed; no additional control planes were enrolled.	La préparation d'etcd intégré a échoué ; aucun plan de contrôle supplémentaire n'a été inscrit.
+Existing control plane $node_name is not running K3s; repair it before enrollment.	Le plan de contrôle existant $node_name n'exécute pas K3s ; réparez-le avant l'inscription.
+Existing control plane $node_name uses a different K3s version; upgrade servers together.	Le plan de contrôle existant $node_name utilise une autre version de K3s ; mettez les serveurs à jour ensemble.
+Existing node $node_name has role $existing_role and IP $registered_ip; refusing to replace it with $ENROLLMENT_ROLE at $node_ip.	Le nœud existant $node_name a le rôle $existing_role et l'IP $registered_ip ; refus de le remplacer par $ENROLLMENT_ROLE en $node_ip.
+Installing '$node_name' through $target...	Installation de '$node_name' via $target...
+Invalid $NODE_TRANSPORT control-plane IP: $host	IP de plan de contrôle $NODE_TRANSPORT invalide : $host
+Invalid Kubernetes node name: $node_name	Nom de nœud Kubernetes invalide : $node_name
+New nodes register through the Kubernetes API endpoint $JOIN_URL.	Les nouveaux nœuds s'enregistrent via le point d'accès de l'API Kubernetes $JOIN_URL.
+Node name/IP collision for $node_name ($node_ip); resolve the existing registration first.	Conflit de nom ou d'IP pour $node_name ($node_ip) ; réglez d'abord l'enregistrement existant.
+Run control-plane enrollment on the existing SQLite or embedded-etcd bootstrap server.	Lancez l'inscription des plans de contrôle sur le serveur d'amorçage existant (SQLite ou etcd intégré).
+Target $host is already registered as a worker.	La cible $host est déjà enregistrée comme worker.
+The actual SSH source is not a verified control plane	La source SSH réelle n'est pas un plan de contrôle vérifié
+The bootstrap control plane cannot enroll itself.	Le plan de contrôle d'amorçage ne peut pas s'inscrire lui-même.
+The control-plane host list must contain exactly $REQUESTED_WORKER_COUNT entries.	La liste des hôtes de plan de contrôle doit contenir exactement $REQUESTED_WORKER_COUNT entrées.
+The expected final control-plane count must be a positive odd integer.	Le nombre final de plans de contrôle attendu doit être un entier positif impair.
+The selected targets produce $planned_count control planes, but $EXPECTED_CONTROL_PLANE_COUNT were requested.	Les cibles choisies donnent $planned_count plans de contrôle, mais $EXPECTED_CONTROL_PLANE_COUNT ont été demandés.
+The server token is empty after embedded-etcd preparation.	Le jeton serveur est vide après la préparation d'etcd intégré.
+This selection would leave $planned_count control planes; choose an odd final count (1, 3, 5, ...).	Cette sélection laisserait $planned_count plans de contrôle ; choisissez un nombre final impair (1, 3, 5, ...).
+Using the existing embedded-etcd datastore.	Utilisation du magasin etcd intégré existant.
+Validated control-plane plan: $current_count existing + $new_count new = $planned_count total.	Plan de contrôle validé : $current_count existants + $new_count nouveaux = $planned_count au total.
+Waiting for Kubernetes node '$node_name' to become Ready...	Attente que le nœud Kubernetes '$node_name' soit Ready...
+Allowing private-node SSH from verified control planes on $cluster_interface...	Autorisation du SSH des nœuds privés depuis les plans de contrôle vérifiés sur $cluster_interface...
+Allowing required inbound ports...	Autorisation des ports entrants nécessaires...
+Blocking host and forwarded ingress on private-node interface $interface...	Blocage de l'entrée vers l'hôte et transférée sur l'interface de nœud privé $interface...
+Configuring UFW baseline...	Configuration du socle UFW...
+K3S_NODE_NETWORK_CIDR is unset; the K3s API and peer ports are not exposed publicly.	K3S_NODE_NETWORK_CIDR n'est pas défini ; l'API K3s et les ports entre pairs ne sont pas exposés publiquement.
+Restricting ports 80/443 to Cloudflare proxy networks...	Restriction des ports 80/443 aux réseaux de proxys Cloudflare...
+Restricting the K3s API, embedded etcd, Flannel, and kubelet traffic to $K3S_NODE_NETWORK_CIDR on $cluster_interface...	Restriction du trafic de l'API K3s, d'etcd intégré, de Flannel et du kubelet à $K3S_NODE_NETWORK_CIDR sur $cluster_interface...
+Restricting worker Flannel and kubelet traffic to $K3S_NODE_NETWORK_CIDR on $cluster_interface...	Restriction du trafic Flannel et kubelet du worker à $K3S_NODE_NETWORK_CIDR sur $cluster_interface...
+ufw enable failed; reloading every UFW rule file	ufw enable a échoué ; rechargement de tous les fichiers de règles UFW
+Created TLS secret '$secret_name' in namespace '$namespace'.	Secret TLS '$secret_name' créé dans l'espace de noms '$namespace'.
+TLS secret '$secret_name' already exists in namespace '$namespace', reusing it.	Le secret TLS '$secret_name' existe déjà dans l'espace de noms '$namespace' ; il est réutilisé.
+OVHcloud API access and vRack activation are verified; server attachment may continue.	L'accès à l'API OVHcloud et l'activation du vRack sont vérifiés ; le rattachement des serveurs peut continuer.
+OVHcloud could not verify those credentials and vRack. No NIC or firewall was changed.	OVHcloud n'a pas pu vérifier ces identifiants et ce vRack. Aucune interface ni aucun pare-feu n'a été modifié.
+Tailscale account access is verified; transport setup may continue.	L'accès au compte Tailscale est vérifié ; la configuration du transport peut continuer.
+Tailscale could not verify that token and tailnet. No host firewall change was made.	Tailscale n'a pas pu vérifier ce jeton et ce tailnet. Aucun pare-feu d'hôte n'a été modifié.
+Using manually confirmed OVHcloud vRack attachment; each entered private NIC will still be validated on the host.	Utilisation du rattachement OVHcloud vRack confirmé manuellement ; chaque interface privée saisie sera tout de même validée sur l'hôte.
+Using the existing LAN; the installer will not change host networking.	Utilisation du LAN existant ; l'installateur ne modifiera pas le réseau de l'hôte.

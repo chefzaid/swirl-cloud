@@ -3,7 +3,7 @@
 #
 #   ./install.sh                         guided setup hub (terminal UI)
 #   ./install.sh --output FILE           hub with a different input file
-#   ./install.sh --lang fr               hub in French (also SWIRL_CLOUD_LANG=fr)
+#   ./install.sh --lang fr               hub, installs and status in French (also SWIRL_CLOUD_LANG=fr)
 #   ./install.sh --env-file FILE         unattended install/update from a saved file
 #   ./install.sh --env-file FILE --validate-only
 #   ... | ./install.sh --env-file FILE --secrets-stdin   secrets as NAME=value lines on stdin

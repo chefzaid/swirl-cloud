@@ -12,8 +12,10 @@ LANGUAGE = (os.environ.get("SWIRL_CLOUD_LANG") or "en").lower()[:2]
 
 
 def set_language(language):
+    """Also exported, so the installer engine and the verification report follow the hub."""
     global LANGUAGE
     LANGUAGE = (language or "en").lower()[:2]
+    os.environ["SWIRL_CLOUD_LANG"] = LANGUAGE
 
 
 FR = {

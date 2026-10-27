@@ -225,11 +225,19 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+# Messages in SWIRL_CLOUD_LANG (scripts/lib/console_i18n.py); run records keep English step names.
+localize() {
+    if [[ "${SWIRL_CLOUD_LANG:-}" == fr* ]]; then
+        python3 "$SCRIPT_DIR/scripts/lib/console_i18n.py" "$*" 2>/dev/null || printf '%s\n' "$*"
+    else
+        printf '%s\n' "$*"
+    fi
+}
+info()  { echo -e "${GREEN}[INFO]${NC}  $(localize "$*")"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC}  $(localize "$*")"; }
+error() { echo -e "${RED}[ERROR]${NC} $(localize "$*")"; exit 1; }
 fail()  { error "$@"; }
-step()  { echo -e "${BLUE}[STEP]${NC}  $*"; install_record_step "$@"; }
+step()  { echo -e "${BLUE}[STEP]${NC}  $(localize "$*")"; install_record_step "$@"; }
 
 ask_with_default() {
     installer_prompt_yes_no "$1" "${2:-N}" "$AUTO_APPROVE"

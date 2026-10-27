@@ -60,8 +60,12 @@ unattended runs need it done first.
 ## Choose an entry point
 
 `./install.sh` without arguments opens the setup hub (`--lang fr` or
-`SWIRL_CLOUD_LANG=fr` for French). `./install.sh --help` lists every command,
-including the compliance and incident reports covered by the specialized guides.
+`SWIRL_CLOUD_LANG=fr` for French). In French, the installations it starts and its
+status report are in French too; `SWIRL_CLOUD_LANG=fr ./install.sh --env-file FILE`
+and `./install.sh --status --lang fr` do the same outside the hub. Messages without a
+translation, JSON output and run records stay in English. `./install.sh --help`
+lists every command, including the compliance and incident reports covered by the
+specialized guides.
 
 | Task | Command |
 | --- | --- |

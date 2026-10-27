@@ -1,0 +1,80 @@
+# French text of the verification report (./install.sh --status) for SWIRL_CLOUD_LANG=fr.
+# English<TAB>French; $name stands for a value. Lines without an entry stay in English.
+Swirl Cloud verification - $when UTC	Vérification Swirl Cloud - $when UTC
+Summary: $passed passed, $warnings warning(s), $failed failed	Bilan : $passed réussi(s), $warnings avertissement(s), $failed en échec
+... and $count more	... et $count de plus
+Next:	Ensuite :
+:	 :
+Nodes	Nœuds
+Workloads	Charges de travail
+TLS secrets	Secrets TLS
+Public endpoints	Points d'accès publics
+Platform mail	Messagerie de la plateforme
+Disk headroom	Marge disque
+Host firewall	Pare-feu de l'hôte
+API audit log	Journal d'audit de l'API
+Kubelet memory reservation	Réservation mémoire du kubelet
+Nightly backup	Sauvegarde nocturne
+Last installation	Dernière installation
+API dry-run	Essai à blanc sur l'API
+Tls Secrets	Secrets TLS
+Mail	Messagerie
+Ingress	Entrée
+check failed: $error	échec du contrôle : $error
+$ready/$total Ready	$ready/$total prêts
+all running pods ready	tous les pods en cours d'exécution sont prêts
+$failing not ready, $starting starting	$failing non prêts, $starting en démarrage
+$healthy/$total Synced and Healthy	$healthy/$total Synced et Healthy
+no running Vault pod	aucun pod Vault en cours d'exécution
+not installed	non installé
+$unsealed/$total unsealed	$unsealed/$total descellés
+volumes not readable (Longhorn not installed?)	volumes illisibles (Longhorn non installé ?)
+$volumes volumes, $degraded degraded, $faulted faulted	$volumes volumes, $degraded dégradés, $faulted en panne
+$checked certificates, $expiring expiring within 30 days, $expired expired	$checked certificats, $expiring expirant sous 30 jours, $expired expirés
+$answering/$total answer over HTTPS	$answering/$total répondent en HTTPS
+not set up: the platform-mail Secret is missing (Vault infra/smtp)	non configurée : le Secret platform-mail est absent (Vault infra/smtp)
+on: alerts, password resets, GitLab and Odoo send as $sender	active : les alertes, les réinitialisations de mot de passe, GitLab et Odoo envoient en tant que $sender
+off: alerts reach only GitLab and Keycloak cannot send password reset emails	désactivée : les alertes n'arrivent que dans GitLab et Keycloak ne peut pas envoyer d'e-mails de réinitialisation de mot de passe
+$free GiB free, $used used on the K3s filesystem (maintenance needs about 30 GiB; kubelet image GC starts at 85 %)	$free Gio libres, $used utilisés sur le système de fichiers de K3s (la maintenance demande environ 30 Gio ; le nettoyage des images du kubelet commence à 85 %)
+unknown (needs passwordless sudo to read UFW)	inconnu (sudo sans mot de passe nécessaire pour lire UFW)
+UFW active, IPv4 and IPv6 INPUT default-deny	UFW actif, INPUT IPv4 et IPv6 refusé par défaut
+UFW is inactive or INPUT is not default-deny	UFW est inactif ou INPUT n'est pas refusé par défaut
+Kubernetes API audit events are being written	les événements d'audit de l'API Kubernetes sont écrits
+configured; starts at the next K3s restart (./install.sh > Maintenance)	configuré ; démarre au prochain redémarrage de K3s (./install.sh > Maintenance)
+configured but not writing; check: sudo journalctl -u k3s	configuré mais rien n'est écrit ; vérifier : sudo journalctl -u k3s
+not configured; rerun the installer or scripts/configure-k3s-audit.sh	non configuré ; relancez l'installateur ou scripts/configure-k3s-audit.sh
+unknown (needs passwordless sudo)	inconnu (sudo sans mot de passe nécessaire)
+memory reserved for the host and K3s; pods are evicted before the node swaps	mémoire réservée à l'hôte et à K3s ; les pods sont évincés avant que le nœud ne swappe
+configured; applies at the next K3s restart (scripts/configure-k3s-kubelet-memory.sh --restart)	configurée ; s'applique au prochain redémarrage de K3s (scripts/configure-k3s-kubelet-memory.sh --restart)
+configured but K3s is not running	configurée mais K3s ne tourne pas
+not configured; rerun the installer or scripts/configure-k3s-kubelet-memory.sh	non configurée ; relancez l'installateur ou scripts/configure-k3s-kubelet-memory.sh
+last success $age hours ago (limit $limit h)	dernier succès il y a $age heures (limite $limit h)
+backup timer is not installed on this host	le minuteur de sauvegarde n'est pas installé sur ce serveur
+last run result: $result	résultat de la dernière exécution : $result
+no success metric yet; last trigger $trigger. Check again after the next scheduled run.	pas encore de métrique de succès ; dernier déclenchement $trigger. Revérifiez après la prochaine exécution planifiée.
+$when: no finish recorded (still running, or stopped by a crash or kill) after $steps step(s) (revision $revision, $mode)	$when : aucune fin enregistrée (toujours en cours, ou arrêtée par un plantage ou un kill) après $steps étape(s) (révision $revision, $mode)
+$when: no finish recorded (still running, or stopped by a crash or kill) after $steps step(s)	$when : aucune fin enregistrée (toujours en cours, ou arrêtée par un plantage ou un kill) après $steps étape(s)
+$when: success after $minutes min, $steps step(s) (revision $revision, $mode)	$when : réussite après $minutes min, $steps étape(s) (révision $revision, $mode)
+$when: success after $minutes min, $steps step(s)	$when : réussite après $minutes min, $steps étape(s)
+$when: failed after $minutes min, $steps step(s) (revision $revision, $mode)	$when : échec après $minutes min, $steps étape(s) (révision $revision, $mode)
+$when: failed after $minutes min, $steps step(s)	$when : échec après $minutes min, $steps étape(s)
+$when: interrupted after $minutes min, $steps step(s) (revision $revision, $mode)	$when : interrompue après $minutes min, $steps étape(s) (révision $revision, $mode)
+$when: interrupted after $minutes min, $steps step(s)	$when : interrompue après $minutes min, $steps étape(s)
+$when: $result after $minutes min, $steps step(s) (revision $revision, $mode)	$when : $result après $minutes min, $steps étape(s) (révision $revision, $mode)
+$when: $result after $minutes min, $steps step(s)	$when : $result après $minutes min, $steps étape(s)
+record $name is unreadable: $error	l'enregistrement $name est illisible : $error
+last step: $step	dernière étape : $step
+stopped before its first step	arrêtée avant sa première étape
+rendered profiles accepted by the API server	profils rendus acceptés par le serveur d'API
+validate-repository.sh --live failed	échec de validate-repository.sh --live
+kubectl describe node $node; on that host: sudo journalctl -u k3s -u k3s-agent -n 100	kubectl describe node $node ; sur ce serveur : sudo journalctl -u k3s -u k3s-agent -n 100
+kubectl -n $namespace describe externalsecret $name; see docs/operations.md (ExternalSecret is not Ready)	kubectl -n $namespace describe externalsecret $name ; voir docs/operations.md (ExternalSecret is not Ready)
+kubectl -n infra get application $name -o yaml | less; see docs/deployment.md (Argo CD operations)	kubectl -n infra get application $name -o yaml | less ; voir docs/deployment.md (Argo CD operations)
+kubectl -n longhorn-system get volumes.longhorn.io $name -o yaml; open the Longhorn UI	kubectl -n longhorn-system get volumes.longhorn.io $name -o yaml ; ouvrez l'interface Longhorn
+rerun the installer (Cloudflare origin certificate) or replace the secret; see docs/dns.md	relancez l'installateur (certificat d'origine Cloudflare) ou remplacez le secret ; voir docs/dns.md
+sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail; move old archives off the host (pinned recovery images must stay); see docs/operations.md#storage-and-retention	sudo du -xh --max-depth=3 /var/lib /var/backups | sort -h | tail ; déplacez les anciennes archives hors du serveur (les images de reprise épinglées doivent rester) ; voir docs/operations.md#storage-and-retention
+sudo ufw status verbose; rerun scripts/configure-node-security.sh --apply (it verifies UFW)	sudo ufw status verbose ; relancez scripts/configure-node-security.sh --apply (il vérifie UFW)
+./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)	./install.sh > Maintenance > Activer maintenant l'audit de l'API Kubernetes (redémarre K3s)
+sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now	sudo journalctl -u swirl-cloud-k3s-backup.service -n 50 ; ./install.sh > Maintenance > Lancer la sauvegarde de reprise maintenant
+set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md	configurez le relais avec scripts/configure-platform-mail.py ; voir docs/guides/platform-mail.md
+./install.sh > Maintenance > Earlier run logs, then rerun ./install.sh (reruns converge)	./install.sh > Maintenance > Journaux des exécutions précédentes, puis relancez ./install.sh (les relances convergent)

@@ -6,9 +6,11 @@ Longhorn volumes, TLS secrets, public Ingress endpoints, the nightly backup and
 the last installer run.
 Login redirects and 401/403 answers count as reachable: administration hosts are
 protected by design. Exits 1 when a check fails (or warns, with --strict).
+The text report follows SWIRL_CLOUD_LANG or --lang (en, fr); --json stays English.
 """
 import argparse
 import base64
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
@@ -24,6 +26,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts/lib"))
+from console_i18n import translate  # noqa: E402
+
 BACKUP_METRICS = Path("/var/lib/node_exporter/textfile_collector/swirl_cloud_unit_swirl_cloud_k3s_backup_service.prom")
 BACKUP_UNIT = "swirl-cloud-k3s-backup"
 INSTALL_RECORDS = Path("/var/lib/swirl-cloud/install-runs")
@@ -74,16 +79,22 @@ class Report:
         return {status: sum(r["status"] == status for r in self.results) for status in (PASS, WARN, FAIL)}
 
     def text(self):
-        lines = [f"Swirl Cloud verification - {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC", ""]
+        def t(text):
+            return translate(text, "status")
+        lines = [t(f"Swirl Cloud verification - {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"), ""]
         for result in self.results:
-            lines.append(f"[{result['status']}] {result['check']}: {result['summary']}")
-            lines += [f"       {detail}" for detail in result["details"][:12]]
-            if len(result["details"]) > 12:
-                lines.append(f"       ... and {len(result['details']) - 12} more")
+            lines.append(f"[{result['status']}] {t(result['check'])}{t(':')} {t(result['summary'])}")
+            for detail in result["details"][:12]:
+                if detail.startswith("last step: "):  # Run records keep the installer's English step names.
+                    detail = "last step: " + translate(detail.removeprefix("last step: "), "installer")
+                lines.append(f"       {t(detail)}")
+            more = len(result["details"]) - 12
+            if more > 0:
+                lines.append(f"       {t(f'... and {more} more')}")
             if result["hint"]:
-                lines.append(f"       Next: {result['hint']}")
+                lines.append(f"       {t('Next:')} {t(result['hint'])}")
         counts = self.counts()
-        lines += ["", f"Summary: {counts[PASS]} passed, {counts[WARN]} warning(s), {counts[FAIL]} failed"]
+        lines += ["", t(f"Summary: {counts[PASS]} passed, {counts[WARN]} warning(s), {counts[FAIL]} failed")]
         return "\n".join(lines)
 
 
@@ -386,7 +397,10 @@ def main():
     parser.add_argument("--skip-endpoints", action="store_true", help="skip public HTTPS probes")
     parser.add_argument("--api-dry-run", action="store_true", help="also run validate-repository.sh --live")
     parser.add_argument("--backup-max-age-hours", type=int, default=26)
+    parser.add_argument("--lang", choices=("en", "fr"), help="report language (default: SWIRL_CLOUD_LANG, else English)")
     args = parser.parse_args()
+    if args.lang:
+        os.environ["SWIRL_CLOUD_LANG"] = args.lang
     report = Report()
     checks = [check_nodes, check_pods, check_external_secrets, check_applications, check_vault, check_longhorn,
               check_tls_secrets, check_mail] + ([] if args.skip_endpoints else [check_ingress])
