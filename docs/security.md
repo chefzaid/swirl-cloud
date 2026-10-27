@@ -247,6 +247,40 @@ every encrypted volume and backup needs it; it is in the Vault recovery archives
 and the recovery kit. `scripts/configure-longhorn-host.sh` loads `dm_crypt`.
 Existing volumes stay unencrypted; restore their data into a new encrypted claim.
 
+## Host disk encryption
+
+In a rented data centre, disks leave the operator's hands: replaced drives, a
+returned server, a stolen chassis. What is encrypted at rest today:
+
+| Data | Encrypted at rest |
+| --- | --- |
+| Kubernetes Secrets in the K3s datastore | Yes, K3s secrets encryption |
+| Volumes with StorageClass `longhorn-encrypted` ([above](#encrypted-volumes)) | Yes, LUKS2 per volume |
+| Off-node archives and volume backups | Yes, restic encrypts before upload |
+| Vault's storage | Yes, Vault's own barrier encryption; its unseal key sits on the same host unless the [recovery kit](#recovery-kit) holds it |
+| Everything else on the host: the K3s datastore itself, other Longhorn volumes (databases, GitLab), local archives in `/var/backups/swirl-cloud`, images and logs | No |
+
+The option for the rest is LUKS2 on the host's data partitions
+(`/var/lib/rancher`, `/var/lib/longhorn`, `/var/backups`), set up when a node is
+installed or rebuilt, since encrypting a partition in place is not supported.
+Unattended security reboots (within a week) need an unlock that does not wait
+for a person:
+
+| Unlock | Protects against | Needs |
+| --- | --- | --- |
+| TPM2 (`clevis-tpm2`) | A disk removed from the server | A TPM in the server; a stolen whole server still unlocks |
+| Tang server (`clevis` with `tang`) | A disk or server taken away from the network | A Tang server outside the host's failure domain |
+| Passphrase over SSH at boot (`dropbear-initramfs`) | Any loss while powered off | A person at every reboot; conflicts with automatic reboots |
+
+Ubuntu packages `cryptsetup` and `clevis-luks` bind a LUKS2 partition to the
+unlock (`clevis luks bind -d /dev/<partition> tpm2 '{"pcr_ids":"7"}'`, or `tang`
+with the server URL), and `clevis-initramfs` unlocks it at boot. Keep a LUKS
+recovery passphrase with the recovery kit, off the host. Neither unlock has been
+tested on a platform node yet (TODO §37), and a rebuild follows the
+[restore after losing the host](operations.md#restore-after-losing-the-host)
+path. Applications holding personal data should request `longhorn-encrypted`
+claims either way.
+
 ## Administrator second factor
 
 A second factor is optional. Users add an authenticator app in the Keycloak
