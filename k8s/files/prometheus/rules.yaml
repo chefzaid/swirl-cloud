@@ -480,6 +480,16 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#ingressserviceerrorratehigh
           summary: Ingress service is returning server errors
           description: '{{ $labels.service }} has answered more than 5% of requests with 5xx for 15 minutes; see the Ingress Traffic dashboard.'
+      - alert: RegistryApiUnavailable
+        expr: probe_success{job="registry-probes"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#registryapiunavailable
+          summary: Container registry API is not answering clients
+          description: '{{ $labels.instance }} has not answered an anonymous registry API request with 401 and its version header for 10 minutes, so image pushes and pulls through it fail.'
   - name: applications.indezy
     rules:
       - alert: IndezyOfferSiteFailing

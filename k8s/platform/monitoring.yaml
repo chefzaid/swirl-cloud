@@ -335,6 +335,20 @@ data:
           valid_status_codes: [200, 201, 202, 204, 301, 302, 303, 307, 308, 401, 403, 404]
           headers:
             User-Agent: swirl-cloud-availability-probe
+      # The registry API answers an anonymous client 401 with its version header;
+      # an edge challenge page or a broken registry does not.
+      registry_api:
+        prober: http
+        timeout: 10s
+        http:
+          preferred_ip_protocol: ip4
+          follow_redirects: false
+          valid_status_codes: [401]
+          fail_if_header_not_matches:
+            - header: Docker-Distribution-Api-Version
+              regexp: '^registry/2\.0$'
+          headers:
+            User-Agent: docker/27.5.1 (swirl-cloud-registry-probe)
 
 ---
 apiVersion: apps/v1

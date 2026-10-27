@@ -82,10 +82,12 @@ otherwise, and link to their [runbook](alert-runbooks.md#sloavailabilitybudgetbu
 | `swirl_cloud_sli:ci_queue_seconds:p90_6h` | Time nine in ten CI jobs waited for a runner over six hours |
 | `swirl_cloud_sli:ci_platform_failures:ratio_rate6h` | CI jobs failed by the runner, the system or a timeout (script failures and cancellations excluded) |
 | `swirl_cloud_sli:argocd_sync_failures:ratio_rate6h` | Argo CD sync operations that failed |
+| `probe_success{job="registry-probes",instance}` | The registry API answers an anonymous `GET /v2/` with `401` and its version header, through the public edge and inside the cluster (1 or 0); a 403 challenge page counts as available for the generic probe but not here |
 
 [`CIJobsQueueingLong`](alert-runbooks.md#cijobsqueueinglong) fires when CI queue
 time stays above ten minutes for an hour; data stores alert through
-[`DatastoreDown`](alert-runbooks.md#datastoredown).
+[`DatastoreDown`](alert-runbooks.md#datastoredown), and the registry through
+[`RegistryApiUnavailable`](alert-runbooks.md#registryapiunavailable).
 
 ## Game days
 

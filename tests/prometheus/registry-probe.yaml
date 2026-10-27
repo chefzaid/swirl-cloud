@@ -1,0 +1,25 @@
+# promtool unit test for RegistryApiUnavailable, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # The public path fails from 10 m; the internal path stays up.
+      - series: 'probe_success{job="registry-probes",instance="https://registry.example.com/v2/"}'
+        values: '1x9 0x20'
+      - series: 'probe_success{job="registry-probes",instance="http://gitlab-registry.infra.svc.cluster.local:5050/v2/"}'
+        values: '1x30'
+      # Other probes never raise this alert.
+      - series: 'probe_success{job="availability-probes",instance="https://grafana.example.com/"}'
+        values: '0x30'
+    promql_expr_test:
+      # Pending until ten minutes of failure.
+      - expr: ALERTS{alertname="RegistryApiUnavailable", alertstate="firing"}
+        eval_time: 15m
+        exp_samples: []
+      - expr: ALERTS{alertname="RegistryApiUnavailable", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="RegistryApiUnavailable",alertstate="firing",severity="warning",owner="platform",job="registry-probes",instance="https://registry.example.com/v2/"}'
+            value: 1

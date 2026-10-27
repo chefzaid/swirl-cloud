@@ -142,6 +142,25 @@ scrape_configs:
       - target_label: __address__
         replacement: blackbox-exporter.__INTERNAL_DNS_ZONE__:9115
 
+  # The registry API through the public edge and inside the cluster, as clients and CI reach it.
+  - job_name: registry-probes
+    metrics_path: /probe
+    params:
+      module: [registry_api]
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    static_configs:
+      - targets:
+          - https://registry.__PUBLIC_DOMAIN__/v2/
+          - http://gitlab-registry.infra.svc.cluster.local:5050/v2/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.__INTERNAL_DNS_ZONE__:9115
+
   - job_name: argocd
     kubernetes_sd_configs:
       - role: pod

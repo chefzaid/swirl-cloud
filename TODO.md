@@ -798,7 +798,8 @@ cannot be sold before its own backups, MFA and alerting are proven.
 
 - [x] Availability SLO (99.5 %) per public endpoint from blackbox probes, burn-rate alerts, Grafana **Service Levels** and monthly availability in the **Platform Report** ([service levels](docs/guides/service-levels.md)). *(live, 2026-10-05)*
 - [x] Indicators beyond probes (data stores, CI queue time and failures, Argo CD sync failures) with `CIJobsQueueingLong` ([other indicators](docs/guides/service-levels.md#other-indicators)). *(2026-10-05)*
-- [ ] Registry push/pull probes and per-service SLA targets for the managed service.
+- [x] Registry API probe: an anonymous `GET /v2/` through the public edge and inside the cluster must answer `401` with the registry version header, alerting as `RegistryApiUnavailable` with a `promtool` test ([service levels](docs/guides/service-levels.md#other-indicators)). *(2026-10-27)*
+- [ ] Registry push/pull probe with a dedicated, push-scoped credential (a small image pushed, pulled and deleted on a schedule), and per-service SLA targets for the managed service.
 - [x] Every alert carries an `owner` label and a `runbook_url` into [alert runbooks](docs/guides/alert-runbooks.md); validation enforces both. *(2026-10-05)*
 - [ ] Status page hosted outside the platform, fed by the outage watch (§14), with incident updates; decide first which endpoints may be shown publicly.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications. Name a second person or partner who is paged after a set delay, write the severity matrix in `docs/guides/on-call.md`, and close with a dated paging drill acknowledged end to end.

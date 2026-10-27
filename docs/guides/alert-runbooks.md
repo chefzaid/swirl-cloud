@@ -354,6 +354,19 @@ user's sessions and check Keycloak admin events for who granted it.
 Over 5 % of a service's requests returned 5xx for 15 minutes. Check Grafana
 **Ingress Traffic**, then its pods and logs; roll back a recent release.
 
+### RegistryApiUnavailable
+
+The registry API stopped answering as a registry for ten minutes: an anonymous
+`GET /v2/` must return `401` with `Docker-Distribution-Api-Version: registry/2.0`.
+The `instance` label says which path failed. Through
+`https://registry.<domain>/v2/` alone, the edge is answering instead: compare
+`curl -sI https://registry.<domain>/v2/` with the Cloudflare bot exceptions in
+[Cloudflare configuration](../dns.md#cloudflare) and
+[Registry push or pull fails](../operations.md#registry-push-or-pull-fails-from-outside-the-cluster).
+Inside the cluster as well, GitLab's registry is down: check the `gitlab` pod and
+`kubectl -n infra exec deploy/gitlab -- gitlab-ctl status registry`. The probe
+proves the API answers; it does not push or pull an image.
+
 ### PrometheusTargetDown
 
 Its alerts cannot fire. Check the pod or exporter
