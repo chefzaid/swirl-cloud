@@ -260,6 +260,12 @@ components:
     obligations: Copies must come with the licence and an offer of the corresponding source.
     notes: HA profiles only, in front of the platform and Argo CD Redis. HAProxy's headers are LGPL or MIT, and
       its licence permits linking with OpenSSL.
+  - name: quay.io/argoproj/argocd
+    licence: Apache-2.0
+    source: https://github.com/argoproj/argo-cd
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Pinned in config/platform.env (DEFAULT_ARGOCD_IMAGE_TAG) and installed by the argocd chart.
   - name: quay.io/keycloak/keycloak
     licence: Apache-2.0
     source: https://github.com/keycloak/keycloak
@@ -325,7 +331,7 @@ components:
     source: https://github.com/argoproj/argo-helm
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
-    notes: Deploys the chart's default Argo CD image (Apache-2.0) and, in HA profiles, the pinned HAProxy
+    notes: Deploys the pinned Argo CD image (quay.io/argoproj/argocd) and, in HA profiles, the pinned HAProxy
       image (public.ecr.aws/docker/library/haproxy).
   - name: helm-chart:external-secrets
     licence: Apache-2.0

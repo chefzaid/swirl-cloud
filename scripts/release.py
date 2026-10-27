@@ -95,6 +95,12 @@ def inventory(ref=None):
                 pass
         if path == "config/platform.env":
             platform = dict(line.split("=", 1) for line in text.splitlines() if "=" in line and not line.startswith("#"))
+    # The Argo CD image is pinned beside its chart version rather than on an image line.
+    argocd = platform.get("DEFAULT_ARGOCD_IMAGE_TAG", "")
+    if "@sha256:" in argocd:
+        tag, digest = argocd.split("@", 1)
+        images.setdefault(("quay.io/argoproj/argocd", digest), {"name": "quay.io/argoproj/argocd", "version": tag,
+                                                                 "digest": digest, "source": "config/platform.env"})
     chart = yaml.safe_load(git("show", f"{ref}:k8s/Chart.yaml") if ref else (ROOT / "k8s/Chart.yaml").read_text())
     charts = [{"name": d["name"], "version": d["version"], "source": d.get("repository", "")} for d in chart.get("dependencies", [])]
     charts += [{"name": key.removeprefix("DEFAULT_").removesuffix("_CHART_VERSION").lower().replace("_", "-"),
