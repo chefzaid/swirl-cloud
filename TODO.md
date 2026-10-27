@@ -120,6 +120,8 @@ change and ask the owner before pushing it.
   - Answer:
 - [ ] Please provide the Commission's Cloud Sovereignty Framework document (the PDF with the eight objectives and the SEAL levels) so `--sovereignty-report` can score against its own criteria: commission.europa.eu is unreachable from the agent's environment, and the task says not to work from a vendor summary. *(task: §33 › sovereignty self-assessment, P3; asked by: Infra Agent)*
   - Answer:
+- [ ] Who should get read-only access to DBGate, Kafka UI and Portainer, which today admit only `platform-admins`, with full rights? Options: (a) a new Keycloak group (for example `platform-viewers`): Kafka UI gives it a read-only role through its RBAC; DBGate Community Edition cannot vary rights by group, so the group gets read-only connections in a second DBGate instance; Portainer Community Edition has no read-only role (Business Edition does), so the group gets no Portainer access; (b) wait for the role model of §36 (security auditor, project roles) and do all services together; (c) keep administrator-only access. *(task: §18 › DBGate, Kafka UI and Portainer rights, P3; asked by: Infra Agent)*
+  - Answer:
 
 ---
 
