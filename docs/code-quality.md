@@ -28,7 +28,8 @@ See [testing](testing.md#test-layers) for the full layer map.
 
 ## Manifest And Deployment Policy
 
-[`validate-manifests.py`](../scripts/validate-manifests.py) enforces:
+[`validate-manifests.py`](../scripts/validate-manifests.py), with its policy checks in
+[`manifest_checks.py`](../scripts/lib/manifest_checks.py), enforces:
 
 - every platform image is pinned by an `@sha256` digest
 - every Deployment, StatefulSet, DaemonSet, Job and CronJob declares
