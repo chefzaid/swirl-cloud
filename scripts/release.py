@@ -5,12 +5,14 @@
   release.py sbom [--output FILE]           CycloneDX 1.5 JSON software bill of materials
   release.py changelog [--since REF]        commit subjects since a tag (default: the latest v* tag)
   release.py prepare VERSION                set the chart version and prepend CHANGELOG.md
+  release.py notices                        THIRD_PARTY_NOTICES; fails when the licence register misses an SBOM entry
   release.py bundle [--ref REF] [--output-dir DIR] [--sign-key KEY]
   release.py verify BUNDLE [--allowed-signers FILE --signer ID]
 
 The platform version is the chart version in k8s/Chart.yaml; a release is the
 annotated tag v<version> on that commit. A bundle holds the source archive of
-the release, the SBOM, the image list, release notes and a SHA256SUMS manifest,
+the release, the SBOM, the image list, third-party notices from
+config/third-party-licences.yaml, release notes and a SHA256SUMS manifest,
 optionally signed with an SSH key (ssh-keygen -Y sign), like evidence packs.
 """
 import argparse
@@ -32,6 +34,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SIGNATURE_NAMESPACE = "swirl-cloud-release"
 IMAGE = re.compile(r"""image:\s*["']?([a-z0-9.-]+(?::[0-9]+)?/[^\s"'@]+@sha256:[a-f0-9]{64})""")
 SEMVER = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\Z")
+LICENCES = "config/third-party-licences.yaml"
+LICENCE_FIELDS = {"name", "licence", "source", "customer_use", "obligations"}
+SPDX_EXPRESSION = re.compile(r"(?:LicenseRef-)?[A-Za-z0-9.+-]+(?: (?:AND|OR|WITH) (?:LicenseRef-)?[A-Za-z0-9.+-]+)*\Z")
 
 
 def git(*args, **kwargs):
@@ -130,6 +135,56 @@ def sbom(items, timestamp):
             "components": components}
 
 
+def component_names(items):
+    """The component names sbom() writes, in its order, each once."""
+    chart_default = [i["name"] for i in items["images"] if i["name"].endswith("(chart default image)")]
+    pinned = [i["name"] for i in items["images"] if not i["name"].endswith("(chart default image)")]
+    return list(dict.fromkeys(pinned + chart_default + [f"helm-chart:{c['name']}" for c in items["charts"]]
+                              + [t["name"] for t in items["tools"]]))
+
+
+def licence_register(items, text):
+    """Register records in SBOM order; raises SystemExit listing every SBOM entry
+    without a valid record and every record without an SBOM entry."""
+    records, problems = {}, []
+    for record in (yaml.safe_load(text) or {}).get("components") or []:
+        name = record.get("name") if isinstance(record, dict) else None
+        if name in records:
+            problems.append(f"{name}: recorded twice")
+        elif not name or not LICENCE_FIELDS <= set(record) or not set(record) <= LICENCE_FIELDS | {"notes"}:
+            problems.append(f"{name or record}: needs exactly {', '.join(sorted(LICENCE_FIELDS))} and optional notes")
+        elif not SPDX_EXPRESSION.match(str(record["licence"])) or record["customer_use"] not in ("allowed", "decision-needed") \
+                or not str(record["source"]).startswith("https://") or not str(record["obligations"]).strip():
+            problems.append(f"{name}: licence must be an SPDX expression, customer_use allowed or decision-needed, "
+                            "source an https URL and obligations non-empty")
+        if name:
+            records[name] = record
+    names = component_names(items)
+    problems += [f"{name}: in the SBOM but not in {LICENCES}" for name in names if name not in records]
+    problems += [f"{name}: in {LICENCES} but not in the SBOM" for name in records if name not in names]
+    if problems:
+        raise SystemExit("Licence register:\n  " + "\n  ".join(problems))
+    return [records[name] for name in names]
+
+
+def notices(items, text):
+    versions = {i["name"]: i["version"] or i["digest"] for i in items["images"]}
+    versions.update({f"helm-chart:{c['name']}": c["version"] for c in items["charts"]})
+    versions.update({t["name"]: t["version"] for t in items["tools"]})
+    lines = [f"Swirl Cloud {items['version']} - third-party notices", "",
+             "Swirl Cloud deploys the components below; each stays under its own licence. Container",
+             "images also carry their base distribution's packages under those packages' licences,",
+             "and copies of an image include them. Component source and full licence texts are at",
+             "the source address of each entry.", ""]
+    for record in licence_register(items, text):
+        lines += [f"{record['name']} {versions[record['name']]}", f"  Licence: {record['licence']}",
+                  f"  Source: {record['source']}", f"  Obligations: {record['obligations']}"]
+        if record.get("notes"):
+            lines.append(f"  Notes: {record['notes']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def latest_tag(before=None):
     tags = git("tag", "--list", "v*", "--sort=-v:refname", *(["--merged", before] if before else [])).split()
     return tags[0] if tags else None
@@ -150,6 +205,11 @@ def write_file(path, content):
 def bundle(ref, output_dir, sign_key):
     commit = git("rev-parse", ref).strip()
     items = inventory(ref)
+    try:
+        register = git("show", f"{commit}:{LICENCES}")
+    except subprocess.CalledProcessError:
+        raise SystemExit(f"{ref} has no {LICENCES}; bundles need the licence register") from None
+    third_party = notices(items, register)
     version = items["version"]
     timestamp = datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", commit)), timezone.utc).isoformat()
     previous = latest_tag(f"{commit}^") if git("rev-list", "--count", commit).strip() != "1" else None
@@ -162,6 +222,7 @@ def bundle(ref, output_dir, sign_key):
     archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar.gz", f"--prefix={name}/", commit],
                              capture_output=True, check=True).stdout
     write_file(target / f"{name}-source.tar.gz", archive)
+    write_file(target / "THIRD_PARTY_NOTICES", third_party)
     write_file(target / "sbom.cdx.json", json.dumps(sbom(items, timestamp), indent=2))
     write_file(target / "images.txt", "".join(f"{i['name']}{':' + i['version'] if i['version'] else ''}@{i['digest']}\n"
                                                  for i in items["images"]))
@@ -230,6 +291,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("inventory")
+    commands.add_parser("notices")
     sbom_parser = commands.add_parser("sbom")
     sbom_parser.add_argument("--output", type=Path)
     log_parser = commands.add_parser("changelog")
@@ -260,6 +322,8 @@ def main():
             args.output.write_text(document + "\n")
         else:
             print(document)
+    elif args.command == "notices":
+        print(notices(inventory(), (ROOT / LICENCES).read_text()), end="")
     elif args.command == "changelog":
         print("\n".join(f"- {s}" for s in changelog(args.since or latest_tag())))
     elif args.command == "prepare":

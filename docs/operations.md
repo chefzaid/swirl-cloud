@@ -526,7 +526,9 @@ Applications own their images and pull credentials. There is no platform image
 pipeline or private registry dependency.
 
 1. Review the release's compatibility, architecture, runtime identity, writable
-   paths and data format. Update the digest in the owning source.
+   paths and data format. Update the digest in the owning source. A new image or
+   chart, or a licence change, needs its record in the
+   [licence register](guides/releases.md#third-party-licences).
 2. Compare scanner reports across all severities, including exposed secrets.
    Test startup, readiness and authentication with disposable data; for stateful
    services, restore a backup from the previous image into the candidate.

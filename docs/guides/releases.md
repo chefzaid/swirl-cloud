@@ -30,11 +30,26 @@ Edit it into upgrade notes before committing when a release needs manual steps.
 | `swirl-cloud-<version>-source.tar.gz` | The repository at the release commit (`git archive`). |
 | `sbom.cdx.json` | CycloneDX 1.5 SBOM: every pinned image with its digest, the Helm charts, and the K3s and Helm versions. |
 | `images.txt` | One pinned image reference per line, for mirroring into an internal registry. |
+| `THIRD_PARTY_NOTICES` | Licence, source and obligations of every SBOM component, from the [licence register](#third-party-licences). |
 | `RELEASE-NOTES.md` | Commit, date, changes since the previous tag and a component summary. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature (namespace `swirl-cloud-release`). |
 
 `scripts/release.py inventory` and `scripts/release.py sbom` print the same
 inventory for the working tree.
+
+## Third-party licences
+
+[`config/third-party-licences.yaml`](../../config/third-party-licences.yaml) holds
+one record per SBOM component: its SPDX licence, source repository, obligations
+and `customer_use`. `allowed` means the licence permits redistributing the
+component and operating it for customers; `decision-needed` waits for the
+owner's licensing decision (BUSL-1.1 Vault, Redis 8, SSPL MongoDB, the Elastic
+images and `cp-kafka`). `scripts/release.py notices` prints `THIRD_PARTY_NOTICES`
+and fails when an SBOM entry has no valid record or a record has no SBOM entry;
+the validator and `bundle` run the same check. When adding or replacing an image
+or chart, read the licence in its source repository and add the record in the
+same commit. A record describes the component's own code: container images also
+carry their base distribution's packages under those packages' licences.
 
 ## Verify a bundle
 

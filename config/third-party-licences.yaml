@@ -1,0 +1,368 @@
+# Licence register: one record for every image, chart and tool in the release
+# SBOM (python3 scripts/release.py sbom), checked by scripts/validate-repository.sh
+# and turned into THIRD_PARTY_NOTICES in each release bundle (docs/guides/releases.md).
+# licence is an SPDX expression; LicenseRef-RSALv2 is the Redis Source Available
+# License v2. customer_use says whether redistributing the component and operating
+# it for customers is allowed under that licence ("allowed"), or waits for the
+# owner's decision in the licensing ADR ("decision-needed", TODO.md Needs Input).
+# Licences were read from each source repository on 2026-10-27; they describe the
+# component's own code: container images also carry their base distribution's
+# packages under those packages' licences.
+components:
+  - name: cr.fluentbit.io/fluent/fluent-bit
+    licence: Apache-2.0
+    source: https://github.com/fluent/fluent-bit
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.elastic.co/beats/filebeat-wolfi
+    licence: Elastic-2.0
+    source: https://github.com/elastic/beats
+    customer_use: decision-needed
+    obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
+      do not bypass licence keys; keep notices.
+    notes: Elastic's default (non-oss) binaries are under the Elastic License; the Apache-2.0 alternative
+      is the filebeat-oss image.
+  - name: docker.elastic.co/elasticsearch/elasticsearch-wolfi
+    licence: Elastic-2.0
+    source: https://github.com/elastic/elasticsearch
+    customer_use: decision-needed
+    obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
+      do not bypass licence keys; keep notices.
+    notes: Source is AGPL-3.0-only OR SSPL-1.0 OR Elastic-2.0 (x-pack Elastic-2.0 only); whether the pinned
+      binary image is also offered under AGPL-3.0 is unverified, so the most restrictive licence is recorded.
+  - name: docker.elastic.co/kibana/kibana-wolfi
+    licence: Elastic-2.0
+    source: https://github.com/elastic/kibana
+    customer_use: decision-needed
+    obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
+      do not bypass licence keys; keep notices.
+    notes: Source is AGPL-3.0-only OR SSPL-1.0 OR Elastic-2.0 (x-pack Elastic-2.0 only); whether the pinned
+      binary image is also offered under AGPL-3.0 is unverified, so the most restrictive licence is recorded.
+  - name: docker.elastic.co/logstash/logstash-wolfi
+    licence: Elastic-2.0
+    source: https://github.com/elastic/logstash
+    customer_use: decision-needed
+    obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
+      do not bypass licence keys; keep notices.
+    notes: Elastic's default (non-oss) binaries are under the Elastic License; the Apache-2.0 alternative
+      is the logstash-oss image.
+  - name: docker.io/aquasec/trivy
+    licence: Apache-2.0
+    source: https://github.com/aquasecurity/trivy
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/aquasec/trivy-checks
+    licence: MIT
+    source: https://github.com/aquasecurity/trivy-checks
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/aquasec/trivy-operator
+    licence: Apache-2.0
+    source: https://github.com/aquasecurity/trivy-operator
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/cloudflare/cloudflared
+    licence: Apache-2.0
+    source: https://github.com/cloudflare/cloudflared
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/confluentinc/cp-kafka
+    licence: Apache-2.0
+    source: https://github.com/confluentinc/kafka-images
+    customer_use: decision-needed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Confluent's packaging of Apache Kafka; the terms of its base layer were not reviewed. The alternative
+      is the ASF's apache/kafka image (Apache-2.0).
+  - name: docker.io/curlimages/curl
+    licence: curl AND MIT
+    source: https://github.com/curl/curl-container
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+    notes: curl under its own licence, the image build under MIT.
+  - name: docker.io/danielqsj/kafka-exporter
+    licence: Apache-2.0
+    source: https://github.com/danielqsj/kafka_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/dbgate/dbgate
+    licence: GPL-3.0-only
+    source: https://github.com/dbgate/dbgate
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source.
+    notes: Community edition; the premium edition is not used.
+  - name: docker.io/gitlab/gitlab-ce
+    licence: MIT
+    source: https://gitlab.com/gitlab-org/gitlab-foss
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+    notes: Community Edition (no ee/ code). The Omnibus image bundles PostgreSQL, Redis, NGINX and other
+      components under their own licences, listed in /opt/gitlab/LICENSES.
+  - name: docker.io/gitlab/gitlab-runner
+    licence: MIT
+    source: https://gitlab.com/gitlab-org/gitlab-runner
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/grafana/grafana
+    licence: AGPL-3.0-only
+    source: https://github.com/grafana/grafana
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source. A modified
+      version offered to network users must offer them its source.
+    notes: Used unmodified; plugins keep their own licences.
+  - name: docker.io/hashicorp/vault
+    licence: BUSL-1.1
+    source: https://github.com/hashicorp/vault
+    customer_use: decision-needed
+    obligations: Production use is granted unless the Licensed Work is offered to third parties on a hosted
+      or embedded basis in a paid product that significantly overlaps IBM's paid Vault versions; each
+      version turns into MPL-2.0 four years after its release.
+    notes: Vault 1.15 and later. OpenBao is the MPL-2.0 fork.
+  - name: docker.io/library/alpine
+    licence: MIT AND GPL-2.0-only
+    source: https://gitlab.alpinelinux.org/alpine/aports
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source.
+    notes: musl libc (MIT), BusyBox and apk-tools (GPL-2.0-only); each package's licence is in its apk
+      metadata.
+  - name: docker.io/library/busybox
+    licence: GPL-2.0-only
+    source: https://git.busybox.net/busybox
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source.
+  - name: docker.io/library/mongo
+    licence: SSPL-1.0
+    source: https://github.com/mongodb/mongo
+    customer_use: decision-needed
+    obligations: Offering MongoDB's functionality to third parties as a service obliges releasing the
+      source of the whole service stack under SSPL (section 13).
+    notes: 'MongoDB Community Server; licensing FAQ: https://mongodb.com/legal/licensing/server-side-public-license/faq'
+  - name: docker.io/library/nginx
+    licence: BSD-2-Clause
+    source: https://github.com/nginx/nginx
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/library/node
+    licence: MIT
+    source: https://github.com/nodejs/node
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+    notes: Node.js bundles dependencies whose licences are in its LICENSE file.
+  - name: docker.io/library/odoo
+    licence: LGPL-3.0-only
+    source: https://github.com/odoo/odoo
+    customer_use: allowed
+    obligations: Copies must come with the licence and the library's source; programs may link to it under
+      any terms.
+    notes: Odoo Community; Enterprise modules are not included. Repository add-ons keep their own licences.
+  - name: docker.io/library/postgres
+    licence: PostgreSQL
+    source: https://git.postgresql.org/gitweb/?p=postgresql.git
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/library/python
+    licence: Python-2.0
+    source: https://github.com/python/cpython
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/library/redis
+    licence: LicenseRef-RSALv2 OR SSPL-1.0 OR AGPL-3.0-only
+    source: https://github.com/redis/redis
+    customer_use: decision-needed
+    obligations: Copies must come with the licence and an offer of the corresponding source. A modified
+      version offered to network users must offer them its source.
+    notes: Redis 8 is offered under a choice of three licences; electing AGPL-3.0-only would make it open
+      source for this platform. Redis 7.2 and older are BSD-3-Clause.
+  - name: docker.io/library/ruby
+    licence: Ruby OR BSD-2-Clause
+    source: https://github.com/ruby/ruby
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/library/sonarqube
+    licence: LGPL-3.0-only
+    source: https://github.com/SonarSource/sonarqube
+    customer_use: allowed
+    obligations: Copies must come with the licence and the library's source; programs may link to it under
+      any terms.
+    notes: Community Build; the commercial editions are not used. Plugins keep their own licences.
+  - name: docker.io/library/traefik
+    licence: MIT
+    source: https://github.com/traefik/traefik
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/percona/mongodb_exporter
+    licence: Apache-2.0
+    source: https://github.com/percona/mongodb_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/portainer/portainer-ce
+    licence: Zlib
+    source: https://github.com/portainer/portainer
+    customer_use: allowed
+    obligations: Do not misrepresent the origin; mark altered versions as such; keep the notice in source
+      copies.
+    notes: Community Edition; the Business Edition is not used.
+  - name: docker.io/prom/prometheus
+    licence: Apache-2.0
+    source: https://github.com/prometheus/prometheus
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: external-secrets chart certController.image (chart default image)
+    licence: Apache-2.0
+    source: https://github.com/external-secrets/external-secrets
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: external-secrets chart image (chart default image)
+    licence: Apache-2.0
+    source: https://github.com/external-secrets/external-secrets
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: external-secrets chart webhook.image (chart default image)
+    licence: Apache-2.0
+    source: https://github.com/external-secrets/external-secrets
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: ghcr.io/aquasecurity/node-collector
+    licence: Apache-2.0
+    source: https://github.com/aquasecurity/k8s-node-collector
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: ghcr.io/cloudnative-pg/postgresql
+    licence: PostgreSQL AND Apache-2.0
+    source: https://github.com/cloudnative-pg/postgres-containers
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: PostgreSQL under its own licence, the image build under Apache-2.0.
+  - name: ghcr.io/gethomepage/homepage
+    licence: GPL-3.0-only
+    source: https://github.com/gethomepage/homepage
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source.
+  - name: ghcr.io/kafbat/kafka-ui
+    licence: Apache-2.0
+    source: https://github.com/kafbat/kafka-ui
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: ghcr.io/kiwigrid/k8s-sidecar
+    licence: MIT
+    source: https://github.com/kiwigrid/k8s-sidecar
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: postgres-ha-operator chart image (chart default image)
+    licence: Apache-2.0
+    source: https://github.com/cloudnative-pg/cloudnative-pg
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: CloudNativePG operator.
+  - name: quay.io/keycloak/keycloak
+    licence: Apache-2.0
+    source: https://github.com/keycloak/keycloak
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: quay.io/oauth2-proxy/oauth2-proxy
+    licence: MIT
+    source: https://github.com/oauth2-proxy/oauth2-proxy
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: quay.io/oliver006/redis_exporter
+    licence: MIT
+    source: https://github.com/oliver006/redis_exporter
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
+  - name: quay.io/prometheus/alertmanager
+    licence: Apache-2.0
+    source: https://github.com/prometheus/alertmanager
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: quay.io/prometheus/blackbox-exporter
+    licence: Apache-2.0
+    source: https://github.com/prometheus/blackbox_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: quay.io/prometheus/node-exporter
+    licence: Apache-2.0
+    source: https://github.com/prometheus/node_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: quay.io/prometheuscommunity/elasticsearch-exporter
+    licence: Apache-2.0
+    source: https://github.com/prometheus-community/elasticsearch_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    licence: Apache-2.0
+    source: https://github.com/prometheus-community/postgres_exporter
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: registry.k8s.io/descheduler/descheduler
+    licence: Apache-2.0
+    source: https://github.com/kubernetes-sigs/descheduler
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: registry.k8s.io/kube-state-metrics/kube-state-metrics
+    licence: Apache-2.0
+    source: https://github.com/kubernetes/kube-state-metrics
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: registry.k8s.io/sig-storage/csi-node-driver-registrar
+    licence: Apache-2.0
+    source: https://github.com/kubernetes-csi/node-driver-registrar
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: registry.k8s.io/sig-storage/livenessprobe
+    licence: Apache-2.0
+    source: https://github.com/kubernetes-csi/livenessprobe
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: helm-chart:argocd
+    licence: Apache-2.0
+    source: https://github.com/argoproj/argo-helm
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Deploys the chart's default Argo CD image (Apache-2.0) and, in HA profiles, its default HAProxy
+      image (GPL core, LGPL headers).
+  - name: helm-chart:external-secrets
+    licence: Apache-2.0
+    source: https://github.com/external-secrets/external-secrets
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: helm-chart:longhorn
+    licence: Apache-2.0
+    source: https://github.com/longhorn/charts
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Deploys the chart's default Longhorn and CSI sidecar images (Apache-2.0).
+  - name: helm-chart:redis-ha
+    licence: Apache-2.0
+    source: https://github.com/DandyDeveloper/charts
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Vendored in k8s/charts/, so release source archives redistribute it. Deploys the chart's default
+      HAProxy image (GPL core, LGPL headers) in HA profiles.
+  - name: helm-chart:traefik
+    licence: Apache-2.0
+    source: https://github.com/traefik/traefik-helm-chart
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+  - name: helm-chart:trivy-operator
+    licence: Apache-2.0
+    source: https://github.com/aquasecurity/trivy-operator
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Vendored in k8s/charts/, so release source archives redistribute it.
+  - name: helm-chart:vault
+    licence: MPL-2.0
+    source: https://github.com/hashicorp/vault-helm
+    customer_use: allowed
+    obligations: Modified chart files stay under MPL-2.0 and their source is offered with copies.
+    notes: The chart only; Vault itself is under BUSL-1.1 (see docker.io/hashicorp/vault).
+  - name: k3s
+    licence: Apache-2.0
+    source: https://github.com/k3s-io/k3s
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Bundles containerd, Flannel, CoreDNS and other components under their own licences.
+  - name: helm
+    licence: Apache-2.0
+    source: https://github.com/helm/helm
+    customer_use: allowed
+    obligations: Keep the licence text and any NOTICE file in copies.

@@ -38,7 +38,9 @@ missing tool fails validation instead of skipping checks.
 
 The nine render profiles cover single-node and HA, `infra` and Odoo scope,
 PostgreSQL and Kafka migration phases with fencing, and authenticated shared
-application data. The command then runs the [safety suites](#validation-policy).
+application data. The command checks that the
+[licence register](guides/releases.md#third-party-licences) covers the SBOM, then
+runs the [safety suites](#validation-policy).
 
 `--live` dry-runs those profiles against the active Kubernetes context. It needs
 `kubectl`, API access and the platform CRDs. Synthetic `example.com` settings
@@ -64,6 +66,7 @@ The validator runs only these safety suites:
 | `test-k3s-kubelet-memory.sh` | A K3s reservation that does not scale with node memory, a drop-in that replaces other kubelet arguments, and an eviction threshold that drops K3s's disk thresholds. |
 | `test-install-record.sh` | An installation record that stops the installer when it cannot be written, records that grow without bound, and a `--status` summary that misses a failed run. |
 | `test-asset-inventory.py` | An asset inventory that reads Secrets, CSV sheets a spreadsheet would run as formulas, readable or overwritten output files, a source it could not read reported as complete, and outside services missing from the inventory. |
+| `test-licence-register.py` | A release bundle built without `THIRD_PARTY_NOTICES` under its manifest, and a licence register that misses an SBOM entry, keeps a stale or duplicate record, or has an invalid licence, source or `customer_use`. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |

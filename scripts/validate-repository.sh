@@ -47,6 +47,8 @@ for playbook in ansible/*.yml; do
     }
 done
 printf '[PASS] Ansible playbook syntax\n'
+python3 scripts/release.py notices > "$WORK/THIRD_PARTY_NOTICES"
+printf '[PASS] Third-party licence register covers the SBOM\n'
 
 # Safety suites for data-loss, secret-handling and fencing paths; the selection
 # is explained in docs/testing.md.
@@ -56,10 +58,11 @@ bash tests/test-k3s-kubelet-memory.sh
 bash tests/test-install-record.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
-             test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py; do
+             test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py \
+             test-licence-register.py; do
     python3 "tests/$suite"
 done
-printf '[PASS] Fifteen deployment and recovery safety suites\n'
+printf '[PASS] Deployment, recovery and release safety suites\n'
 
 if [[ "$LIVE" == true ]]; then
     command -v kubectl >/dev/null || { printf 'kubectl is required for --live.\n' >&2; exit 1; }
