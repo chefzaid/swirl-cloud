@@ -310,7 +310,10 @@ run from first sighting in a running image: 15 days for Critical, 30 for High.
 Record each accepted finding in
 [`k8s/files/vulnerability-exceptions.yaml`](../k8s/files/vulnerability-exceptions.yaml):
 one image repository and one CVE or GHSA ID, an owner, the triage date, an expiry
-at most 92 days later and the reason. Until the end of its expiry day (UTC) the
+at most 92 days later, the reason, and the VEX `status`: `not_affected` with an
+OpenVEX `justification`, or `affected` for a finding accepted until its fix ships.
+Release bundles turn the exceptions valid at the release into OpenVEX statements
+([release bundle](guides/releases.md#release-bundle)). Until the end of its expiry day (UTC) the
 finding is left out of `TrivyNewCriticalVulnerability`, the Platform Report's
 counts and `--vulnerability-report` (shown with `--all`); it stays tracked from
 first sighting, so its deadline resumes on expiry, and the report lists expired

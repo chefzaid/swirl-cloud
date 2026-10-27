@@ -6,13 +6,15 @@
   release.py changelog [--since REF]        commit subjects since a tag (default: the latest v* tag)
   release.py prepare VERSION                set the chart version and prepend CHANGELOG.md
   release.py notices                        THIRD_PARTY_NOTICES; fails when the licence register misses an SBOM entry
+  release.py vex                            OpenVEX statements for the recorded vulnerability exceptions
   release.py bundle [--ref REF] [--output-dir DIR] [--sign-key KEY]
   release.py verify BUNDLE [--allowed-signers FILE --signer ID]
 
 The platform version is the chart version in k8s/Chart.yaml; a release is the
 annotated tag v<version> on that commit. A bundle holds the source archive of
 the release, the SBOM, the image list, third-party notices from
-config/third-party-licences.yaml, release notes and a SHA256SUMS manifest,
+config/third-party-licences.yaml, OpenVEX statements from
+k8s/files/vulnerability-exceptions.yaml, release notes and a SHA256SUMS manifest,
 optionally signed with an SSH key (ssh-keygen -Y sign), like evidence packs.
 """
 import argparse
@@ -35,6 +37,7 @@ SIGNATURE_NAMESPACE = "swirl-cloud-release"
 IMAGE = re.compile(r"""image:\s*["']?([a-z0-9.-]+(?::[0-9]+)?/[^\s"'@]+@sha256:[a-f0-9]{64})""")
 SEMVER = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\Z")
 LICENCES = "config/third-party-licences.yaml"
+EXCEPTIONS = "k8s/files/vulnerability-exceptions.yaml"
 LICENCE_FIELDS = {"name", "licence", "source", "customer_use", "obligations"}
 SPDX_EXPRESSION = re.compile(r"(?:LicenseRef-)?[A-Za-z0-9.+-]+(?: (?:AND|OR|WITH) (?:LicenseRef-)?[A-Za-z0-9.+-]+)*\Z")
 
@@ -191,6 +194,32 @@ def notices(items, text):
     return "\n".join(lines)
 
 
+def vex(items, text, timestamp):
+    """OpenVEX 0.2.0 statements for the exceptions still valid at the release time, one per image and finding;
+    an exception for an image the release does not ship stops the build, since it would describe nothing."""
+    day = timestamp[:10]
+    images = [i for i in items["images"] if not i["name"].endswith("(chart default image)")]
+    statements, stale = [], []
+    for entry in (yaml.safe_load(text) or {}).get("exceptions") or []:
+        if entry["expires"] < day:
+            continue
+        products = [{"@id": purl(i)} for i in images if i["name"] == entry["image"] or i["name"].endswith("/" + entry["image"])]
+        if not products:
+            stale.append(f"{entry['image']} {entry['vulnerability']}")
+            continue
+        statement = {"vulnerability": {"name": entry["vulnerability"]}, "products": products, "status": entry["status"],
+                     "timestamp": f"{entry['triaged']}T00:00:00Z"}
+        if entry["status"] == "not_affected":
+            statement.update(justification=entry["justification"], impact_statement=entry["reason"])
+        else:
+            statement["action_statement"] = f"{entry['reason']} Accepted until {entry['expires']}."
+        statements.append(statement)
+    if stale:
+        raise SystemExit(f"{EXCEPTIONS}: exceptions for images the release does not ship:\n  " + "\n  ".join(stale))
+    return {"@context": "https://openvex.dev/ns/v0.2.0", "@id": f"urn:uuid:{uuid.uuid4()}",
+            "author": "Swirl Cloud platform team", "timestamp": timestamp, "version": 1, "statements": statements}
+
+
 def latest_tag(before=None):
     tags = git("tag", "--list", "v*", "--sort=-v:refname", *(["--merged", before] if before else [])).split()
     return tags[0] if tags else None
@@ -216,8 +245,13 @@ def bundle(ref, output_dir, sign_key):
     except subprocess.CalledProcessError:
         raise SystemExit(f"{ref} has no {LICENCES}; bundles need the licence register") from None
     third_party = notices(items, register)
+    try:
+        exceptions = git("show", f"{commit}:{EXCEPTIONS}")
+    except subprocess.CalledProcessError:
+        exceptions = ""
     version = items["version"]
     timestamp = datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", commit)), timezone.utc).isoformat()
+    vex_document = json.dumps(vex(items, exceptions, timestamp), indent=2)
     previous = latest_tag(f"{commit}^") if git("rev-list", "--count", commit).strip() != "1" else None
     name = f"swirl-cloud-{version}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -229,6 +263,7 @@ def bundle(ref, output_dir, sign_key):
                              capture_output=True, check=True).stdout
     write_file(target / f"{name}-source.tar.gz", archive)
     write_file(target / "THIRD_PARTY_NOTICES", third_party)
+    write_file(target / "vex.openvex.json", vex_document)
     write_file(target / "sbom.cdx.json", json.dumps(sbom(items, timestamp), indent=2))
     write_file(target / "images.txt", "".join(f"{i['name']}{':' + i['version'] if i['version'] else ''}@{i['digest']}\n"
                                                  for i in items["images"]))
@@ -298,6 +333,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("inventory")
     commands.add_parser("notices")
+    commands.add_parser("vex")
     sbom_parser = commands.add_parser("sbom")
     sbom_parser.add_argument("--output", type=Path)
     log_parser = commands.add_parser("changelog")
@@ -330,6 +366,9 @@ def main():
             print(document)
     elif args.command == "notices":
         print(notices(inventory(), (ROOT / LICENCES).read_text()), end="")
+    elif args.command == "vex":
+        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        print(json.dumps(vex(inventory(), (ROOT / EXCEPTIONS).read_text(), now), indent=2))
     elif args.command == "changelog":
         print("\n".join(f"- {s}" for s in changelog(args.since or latest_tag())))
     elif args.command == "prepare":

@@ -31,11 +31,12 @@ Edit it into upgrade notes before committing when a release needs manual steps.
 | `sbom.cdx.json` | CycloneDX 1.5 SBOM: every pinned image with its digest, the Helm charts, and the K3s and Helm versions. |
 | `images.txt` | One pinned image reference per line, for mirroring into an internal registry. |
 | `THIRD_PARTY_NOTICES` | Licence, source and obligations of every SBOM component, from the [licence register](#third-party-licences). |
+| `vex.openvex.json` | OpenVEX 0.2.0 statements for the [vulnerability exceptions](../security.md#vulnerability-triage) valid at the release, each naming the shipped image by digest; an exception for an image the release does not ship stops the bundle. |
 | `RELEASE-NOTES.md` | Commit, date, changes since the previous tag and a component summary. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature (namespace `swirl-cloud-release`). |
 
-`scripts/release.py inventory` and `scripts/release.py sbom` print the same
-inventory for the working tree.
+`scripts/release.py inventory`, `sbom` and `vex` print the same for the working
+tree.
 
 ## Third-party licences
 

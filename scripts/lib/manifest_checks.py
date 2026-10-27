@@ -10,6 +10,8 @@ import tempfile
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+VEX_JUSTIFICATIONS = {"component_not_present", "vulnerable_code_not_present", "vulnerable_code_not_in_execute_path",
+                      "vulnerable_code_cannot_be_controlled_by_adversary", "inline_mitigations_already_exist"}
 
 
 def require(condition, message):
@@ -289,7 +291,11 @@ def vulnerability_exceptions():
     seen = set()
     for number, entry in enumerate(entries, 1):
         label = f"{path.relative_to(ROOT)} entry {number}"
-        require(set(entry) == {"image", "vulnerability", "owner", "triaged", "expires", "reason"}, f"{label}: unexpected fields")
+        fields = {"image", "vulnerability", "owner", "triaged", "expires", "reason", "status"}
+        require(set(entry) in (fields, fields | {"justification"}), f"{label}: unexpected fields")
+        require(entry["status"] in ("not_affected", "affected"), f"{label}: status must be not_affected or affected")
+        require((entry["status"] == "not_affected") == (entry.get("justification") in VEX_JUSTIFICATIONS),
+                f"{label}: not_affected needs an OpenVEX justification, affected takes none")
         require(re.fullmatch(r"[a-z0-9]+([._/-][a-z0-9]+)*", str(entry["image"])),
                 f"{label}: image is a repository without registry, tag or digest")
         require(re.fullmatch(r"(CVE-\d{4}-\d{4,}|GHSA(-[a-z0-9]{4}){3})", str(entry["vulnerability"])),
