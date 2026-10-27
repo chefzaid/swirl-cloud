@@ -37,8 +37,22 @@ tests:
         values: '40x30'
       - series: 'node_hwmon_temp_crit_celsius{node="n1",chip="nvme",sensor="temp1"}'
         values: '85x30'
+      # A stopped fan (critical), a warm inlet (non-critical, not yet for two
+      # hours) and a healthy sensor; the second node's BMC does not answer.
+      - series: 'swirl_cloud_bmc_sensor_status{node="n1",sensor="FAN1",unit="RPM"}'
+        values: '2x30'
+      - series: 'swirl_cloud_bmc_sensor_value{node="n1",sensor="FAN1",unit="RPM"}'
+        values: '0x30'
+      - series: 'swirl_cloud_bmc_sensor_status{node="n1",sensor="Inlet Temp",unit="degrees C"}'
+        values: '1x30'
+      - series: 'swirl_cloud_bmc_sensor_status{node="n1",sensor="CPU1 Temp",unit="degrees C"}'
+        values: '0x30'
+      - series: 'swirl_cloud_bmc_read_ok{node="n1"}'
+        values: '1x30'
+      - series: 'swirl_cloud_bmc_read_ok{node="n2"}'
+        values: '0x30'
     promql_expr_test:
-      - expr: ALERTS{alertstate="firing", alertname=~"Host(DiskSmart|NvmeWear|Raid|Memory|Temperature).*"}
+      - expr: ALERTS{alertstate="firing", alertname=~"Host(DiskSmart|NvmeWear|Raid|Memory|Temperature|Bmc).*"}
         eval_time: 20m
         exp_samples:
           - labels: 'ALERTS{alertname="HostDiskSmartFailing",alertstate="firing",severity="critical",owner="platform",node="n1",device="/dev/sda"}'
@@ -48,4 +62,6 @@ tests:
           - labels: 'ALERTS{alertname="HostMemoryUncorrectableErrors",alertstate="firing",severity="critical",owner="platform",node="n1",controller="0"}'
             value: 1
           - labels: 'ALERTS{alertname="HostTemperatureNearCritical",alertstate="firing",severity="warning",owner="platform",node="n1",chip="cpu",sensor="temp1"}'
+            value: 1
+          - labels: 'ALERTS{alertname="HostBmcSensorCritical",alertstate="firing",severity="critical",owner="platform",node="n1",sensor="FAN1",unit="RPM"}'
             value: 1

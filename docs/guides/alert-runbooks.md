@@ -281,6 +281,26 @@ A sensor is close to the temperature at which the hardware throttles or shuts
 down. Check `sensors` (lm-sensors) and the load, and report cooling problems to
 the provider.
 
+### HostBmcSensorCritical
+
+The server's management controller reports a sensor past its critical threshold:
+a stopped fan, a failed power supply, a voltage out of range or an overheating
+part. Read `sudo ipmitool sensor | grep -v '| ok'` and `sudo ipmitool sel elist`
+(the event log), confirm a fresh backup and ask the provider to intervene.
+
+### HostBmcSensorWarning
+
+A sensor has been past its non-critical threshold for two hours. Check it with
+`sudo ipmitool sensor` and report a trend (rising temperature, slowing fan) to the
+provider before it turns critical.
+
+### HostBmcUnreadable
+
+ipmitool no longer reads the BMC, so its sensors go unwatched. Run
+`sudo ipmitool mc info`; if it hangs, ask the provider to reset the BMC (it does
+not affect the running server), then check
+`sudo journalctl -u swirl-cloud-smart-metrics.service -n 20`.
+
 ## Host security and maintenance
 
 ### LynisAuditFailed

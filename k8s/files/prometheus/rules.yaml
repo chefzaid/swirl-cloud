@@ -335,7 +335,7 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#tlscertificateexpirycritical
           summary: TLS certificate expires within 3 days
           description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
-  # Bare-metal disks, RAID, memory and temperatures (scripts/lib/hardware-health.sh); virtual servers export none.
+  # Bare-metal disks, RAID, memory, temperatures and BMC sensors (scripts/lib/hardware-health.sh); virtual servers export none.
   - name: swirl-cloud.hardware
     rules:
       - alert: HostDiskSmartFailing
@@ -422,6 +422,35 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hosttemperaturenearcritical
           summary: A hardware sensor is near its critical temperature
           description: 'Sensor {{ $labels.chip }} {{ $labels.sensor }} on {{ $labels.node }} is within 5 °C of its critical limit for 15 minutes.'
+      - alert: HostBmcSensorCritical
+        expr: swirl_cloud_bmc_sensor_status >= 2
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostbmcsensorcritical
+          summary: A BMC sensor is past its critical threshold
+          description: 'BMC sensor {{ $labels.sensor }} on {{ $labels.node }} ({{ $labels.unit }}) is past its critical threshold.'
+      - alert: HostBmcSensorWarning
+        expr: swirl_cloud_bmc_sensor_status == 1
+        for: 2h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostbmcsensorwarning
+          summary: A BMC sensor is past its warning threshold
+          description: 'BMC sensor {{ $labels.sensor }} on {{ $labels.node }} has been past its non-critical threshold for two hours.'
+      - alert: HostBmcUnreadable
+        expr: swirl_cloud_bmc_read_ok == 0
+        for: 2h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostbmcunreadable
+          summary: The BMC does not report its sensors
+          description: 'ipmitool could not read the BMC sensors on {{ $labels.node }} for two hours, so fans, power supplies and temperatures go unwatched.'
   - name: swirl-cloud.host-audit
     rules:
       - alert: LynisAuditFailed

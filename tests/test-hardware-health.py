@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Guards for bare-metal hardware health: a disk smartctl cannot read is reported
-as unreadable and never as healthy, the metrics file is valid exposition format,
-and a virtual machine installs nothing and loses a previous install."""
+as unreadable and never as healthy, BMC sensors keep their state and a BMC that
+does not answer is reported, the metrics file is valid exposition format, and a
+virtual machine installs nothing and loses a previous install."""
 import json
 import os
 from pathlib import Path
@@ -39,6 +40,24 @@ class HardwareHealthTest(unittest.TestCase):
         path.write_text(body)
         path.chmod(0o755)
 
+    def export(self, ipmi_devices=()):
+        """Run the exporter with the stubbed tools; return the metrics file."""
+        if not (self.directory / "bin" / "smartctl").exists():
+            self.stub("smartctl", "#!/bin/sh\necho '{}'\n")
+        exporter = self.directory / "exporter.py"
+        exporter.write_text(exporter_source())
+        metrics = self.directory / "smart.prom"
+        program = (f"import runpy; module = runpy.run_path({str(exporter)!r}); "
+                   f"module['main']({str(metrics)!r}, {[str(device) for device in ipmi_devices]!r})")
+        result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True,
+                                env={**os.environ, "PATH": f"{self.directory / 'bin'}:{os.environ['PATH']}"})
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = metrics.read_text()
+        if shutil.which("promtool"):
+            check = subprocess.run(["promtool", "check", "metrics"], input=text, capture_output=True, text=True)
+            self.assertEqual(0, check.returncode, check.stdout + check.stderr)
+        return text
+
     def test_unreadable_disk_is_never_reported_healthy(self):
         scan = {"devices": [{"name": name, "type": "nvme" if "nvme" in name else "sat"} for name in DISKS]}
         self.stub("smartctl", textwrap.dedent(f"""\
@@ -52,14 +71,7 @@ class HardwareHealthTest(unittest.TestCase):
                 data = json.loads(disks)[args[-1]]
                 print(json.dumps(data) if data else "smartctl: open failed")
             """))
-        exporter = self.directory / "exporter.py"
-        exporter.write_text(exporter_source())
-        metrics = self.directory / "smart.prom"
-        program = f"import runpy, sys; module = runpy.run_path({str(exporter)!r}); module['main']({str(metrics)!r})"
-        result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True,
-                                env={**os.environ, "PATH": f"{self.directory / 'bin'}:{os.environ['PATH']}"})
-        self.assertEqual(0, result.returncode, result.stderr)
-        text = metrics.read_text()
+        text = self.export()
         self.assertIn('swirl_cloud_smart_read_ok{device="/dev/sdc"} 0', text)
         self.assertNotIn('swirl_cloud_smart_healthy{device="/dev/sdc"}', text)
         self.assertIn('swirl_cloud_smart_healthy{device="/dev/sdb"} 0', text)
@@ -67,9 +79,34 @@ class HardwareHealthTest(unittest.TestCase):
         self.assertIn('swirl_cloud_smart_reallocated_sectors{device="/dev/sda"} 8', text)
         self.assertIn('swirl_cloud_nvme_percentage_used{device="/dev/nvme0"} 7', text)
         self.assertEqual([], [p for p in self.directory.iterdir() if p.name.startswith(".swirl_cloud_smart.")])
-        if shutil.which("promtool"):
-            check = subprocess.run(["promtool", "check", "metrics"], input=text, capture_output=True, text=True)
-            self.assertEqual(0, check.returncode, check.stdout + check.stderr)
+        self.assertNotIn("swirl_cloud_bmc_", text)  # No IPMI device: no BMC metrics.
+
+    def test_bmc_sensors_keep_their_state(self):
+        device = self.directory / "ipmi0"
+        device.write_text("")
+        self.stub("ipmitool", textwrap.dedent("""\
+            #!/bin/sh
+            cat <<'EOF'
+            CPU1 Temp        | 45.000     | degrees C  | ok    | na        | 0.000     | 5.000     | 85.000    | 90.000    | 95.000
+            FAN1             | 0.000      | RPM        | cr    | na        | 300.000   | 500.000   | na        | na        | na
+            Inlet "Temp"     | 41.000     | degrees C  | nc    | na        | na        | na        | 40.000    | 45.000    | na
+            CPU1 Temp        | 47.000     | degrees C  | ok    | na        | 0.000     | 5.000     | 85.000    | 90.000    | 95.000
+            PS1 Status       | 0x1        | discrete   | 0x0100| na        | na        | na        | na        | na        | na
+            FAN2             | na         | RPM        | na    | na        | na        | na        | na        | na        | na
+            EOF
+            """))
+        text = self.export([device])
+        self.assertIn("swirl_cloud_bmc_read_ok 1", text)
+        self.assertIn('swirl_cloud_bmc_sensor_status{sensor="FAN1",unit="RPM"} 2', text)
+        self.assertIn('swirl_cloud_bmc_sensor_status{sensor="Inlet \\"Temp\\"",unit="degrees C"} 1', text)
+        self.assertIn('swirl_cloud_bmc_sensor_value{sensor="CPU1 Temp",unit="degrees C"} 45', text)
+        self.assertIn('swirl_cloud_bmc_sensor_value{sensor="CPU1 Temp #2",unit="degrees C"} 47', text)
+        self.assertNotIn("PS1 Status", text)
+        self.assertNotIn("FAN2", text)
+        # A BMC that stops answering midway is not read, whatever it printed.
+        for output in ("", "FAN1 | 900.000 | RPM | ok | na | na | na | na | na | na\n"):
+            self.stub("ipmitool", f"#!/bin/sh\nprintf '{output}'\necho 'Get Device ID command failed' >&2\nexit 1\n")
+            self.assertIn("swirl_cloud_bmc_read_ok 0", self.export([device]))
 
     def test_virtual_machine_installs_nothing_and_removes_a_previous_install(self):
         log = self.directory / "calls.log"

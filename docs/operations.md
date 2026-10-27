@@ -530,10 +530,13 @@ On bare-metal nodes node-exporter reads software RAID (`/proc/mdstat`), memory E
 counters (EDAC) and sensor temperatures, and the host baseline
 ([hardware-health.sh](../scripts/lib/hardware-health.sh)) adds disk SMART health,
 NVMe wear and reallocated sectors through an hourly `swirl-cloud-smart-metrics`
-timer (it installs `smartmontools`). A disk smartctl cannot read is reported as
-unreadable, not healthy. Virtual servers get none of it. The alerts and their
-runbooks are under [Hardware](guides/alert-runbooks.md#hardware). BMC sensors
-(IPMI or Redfish) are not collected yet. It applies when the host baseline runs
+timer (it installs `smartmontools`). Where the server has a BMC reachable over
+IPMI, the same timer exports its threshold sensors (fans, power supplies,
+voltages, temperatures) with `ipmitool`, installed only then. A disk smartctl or
+a BMC ipmitool cannot read is reported as unreadable, not healthy. Virtual
+servers get none of it. The alerts and their runbooks are under
+[Hardware](guides/alert-runbooks.md#hardware). Redfish-only BMCs are not read.
+It applies when the host baseline runs
 (`scripts/configure-node-security.sh --host-baseline`, the installer or node
 enrollment).
 
