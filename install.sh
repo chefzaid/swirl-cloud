@@ -18,6 +18,8 @@
 #   ./install.sh --policy-report         application workloads that break admission policies
 #   ./install.sh --processing-records    draft GDPR Article 30 records from the running platform
 #   ./install.sh --asset-inventory [--output-dir DIR]  servers, workloads, data stores and suppliers (CSV)
+#   ./install.sh --questionnaire caiq-v4 [--live]  catalog controls mapped to a security questionnaire
+#   ./install.sh --contract-annex [--generic]  security measures, sub-processors, locations, DORA register
 #   ./install.sh --admin-access grant|revoke|list  time-limited platform administration
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
@@ -27,7 +29,7 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,23s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '3,25s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -118,6 +120,12 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/asset-inventory.py" "$@"
+        ;;
+    --questionnaire|--contract-annex)
+        command="${1#--}"
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/assurance-pack.py" "$command" "$@"
         ;;
     --admin-access)
         shift

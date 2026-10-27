@@ -1,0 +1,37 @@
+# Catalog controls (k8s/files/compliance-controls.yaml) mapped to CSA Cloud Controls
+# Matrix v4.0 control IDs; CAIQ v4 numbers its questions under each control (IAM-14
+# holds IAM-14.1, ...). Read by scripts/assurance-pack.py questionnaire caiq-v4.
+# Drafted 2026-10-27 without CSA's machine-readable CCM bundle, which could not be
+# downloaded here: keep verified false until the IDs and titles are checked against
+# the bundle for the CAIQ version being answered (TODO.md Needs Input). The pack
+# prints a warning while it is false.
+questionnaire: CAIQ v4.0
+verified: false
+controls:
+  identity-sso: [IAM-01, IAM-02, IAM-13, IAM-15]
+  admin-mfa: [IAM-14]
+  access-review: [IAM-07, IAM-08]
+  audit-logging: [IAM-12, LOG-02, LOG-07, LOG-08, LOG-12]
+  security-monitoring: [LOG-03, LOG-05, LOG-13]
+  intrusion-prevention: [IVS-09]
+  host-firewall: [IVS-03, IVS-09]
+  network-segmentation: [IVS-03, IVS-06]
+  workload-isolation: [IVS-06]
+  kubernetes-benchmark: [IVS-04, CCC-07]
+  host-hardening: [IVS-04]
+  integrity-monitoring: [TVM-02, CCC-07]
+  patch-management: [TVM-03]
+  vulnerability-management: [TVM-01, TVM-05, TVM-07, TVM-08, TVM-09, TVM-10]
+  secrets-management: [CEK-01, CEK-12, CEK-21]
+  encryption-in-transit: [CEK-03, CEK-04]
+  backup: [BCR-08]
+  business-continuity: [BCR-01, BCR-03, BCR-04, BCR-06, BCR-09, BCR-10]
+  service-availability: [BCR-11]
+  change-management: [CCC-01, CCC-02, CCC-03, CCC-04, CCC-09]
+  capacity: [IVS-02]
+  risk-management: [GRC-01, GRC-02, GRC-03, GRC-05]
+  incident-management: [SEF-01, SEF-03, SEF-06, SEF-07, SEF-08]
+  records-of-processing: [DSP-03, DSP-05, DSP-12]
+  supply-chain: [STA-07, STA-08, TVM-05]
+  awareness-and-hr: [HRS-01, HRS-11, HRS-12]
+  effectiveness-review: [A&A-01, A&A-02, A&A-06]

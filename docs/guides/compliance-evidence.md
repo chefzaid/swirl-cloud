@@ -125,6 +125,35 @@ the environment (`high` for platform, `corp` and production, `medium` for `uat`,
 `low` for `int`), marked *derived*. The run reads only node, workload and volume
 metadata, never Secrets, and exits 1 when a source could not be read.
 
+## Security questionnaires
+
+`./install.sh --questionnaire caiq-v4` maps every catalog control to CSA Cloud
+Controls Matrix v4 control IDs ([`config/questionnaires/caiq-v4.yaml`](../../config/questionnaires/caiq-v4.yaml));
+CAIQ v4 numbers its questions under those IDs. For each CCM control it lists the
+platform controls that answer it, their measure and their evidence: the automated
+checks, or *manual* with the documents to attach. `--live` adds each control's
+current status from Prometheus; `--format csv` or `json` changes the output, and
+`--output-dir DIR` writes all three (mode `0600`). The mapping was drafted without
+CSA's machine-readable bundle and says `verified: false` until it is checked
+against the CAIQ version being answered; until then every output carries an
+*unverified* warning. A catalog control missing from the mapping, or a malformed
+CCM ID, stops the run. The sovereignty report joins the pack once it exists (TODO §33).
+
+## Contract annex
+
+`./install.sh --contract-annex` writes the annex customers attach to a contract:
+the technical and organisational measures from the catalog (with the GDPR Art. 32
+points each covers), the sub-processors from [external services](external-services.md)
+(services selected at installation and data shared while running; download sources
+only see requests), the data and processing locations from the nodes'
+`topology.kubernetes.io/region` and `zone` labels, and DORA register-of-information
+rows: the provider, then each sub-processor as its subcontractor. Pass
+`--provider-name`, `--provider-lei`, `--provider-country` and
+`--provider-exit-plan`; whatever only the provider or customer knows reads
+`[to complete]`. `--generic` skips the cluster for contract templates. With
+`--output-dir DIR` it also writes `register-of-information.csv`. It reads node
+metadata only and exits 1 when the nodes could not be read.
+
 ## Records of processing
 
 `./install.sh --processing-records > records.md` drafts the GDPR Article 30

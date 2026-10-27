@@ -59,7 +59,7 @@ bash tests/test-install-record.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
              test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py \
-             test-licence-register.py test-console-i18n.py; do
+             test-licence-register.py test-console-i18n.py test-assurance-pack.py; do
     python3 "tests/$suite"
 done
 printf '[PASS] Deployment, recovery and release safety suites\n'
