@@ -383,3 +383,11 @@ def ingress_policy(contract):
                 and [m for m in chain if m.startswith(("infra-forwarded-headers@", "infra-security-headers@"))]
                 == ["infra-forwarded-headers@kubernetescrd", "infra-security-headers@kubernetescrd"],
                 f"{profile}: HTTPS origin headers differ from the Cloudflare edge policy")
+
+
+def portal_translation():
+    """Every portal description has French text in files/homepage-fr.yaml, and no French entry outlives its description."""
+    english = set(re.findall(r"^\s+description: (.+)$", (ROOT / "k8s/platform/homepage.yaml").read_text(), re.M))
+    french = yaml.safe_load((ROOT / "k8s/files/homepage-fr.yaml").read_text())
+    require(english == set(french), "k8s/files/homepage-fr.yaml differs from the portal descriptions: "
+            + ", ".join(sorted(english ^ set(french))))

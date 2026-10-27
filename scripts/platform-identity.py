@@ -15,6 +15,7 @@ FIELDS = {
     "CLOUDFLARE_ACCESS_IDP_NAME": "cloudflareAccessIdpName",
     "CLOUDFLARE_ACCESS_TEAM_NAME": "cloudflareAccessTeamName",
     "GITOPS_REPOSITORY_URL": "gitopsRepositoryURL", "KAFKA_CLUSTER_ID": "kafkaClusterId",
+    "PORTAL_LANGUAGE": "portalLanguage",
 }
 
 

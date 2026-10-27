@@ -122,5 +122,24 @@ class OutputTest(unittest.TestCase):
         self.assertEqual("3/3 Ready", report.results[0]["summary"])  # --json prints the results unchanged.
 
 
+class PortalTest(unittest.TestCase):
+    def render(self, language):
+        return subprocess.run(["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--show-only", "templates/resources.yaml",
+                               "--set", "publicDomain=example.com,internalDnsZone=internal.example.com,"
+                               "gitopsRepositoryURL=https://example.com/repo.git,cloudflareAccessTeamName=example",
+                               "--set-string", f"portalLanguage={language}"], capture_output=True, text=True)
+
+    def test_french_portal_and_unknown_language(self):
+        english, french = self.render(""), self.render("fr")
+        self.assertEqual(0, french.returncode, french.stderr)
+        self.assertIn("    language: en\n", english.stdout)
+        self.assertIn("    language: fr\n", french.stdout)
+        self.assertIn("description: Livraison continue GitOps\n", french.stdout)
+        self.assertNotIn("description: GitOps continuous delivery\n", french.stdout)
+        rejected = self.render("de")
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertIn("portalLanguage must be en or fr", rejected.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

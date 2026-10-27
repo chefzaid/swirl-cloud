@@ -24,14 +24,26 @@
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
 {{- end -}}
 {{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary (printf "%s%s" ($root.Files.Get "files/compliance-controls.yaml") ($root.Files.Get "files/vulnerability-exceptions.yaml")) "" -}}
-{{- /* None of these sources holds the Kafka cluster ID, so it does not restart their pods. */ -}}
-{{- $identity := omit (include "swirl-cloud.identity" $root | fromJson) "__KAFKA_CLUSTER_ID__" | toJson -}}
+{{- /* None of these sources holds the Kafka cluster ID, and the default portal language
+     restarts nothing, so neither changes these checksums. */ -}}
+{{- $identity := omit (include "swirl-cloud.identity" $root | fromJson) "__KAFKA_CLUSTER_ID__" -}}
+{{- if eq (get $identity "__PORTAL_LANGUAGE__") "en" -}}
+{{- $identity = omit $identity "__PORTAL_LANGUAGE__" -}}
+{{- end -}}
+{{- $identity = toJson $identity -}}
 {{- $checksum := printf "%s\n%s%s" $files $identity $extra | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
 {{- end -}}
 {{- if eq $path "platform/monitoring.yaml" -}}
 {{- $content = replace "      # swirl-cloud:compliance-evidence-rules" (include "swirl-cloud.compliance-rule-groups" $root | indent 6) $content -}}
 {{- $content = replace "      # swirl-cloud:vulnerability-exception-rules" (include "swirl-cloud.vulnerability-exception-rule-groups" $root | indent 6) $content -}}
+{{- end -}}
+{{- if and (eq $path "platform/homepage.yaml") (eq ($root.Values.portalLanguage | default "en") "fr") -}}
+{{- /* scripts/render-identity.py applies the same text for the installer. */ -}}
+{{- $content = replace "\n    language: en\n" "\n    language: fr\n" $content -}}
+{{- range $english, $french := $root.Files.Get "files/homepage-fr.yaml" | fromYaml -}}
+{{- $content = replace (printf "description: %s\n" $english) (printf "description: %s\n" $french) $content -}}
+{{- end -}}
 {{- end -}}
 {{- if eq $path "corp/odoo.yaml" -}}
 {{- $content = replace "# swirl-cloud:odoo-addon-configmaps" (include "swirl-cloud.odoo-addon-configmaps" $root) $content -}}

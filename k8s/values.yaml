@@ -15,6 +15,8 @@ sonarAlmSetting: ""
 cloudflareAccessIdpName: ""
 # Kafka cluster ID; empty keeps the ID that installations formatted with before it was recorded.
 kafkaClusterId: ""
+# Portal (Homepage) language: en or fr (files/homepage-fr.yaml); empty is en.
+portalLanguage: ""
 # Controls centrally managed corporate workloads; the apps foundation is always included.
 appsEnabled: false
 deschedulerEnabled: true

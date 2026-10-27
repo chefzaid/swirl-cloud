@@ -20,6 +20,7 @@
     SONAR_ALM_SETTING: "{{ sonar_alm_setting }}"
     CLOUDFLARE_ACCESS_IDP_NAME: "{{ cloudflare_access_idp_name }}"
     KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
+    PORTAL_LANGUAGE: "{{ portal_language }}"
 
   vars:
     infra_namespace: infra
@@ -127,6 +128,7 @@
     sonar_alm_setting: "{{ lookup('ansible.builtin.env', 'SONAR_ALM_SETTING') | default(organization_slug ~ '-gitlab', true) }}"
     cloudflare_access_idp_name: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_IDP_NAME') | default(organization_name ~ ' Keycloak', true) }}"
     kafka_cluster_id: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
+    portal_language: "{{ lookup('ansible.builtin.env', 'PORTAL_LANGUAGE') }}"
     gitlab_project_name: "{{ lookup('ansible.builtin.env', 'GITLAB_PROJECT_NAME') | default('swirl-cloud', true) }}"
     trusted_node_cidr: "{{ k3s_node_network_cidr | default(lookup('ansible.builtin.env', 'K3S_NODE_NETWORK_CIDR'), true) }}"
     private_transport_enabled: "{{ manage_private_transport | default(false) | bool }}"
@@ -226,6 +228,7 @@
         CLOUDFLARE_ACCESS_TEAM_NAME: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_TEAM_NAME') }}"
         CLOUDFLARE_TLS_SECRET_NAME: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TLS_SECRET_NAME') }}"
         KAFKA_CLUSTER_ID: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
+        PORTAL_LANGUAGE: "{{ lookup('ansible.builtin.env', 'PORTAL_LANGUAGE') }}"
       register: installed_identity
       changed_when: false
 
@@ -246,6 +249,7 @@
         cloudflare_access_idp_name: "{{ (installed_identity.stdout | from_json).get('CLOUDFLARE_ACCESS_IDP_NAME', cloudflare_access_idp_name) }}"
         # Reconciliation never generates an ID: empty renders the legacy one installations formatted with.
         kafka_cluster_id: "{{ (installed_identity.stdout | from_json).get('KAFKA_CLUSTER_ID', kafka_cluster_id) }}"
+        portal_language: "{{ (installed_identity.stdout | from_json).get('PORTAL_LANGUAGE', portal_language) }}"
 
     - name: Validate the shared platform contract
       ansible.builtin.assert:

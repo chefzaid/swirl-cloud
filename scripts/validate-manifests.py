@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/lib"))
 from manifest_checks import (  # noqa: E402
     alert_policy, argocd_probe_policy, documents, embedded_syntax, identity, images, index, ingress_policy,
-    lifecycle_policies, prometheus_config, require, resource_wiring, run, vulnerability_exceptions, workload_policy)
+    lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run, vulnerability_exceptions,
+    workload_policy)
 
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
@@ -111,6 +112,7 @@ def source_inputs():
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")
     ingress_policy(contract)
     vulnerability_exceptions()
+    portal_translation()
     argocd_probe_policy(contract)
     for path in (ROOT / ".github/workflows").glob("*.y*ml"):
         for action in re.findall(r"^\s+(?:- )?uses:\s*(\S+)", path.read_text(), re.M):
@@ -144,6 +146,8 @@ def render_profiles(output):
         stage = output / label
         flag = lambda value: str(value).lower()
         profile_env = dict(env, HIGH_AVAILABILITY_ENABLED=flag(ha))
+        if shared_data and not ha:
+            profile_env["PORTAL_LANGUAGE"] = "fr"  # One profile proves the French portal renders the same both ways.
         migration = {}
         if phase:
             migration = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())

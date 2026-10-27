@@ -1,0 +1,43 @@
+# French portal text for portalLanguage fr: each English description in
+# platform/homepage.yaml and its French text. Group names stay English because
+# application ingresses select their portal group by name.
+Private cloud applications, infrastructure, data, delivery, and observability: Applications, infrastructure, données, livraison et observabilité du cloud privé
+ERP and CRM application: Application ERP et CRM
+Source control, CI, artifacts, and collaboration: Gestion du code source, CI, artefacts et collaboration
+GitOps continuous delivery: Livraison continue GitOps
+Code quality and security analysis: Analyse de la qualité et de la sécurité du code
+Private cloud service catalog: Catalogue des services du cloud privé
+Kubernetes workload management: Gestion des charges de travail Kubernetes
+Distributed persistent storage: Stockage persistant distribué
+Internal HTTP ingress controller: Contrôleur d'entrée HTTP interne
+Lightweight Kubernetes control plane and workers: Plan de contrôle et nœuds Kubernetes légers
+Manual workload rebalancing addon: Module de rééquilibrage manuel des charges
+LoadBalancer implementation for Traefik: Implémentation LoadBalancer pour Traefik
+PostgreSQL, MongoDB, and Redis administration: Administration de PostgreSQL, MongoDB et Redis
+Kafbat Kafka administration: Administration de Kafka avec Kafbat
+Internal relational database cluster: Cluster de base de données relationnelle interne
+Internal document database: Base de données documentaire interne
+Internal cache and key-value store: Cache et magasin clé-valeur internes
+Internal event streaming platform: Plateforme interne de flux d'événements
+Internal KRaft metadata controller: Contrôleur de métadonnées KRaft interne
+Metrics dashboards and usage overview: Tableaux de bord des métriques et vue d'ensemble de l'utilisation
+Kubernetes and application log discovery: Exploration des journaux de Kubernetes et des applications
+Internal metrics collection and storage: Collecte et stockage internes des métriques
+Internal indexed log storage: Stockage interne et indexé des journaux
+Internal log processing pipeline: Chaîne interne de traitement des journaux
+Per-node Kubernetes log collector: Collecteur de journaux Kubernetes sur chaque nœud
+Per-node operating-system metrics: Métriques du système d'exploitation de chaque nœud
+Kubernetes object-state metrics: Métriques d'état des objets Kubernetes
+Identity and access management: Gestion des identités et des accès
+Secrets, policies, and Kubernetes authentication: Secrets, politiques et authentification Kubernetes
+Vault-to-Kubernetes secret synchronization: Synchronisation des secrets de Vault vers Kubernetes
+DNS, TLS, CDN, WAF, rate limiting, and Access: DNS, TLS, CDN, WAF, limitation de débit et Access
+Cluster vulnerability, configuration, RBAC, secret, and compliance reports: Rapports de vulnérabilités, de configuration, de RBAC, de secrets et de conformité du cluster
+Monthly control-plane audits, Kibana reporting, and transient worker scans: Audits mensuels du plan de contrôle, rapports Kibana et analyses ponctuelles des workers
+Internet-facing node detection and collaborative blocking: Détection et blocage collaboratif sur les nœuds exposés à Internet
+Internet-facing node SSH abuse banning: Bannissement des abus SSH sur les nœuds exposés à Internet
+Every-node firewall and Cloudflare origin restriction: Pare-feu de chaque nœud et restriction de l'origine à Cloudflare
+Cluster service discovery and DNS: Découverte des services et DNS du cluster
+Kubernetes resource metrics API: API des métriques de ressources Kubernetes
+K3s fallback local storage provisioner: Provisionneur de stockage local de secours de K3s
+Cluster control and API service: Contrôle du cluster et service d'API

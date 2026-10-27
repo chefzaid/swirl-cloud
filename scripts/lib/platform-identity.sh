@@ -24,9 +24,13 @@ platform_identity_defaults() {
     # Installations formatted Kafka with this ID before it was recorded; new ones get
     # their own from platform_identity_new_kafka_cluster_id.
     KAFKA_CLUSTER_ID="${KAFKA_CLUSTER_ID:-8ipNY9RxQtWkattTais5yQ}"
+    # The portal follows the installer's language unless a language is recorded or set.
+    [[ "${SWIRL_CLOUD_LANG:-}" == fr* ]] && PORTAL_LANGUAGE="${PORTAL_LANGUAGE:-fr}"
+    PORTAL_LANGUAGE="${PORTAL_LANGUAGE:-en}"
     export ORGANIZATION_NAME ORGANIZATION_SLUG GITLAB_GROUP_PATH GITLAB_GROUP_NAME
     export GITLAB_PROJECT_NAME GITLAB_PROJECT_PATH KEYCLOAK_REALM TLS_SECRET_NAME
     export CLOUDFLARE_TLS_SECRET_NAME SONAR_ALM_SETTING CLOUDFLARE_ACCESS_IDP_NAME KAFKA_CLUSTER_ID
+    export PORTAL_LANGUAGE
 }
 
 # A cluster without Kafka storage gets a new random Kafka cluster ID. Storage that
@@ -73,6 +77,9 @@ platform_identity_validate() {
     [[ -z "${CLOUDFLARE_TLS_SECRET_NAME:-}" || "$CLOUDFLARE_TLS_SECRET_NAME" == "$TLS_SECRET_NAME" ]] || return 1
     [[ "$KAFKA_CLUSTER_ID" =~ ^[A-Za-z0-9_-]{22}$ ]] || {
         printf '[ERROR] KAFKA_CLUSTER_ID must be a 22-character Kafka cluster ID.\n' >&2; return 1;
+    }
+    [[ "$PORTAL_LANGUAGE" == en || "$PORTAL_LANGUAGE" == fr ]] || {
+        printf '[ERROR] PORTAL_LANGUAGE must be en or fr.\n' >&2; return 1;
     }
 }
 

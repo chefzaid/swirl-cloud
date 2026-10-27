@@ -27,6 +27,10 @@
 {{- if not (regexMatch "^[A-Za-z0-9_-]{22}$" $kafka) -}}
 {{- fail "kafkaClusterId must be a 22-character Kafka cluster ID" -}}
 {{- end -}}
+{{- $language := .Values.portalLanguage | default "en" -}}
+{{- if not (has $language (list "en" "fr")) -}}
+{{- fail "portalLanguage must be en or fr" -}}
+{{- end -}}
 {{- $idp := .Values.cloudflareAccessIdpName | default (printf "%s Keycloak" $name) -}}
 {{- $groupName := .Values.gitlabGroupName | default $name -}}
 {{- $scanner := index .Values "trivy-operator" -}}
@@ -43,5 +47,6 @@
     "__GITLAB_GROUP_NAME_JSON__" (toJson $groupName) "__KEYCLOAK_REALM__" $realm
     "__TLS_SECRET_NAME__" $tls "__SONAR_ALM_SETTING__" $alm
     "__CLOUDFLARE_ACCESS_IDP_NAME_JSON__" (toJson $idp)
-    "__PLATFORM_TITLE_JSON__" (toJson (printf "%s Cloud" $name)) "__KAFKA_CLUSTER_ID__" $kafka | toJson -}}
+    "__PLATFORM_TITLE_JSON__" (toJson (printf "%s Cloud" $name)) "__KAFKA_CLUSTER_ID__" $kafka
+    "__PORTAL_LANGUAGE__" $language | toJson -}}
 {{- end -}}
