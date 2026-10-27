@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Guards for bare-metal hardware health: a disk smartctl cannot read is reported
+as unreadable and never as healthy, the metrics file is valid exposition format,
+and a virtual machine installs nothing and loses a previous install."""
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+LIBRARY = ROOT / "scripts/lib/hardware-health.sh"
+DISKS = {
+    "/dev/sda": {"smart_status": {"passed": True},
+                 "ata_smart_attributes": {"table": [{"id": 5, "raw": {"value": 8}}, {"id": 9, "raw": {"value": 1000}}]}},
+    "/dev/sdb": {"smart_status": {"passed": False}},
+    "/dev/nvme0": {"smart_status": {"passed": True}, "nvme_smart_health_information_log": {"percentage_used": 7}},
+    "/dev/sdc": None,  # smartctl prints no JSON: the disk does not answer.
+}
+
+
+def exporter_source():
+    text = LIBRARY.read_text()
+    return re.search(r"swirl-cloud-smart-metrics 0755 <<'EOF'\n(.*?)\nEOF\n", text, re.S)[1]
+
+
+class HardwareHealthTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def stub(self, name, body):
+        path = self.directory / "bin" / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(body)
+        path.chmod(0o755)
+
+    def test_unreadable_disk_is_never_reported_healthy(self):
+        scan = {"devices": [{"name": name, "type": "nvme" if "nvme" in name else "sat"} for name in DISKS]}
+        self.stub("smartctl", textwrap.dedent(f"""\
+            #!{sys.executable}
+            import json, sys
+            disks, scan = {json.dumps(DISKS)!r}, {json.dumps(scan)!r}
+            args = sys.argv[1:]
+            if "--scan-open" in args:
+                print(scan)
+            else:
+                data = json.loads(disks)[args[-1]]
+                print(json.dumps(data) if data else "smartctl: open failed")
+            """))
+        exporter = self.directory / "exporter.py"
+        exporter.write_text(exporter_source())
+        metrics = self.directory / "smart.prom"
+        program = f"import runpy, sys; module = runpy.run_path({str(exporter)!r}); module['main']({str(metrics)!r})"
+        result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True,
+                                env={**os.environ, "PATH": f"{self.directory / 'bin'}:{os.environ['PATH']}"})
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = metrics.read_text()
+        self.assertIn('swirl_cloud_smart_read_ok{device="/dev/sdc"} 0', text)
+        self.assertNotIn('swirl_cloud_smart_healthy{device="/dev/sdc"}', text)
+        self.assertIn('swirl_cloud_smart_healthy{device="/dev/sdb"} 0', text)
+        self.assertIn('swirl_cloud_smart_healthy{device="/dev/sda"} 1', text)
+        self.assertIn('swirl_cloud_smart_reallocated_sectors{device="/dev/sda"} 8', text)
+        self.assertIn('swirl_cloud_nvme_percentage_used{device="/dev/nvme0"} 7', text)
+        self.assertEqual([], [p for p in self.directory.iterdir() if p.name.startswith(".swirl_cloud_smart.")])
+        if shutil.which("promtool"):
+            check = subprocess.run(["promtool", "check", "metrics"], input=text, capture_output=True, text=True)
+            self.assertEqual(0, check.returncode, check.stdout + check.stderr)
+
+    def test_virtual_machine_installs_nothing_and_removes_a_previous_install(self):
+        log = self.directory / "calls.log"
+        self.stub("systemd-detect-virt", "#!/bin/sh\nexit 0\n")
+        program = textwrap.dedent(f"""\
+            set -euo pipefail
+            sudo() {{ printf 'sudo %s\\n' "$*" >> {log}; }}
+            write_root_file() {{ printf 'write %s\\n' "$1" >> {log}; cat >/dev/null; }}
+            apt_update() {{ printf 'apt\\n' >> {log}; }}
+            source {LIBRARY}
+            configure_hardware_health
+            """)
+        etc = self.directory / "etc-timer"
+        for present in (False, True):
+            with self.subTest(previous_install=present):
+                log.write_text("")
+                # The library checks this path for a previous install.
+                script = program.replace("/etc/systemd/system/swirl-cloud-smart-metrics.timer", str(etc))
+                library = self.directory / "hardware-health.sh"
+                library.write_text(LIBRARY.read_text().replace("/etc/systemd/system/swirl-cloud-smart-metrics.timer", str(etc)))
+                script = script.replace(str(LIBRARY), str(library))
+                if present:
+                    etc.write_text("")
+                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                                        env={**os.environ, "PATH": f"{self.directory / 'bin'}:{os.environ['PATH']}"})
+                self.assertEqual(0, result.returncode, result.stderr)
+                calls = log.read_text()
+                self.assertNotIn("write ", calls)
+                self.assertNotIn("apt", calls)
+                self.assertEqual(present, "rm -f" in calls, calls)
+
+
+if __name__ == "__main__":
+    unittest.main()

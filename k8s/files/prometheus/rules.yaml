@@ -335,6 +335,93 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#tlscertificateexpirycritical
           summary: TLS certificate expires within 3 days
           description: 'Certificate {{ $labels.cn }} for {{ $labels.sans }} expires in {{ $value | humanizeDuration }}.'
+  # Bare-metal disks, RAID, memory and temperatures (scripts/lib/hardware-health.sh); virtual servers export none.
+  - name: swirl-cloud.hardware
+    rules:
+      - alert: HostDiskSmartFailing
+        expr: swirl_cloud_smart_healthy == 0
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostdisksmartfailing
+          summary: A disk failed its SMART health check
+          description: '{{ $labels.device }} on {{ $labels.node }} failed its SMART overall health self-assessment; plan its replacement now.'
+      - alert: HostDiskSmartUnreadable
+        expr: swirl_cloud_smart_read_ok == 0
+        for: 2h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostdisksmartunreadable
+          summary: A disk does not report SMART health
+          description: 'smartctl could not read the health of {{ $labels.device }} on {{ $labels.node }} for two hours, so a failing disk would go unnoticed.'
+      - alert: HostSmartMetricsStale
+        expr: time() - swirl_cloud_smart_metrics_timestamp_seconds > 3 * 3600
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostsmartmetricsstale
+          summary: Disk health metrics stopped updating
+          description: 'The hourly SMART export on {{ $labels.node }} has not run for three hours; check swirl-cloud-smart-metrics.timer.'
+      - alert: HostNvmeWearHigh
+        expr: swirl_cloud_nvme_percentage_used >= 90
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostnvmewearhigh
+          summary: An NVMe drive is near its rated endurance
+          description: '{{ $labels.device }} on {{ $labels.node }} has used {{ $value }} % of its rated write endurance.'
+      - alert: HostDiskReallocatedSectorsGrowing
+        expr: delta(swirl_cloud_smart_reallocated_sectors[1d]) > 0
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostdiskreallocatedsectorsgrowing
+          summary: A disk is reallocating sectors
+          description: '{{ $labels.device }} on {{ $labels.node }} reallocated {{ $value }} more sectors in a day, an early sign of disk failure.'
+      - alert: HostRaidDegraded
+        expr: (node_md_disks_required - ignoring(state) node_md_disks{state="active"}) > 0 or node_md_disks{state="failed"} > 0
+        for: 15m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostraiddegraded
+          summary: A software RAID array is degraded
+          description: 'Array {{ $labels.device }} on {{ $labels.node }} is missing a disk or has a failed one; the next failure loses data.'
+      - alert: HostMemoryUncorrectableErrors
+        expr: increase(node_edac_uncorrectable_errors_total[1h]) > 0
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostmemoryuncorrectableerrors
+          summary: Memory reported an uncorrectable error
+          description: 'Memory controller {{ $labels.controller }} on {{ $labels.node }} reported uncorrectable ECC errors in the last hour; data may be corrupted.'
+      - alert: HostMemoryCorrectableErrorsHigh
+        expr: increase(node_edac_correctable_errors_total[1d]) > 100
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostmemorycorrectableerrorshigh
+          summary: Memory corrects many errors
+          description: 'Memory controller {{ $labels.controller }} on {{ $labels.node }} corrected {{ $value | humanize }} ECC errors in a day, often a module about to fail.'
+      - alert: HostTemperatureNearCritical
+        expr: node_hwmon_temp_crit_celsius > 0 and node_hwmon_temp_celsius >= node_hwmon_temp_crit_celsius - 5
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hosttemperaturenearcritical
+          summary: A hardware sensor is near its critical temperature
+          description: 'Sensor {{ $labels.chip }} {{ $labels.sensor }} on {{ $labels.node }} is within 5 °C of its critical limit for 15 minutes.'
   - name: swirl-cloud.host-audit
     rules:
       - alert: LynisAuditFailed

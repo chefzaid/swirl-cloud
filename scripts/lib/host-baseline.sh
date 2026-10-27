@@ -498,6 +498,7 @@ configure_host_baseline() {
   configure_metrics_textfile_directory
   configure_reboot_required_metrics
   configure_host_unit_metrics
+  configure_hardware_health
   configure_package_audit_tools
   purge_residual_kernel_packages
   configure_password_quality

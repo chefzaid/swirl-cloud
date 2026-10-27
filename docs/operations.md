@@ -516,6 +516,19 @@ whether it is active.
 kubectl get node -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.memory,ALLOCATABLE:.status.allocatable.memory
 ```
 
+## Hardware health
+
+On bare-metal nodes node-exporter reads software RAID (`/proc/mdstat`), memory ECC
+counters (EDAC) and sensor temperatures, and the host baseline
+([hardware-health.sh](../scripts/lib/hardware-health.sh)) adds disk SMART health,
+NVMe wear and reallocated sectors through an hourly `swirl-cloud-smart-metrics`
+timer (it installs `smartmontools`). A disk smartctl cannot read is reported as
+unreadable, not healthy. Virtual servers get none of it. The alerts and their
+runbooks are under [Hardware](guides/alert-runbooks.md#hardware). BMC sensors
+(IPMI or Redfish) are not collected yet. It applies when the host baseline runs
+(`scripts/configure-node-security.sh --host-baseline`, the installer or node
+enrollment).
+
 ## Maintenance
 
 Installations still on ingress-nginx or private platform images must finish the

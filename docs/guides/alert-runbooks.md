@@ -222,6 +222,65 @@ their TLS Secret. See [public DNS and ingress](../dns.md).
 Expires within three days; clients then reject the service. Renew now as for
 [TLSCertificateExpiringSoon](#tlscertificateexpiringsoon).
 
+## Hardware
+
+These alerts come from bare-metal nodes; virtual servers export none. Hardware
+faults need the hosting provider: open a ticket with the device, serial number
+(`sudo smartctl -i <device>`) and the alert, and plan the node's maintenance
+(drain it on a multi-node cluster) before the provider intervenes.
+
+### HostDiskSmartFailing
+
+The disk's own health check failed: it may stop at any time. Confirm a fresh
+backup, read `sudo smartctl -a <device>`, and ask the provider to replace it. On
+software RAID the array keeps running until the replacement
+([HostRaidDegraded](#hostraiddegraded)).
+
+### HostDiskSmartUnreadable
+
+smartctl cannot read the disk's health, so a failing disk would go unnoticed. Run
+`sudo smartctl -a <device>`; a controller hiding the disks needs its `-d` type,
+and a disk that answers nothing is suspect itself.
+
+### HostSmartMetricsStale
+
+The hourly export stopped. Check `systemctl status swirl-cloud-smart-metrics.timer`
+and `sudo journalctl -u swirl-cloud-smart-metrics.service -n 20`; rerun
+`scripts/configure-node-security.sh --host-baseline` to reinstall it.
+
+### HostNvmeWearHigh
+
+The drive has used 90 % of its rated writes. Plan its replacement with the
+provider before it reaches 100 %, after which the vendor no longer guarantees it.
+
+### HostDiskReallocatedSectorsGrowing
+
+The disk keeps remapping bad sectors, an early sign of failure. Check the trend
+with `sudo smartctl -A <device>` and plan a replacement if it keeps growing.
+
+### HostRaidDegraded
+
+A software RAID array lost redundancy. Read `cat /proc/mdstat` and
+`sudo mdadm --detail /dev/<array>`; after the provider replaces the disk, add the
+new one to the array and wait for the resync before any other maintenance.
+
+### HostMemoryUncorrectableErrors
+
+Memory returned an error it could not correct; a process may have read corrupted
+data. Read `sudo journalctl -k | grep -i -E 'edac|mce'`, ask the provider to test
+or replace the module, and check recent database writes after the repair.
+
+### HostMemoryCorrectableErrorsHigh
+
+ECC corrects errors, but many in a day usually precede a module failure. Ask the
+provider to test the memory during the next maintenance window.
+
+### HostTemperatureNearCritical
+
+A sensor is close to the temperature at which the hardware throttles or shuts
+down. Check `sensors` (lm-sensors) and the load, and report cooling problems to
+the provider.
+
 ## Host security and maintenance
 
 ### LynisAuditFailed

@@ -45,7 +45,7 @@ LONGHORN_MULTIPATH_CONFIG="$SCRIPT_DIR/../config/host/multipath-longhorn.conf"
 SECURITY_HARDENER="$SCRIPT_DIR/configure-node-security.sh"
 # The libraries configure-node-security.sh sources from lib/ next to it.
 SECURITY_HARDENER_LIBRARIES=("$SCRIPT_DIR/lib/node-access-policy.sh" "$SCRIPT_DIR/lib/intrusion-config.sh"
-    "$SCRIPT_DIR/lib/node-firewall.sh" "$SCRIPT_DIR/lib/host-baseline.sh")
+    "$SCRIPT_DIR/lib/node-firewall.sh" "$SCRIPT_DIR/lib/host-baseline.sh" "$SCRIPT_DIR/lib/hardware-health.sh")
 LYNIS_SCHEDULER="$SCRIPT_DIR/configure-lynis-schedule.sh"
 NODE_AUDITOR="$SCRIPT_DIR/audit-cluster-nodes.sh"
 K3S_NETWORK_CONFIGURATOR="$SCRIPT_DIR/configure-k3s-control-plane-network.sh"

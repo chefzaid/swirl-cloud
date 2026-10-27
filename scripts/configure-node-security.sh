@@ -194,6 +194,8 @@ source "$SCRIPT_DIR/lib/node-firewall.sh"
 
 # shellcheck source=lib/host-baseline.sh
 source "$SCRIPT_DIR/lib/host-baseline.sh"
+# shellcheck source=lib/hardware-health.sh
+source "$SCRIPT_DIR/lib/hardware-health.sh"
 
 configure_fail2ban() {
   ensure_packages fail2ban

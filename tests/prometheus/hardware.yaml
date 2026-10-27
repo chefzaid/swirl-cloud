@@ -1,0 +1,51 @@
+# promtool unit test for the hardware alerts, run by validate-manifests.py against
+# each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # One failing and one healthy disk, both readable.
+      - series: 'swirl_cloud_smart_healthy{node="n1",device="/dev/sda"}'
+        values: '0x30'
+      - series: 'swirl_cloud_smart_healthy{node="n1",device="/dev/nvme0"}'
+        values: '1x30'
+      - series: 'swirl_cloud_nvme_percentage_used{node="n1",device="/dev/nvme0"}'
+        values: '42x30'
+      # md0 needs two disks and has one active; md1 is complete.
+      - series: 'node_md_disks_required{node="n1",device="md0"}'
+        values: '2x30'
+      - series: 'node_md_disks{node="n1",device="md0",state="active"}'
+        values: '1x30'
+      - series: 'node_md_disks{node="n1",device="md0",state="failed"}'
+        values: '0x30'
+      - series: 'node_md_disks_required{node="n1",device="md1"}'
+        values: '2x30'
+      - series: 'node_md_disks{node="n1",device="md1",state="active"}'
+        values: '2x30'
+      - series: 'node_md_disks{node="n1",device="md1",state="failed"}'
+        values: '0x30'
+      # One uncorrectable memory error at 10 m.
+      - series: 'node_edac_uncorrectable_errors_total{node="n1",controller="0"}'
+        values: '0x10 1x20'
+      # A sensor 3 °C under its critical limit, and one far under it.
+      - series: 'node_hwmon_temp_celsius{node="n1",chip="cpu",sensor="temp1"}'
+        values: '97x30'
+      - series: 'node_hwmon_temp_crit_celsius{node="n1",chip="cpu",sensor="temp1"}'
+        values: '100x30'
+      - series: 'node_hwmon_temp_celsius{node="n1",chip="nvme",sensor="temp1"}'
+        values: '40x30'
+      - series: 'node_hwmon_temp_crit_celsius{node="n1",chip="nvme",sensor="temp1"}'
+        values: '85x30'
+    promql_expr_test:
+      - expr: ALERTS{alertstate="firing", alertname=~"Host(DiskSmart|NvmeWear|Raid|Memory|Temperature).*"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'ALERTS{alertname="HostDiskSmartFailing",alertstate="firing",severity="critical",owner="platform",node="n1",device="/dev/sda"}'
+            value: 1
+          - labels: 'ALERTS{alertname="HostRaidDegraded",alertstate="firing",severity="critical",owner="platform",node="n1",device="md0"}'
+            value: 1
+          - labels: 'ALERTS{alertname="HostMemoryUncorrectableErrors",alertstate="firing",severity="critical",owner="platform",node="n1",controller="0"}'
+            value: 1
+          - labels: 'ALERTS{alertname="HostTemperatureNearCritical",alertstate="firing",severity="warning",owner="platform",node="n1",chip="cpu",sensor="temp1"}'
+            value: 1
