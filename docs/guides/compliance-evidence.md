@@ -149,7 +149,7 @@ only see requests), the data and processing locations from the nodes'
 `topology.kubernetes.io/region` and `zone` labels, and DORA register-of-information
 rows: the provider, then each sub-processor as its subcontractor. Pass
 `--provider-name`, `--provider-lei`, `--provider-country` and
-`--provider-exit-plan`; whatever only the provider or customer knows reads
+`--provider-exit-plan` (default: the [exit plan](exit-plan.md)); whatever only the provider or customer knows reads
 `[to complete]`. `--generic` skips the cluster for contract templates. With
 `--output-dir DIR` it also writes `register-of-information.csv`. It reads node
 metadata only and exits 1 when the nodes could not be read.

@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "k8s/files/compliance-controls.yaml"
 QUESTIONNAIRES = ROOT / "config/questionnaires"
 TO_COMPLETE = "[to complete]"
+EXIT_PLAN = "Swirl Cloud exit plan (docs/guides/exit-plan.md)"
 # External-services sections whose providers receive platform data; download sources only see requests.
 SUB_PROCESSOR_SECTIONS = ("Required or selected at installation", "Data shared while running")
 CCM_DOMAINS = ("A&A", "AIS", "BCR", "CCC", "CEK", "DCS", "DSP", "GRC", "HRS", "IAM", "IPY", "IVS", "LOG", "SEF",
@@ -225,8 +226,9 @@ def main():
     annex.add_argument("--format", choices=("markdown", "json"), default="markdown")
     for command in (survey, annex):
         command.add_argument("--output-dir", type=Path, help="also write the documents (mode 0600) under this directory")
-    for field in ("name", "lei", "country", "exit-plan"):
+    for field in ("name", "lei", "country"):
         annex.add_argument(f"--provider-{field}", default=TO_COMPLETE)
+    annex.add_argument("--provider-exit-plan", default=EXIT_PLAN, help=f"exit plan reference (default: {EXIT_PLAN})")
     args = parser.parse_args()
     if args.command == "questionnaire":
         pack = questionnaire(args.name, args.live)
