@@ -96,6 +96,8 @@ change and ask the owner before pushing it.
   - Answer:
 - [ ] The node still stalls on page-cache thrashing when two disk-heavy CI jobs run (Bugs to fix). CI pods now yield to platform pods, but I/O pressure is not memory eviction. Which further step? Options: (a) more memory for `swirlit-node-01` or a bigger server (cost); (b) one CI job at a time across all runner managers, including the project release runners (slower CI when several projects build); (c) lower the JVM heaps and limits of the largest services, GitLab, Elasticsearch and SonarQube (§26; slower under load); (d) observe after this change first. *(task: Bugs to fix › page cache thrashes, P1; asked by: Infra Agent)*
   - Answer:
+- [ ] Is Redis key-name visibility between environments acceptable? Each environment's ACL user reads and writes only its own key prefix, but `KEYS` and `SCAN` list every environment's key names. Options: (a) accept it, with the documented rule that key names hold no secrets or personal data; (b) remove `+keys +scan` from application users, so applications must clear caches by tracked keys (an application using `KEYS` breaks until changed); (c) a separate Redis per production environment (more memory and pods). *(task: §10 › Redis key visibility, P2; asked by: Infra Agent)*
+  - Answer:
 
 ---
 
@@ -277,7 +279,7 @@ change and ask the owner before pushing it.
 - [ ] Set PostgreSQL RPO/RTO and implement continuous WAL archiving/PITR if daily `pg_dumpall` is insufficient. Prove recovery to a chosen timestamp; HA replication does not protect against accidental data changes (§16).
 - [ ] Kafka's in-cluster `PLAINTEXT` listener (9092) stays unauthenticated with `KAFKA_SUPER_USERS=User:ANONYMOUS` and `auto.create.topics.enable=true`. NetworkPolicy limits it to `infra`, `apps` and `corp`, so every legacy app and platform pod is an anonymous Kafka superuser. Migrate legacy clients to SCRAM and close 9092 to `apps`.
 - [x] Kafka cluster ID per installation: the installer generates one when the cluster has no Kafka storage, records it in `infra/swirl-cloud-identity` and the Argo CD Application (`kafkaClusterId`), and reruns, Ansible and migrations reuse it; installations made before keep `8ipNY9RxQtWkattTais5yQ`, read from the running StatefulSet when not recorded ([identity inputs](docs/deployment.md#organization-and-installation-identity)). *(2026-10-27)*
-- [ ] Decide whether Redis key-name visibility through `KEYS`/`SCAN` is acceptable for shared environments; document the boundary or use separate instances where metadata isolation is required.
+- [ ] Decide whether Redis key-name visibility through `KEYS`/`SCAN` is acceptable for shared environments; document the boundary or use separate instances where metadata isolation is required. *Progress 2026-10-27:* the boundary is documented ([onboarding](docs/guides/application-onboarding.md): key names must not hold secrets or personal data); the choice waits in [Needs Input](#needs-input).
 - [x] Datastore exporters for PostgreSQL, MongoDB, Redis and Kafka; `DatastoreDown` alerts. *(live)*
 - [ ] PostgreSQL/Kafka HA migrations have only been tested offline and against an isolated SQL canary; no three-host rehearsal.
 
@@ -583,7 +585,7 @@ Mail (either option):
 - [ ] Inventory existing mail DNS and verify the new mailbox/send/receive path before switching MX. Retire only conflicting Cloudflare Email Routing/Resend inbound records; preserve still-used outbound verification, DKIM and SPF senders, with a documented rollback.
 - [ ] Manage the provider's MX, a single SPF policy per hostname, DKIM, DMARC and autodiscover alongside the platform DNS workflow. Test mailbox delivery and retained forwarding without loops before closing the migration.
 - [x] Transactional SMTP relay ([ADR 0029](docs/adr/0029-platform-transactional-mail.md), [platform mail](docs/guides/platform-mail.md)): checked and stored in Vault `infra/smtp`, used by Alertmanager, Keycloak, GitLab and Odoo; live relay is a domain-restricted Resend key sending as `cloud@swirlit.dev`. *(live, 2026-10-09)*
-- [ ] Argo CD notifications (sync and deployment messages) through the platform mail relay; Alertmanager already emails unhealthy or out-of-sync Applications. Applications (§19) and the installer report (§23) are the other remaining consumers.
+- [ ] Argo CD notifications (sync and deployment messages) through the platform mail relay; Alertmanager already emails unhealthy or out-of-sync Applications. Applications (§19) are the other remaining consumer; the installer report mails since 2026-10-27. Waits on which notifications come back ([Needs Input](#needs-input), alert notifications): more mail while alerts are paused for being too frequent goes against that pause.
 
 Directory and SSO:
 
