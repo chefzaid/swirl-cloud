@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/lib"))
 from manifest_checks import (  # noqa: E402
     alert_policy, argocd_probe_policy, documents, embedded_syntax, identity, images, index, ingress_policy,
-    lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run, vulnerability_exceptions,
-    workload_policy)
+    lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run, runner_priority,
+    vulnerability_exceptions, workload_policy)
 
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
@@ -107,6 +107,7 @@ def source_inputs():
                 resources.append(doc)
     index(resources)
     alert_policy(resources)
+    runner_priority(resources)
     hosts = {rule["host"].removesuffix(".__PUBLIC_DOMAIN__") for doc in resources if doc["kind"] == "Ingress"
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")

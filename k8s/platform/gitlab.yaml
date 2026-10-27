@@ -313,7 +313,10 @@ spec:
           containerPort: 5050
         resources:
           requests:
-            memory: "2Gi"
+            # GitLab used 4.7 GiB on 2026-10-23. Requesting what it uses keeps the
+            # scheduler from overcommitting the node and keeps GitLab off the
+            # kubelet's eviction list ahead of CI jobs (they run at priority ci-jobs).
+            memory: "5Gi"
             cpu: "500m"
           limits:
             memory: "10Gi"

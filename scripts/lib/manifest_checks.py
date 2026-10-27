@@ -391,3 +391,14 @@ def portal_translation():
     french = yaml.safe_load((ROOT / "k8s/files/homepage-fr.yaml").read_text())
     require(english == set(french), "k8s/files/homepage-fr.yaml differs from the portal descriptions: "
             + ", ".join(sorted(english ^ set(french))))
+
+
+def runner_priority(resources):
+    """Every runner configuration names a rendered PriorityClass; Kubernetes rejects job pods otherwise."""
+    classes = {doc["metadata"]["name"] for doc in resources if doc["kind"] == "PriorityClass"}
+    for doc in resources:
+        for name, content in (doc.get("data") or {}).items() if doc["kind"] == "ConfigMap" else ():
+            if name.endswith(".toml") and "[runners.kubernetes]" in str(content):
+                named = re.findall(r'^\s*priority_class_name = "([^"]+)"', content, re.M)
+                require(named and set(named) <= classes,
+                        f"ConfigMap {doc['metadata']['name']}: runners need priority_class_name of a rendered PriorityClass")

@@ -1,3 +1,16 @@
+# CI job pods rank below every platform pod: the scheduler may preempt them to
+# place a platform pod, and the kubelet evicts them first under memory pressure.
+# They never preempt anything themselves.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ci-jobs
+value: -100
+preemptionPolicy: Never
+globalDefault: false
+description: GitLab CI job pods; below platform and application workloads.
+
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -207,6 +220,7 @@ data:
       [runners.kubernetes]
         namespace = "gitlab-runners"
         service_account = "gitlab-ci-job"
+        priority_class_name = "ci-jobs"
         image = "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
         helper_image = "registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.4.1@sha256:25db4eaaff9ff231b010eca4e189065b821b637a443897e14e0271a9faf370bf"
         image_pull_secrets = []
