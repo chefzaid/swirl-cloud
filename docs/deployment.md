@@ -671,13 +671,17 @@ limit (default 26).
 | API audit log | | auditing is configured but not yet active, or not configured |
 | Kubelet memory reservation | | the reservation is missing or waits for a K3s restart |
 | Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric yet, or the timer is not installed |
-| Last installation | | the latest installer run failed, was interrupted or recorded no finish (shown with its last step) |
+| Last installation | | the latest installer or playbook run failed, was interrupted or recorded no finish (shown with its last step) |
 
 Each warning or failure ends with a `Next:` line naming the first command to run.
 Every installer run that reaches the pre-flight checks writes a record to
 `/var/lib/swirl-cloud/install-runs/` (the newest 50 are kept): mode, Git revision,
 chart and K3s versions, each step with its time, and the result with its exit code
-and duration. Records hold no inputs. Hosts installed before records existed show
+and duration. Records hold no inputs. `ansible/install.yml` and `ansible/deploy.yml`
+runs write the same record (mode `ansible:<playbook>`, one step per task) through
+the [callback plugin](../ansible/callback_plugins/swirl_cloud_record.py) beside the
+playbooks, using passwordless sudo when the directory is root's; `--check` and
+`--syntax-check` runs are not recorded. Hosts installed before records existed show
 no **Last installation** line.
 Redirects and `401`/`403` count as reachable: administration hosts sit behind
 Cloudflare Access and SSO. Then open `https://cloud.<your-domain>`.

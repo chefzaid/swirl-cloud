@@ -10,7 +10,7 @@ only Odoo.
 | Directory | Responsibility |
 | --- | --- |
 | `.github/workflows/` | GitHub/GitLab source synchronization. |
-| `ansible/` | Inventory and the install/reconciliation playbooks. |
+| `ansible/` | Inventory, the install/reconciliation playbooks and their run-record callback plugin. |
 | `config/` | Version and service inventories in `platform.env`, Helm release values and the public origin CA certificate. |
 | `config/application-cluster/` | Target firewall policy and temporary route/dependency probes used during registration. |
 | `config/host/` | AppArmor, K3s API audit policy, Longhorn multipath settings and systemd backup/unseal units copied onto hosts. |
