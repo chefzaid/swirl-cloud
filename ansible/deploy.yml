@@ -19,6 +19,7 @@
     CLOUDFLARE_TLS_SECRET_NAME: "{{ tls_secret_name }}"
     SONAR_ALM_SETTING: "{{ sonar_alm_setting }}"
     CLOUDFLARE_ACCESS_IDP_NAME: "{{ cloudflare_access_idp_name }}"
+    KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
 
   vars:
     infra_namespace: infra
@@ -125,6 +126,7 @@
     tls_secret_name: "{{ lookup('ansible.builtin.env', 'TLS_SECRET_NAME') | default(lookup('ansible.builtin.env', 'CLOUDFLARE_TLS_SECRET_NAME'), true) | default((platform_domain | replace('.', '-')) ~ '-tls', true) }}"
     sonar_alm_setting: "{{ lookup('ansible.builtin.env', 'SONAR_ALM_SETTING') | default(organization_slug ~ '-gitlab', true) }}"
     cloudflare_access_idp_name: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_IDP_NAME') | default(organization_name ~ ' Keycloak', true) }}"
+    kafka_cluster_id: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
     gitlab_project_name: "{{ lookup('ansible.builtin.env', 'GITLAB_PROJECT_NAME') | default('swirl-cloud', true) }}"
     trusted_node_cidr: "{{ k3s_node_network_cidr | default(lookup('ansible.builtin.env', 'K3S_NODE_NETWORK_CIDR'), true) }}"
     private_transport_enabled: "{{ manage_private_transport | default(false) | bool }}"
@@ -223,6 +225,7 @@
         GITOPS_REPOSITORY_URL: "{{ lookup('ansible.builtin.env', 'GITOPS_REPOSITORY_URL') }}"
         CLOUDFLARE_ACCESS_TEAM_NAME: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_TEAM_NAME') }}"
         CLOUDFLARE_TLS_SECRET_NAME: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TLS_SECRET_NAME') }}"
+        KAFKA_CLUSTER_ID: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
       register: installed_identity
       changed_when: false
 
@@ -241,6 +244,8 @@
         tls_secret_name: "{{ (installed_identity.stdout | from_json).get('TLS_SECRET_NAME', tls_secret_name) }}"
         sonar_alm_setting: "{{ (installed_identity.stdout | from_json).get('SONAR_ALM_SETTING', sonar_alm_setting) }}"
         cloudflare_access_idp_name: "{{ (installed_identity.stdout | from_json).get('CLOUDFLARE_ACCESS_IDP_NAME', cloudflare_access_idp_name) }}"
+        # Reconciliation never generates an ID: empty renders the legacy one installations formatted with.
+        kafka_cluster_id: "{{ (installed_identity.stdout | from_json).get('KAFKA_CLUSTER_ID', kafka_cluster_id) }}"
 
     - name: Validate the shared platform contract
       ansible.builtin.assert:

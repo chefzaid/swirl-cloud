@@ -70,7 +70,7 @@ The validator runs only these safety suites:
 | `test-assurance-pack.py` | A questionnaire that drops a catalog control or hides that its mapping is unverified, a contract annex that misses a sub-processor, reads Secrets or contacts the cluster for a generic template, readable output files, and sheets a spreadsheet would run as formulas. |
 | `test-console-i18n.py` | A French installer or status message that drops a value (an address, a path, an error), an installer message without a French entry or an entry that outlived its message, a failed lookup that hides the English message, and translated run records or `--json` output. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
-| `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
+| `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes; a new Kafka cluster ID on a cluster that already has Kafka storage, or a malformed one. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |
 | `test-vault-ha.py` | Unsafe peer replacement, loss of recovery access and keys sent to the wrong host. |
 | `test-node-fencing.py` | Powering off a healthy or wrong host, or recovering storage before fencing is confirmed. |

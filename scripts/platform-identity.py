@@ -14,7 +14,7 @@ FIELDS = {
     "TLS_SECRET_NAME": "tlsSecretName", "SONAR_ALM_SETTING": "sonarAlmSetting",
     "CLOUDFLARE_ACCESS_IDP_NAME": "cloudflareAccessIdpName",
     "CLOUDFLARE_ACCESS_TEAM_NAME": "cloudflareAccessTeamName",
-    "GITOPS_REPOSITORY_URL": "gitopsRepositoryURL",
+    "GITOPS_REPOSITORY_URL": "gitopsRepositoryURL", "KAFKA_CLUSTER_ID": "kafkaClusterId",
 }
 
 
@@ -35,8 +35,31 @@ def discover():
     except (subprocess.TimeoutExpired, ValueError):
         raise RuntimeError("Cannot read installed platform identity; restore cluster access before reconciliation") from None
     if os.environ.get("PLATFORM_DOMAIN") and data.get("PLATFORM_DOMAIN") != os.environ["PLATFORM_DOMAIN"]:
-        return {}
-    return {key: value for key, value in data.items() if key in FIELDS and isinstance(value, str)}
+        data = {}
+    values = {key: value for key, value in data.items() if key in FIELDS and isinstance(value, str)}
+    if "KAFKA_CLUSTER_ID" not in values:
+        # Kafka keeps its formatted identity whatever the other settings: read it from
+        # the running StatefulSet when the identity record predates the field.
+        running = running_kafka_cluster_id()
+        if running:
+            values["KAFKA_CLUSTER_ID"] = running
+    return values
+
+
+def running_kafka_cluster_id():
+    try:
+        result = subprocess.run(["kubectl", "--request-timeout=5s", "get", "statefulset", "kafka", "-n", "infra",
+                                 "--ignore-not-found", "-o", "json"], capture_output=True, text=True, timeout=10, check=True)
+        statefulset = json.loads(result.stdout or "{}")
+    except subprocess.CalledProcessError as error:
+        if any(message in error.stderr for message in ("NotFound", "localhost:8080", "no configuration has been provided")):
+            return ""
+        raise RuntimeError("Cannot read the installed Kafka identity; restore cluster access before reconciliation") from None
+    except (subprocess.TimeoutExpired, ValueError):
+        raise RuntimeError("Cannot read the installed Kafka identity; restore cluster access before reconciliation") from None
+    containers = statefulset.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
+    return next((env.get("value", "") for container in containers if container.get("name") == "kafka"
+                 for env in container.get("env", []) if env.get("name") == "CLUSTER_ID"), "")
 
 
 if __name__ == "__main__":

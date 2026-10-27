@@ -74,7 +74,7 @@ Sizes are requests, not usage.
 
 | Record | Contents | Written by |
 | --- | --- | --- |
-| `infra/swirl-cloud-identity` | Domain, internal zone, organization, GitLab, realm, TLS and Cloudflare names | Installer rendering |
+| `infra/swirl-cloud-identity` | Domain, internal zone, organization, GitLab, realm, TLS and Cloudflare names, Kafka cluster ID | Installer rendering |
 | `infra/swirl-cloud-topology` | Schedulable policy, expected and ready node counts, Longhorn replicas, availability mode | [`reconcile-cluster-topology.sh`](../scripts/reconcile-cluster-topology.sh) |
 | `kube-system/swirl-cloud-api-endpoint` | Kubernetes API endpoint transport, address, Tailscale name and Service | [`configure-k3s-api-endpoint.sh`](../scripts/configure-k3s-api-endpoint.sh) |
 | `infra/deployment-environments` | Verified environment targets (cluster, namespace, domain, ingress, quota, secret store) | [`configure-deployment-environments.py`](../scripts/configure-deployment-environments.py) |

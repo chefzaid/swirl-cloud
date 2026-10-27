@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Offline migration safety and rendered Kafka topology checks."""
+"""Offline migration safety, rendered Kafka topology and Kafka cluster identity checks."""
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -238,6 +240,73 @@ class Render(unittest.TestCase):
                     self.assertEqual(resource["spec"]["volumeClaimTemplates"][0]["metadata"]["name"], "kafka-data")
             budgets = [d for d in docs if d["kind"] == "PodDisruptionBudget" and d["metadata"]["name"] in {"kafka", "kafka-controller"}]
             self.assertEqual(len(budgets), 2 if phase == "active" else 0)
+
+
+class Identity(unittest.TestCase):
+    """A new installation gets its own cluster ID; existing Kafka data always keeps the ID it was formatted with."""
+
+    def kubectl(self, directory, claims="", statefulset_id="", fail=""):
+        script = directory / "kubectl"
+        statefulset = {"spec": {"template": {"spec": {"containers": [
+            {"name": "kafka", "env": [{"name": "CLUSTER_ID", "value": statefulset_id}]}]}}}} if statefulset_id else {}
+        script.write_text(f"""#!{sys.executable}
+import json, sys
+args = sys.argv[1:]
+if {fail!r}:
+    sys.exit({fail!r})
+if "persistentvolumeclaims" in args:
+    print({claims!r})
+elif "statefulset" in args and {bool(statefulset_id)!r}:
+    print(json.dumps({statefulset!r}))
+# --ignore-not-found prints nothing for a missing object.
+""")
+        script.chmod(0o755)
+
+    def new_id(self, directory, present=True, **kwargs):
+        if present:
+            self.kubectl(directory, **kwargs)
+        program = (f'source {ROOT / "scripts/lib/platform-identity.sh"}; KAFKA_CLUSTER_ID="${{KAFKA_CLUSTER_ID:-}}"; '
+                   'platform_identity_new_kafka_cluster_id; printf "%s" "$KAFKA_CLUSTER_ID"')
+        path = f"{directory}:/usr/bin:/bin" if present else "/usr/bin:/bin"
+        env = {key: value for key, value in os.environ.items() if key != "KAFKA_CLUSTER_ID"}
+        return subprocess.run(["bash", "-c", program], capture_output=True, text=True, check=True, env={**env, "PATH": path}).stdout
+
+    def test_only_a_cluster_without_kafka_storage_gets_a_new_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            if not any(Path(folder, "kubectl").exists() for folder in ("/usr/bin", "/bin")):
+                fresh = self.new_id(directory, present=False)
+                self.assertRegex(fresh, r"^[A-Za-z0-9_-]{22}$")
+                self.assertNotEqual(CLUSTER_ID, fresh)
+                self.assertNotEqual(fresh, self.new_id(directory, present=False))
+            self.assertRegex(self.new_id(directory, claims="persistentvolumeclaim/other-data"), r"^[A-Za-z0-9_-]{22}$")
+            for claims in ("persistentvolumeclaim/kafka-data-kafka-0", "persistentvolumeclaim/controller-data-kafka-controller-0"):
+                self.assertEqual("", self.new_id(directory, claims=claims), claims)  # Empty: the legacy default applies.
+            self.assertEqual("", self.new_id(directory, fail="Unable to connect to the server"))
+            self.assertRegex(self.new_id(directory, fail="The connection to the server localhost:8080 was refused"),
+                             r"^[A-Za-z0-9_-]{22}$")
+
+    def test_discovery_reads_the_running_id_when_the_record_predates_it(self):
+        spec = importlib.util.spec_from_file_location("platform_identity", ROOT / "scripts/platform-identity.py")
+        identity = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(identity)
+        with tempfile.TemporaryDirectory() as directory:
+            self.kubectl(Path(directory), statefulset_id="AAAAAAAAAAAAAAAAAAAAAA")
+            with patch.dict(os.environ, {"PATH": f"{directory}:{os.environ['PATH']}", "PLATFORM_DOMAIN": ""}):
+                self.assertEqual("AAAAAAAAAAAAAAAAAAAAAA", identity.discover()["KAFKA_CLUSTER_ID"])
+
+    def test_chart_renders_the_recorded_id_and_rejects_a_malformed_one(self):
+        base = ["helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--set", "publicDomain=example.com,internalDnsZone=internal.example.com,gitopsRepositoryURL=https://example.com/repo.git,cloudflareAccessTeamName=example"]
+        for value, expected in (("", CLUSTER_ID), ("AAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAA")):
+            docs = [d for d in yaml.safe_load_all(subprocess.check_output(base + ["--set-string", f"kafkaClusterId={value}"])) if d]
+            ids = {env["value"] for d in docs if d["kind"] == "StatefulSet" and d["metadata"]["name"] in {"kafka", "kafka-controller"}
+                   for env in d["spec"]["template"]["spec"]["containers"][0]["env"] if env["name"] == "CLUSTER_ID"}
+            self.assertEqual({expected}, ids)
+            [record] = [d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "swirl-cloud-identity"]
+            self.assertEqual(expected, record["data"]["KAFKA_CLUSTER_ID"])
+        result = subprocess.run(base + ["--set-string", "kafkaClusterId=short"], capture_output=True, text=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("kafkaClusterId must be a 22-character Kafka cluster ID", result.stderr)
 
 
 if __name__ == "__main__":

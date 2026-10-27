@@ -24,7 +24,9 @@
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
 {{- end -}}
 {{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary (printf "%s%s" ($root.Files.Get "files/compliance-controls.yaml") ($root.Files.Get "files/vulnerability-exceptions.yaml")) "" -}}
-{{- $checksum := printf "%s\n%s%s" $files (include "swirl-cloud.identity" $root) $extra | sha256sum -}}
+{{- /* None of these sources holds the Kafka cluster ID, so it does not restart their pods. */ -}}
+{{- $identity := omit (include "swirl-cloud.identity" $root | fromJson) "__KAFKA_CLUSTER_ID__" | toJson -}}
+{{- $checksum := printf "%s\n%s%s" $files $identity $extra | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
 {{- end -}}
 {{- if eq $path "platform/monitoring.yaml" -}}

@@ -39,6 +39,9 @@ spec:
         - name: cloudflareAccessIdpName
           value: __CLOUDFLARE_ACCESS_IDP_NAME_JSON__
           forceString: true
+        - name: kafkaClusterId
+          value: "__KAFKA_CLUSTER_ID__"
+          forceString: true
         - name: publicDomain
           value: __PUBLIC_DOMAIN__
         - name: internalDnsZone

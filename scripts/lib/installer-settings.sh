@@ -6,6 +6,7 @@
 prompt_cluster_identity() {
     local default_node
     platform_identity_load
+    platform_identity_new_kafka_cluster_id
     if [[ "$AUTO_APPROVE" != true ]]; then
         installer_prompt_value ORGANIZATION_NAME "Company or organization display name" "${ORGANIZATION_NAME:-}"
     fi

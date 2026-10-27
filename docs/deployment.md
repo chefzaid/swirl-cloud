@@ -176,6 +176,7 @@ the company name alone.
 | `CLOUDFLARE_ACCESS_IDP_NAME` | `cloudflareAccessIdpName` | `<organization-name> Keycloak`. |
 | `CLOUDFLARE_ACCESS_TEAM_NAME` | `cloudflareAccessTeamName` | Existing Zero Trust team label, or `swirl-cloud-<domain-with-hyphens>` for a new team. |
 | `GITOPS_REPOSITORY_URL` | `gitopsRepositoryURL` | Accessible HTTP(S) `.git` URL; interactive setup suggests the checkout's remote. |
+| `KAFKA_CLUSTER_ID` | `kafkaClusterId` | A new random ID when the cluster has no Kafka storage; otherwise the ID the running Kafka was formatted with, or `8ipNY9RxQtWkattTais5yQ` for installations made before IDs were recorded. Never change it on existing data: Kafka refuses to start. |
 
 The generated Argo CD Application carries these into later Helm reconciliation. The
 public `infra/swirl-cloud-identity` ConfigMap records them for reruns, Ansible and

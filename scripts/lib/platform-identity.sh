@@ -21,9 +21,29 @@ platform_identity_defaults() {
     CLOUDFLARE_TLS_SECRET_NAME="$TLS_SECRET_NAME"
     SONAR_ALM_SETTING="${SONAR_ALM_SETTING:-$ORGANIZATION_SLUG-gitlab}"
     CLOUDFLARE_ACCESS_IDP_NAME="${CLOUDFLARE_ACCESS_IDP_NAME:-$ORGANIZATION_NAME Keycloak}"
+    # Installations formatted Kafka with this ID before it was recorded; new ones get
+    # their own from platform_identity_new_kafka_cluster_id.
+    KAFKA_CLUSTER_ID="${KAFKA_CLUSTER_ID:-8ipNY9RxQtWkattTais5yQ}"
     export ORGANIZATION_NAME ORGANIZATION_SLUG GITLAB_GROUP_PATH GITLAB_GROUP_NAME
     export GITLAB_PROJECT_NAME GITLAB_PROJECT_PATH KEYCLOAK_REALM TLS_SECRET_NAME
-    export CLOUDFLARE_TLS_SECRET_NAME SONAR_ALM_SETTING CLOUDFLARE_ACCESS_IDP_NAME
+    export CLOUDFLARE_TLS_SECRET_NAME SONAR_ALM_SETTING CLOUDFLARE_ACCESS_IDP_NAME KAFKA_CLUSTER_ID
+}
+
+# A cluster without Kafka storage gets a new random Kafka cluster ID. Storage that
+# exists, or that cannot be checked, keeps the recorded or legacy ID: Kafka refuses
+# to start on data formatted with another ID.
+platform_identity_new_kafka_cluster_id() {
+    local claims
+    [[ -z "${KAFKA_CLUSTER_ID:-}" ]] || return 0
+    if command -v kubectl >/dev/null 2>&1; then
+        claims="$(kubectl --request-timeout=10s get persistentvolumeclaims -n infra -o name 2>&1)" || {
+            [[ "$claims" == *"localhost:8080"* || "$claims" == *"no configuration has been provided"* ]] || return 0
+            claims=""
+        }
+        ! grep -Eq '^persistentvolumeclaim/(kafka-data-kafka|controller-data-kafka-controller)-[0-9]+$' <<< "$claims" || return 0
+    fi
+    KAFKA_CLUSTER_ID="$(python3 -c 'import base64, uuid; print(base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().rstrip("="))')"
+    export KAFKA_CLUSTER_ID
 }
 
 platform_identity_validate() {
@@ -51,6 +71,9 @@ platform_identity_validate() {
         printf '[ERROR] TLS_SECRET_NAME must be a Kubernetes DNS subdomain.\n' >&2; return 1;
     }
     [[ -z "${CLOUDFLARE_TLS_SECRET_NAME:-}" || "$CLOUDFLARE_TLS_SECRET_NAME" == "$TLS_SECRET_NAME" ]] || return 1
+    [[ "$KAFKA_CLUSTER_ID" =~ ^[A-Za-z0-9_-]{22}$ ]] || {
+        printf '[ERROR] KAFKA_CLUSTER_ID must be a 22-character Kafka cluster ID.\n' >&2; return 1;
+    }
 }
 
 platform_identity_load() {

@@ -22,6 +22,11 @@
 {{- if or (not (regexMatch "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" $tls)) (gt (len $tls) 253) -}}
 {{- fail "tlsSecretName must be a Kubernetes DNS subdomain" -}}
 {{- end -}}
+{{- /* Installations formatted Kafka with this ID before it was recorded. */ -}}
+{{- $kafka := .Values.kafkaClusterId | default "8ipNY9RxQtWkattTais5yQ" -}}
+{{- if not (regexMatch "^[A-Za-z0-9_-]{22}$" $kafka) -}}
+{{- fail "kafkaClusterId must be a 22-character Kafka cluster ID" -}}
+{{- end -}}
 {{- $idp := .Values.cloudflareAccessIdpName | default (printf "%s Keycloak" $name) -}}
 {{- $groupName := .Values.gitlabGroupName | default $name -}}
 {{- $scanner := index .Values "trivy-operator" -}}
@@ -38,5 +43,5 @@
     "__GITLAB_GROUP_NAME_JSON__" (toJson $groupName) "__KEYCLOAK_REALM__" $realm
     "__TLS_SECRET_NAME__" $tls "__SONAR_ALM_SETTING__" $alm
     "__CLOUDFLARE_ACCESS_IDP_NAME_JSON__" (toJson $idp)
-    "__PLATFORM_TITLE_JSON__" (toJson (printf "%s Cloud" $name)) | toJson -}}
+    "__PLATFORM_TITLE_JSON__" (toJson (printf "%s Cloud" $name)) "__KAFKA_CLUSTER_ID__" $kafka | toJson -}}
 {{- end -}}
