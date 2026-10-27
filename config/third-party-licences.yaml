@@ -5,6 +5,8 @@
 # License v2. customer_use says whether redistributing the component and operating
 # it for customers is allowed under that licence ("allowed"), or waits for the
 # owner's decision in the licensing ADR ("decision-needed", TODO.md Needs Input).
+# maintainer, jurisdiction and end_of_life (a quoted date, no-date, latest-only or
+# unverified) with its support_source: see docs/guides/releases.md#third-party-licences.
 # Licences were read from each source repository on 2026-10-27; they describe the
 # component's own code: container images also carry their base distribution's
 # packages under those packages' licences.
@@ -12,11 +14,19 @@ components:
   - name: cr.fluentbit.io/fluent/fluent-bit
     licence: Apache-2.0
     source: https://github.com/fluent/fluent-bit
+    maintainer: Fluent Bit project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: no-date
+    support_source: https://endoflife.date/fluent-bit
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.elastic.co/beats/filebeat-wolfi
     licence: Elastic-2.0
     source: https://github.com/elastic/beats
+    maintainer: Elastic N.V.
+    jurisdiction: Netherlands
+    end_of_life: no-date
+    support_source: https://www.elastic.co/support/eol
     customer_use: decision-needed
     obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
       do not bypass licence keys; keep notices.
@@ -25,6 +35,10 @@ components:
   - name: docker.elastic.co/elasticsearch/elasticsearch-wolfi
     licence: Elastic-2.0
     source: https://github.com/elastic/elasticsearch
+    maintainer: Elastic N.V.
+    jurisdiction: Netherlands
+    end_of_life: no-date
+    support_source: https://endoflife.date/elasticsearch
     customer_use: decision-needed
     obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
       do not bypass licence keys; keep notices.
@@ -33,6 +47,10 @@ components:
   - name: docker.elastic.co/kibana/kibana-wolfi
     licence: Elastic-2.0
     source: https://github.com/elastic/kibana
+    maintainer: Elastic N.V.
+    jurisdiction: Netherlands
+    end_of_life: no-date
+    support_source: https://endoflife.date/kibana
     customer_use: decision-needed
     obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
       do not bypass licence keys; keep notices.
@@ -41,6 +59,10 @@ components:
   - name: docker.elastic.co/logstash/logstash-wolfi
     licence: Elastic-2.0
     source: https://github.com/elastic/logstash
+    maintainer: Elastic N.V.
+    jurisdiction: Netherlands
+    end_of_life: no-date
+    support_source: https://endoflife.date/logstash
     customer_use: decision-needed
     obligations: No hosted or managed service to third parties that exposes a substantial set of its features;
       do not bypass licence keys; keep notices.
@@ -49,26 +71,46 @@ components:
   - name: docker.io/aquasec/trivy
     licence: Apache-2.0
     source: https://github.com/aquasecurity/trivy
+    maintainer: Aqua Security Software Ltd.
+    jurisdiction: Israel
+    end_of_life: latest-only
+    support_source: https://github.com/aquasecurity/trivy/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.io/aquasec/trivy-checks
     licence: MIT
     source: https://github.com/aquasecurity/trivy-checks
+    maintainer: Aqua Security Software Ltd.
+    jurisdiction: Israel
+    end_of_life: latest-only
+    support_source: https://github.com/aquasecurity/trivy-checks/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/aquasec/trivy-operator
     licence: Apache-2.0
     source: https://github.com/aquasecurity/trivy-operator
+    maintainer: Aqua Security Software Ltd.
+    jurisdiction: Israel
+    end_of_life: latest-only
+    support_source: https://github.com/aquasecurity/trivy-operator/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.io/cloudflare/cloudflared
     licence: Apache-2.0
     source: https://github.com/cloudflare/cloudflared
+    maintainer: Cloudflare, Inc.
+    jurisdiction: United States
+    end_of_life: unverified
+    support_source: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.io/confluentinc/cp-kafka
     licence: Apache-2.0
     source: https://github.com/confluentinc/kafka-images
+    maintainer: Confluent, Inc.
+    jurisdiction: United States
+    end_of_life: unverified
+    support_source: https://docs.confluent.io/platform/current/installation/versions-interoperability.html
     customer_use: decision-needed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Confluent's packaging of Apache Kafka; the terms of its base layer were not reviewed. The alternative
@@ -76,23 +118,39 @@ components:
   - name: docker.io/curlimages/curl
     licence: curl AND MIT
     source: https://github.com/curl/curl-container
+    maintainer: curl project
+    jurisdiction: Sweden
+    end_of_life: latest-only
+    support_source: https://curl.se/dev/secprocess.html
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
     notes: curl under its own licence, the image build under MIT.
   - name: docker.io/danielqsj/kafka-exporter
     licence: Apache-2.0
     source: https://github.com/danielqsj/kafka_exporter
+    maintainer: danielqsj
+    jurisdiction: Unknown (individual maintainer)
+    end_of_life: latest-only
+    support_source: https://github.com/danielqsj/kafka_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.io/dbgate/dbgate
     licence: GPL-3.0-only
     source: https://github.com/dbgate/dbgate
+    maintainer: DbGate
+    jurisdiction: Czech Republic
+    end_of_life: latest-only
+    support_source: https://github.com/dbgate/dbgate/releases
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
     notes: Community edition; the premium edition is not used.
   - name: docker.io/gitlab/gitlab-ce
     licence: MIT
     source: https://gitlab.com/gitlab-org/gitlab-foss
+    maintainer: GitLab Inc.
+    jurisdiction: United States
+    end_of_life: "2026-12-17"
+    support_source: https://endoflife.date/gitlab
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
     notes: Community Edition (no ee/ code). The Omnibus image bundles PostgreSQL, Redis, NGINX and other
@@ -100,11 +158,19 @@ components:
   - name: docker.io/gitlab/gitlab-runner
     licence: MIT
     source: https://gitlab.com/gitlab-org/gitlab-runner
+    maintainer: GitLab Inc.
+    jurisdiction: United States
+    end_of_life: "2026-12-17"
+    support_source: https://docs.gitlab.com/policy/maintenance/
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/grafana/grafana
     licence: AGPL-3.0-only
     source: https://github.com/grafana/grafana
+    maintainer: Grafana Labs
+    jurisdiction: United States
+    end_of_life: "2027-05-18"
+    support_source: https://endoflife.date/grafana
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source. A modified
       version offered to network users must offer them its source.
@@ -112,6 +178,10 @@ components:
   - name: docker.io/hashicorp/vault
     licence: BUSL-1.1
     source: https://github.com/hashicorp/vault
+    maintainer: HashiCorp, an IBM company
+    jurisdiction: United States
+    end_of_life: no-date
+    support_source: https://endoflife.date/hashicorp-vault
     customer_use: decision-needed
     obligations: Production use is granted unless the Licensed Work is offered to third parties on a hosted
       or embedded basis in a paid product that significantly overlaps IBM's paid Vault versions; each
@@ -120,6 +190,10 @@ components:
   - name: docker.io/library/alpine
     licence: MIT AND GPL-2.0-only
     source: https://gitlab.alpinelinux.org/alpine/aports
+    maintainer: Alpine Linux project
+    jurisdiction: International community
+    end_of_life: "2028-06-01"
+    support_source: https://endoflife.date/alpine-linux
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
     notes: musl libc (MIT), BusyBox and apk-tools (GPL-2.0-only); each package's licence is in its apk
@@ -127,11 +201,19 @@ components:
   - name: docker.io/library/busybox
     licence: GPL-2.0-only
     source: https://git.busybox.net/busybox
+    maintainer: BusyBox project
+    jurisdiction: International community
+    end_of_life: latest-only
+    support_source: https://busybox.net/
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
   - name: docker.io/library/mongo
     licence: SSPL-1.0
     source: https://github.com/mongodb/mongo
+    maintainer: MongoDB, Inc.
+    jurisdiction: United States
+    end_of_life: "2027-08-31"
+    support_source: https://endoflife.date/mongodb
     customer_use: decision-needed
     obligations: Offering MongoDB's functionality to third parties as a service obliges releasing the
       source of the whole service stack under SSPL (section 13).
@@ -139,17 +221,29 @@ components:
   - name: docker.io/library/nginx
     licence: BSD-2-Clause
     source: https://github.com/nginx/nginx
+    maintainer: F5, Inc.
+    jurisdiction: United States
+    end_of_life: no-date
+    support_source: https://endoflife.date/nginx
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/library/node
     licence: MIT
     source: https://github.com/nodejs/node
+    maintainer: OpenJS Foundation
+    jurisdiction: United States
+    end_of_life: "2028-04-30"
+    support_source: https://endoflife.date/nodejs
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
     notes: Node.js bundles dependencies whose licences are in its LICENSE file.
   - name: docker.io/library/odoo
     licence: LGPL-3.0-only
     source: https://github.com/odoo/odoo
+    maintainer: Odoo S.A.
+    jurisdiction: Belgium
+    end_of_life: unverified
+    support_source: https://www.odoo.com/documentation/19.0/administration/supported_versions.html
     customer_use: allowed
     obligations: Copies must come with the licence and the library's source; programs may link to it under
       any terms.
@@ -157,16 +251,28 @@ components:
   - name: docker.io/library/postgres
     licence: PostgreSQL
     source: https://git.postgresql.org/gitweb/?p=postgresql.git
+    maintainer: PostgreSQL Global Development Group
+    jurisdiction: International community
+    end_of_life: "2030-11-14"
+    support_source: https://endoflife.date/postgresql
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/library/python
     licence: Python-2.0
     source: https://github.com/python/cpython
+    maintainer: Python Software Foundation
+    jurisdiction: United States
+    end_of_life: "2030-10-31"
+    support_source: https://endoflife.date/python
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/library/redis
     licence: LicenseRef-RSALv2 OR SSPL-1.0 OR AGPL-3.0-only
     source: https://github.com/redis/redis
+    maintainer: Redis Ltd.
+    jurisdiction: United States
+    end_of_life: no-date
+    support_source: https://endoflife.date/redis
     customer_use: decision-needed
     obligations: Copies must come with the licence and an offer of the corresponding source. A modified
       version offered to network users must offer them its source.
@@ -175,11 +281,19 @@ components:
   - name: docker.io/library/ruby
     licence: Ruby OR BSD-2-Clause
     source: https://github.com/ruby/ruby
+    maintainer: Ruby core team
+    jurisdiction: Japan
+    end_of_life: "2028-03-31"
+    support_source: https://endoflife.date/ruby
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/library/sonarqube
     licence: LGPL-3.0-only
     source: https://github.com/SonarSource/sonarqube
+    maintainer: SonarSource SA
+    jurisdiction: Switzerland
+    end_of_life: latest-only
+    support_source: https://docs.sonarsource.com/sonarqube-community-build/
     customer_use: allowed
     obligations: Copies must come with the licence and the library's source; programs may link to it under
       any terms.
@@ -187,16 +301,28 @@ components:
   - name: docker.io/library/traefik
     licence: MIT
     source: https://github.com/traefik/traefik
+    maintainer: Traefik Labs
+    jurisdiction: France
+    end_of_life: no-date
+    support_source: https://endoflife.date/traefik
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/percona/mongodb_exporter
     licence: Apache-2.0
     source: https://github.com/percona/mongodb_exporter
+    maintainer: Percona LLC
+    jurisdiction: United States
+    end_of_life: latest-only
+    support_source: https://github.com/percona/mongodb_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: docker.io/portainer/portainer-ce
     licence: Zlib
     source: https://github.com/portainer/portainer
+    maintainer: Portainer.io Limited
+    jurisdiction: New Zealand
+    end_of_life: unverified
+    support_source: https://docs.portainer.io/start/lifecycle
     customer_use: allowed
     obligations: Do not misrepresent the origin; mark altered versions as such; keep the notice in source
       copies.
@@ -204,58 +330,102 @@ components:
   - name: docker.io/prom/prometheus
     licence: Apache-2.0
     source: https://github.com/prometheus/prometheus
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: "2026-11-06"
+    support_source: https://endoflife.date/prometheus
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: external-secrets chart certController.image (chart default image)
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
+    maintainer: External Secrets project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/external-secrets/external-secrets/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: external-secrets chart image (chart default image)
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
+    maintainer: External Secrets project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/external-secrets/external-secrets/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: external-secrets chart webhook.image (chart default image)
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
+    maintainer: External Secrets project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/external-secrets/external-secrets/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: ghcr.io/aquasecurity/node-collector
     licence: Apache-2.0
     source: https://github.com/aquasecurity/k8s-node-collector
+    maintainer: Aqua Security Software Ltd.
+    jurisdiction: Israel
+    end_of_life: latest-only
+    support_source: https://github.com/aquasecurity/k8s-node-collector/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: ghcr.io/cloudnative-pg/postgresql
     licence: PostgreSQL AND Apache-2.0
     source: https://github.com/cloudnative-pg/postgres-containers
+    maintainer: CloudNativePG project (CNCF); PostgreSQL Global Development Group
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: "2030-11-14"
+    support_source: https://endoflife.date/postgresql
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: PostgreSQL under its own licence, the image build under Apache-2.0.
   - name: ghcr.io/gethomepage/homepage
     licence: GPL-3.0-only
     source: https://github.com/gethomepage/homepage
+    maintainer: gethomepage project
+    jurisdiction: International community
+    end_of_life: latest-only
+    support_source: https://github.com/gethomepage/homepage/releases
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
   - name: ghcr.io/kafbat/kafka-ui
     licence: Apache-2.0
     source: https://github.com/kafbat/kafka-ui
+    maintainer: Kafbat project
+    jurisdiction: International community
+    end_of_life: latest-only
+    support_source: https://github.com/kafbat/kafka-ui/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: ghcr.io/kiwigrid/k8s-sidecar
     licence: MIT
     source: https://github.com/kiwigrid/k8s-sidecar
+    maintainer: Kiwigrid GmbH
+    jurisdiction: Germany
+    end_of_life: latest-only
+    support_source: https://github.com/kiwigrid/k8s-sidecar/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: postgres-ha-operator chart image (chart default image)
     licence: Apache-2.0
     source: https://github.com/cloudnative-pg/cloudnative-pg
+    maintainer: CloudNativePG project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: unverified
+    support_source: https://cloudnative-pg.io/documentation/current/supported_releases/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: CloudNativePG operator.
   - name: public.ecr.aws/docker/library/haproxy
     licence: GPL-2.0-or-later
     source: https://github.com/haproxy/haproxy
+    maintainer: HAProxy project
+    jurisdiction: France
+    end_of_life: "2027-01-01"
+    support_source: https://endoflife.date/haproxy
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
     notes: HA profiles only, in front of the platform and Argo CD Redis. HAProxy's headers are LGPL or MIT, and
@@ -263,72 +433,128 @@ components:
   - name: quay.io/argoproj/argocd
     licence: Apache-2.0
     source: https://github.com/argoproj/argo-cd
+    maintainer: Argo project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: no-date
+    support_source: https://endoflife.date/argo-cd
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Pinned in config/platform.env (DEFAULT_ARGOCD_IMAGE_TAG) and installed by the argocd chart.
   - name: quay.io/keycloak/keycloak
     licence: Apache-2.0
     source: https://github.com/keycloak/keycloak
+    maintainer: Keycloak project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: "2026-10-01"
+    support_source: https://endoflife.date/keycloak
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: quay.io/oauth2-proxy/oauth2-proxy
     licence: MIT
     source: https://github.com/oauth2-proxy/oauth2-proxy
+    maintainer: OAuth2 Proxy project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/oauth2-proxy/oauth2-proxy/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: quay.io/oliver006/redis_exporter
     licence: MIT
     source: https://github.com/oliver006/redis_exporter
+    maintainer: oliver006
+    jurisdiction: Unknown (individual maintainer)
+    end_of_life: latest-only
+    support_source: https://github.com/oliver006/redis_exporter/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
   - name: quay.io/prometheus/alertmanager
     licence: Apache-2.0
     source: https://github.com/prometheus/alertmanager
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/prometheus/alertmanager/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: quay.io/prometheus/blackbox-exporter
     licence: Apache-2.0
     source: https://github.com/prometheus/blackbox_exporter
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/prometheus/blackbox_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: quay.io/prometheus/node-exporter
     licence: Apache-2.0
     source: https://github.com/prometheus/node_exporter
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/prometheus/node_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: quay.io/prometheuscommunity/elasticsearch-exporter
     licence: Apache-2.0
     source: https://github.com/prometheus-community/elasticsearch_exporter
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/prometheus-community/elasticsearch_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: quay.io/prometheuscommunity/postgres-exporter
     licence: Apache-2.0
     source: https://github.com/prometheus-community/postgres_exporter
+    maintainer: Prometheus project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/prometheus-community/postgres_exporter/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: registry.k8s.io/descheduler/descheduler
     licence: Apache-2.0
     source: https://github.com/kubernetes-sigs/descheduler
+    maintainer: Kubernetes SIGs (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/kubernetes-sigs/descheduler/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: registry.k8s.io/kube-state-metrics/kube-state-metrics
     licence: Apache-2.0
     source: https://github.com/kubernetes/kube-state-metrics
+    maintainer: Kubernetes SIGs (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/kubernetes/kube-state-metrics/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: registry.k8s.io/sig-storage/csi-node-driver-registrar
     licence: Apache-2.0
     source: https://github.com/kubernetes-csi/node-driver-registrar
+    maintainer: Kubernetes SIGs (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/kubernetes-csi/node-driver-registrar/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: registry.k8s.io/sig-storage/livenessprobe
     licence: Apache-2.0
     source: https://github.com/kubernetes-csi/livenessprobe
+    maintainer: Kubernetes SIGs (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/kubernetes-csi/livenessprobe/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: helm-chart:argocd
     licence: Apache-2.0
     source: https://github.com/argoproj/argo-helm
+    maintainer: Argo project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/argoproj/argo-helm/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Deploys the pinned Argo CD image (quay.io/argoproj/argocd) and, in HA profiles, the pinned HAProxy
@@ -336,17 +562,29 @@ components:
   - name: helm-chart:external-secrets
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
+    maintainer: External Secrets project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/external-secrets/external-secrets/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: helm-chart:longhorn
     licence: Apache-2.0
     source: https://github.com/longhorn/charts
+    maintainer: Longhorn project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: "2027-11-29"
+    support_source: https://endoflife.date/longhorn
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Deploys the chart's default Longhorn and CSI sidecar images (Apache-2.0).
   - name: helm-chart:redis-ha
     licence: Apache-2.0
     source: https://github.com/DandyDeveloper/charts
+    maintainer: DandyDeveloper charts
+    jurisdiction: Unknown (individual maintainer)
+    end_of_life: latest-only
+    support_source: https://github.com/DandyDeveloper/charts/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Vendored in k8s/charts/, so release source archives redistribute it. Deploys the pinned HAProxy
@@ -354,28 +592,48 @@ components:
   - name: helm-chart:traefik
     licence: Apache-2.0
     source: https://github.com/traefik/traefik-helm-chart
+    maintainer: Traefik Labs
+    jurisdiction: France
+    end_of_life: latest-only
+    support_source: https://github.com/traefik/traefik-helm-chart/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
   - name: helm-chart:trivy-operator
     licence: Apache-2.0
     source: https://github.com/aquasecurity/trivy-operator
+    maintainer: Aqua Security Software Ltd.
+    jurisdiction: Israel
+    end_of_life: latest-only
+    support_source: https://github.com/aquasecurity/trivy-operator/releases
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Vendored in k8s/charts/, so release source archives redistribute it.
   - name: helm-chart:vault
     licence: MPL-2.0
     source: https://github.com/hashicorp/vault-helm
+    maintainer: HashiCorp, an IBM company
+    jurisdiction: United States
+    end_of_life: latest-only
+    support_source: https://github.com/hashicorp/vault-helm/releases
     customer_use: allowed
     obligations: Modified chart files stay under MPL-2.0 and their source is offered with copies.
     notes: The chart only; Vault itself is under BUSL-1.1 (see docker.io/hashicorp/vault).
   - name: k3s
     licence: Apache-2.0
     source: https://github.com/k3s-io/k3s
+    maintainer: K3s project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: "2027-06-28"
+    support_source: https://endoflife.date/kubernetes
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Bundles containerd, Flannel, CoreDNS and other components under their own licences.
   - name: helm
     licence: Apache-2.0
     source: https://github.com/helm/helm
+    maintainer: Helm project (CNCF)
+    jurisdiction: United States (Linux Foundation)
+    end_of_life: unverified
+    support_source: https://helm.sh/docs/topics/version_skew/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.

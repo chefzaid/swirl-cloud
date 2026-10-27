@@ -2,8 +2,9 @@
 """Guards for the third-party licence register and the release VEX: every SBOM
 entry needs a valid record, a record without an SBOM entry fails too, a release
 bundle ships THIRD_PARTY_NOTICES and VEX statements under its signed manifest or
-is not built at all, an expired exception never reaches the VEX, and an exception
-for an image the release does not ship stops the bundle."""
+is not built at all, an expired exception never reaches the VEX, an exception
+for an image the release does not ship stops the bundle, and so does a component
+past its end of life on the release date."""
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +28,9 @@ def register(records=RECORDS, **overrides):
     entries = []
     for name, licence in records.items():
         entry = {"name": name, "licence": licence, "source": "https://example.org/source",
-                 "customer_use": "allowed", "obligations": "Keep the notice."}
+                 "customer_use": "allowed", "obligations": "Keep the notice.", "maintainer": "Example project",
+                 "jurisdiction": "Example country", "end_of_life": "latest-only",
+                 "support_source": "https://example.org/support"}
         entry.update(overrides.get(name, {}))
         entries.append("  - " + "\n    ".join(f"{key}: {value!r}" for key, value in entry.items()))
     return "components:\n" + "\n".join(entries) + "\n"
@@ -75,6 +77,8 @@ class LicenceRegisterTest(unittest.TestCase):
             "customer_use allowed or decision-needed": register(**{"k3s": {"customer_use": "maybe"}}),
             "licence must be an SPDX expression": register(**{"helm": {"licence": "Apache 2"}}),
             "needs exactly": register(**{"helm": {"reviewed": "yes"}}),
+            "end_of_life must be a quoted date": register(**{"k3s": {"end_of_life": "soon"}}),
+            "support_source an https URL": register(**{"k3s": {"support_source": "http://example.org"}}),
         }
         self.commit(register())  # The inventory reads tracked files; the register is read from the working tree.
         for message, text in cases.items():
@@ -137,6 +141,26 @@ class VexTest(LicenceRegisterTest):
         result, _ = self.bundle()
         self.assertNotEqual(0, result.returncode)
         self.assertIn("library/mongo CVE-2026-1", result.stderr)
+        self.assertFalse((self.repo / "dist").exists())
+
+
+
+class SupportTest(LicenceRegisterTest):
+    def test_support_lists_the_nearest_end_first_and_fails_past_it(self):
+        self.commit(register(**{"helm": {"end_of_life": "2999-01-01"}, "k3s": {"end_of_life": "2998-01-01"}}))
+        result = self.release("support")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["2998-01-01", "2999-01-01"], [line.split()[0] for line in result.stdout.splitlines()[:2]])
+        (self.repo / "config/third-party-licences.yaml").write_text(register(**{"k3s": {"end_of_life": "2000-01-01"}}))
+        result = self.release("support")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("PAST END OF LIFE", result.stdout)
+
+    def test_component_past_end_of_life_on_the_release_date_stops_the_bundle(self):
+        self.commit(register(**{"docker.io/library/postgres": {"end_of_life": "2000-01-01"}}))
+        result = self.release("bundle", "--output-dir", str(self.repo / "dist"))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("docker.io/library/postgres (2000-01-01)", result.stderr)
         self.assertFalse((self.repo / "dist").exists())
 
 

@@ -52,6 +52,26 @@ or chart, read the licence in its source repository and add the record in the
 same commit. A record describes the component's own code: container images also
 carry their base distribution's packages under those packages' licences.
 
+Each record also names the `maintainer`, its `jurisdiction` and the pinned
+release's `end_of_life`, with the `support_source` it comes from:
+
+| `end_of_life` | Meaning |
+| --- | --- |
+| A date, such as `"2027-08-31"` | The release line stops receiving security fixes then. |
+| `no-date` | Supported; no end announced yet. |
+| `latest-only` | The project fixes only its latest release: stay on it. |
+| `unverified` | Not checked yet against the maintainer's policy. |
+
+`scripts/release.py support` lists the components by end of life, nearest first,
+and exits 1 when one is past it. `bundle` refuses a release that ships a component
+past its end of life on the release date. Dates come from the
+[endoflife.date](https://endoflife.date) data where it covers the release, which
+links each maintainer's policy. Record the new date in the same commit as an
+update to another release line. Maintainer and jurisdiction (the maintainer's
+country, or the Linux Foundation for CNCF projects) were recorded from public
+knowledge on 2026-10-27; confirm them against each maintainer's legal notice
+before relying on them in a contract.
+
 ## Verify a bundle
 
 ```bash

@@ -7,6 +7,7 @@
   release.py prepare VERSION                set the chart version and prepend CHANGELOG.md
   release.py notices                        THIRD_PARTY_NOTICES; fails when the licence register misses an SBOM entry
   release.py vex                            OpenVEX statements for the recorded vulnerability exceptions
+  release.py support                        each component's maintainer and end of support; fails past end of life
   release.py bundle [--ref REF] [--output-dir DIR] [--sign-key KEY]
   release.py verify BUNDLE [--allowed-signers FILE --signer ID]
 
@@ -38,7 +39,10 @@ IMAGE = re.compile(r"""image:\s*["']?([a-z0-9.-]+(?::[0-9]+)?/[^\s"'@]+@sha256:[
 SEMVER = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\Z")
 LICENCES = "config/third-party-licences.yaml"
 EXCEPTIONS = "k8s/files/vulnerability-exceptions.yaml"
-LICENCE_FIELDS = {"name", "licence", "source", "customer_use", "obligations"}
+LICENCE_FIELDS = {"name", "licence", "source", "customer_use", "obligations", "maintainer", "jurisdiction",
+                  "end_of_life", "support_source"}
+# A date, or: supported with no end announced, only the latest release fixed, or not yet checked.
+END_OF_LIFE = re.compile(r"\d{4}-\d{2}-\d{2}\Z|no-date\Z|latest-only\Z|unverified\Z")
 SPDX_EXPRESSION = re.compile(r"(?:LicenseRef-)?[A-Za-z0-9.+-]+(?: (?:AND|OR|WITH) (?:LicenseRef-)?[A-Za-z0-9.+-]+)*\Z")
 
 
@@ -166,6 +170,10 @@ def licence_register(items, text):
                 or not str(record["source"]).startswith("https://") or not str(record["obligations"]).strip():
             problems.append(f"{name}: licence must be an SPDX expression, customer_use allowed or decision-needed, "
                             "source an https URL and obligations non-empty")
+        elif not END_OF_LIFE.match(str(record["end_of_life"])) or not str(record["support_source"]).startswith("https://") \
+                or not str(record["maintainer"]).strip() or not str(record["jurisdiction"]).strip():
+            problems.append(f"{name}: end_of_life must be a quoted date, no-date, latest-only or unverified, "
+                            "support_source an https URL, and maintainer and jurisdiction non-empty")
         if name:
             records[name] = record
     names = component_names(items)
@@ -174,6 +182,22 @@ def licence_register(items, text):
     if problems:
         raise SystemExit("Licence register:\n  " + "\n  ".join(problems))
     return [records[name] for name in names]
+
+
+def past_end_of_life(records, day):
+    """Records whose release stopped receiving fixes before day (YYYY-MM-DD)."""
+    return [record for record in records if re.match(r"\d{4}-", record["end_of_life"]) and record["end_of_life"] < day]
+
+
+def support(items, text, day):
+    records = sorted(licence_register(items, text), key=lambda record: (not re.match(r"\d{4}-", record["end_of_life"]),
+                                                                         record["end_of_life"], record["name"]))
+    lines = [f"{record['end_of_life']:<12} {record['name']} ({record['maintainer']}, {record['jurisdiction']})"
+             for record in records]
+    past = past_end_of_life(records, day)
+    lines += [f"PAST END OF LIFE on {day}: {record['name']} ({record['end_of_life']}, {record['support_source']})"
+              for record in past]
+    return "\n".join(lines) + "\n", not past
 
 
 def notices(items, text):
@@ -245,6 +269,11 @@ def bundle(ref, output_dir, sign_key):
     except subprocess.CalledProcessError:
         raise SystemExit(f"{ref} has no {LICENCES}; bundles need the licence register") from None
     third_party = notices(items, register)
+    day = datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", commit)), timezone.utc).date().isoformat()
+    past = past_end_of_life(licence_register(items, register), day)
+    if past:
+        raise SystemExit(f"Components past end of life on {day}, the release date; update them first: "
+                         + ", ".join(f"{record['name']} ({record['end_of_life']})" for record in past))
     try:
         exceptions = git("show", f"{commit}:{EXCEPTIONS}")
     except subprocess.CalledProcessError:
@@ -334,6 +363,7 @@ def main():
     commands.add_parser("inventory")
     commands.add_parser("notices")
     commands.add_parser("vex")
+    commands.add_parser("support")
     sbom_parser = commands.add_parser("sbom")
     sbom_parser.add_argument("--output", type=Path)
     log_parser = commands.add_parser("changelog")
@@ -369,6 +399,10 @@ def main():
     elif args.command == "vex":
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         print(json.dumps(vex(inventory(), (ROOT / EXCEPTIONS).read_text(), now), indent=2))
+    elif args.command == "support":
+        report, current = support(inventory(), (ROOT / LICENCES).read_text(), datetime.now(timezone.utc).date().isoformat())
+        print(report, end="")
+        return 0 if current else 1
     elif args.command == "changelog":
         print("\n".join(f"- {s}" for s in changelog(args.since or latest_tag())))
     elif args.command == "prepare":
