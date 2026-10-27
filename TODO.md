@@ -92,6 +92,8 @@ change and ask the owner before pushing it.
   - Answer:
 - [ ] Please check the CAIQ mapping in [`config/questionnaires/caiq-v4.yaml`](config/questionnaires/caiq-v4.yaml) against CSA's CCM machine-readable bundle (a free download with a CSA account; the CSA site was unreachable from the agent's environment), then set `verified: true`. Which CAIQ version should the pack and the STAR Level 1 entry answer? Options: (a) v4.0.3, what the drafted IDs follow; (b) v4.1, released 2026-01-27 (re-check the IDs, which may have changed). *(task: §36 › Security questionnaire pack, P2; asked by: Infra Agent)*
   - Answer:
+- [ ] How should Renovate run for this repository? Options: (a) add a `RENOVATE_TOKEN` repository secret, a fine-grained token for `chefzaid/swirl-cloud` with contents, pull requests, issues and workflows write access, so the scheduled workflow runs (its pull requests are opened under the token's account); (b) install the hosted Mend Renovate GitHub App on the repository instead, and the workflow stays inert; (c) not yet. *(task: Part III › Renovate, P2; asked by: Infra Agent)*
+  - Answer:
 
 ---
 
@@ -428,7 +430,8 @@ Decisions marked **ADR** need a record in [`docs/adr/`](docs/adr/) first (see th
 proposed list in [architecture](docs/architecture.md#proposed-adrs-for-roadmap-work)).
 
 - [ ] Keep services versions updated *(perpetual; never marked done)*.
-- [ ] Integrate Renovate for version bumps across the whole cluster and all apps: platform images, charts and K3s in this repository, plus the application repositories (Swirl Demo App, Indezy, Thoughty, Swirl Website).
+- [x] Renovate configuration for this repository ([`.github/renovate.json5`](.github/renovate.json5)): every SBOM image with its digest, the charts in `k8s/Chart.yaml` and `config/platform.env`, the Argo CD image and K3s, with majors and K3s minors behind dashboard approval and no automerge ([image updates](docs/operations.md#image-updates)). Checked with `renovate-config-validator --strict` and an offline extract that covers all 49 pinned images. *(2026-10-27)* Runs once the token in [Needs Input](#needs-input) exists.
+- [ ] Extend Renovate to the application repositories (Swirl Demo App, Indezy, Thoughty, Swirl Website), each with its own config, once this repository's runs are proven.
 
 ### 20. Remediate Lynis findings (light-touch, non-blocking)
 

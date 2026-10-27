@@ -525,6 +525,19 @@ K3s and Longhorn use their release images, and two CSI sidecar pins live in the
 Applications own their images and pull credentials. There is no platform image
 pipeline or private registry dependency.
 
+[Renovate](../.github/renovate.json5) proposes updates as pull requests: every
+pinned image (tag and digest), the Helm charts in `k8s/Chart.yaml` (rebuilding the
+vendored archives) and `config/platform.env`, the Argo CD image and K3s. New pull
+requests open on Mondays after a release is three days old. Major updates and K3s
+minor upgrades wait for approval on the Dependency Dashboard issue, and the Elastic
+Stack, GitLab, Trivy, Traefik, External Secrets and Argo CD update as groups.
+Nothing merges automatically: merging deploys `k8s/` changes. The Helm CLI pin
+stays manual because its checksums change with it, and so does the CloudNativePG
+operator image, which follows its chart. The
+[scheduled workflow](../.github/workflows/renovate.yml) runs Renovate once the
+repository has a `RENOVATE_TOKEN` secret; until then it does nothing. Each pull
+request is still an update to review with the steps below.
+
 1. Review the release's compatibility, architecture, runtime identity, writable
    paths and data format. Update the digest in the owning source. A new image or
    chart, or a licence change, needs its record in the

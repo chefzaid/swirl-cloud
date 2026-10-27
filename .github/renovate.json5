@@ -1,0 +1,167 @@
+// Renovate proposes version updates as pull requests; docs/operations.md#image-updates.
+// Merging to main deploys k8s/ through Argo CD, so nothing merges automatically and
+// major updates wait for approval on the Dependency Dashboard issue.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended', ':dependencyDashboard'],
+  timezone: 'Europe/Paris',
+  schedule: ['before 6am on monday'],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  labels: ['dependencies'],
+  automerge: false,
+  // Let a release settle before proposing it; a yanked release never reaches a pull request.
+  minimumReleaseAge: '3 days',
+  // Images are pinned by tag and digest; updates keep both.
+  pinDigests: true,
+  kubernetes: {
+    managerFilePatterns: ['/^k8s/(base|datastores|platform|corp|addons)/.+\\.ya?ml$/'],
+  },
+  'helm-values': {
+    managerFilePatterns: ['/^config/.+-values\\.ya?ml$/', '/^k8s/values\\.ya?ml$/'],
+  },
+  helmv3: {
+    // Rebuild the vendored archives in k8s/charts/ with each dependency update.
+    postUpdateOptions: ['helmUpdateSubChartArchives'],
+  },
+  // A CEL expression in the system workload policy, not an image.
+  ignoreDeps: ['c.image.starts'],
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'K3s release installed by the installer',
+      managerFilePatterns: ['/^config/platform\\.env$/'],
+      matchStrings: ['DEFAULT_K3S_INSTALL_VERSION=(?<currentValue>\\S+)'],
+      datasourceTemplate: 'github-releases',
+      depNameTemplate: 'k3s-io/k3s',
+      versioningTemplate: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$',
+    },
+    {
+      customType: 'regex',
+      description: 'Helm charts the installer and reconciliation install',
+      managerFilePatterns: ['/^config/platform\\.env$/'],
+      matchStrings: [
+        'DEFAULT_(?<depName>TRAEFIK|LONGHORN|VAULT|EXTERNAL_SECRETS|ARGOCD)_CHART_VERSION=(?<currentValue>\\S+)',
+      ],
+      datasourceTemplate: 'helm',
+      depNameTemplate: '{{#if (equals depName "TRAEFIK")}}traefik{{/if}}{{#if (equals depName "LONGHORN")}}longhorn{{/if}}{{#if (equals depName "VAULT")}}vault{{/if}}{{#if (equals depName "EXTERNAL_SECRETS")}}external-secrets{{/if}}{{#if (equals depName "ARGOCD")}}argo-cd{{/if}}',
+      registryUrlTemplate: '{{#if (equals depName "TRAEFIK")}}https://traefik.github.io/charts{{/if}}{{#if (equals depName "LONGHORN")}}https://charts.longhorn.io{{/if}}{{#if (equals depName "VAULT")}}https://helm.releases.hashicorp.com{{/if}}{{#if (equals depName "EXTERNAL_SECRETS")}}https://charts.external-secrets.io{{/if}}{{#if (equals depName "ARGOCD")}}https://argoproj.github.io/argo-helm{{/if}}',
+    },
+    {
+      customType: 'regex',
+      description: 'Trivy trivy-checks image outside an image key, which helm-values does not read',
+      managerFilePatterns: ['/^k8s/values\\.yaml$/'],
+      matchStrings: ['repository: aquasec/trivy-checks\\n\\s+tag: "(?<currentValue>[^@"]+)@(?<currentDigest>sha256:[a-f0-9]{64})"'],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'docker.io/aquasec/trivy-checks',
+    },
+    {
+      customType: 'regex',
+      description: 'Trivy node-collector image outside an image key, which helm-values does not read',
+      managerFilePatterns: ['/^k8s/values\\.yaml$/'],
+      matchStrings: ['repository: aquasecurity/node-collector\\n\\s+tag: "(?<currentValue>[^@"]+)@(?<currentDigest>sha256:[a-f0-9]{64})"'],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'ghcr.io/aquasecurity/node-collector',
+    },
+    {
+      customType: 'regex',
+      description: 'Traefik image, whose digest is a separate field that helm-values would leave behind',
+      managerFilePatterns: ['/^config/traefik-values\\.yaml$/'],
+      matchStrings: [
+        'repository: library/traefik\\n\\s+tag: (?<currentValue>\\S+)\\n\\s+digest: (?<currentDigest>sha256:[a-f0-9]{64})',
+      ],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'docker.io/library/traefik',
+    },
+    {
+      customType: 'regex',
+      description: 'External Secrets images, set by tag only; their version follows the chart',
+      managerFilePatterns: ['/^config/external-secrets-values\\.yaml$/'],
+      matchStrings: ['tag: (?<currentValue>v[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'ghcr.io/external-secrets/external-secrets',
+    },
+    {
+      customType: 'regex',
+      description: 'The Renovate image the scheduled workflow runs',
+      managerFilePatterns: ['/^\\.github/workflows/renovate\\.yml$/'],
+      matchStrings: ['RENOVATE_IMAGE: ghcr\\.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'ghcr.io/renovatebot/renovate',
+    },
+    {
+      customType: 'regex',
+      description: 'Argo CD image pinned beside its chart',
+      managerFilePatterns: ['/^config/platform\\.env$/'],
+      matchStrings: ['DEFAULT_ARGOCD_IMAGE_TAG=(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'],
+      datasourceTemplate: 'docker',
+      depNameTemplate: 'quay.io/argoproj/argocd',
+    },
+  ],
+  packageRules: [
+    {
+      description: 'Majors can need data or configuration migrations: approve them on the dashboard',
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      addLabels: ['major'],
+    },
+    {
+      description: 'A K3s minor upgrade follows the Kubernetes upgrade path: one minor at a time, approved',
+      matchDepNames: ['k3s-io/k3s'],
+      matchUpdateTypes: ['minor'],
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: 'Elasticsearch, Kibana, Logstash and Filebeat run the same version',
+      matchPackageNames: ['docker.elastic.co/**'],
+      groupName: 'Elastic Stack',
+    },
+    {
+      description: 'GitLab and its runner upgrade together',
+      matchPackageNames: ['docker.io/gitlab/**'],
+      groupName: 'GitLab',
+    },
+    {
+      description: 'The Trivy operator chart and the scanner images it runs',
+      matchPackageNames: ['trivy-operator', 'docker.io/aquasec/**', 'ghcr.io/aquasecurity/**'],
+      groupName: 'Trivy',
+    },
+    {
+      description: 'helm-values cannot keep the separate Traefik digest; the custom manager above updates it',
+      matchManagers: ['helm-values'],
+      matchFileNames: ['config/traefik-values.yaml'],
+      enabled: false,
+    },
+    {
+      description: 'The Traefik chart and image',
+      matchPackageNames: ['traefik', 'docker.io/library/traefik'],
+      groupName: 'Traefik',
+    },
+    {
+      description: 'The External Secrets chart and its images share one version',
+      matchPackageNames: ['external-secrets', 'ghcr.io/external-secrets/external-secrets'],
+      groupName: 'External Secrets',
+    },
+    {
+      description: 'The Argo CD chart and image',
+      matchPackageNames: ['argo-cd', 'quay.io/argoproj/argocd'],
+      groupName: 'Argo CD',
+    },
+    {
+      description: 'Renovate releases daily; update it monthly',
+      matchPackageNames: ['ghcr.io/renovatebot/renovate'],
+      minimumReleaseAge: '14 days',
+      schedule: ['* 0-5 1 * *'],
+    },
+    {
+      description: 'Odoo tags are <series>-<build date>',
+      matchPackageNames: ['docker.io/library/odoo'],
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)-(?<patch>\\d{8})$',
+    },
+    {
+      description: 'GitLab Runner tags are alpine-v<version>',
+      matchPackageNames: ['docker.io/gitlab/gitlab-runner'],
+      versioning: 'regex:^alpine-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
+    },
+  ],
+}

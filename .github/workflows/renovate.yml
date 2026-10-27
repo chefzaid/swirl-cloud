@@ -1,0 +1,44 @@
+name: Renovate
+
+# Proposes version updates as pull requests from .github/renovate.json5 (new ones on
+# Mondays; daily runs refresh open ones and the dashboard). Inert until
+# the repository has a RENOVATE_TOKEN secret: a fine-grained token for this
+# repository with contents, pull requests, issues and workflows write access
+# (docs/operations.md#image-updates).
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    name: Propose version updates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.155.1@sha256:f5796f26088c0f5debb07c16fa9e801145e4d3ba9717d9cc22ca8cd265e2a0eb
+      RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+    steps:
+      - name: Run Renovate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENOVATE_TOKEN:-}" ]]; then
+            echo "RENOVATE_TOKEN is not configured; nothing to do."
+            exit 0
+          fi
+          docker run --rm \
+            -e RENOVATE_TOKEN \
+            -e RENOVATE_PLATFORM=github \
+            -e RENOVATE_REPOSITORIES="$GITHUB_REPOSITORY" \
+            -e RENOVATE_ONBOARDING=false \
+            -e RENOVATE_REQUIRE_CONFIG=required \
+            -e LOG_LEVEL=info \
+            "$RENOVATE_IMAGE"
