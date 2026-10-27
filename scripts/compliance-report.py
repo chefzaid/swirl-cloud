@@ -9,7 +9,8 @@ Controls map to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS requirement
 --evidence-pack writes a private archive with the report (JSON and Markdown), the
 catalog, every query and its raw result, recent status history, the platform
 verification report, the asset inventory and Trivy compliance summaries (plus the
-access review with --access-review), and a SHA256SUMS manifest.
+access review with --access-review, and with --isms-documents DIR whether each
+signed ISMS document is there, who approved it and when), and a SHA256SUMS manifest.
 --sign-key signs the manifest with an SSH key (ssh-keygen -Y sign); an auditor
 checks an archive with --verify ARCHIVE [--allowed-signers FILE --signer ID].
 Everything is read-only; Kubernetes Secrets are never read.
@@ -206,7 +207,8 @@ def trivy_compliance():
     return summary
 
 
-def write_pack(output_dir, catalog_text, results, summary, generated, platform, history, sign_key, access_review=False):
+def write_pack(output_dir, catalog_text, results, summary, generated, platform, history, sign_key, access_review=False,
+               isms_documents=None):
     stamp = f"{generated:%Y%m%dT%H%M%SZ}"
     name = f"swirl-cloud-evidence-{stamp}"
     files = {
@@ -221,6 +223,10 @@ def write_pack(output_dir, catalog_text, results, summary, generated, platform, 
         "context/asset-inventory.json": command_output(sys.executable, str(ROOT / "scripts/asset-inventory.py"),
                                                        "--format", "json"),
     }
+    if isms_documents:
+        sys.path.insert(0, str(ROOT / "scripts/lib"))
+        import isms_kit
+        files["context/isms-documents.json"] = json.dumps(isms_kit.approvals(isms_documents), indent=2)
     if access_review:
         files["context/access-review.json"] = command_output(sys.executable, str(ROOT / "scripts/access-review.py"),
                                                              "--format", "json", timeout=1200)
@@ -296,6 +302,8 @@ def main():
     parser.add_argument("--history-hours", type=int, default=24, help="status history included in the pack")
     parser.add_argument("--access-review", action="store_true",
                         help="include the access review (scripts/access-review.py, about two minutes) in the pack")
+    parser.add_argument("--isms-documents", type=Path, metavar="DIR",
+                        help="directory of the signed ISMS documents (./install.sh --isms-kit) to record in the pack")
     parser.add_argument("--prometheus-url", help="query Prometheus directly instead of through the Kubernetes API")
     parser.add_argument("--strict", action="store_true", help="exit 1 when a control fails or lacks evidence")
     parser.add_argument("--verify", type=Path, metavar="ARCHIVE", help="check an evidence archive and its signature")
@@ -332,7 +340,7 @@ def main():
         except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
             history = {"error": str(error)}
         path, digest = write_pack(args.output_dir, catalog_text, results, summary, generated, platform, history,
-                                  args.sign_key, args.access_review)
+                                  args.sign_key, args.access_review, args.isms_documents)
         print(f"\nEvidence pack: {path}\nManifest SHA-256: {digest}"
               f"{' (signed)' if args.sign_key else ''}. Verify with: {Path(sys.argv[0]).name} --verify {path}",
               file=sys.stderr)

@@ -3,6 +3,7 @@
 
   assurance-pack.py questionnaire caiq-v4 [--live] [--format markdown|csv|json] [--output-dir DIR]
   assurance-pack.py contract-annex [--generic] [--provider-name NAME ...] [--format markdown|json] [--output-dir DIR]
+  assurance-pack.py isms-kit --output-dir DIR
 
 The questionnaire maps each catalog control (k8s/files/compliance-controls.yaml)
 to CSA CCM v4 control IDs (config/questionnaires/caiq-v4.yaml) with its evidence:
@@ -14,6 +15,9 @@ catalog, the sub-processors from docs/guides/external-services.md, the data and
 processing locations from the cluster's nodes, and DORA register-of-information
 rows. --generic skips the cluster and leaves locations to complete, for contract
 templates. Fields only the provider or customer knows read "[to complete]".
+
+The ISMS kit writes the information security policy, risk register, continuity
+and recovery plan and supplier register templates (scripts/lib/isms_kit.py).
 Read-only; Kubernetes Secrets are never read.
 """
 import argparse
@@ -204,6 +208,15 @@ def annex_markdown(annex):
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
+def isms_kit():
+    sys.path.insert(0, str(ROOT / "scripts/lib"))
+    import isms_kit as kit
+    inventory = load_script("asset-inventory")
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return kit.render(yaml.safe_load(CATALOG.read_text()), (ROOT / "docs/operations.md").read_text(),
+                      inventory.external_services(inventory.EXTERNAL_SERVICES.read_text()), generated)
+
+
 def write_private(directory, files):
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     target = directory / f"assurance-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
@@ -226,10 +239,15 @@ def main():
     annex.add_argument("--format", choices=("markdown", "json"), default="markdown")
     for command in (survey, annex):
         command.add_argument("--output-dir", type=Path, help="also write the documents (mode 0600) under this directory")
+    kit = commands.add_parser("isms-kit")
+    kit.add_argument("--output-dir", type=Path, required=True, help="write the templates (mode 0600) under this directory")
     for field in ("name", "lei", "country"):
         annex.add_argument(f"--provider-{field}", default=TO_COMPLETE)
     annex.add_argument("--provider-exit-plan", default=EXIT_PLAN, help=f"exit plan reference (default: {EXIT_PLAN})")
     args = parser.parse_args()
+    if args.command == "isms-kit":
+        print(f"ISMS templates: {write_private(args.output_dir, isms_kit())}")
+        return 0
     if args.command == "questionnaire":
         pack = questionnaire(args.name, args.live)
         outputs = {"markdown": questionnaire_markdown(pack), "csv": questionnaire_csv(pack), "json": json.dumps(pack, indent=2)}

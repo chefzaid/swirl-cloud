@@ -2,8 +2,9 @@
 """Guards for customer assurance documents: a questionnaire never silently drops a
 catalog control or shows an unverified mapping without saying so, a contract annex
 lists every sub-processor in the external-services inventory and never reads
-Secrets, a generic annex never touches the cluster, and sheets cannot run as
-spreadsheet formulas."""
+Secrets, a generic annex never touches the cluster, the ISMS kit covers every
+control, supplier and backup gap and reports unsigned documents as unsigned, and
+sheets cannot run as spreadsheet formulas."""
 import csv
 import importlib.util
 import io
@@ -112,6 +113,51 @@ class AssurancePackTest(unittest.TestCase):
     def test_csv_cells_cannot_run_as_formulas(self):
         sheet = pack.to_csv(["a"], [{"a": "=HYPERLINK(1)"}, {"a": "@SUM(1)"}, {"a": "plain"}])
         self.assertEqual(["'=HYPERLINK(1)", "'@SUM(1)", "plain"], [row["a"] for row in csv.DictReader(io.StringIO(sheet))])
+
+
+class IsmsKitTest(unittest.TestCase):
+    def test_kit_covers_controls_suppliers_and_backup_gaps(self):
+        sys.path.insert(0, str(ROOT / "scripts/lib"))
+        import isms_kit
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/assurance-pack.py"), "isms-kit", "--output-dir",
+                                 str(directory / "out")], capture_output=True, text=True, cwd=directory)
+        self.assertEqual(0, result.returncode, result.stderr)
+        [kit] = (directory / "out").iterdir()
+        self.assertEqual(set(isms_kit.DOCUMENTS), {path.name for path in kit.iterdir()})
+        for path in kit.iterdir():
+            self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode), path)
+        catalog = yaml.safe_load(pack.CATALOG.read_text())
+        policy, risks = (kit / "information-security-policy.md").read_text(), (kit / "risk-register.md").read_text()
+        for control in catalog["controls"]:
+            self.assertIn(f"### {control['title']}\n", policy)
+            self.assertIn(f"`{control['id']}`", risks)
+        gaps = [row for row in isms_kit.coverage((ROOT / "docs/operations.md").read_text()) if row[2].lower().startswith("none")]
+        self.assertTrue(gaps)
+        for data, *_ in gaps:
+            self.assertIn(f"Loss of data: {isms_kit.plain(data)}", risks)
+        inventory = pack.load_script("asset-inventory")
+        suppliers = (kit / "supplier-register.md").read_text()
+        for service in inventory.external_services(inventory.EXTERNAL_SERVICES.read_text()):
+            self.assertIn(f"| {isms_kit.cell(isms_kit.plain(service['service']))} |", suppliers)
+        self.assertNotIn("](", suppliers)  # No guide links that would not resolve outside the repository.
+
+    def test_evidence_pack_tells_signed_from_unsigned(self):
+        sys.path.insert(0, str(ROOT / "scripts/lib"))
+        import isms_kit
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        rendered = pack.isms_kit()
+        (directory / "risk-register.md").write_text(rendered["risk-register.md"])
+        (directory / "information-security-policy.md").write_text(rendered["information-security-policy.md"].replace(
+            "- Approved by: [to complete]", "- Approved by: Jane Doe, CEO").replace(
+            "- Approved on: [to complete]", "- Approved on: 2026-10-27"))
+        status = {entry["file"]: entry for entry in isms_kit.approvals(directory)}
+        self.assertEqual("approved", status["information-security-policy.md"]["status"])
+        self.assertEqual(("Jane Doe, CEO", "2026-10-27"), (status["information-security-policy.md"]["approved_by"],
+                                                         status["information-security-policy.md"]["approved_on"]))
+        self.assertEqual("not approved", status["risk-register.md"]["status"])
+        self.assertGreater(status["risk-register.md"]["unfilled"], 0)
+        self.assertEqual("missing", status["supplier-register.md"]["status"])
 
 
 if __name__ == "__main__":

@@ -72,6 +72,7 @@ with mode `0600`:
 | `context/verification.json` | The platform verification report (`./install.sh --status`). |
 | `context/trivy-compliance.json` | CIS Kubernetes, NSA and Pod Security Standards results with the failing check IDs. |
 | `context/asset-inventory.json` | The [asset inventory](#asset-inventory) at the time of the pack. |
+| `context/isms-documents.json` | With `--isms-documents DIR`: each [ISMS document](#isms-document-kit), whether its signed copy is there, who approved it and when, its unfilled fields and its SHA-256. |
 | `context/access-review.json` | With `--access-review`: the [access review](#access-reviews) at the time of the pack. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature over the manifest. |
 
@@ -153,6 +154,24 @@ rows: the provider, then each sub-processor as its subcontractor. Pass
 `[to complete]`. `--generic` skips the cluster for contract templates. With
 `--output-dir DIR` it also writes `register-of-information.csv`. It reads node
 metadata only and exits 1 when the nodes could not be read.
+
+## ISMS document kit
+
+`./install.sh --isms-kit --output-dir DIR` writes four templates for the manual
+evidence the catalog asks for (mode `0600`):
+
+| Document | Prefilled from |
+| --- | --- |
+| `information-security-policy.md` | Every catalog control as a measure, with the requirements it maps to |
+| `risk-register.md` | One risk per control, then each data set the backups do not recover yet ([coverage](../operations.md#coverage-and-recovery-points)) |
+| `continuity-and-recovery-plan.md` | The backup coverage table and the restore, recovery-kit and [exit](exit-plan.md) procedures |
+| `supplier-register.md` | Every service in [external services](external-services.md) |
+
+Likelihood, impact, owners, objectives, contacts and agreements read
+`[to complete]`. Each document ends with *Approved by*, *Approved on* and *Next
+review* lines. Keep the signed copies in one directory and pass it to
+`./install.sh --compliance --evidence-pack --isms-documents DIR`: the pack then
+records which documents are missing, unsigned or approved, by whom and when.
 
 ## Records of processing
 
