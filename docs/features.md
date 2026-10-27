@@ -13,7 +13,7 @@ pieces fit together.
 - read-only legacy migration guard before any Kubernetes change
 - local administrator password alignment across infrastructure services
 - rerunnable steps that keep installed identity, exposure, topology and HA state
-- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--admin-access`, `--admin-mfa`, `--game-day`
+- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--admin-access`, `--admin-mfa`, `--game-day`
 - semantic [releases](guides/releases.md) with a changelog, a CycloneDX SBOM and SSH-signed bundles
 
 ## Cluster Topology

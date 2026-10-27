@@ -71,6 +71,7 @@ with mode `0600`:
 | `history.json` | Control status over the last 24 hours (`--history-hours`), limited by Prometheus retention. |
 | `context/verification.json` | The platform verification report (`./install.sh --status`). |
 | `context/trivy-compliance.json` | CIS Kubernetes, NSA and Pod Security Standards results with the failing check IDs. |
+| `context/asset-inventory.json` | The [asset inventory](#asset-inventory) at the time of the pack. |
 | `context/access-review.json` | With `--access-review`: the [access review](#access-reviews) at the time of the pack. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | Hash of every file and, with `--sign-key`, an SSH signature over the manifest. |
 
@@ -104,6 +105,25 @@ and the signed sheet is the `access-review` control's evidence. Run it at least
 quarterly and when people leave. Inactivity uses Keycloak's stored login events
 (90 days), so it is reliable only 90 days after event storage started. Vault
 policies and Grafana roles follow the Keycloak groups in the sheet.
+
+## Asset inventory
+
+`./install.sh --asset-inventory` lists the assets NIS2 Art. 21(2)(i) asks to
+manage: servers (hardware, OS, kernel, K3s version, location labels, owner),
+workloads with their images, owner, data classification and criticality, data
+stores (persistent volumes) and the outside services in
+[external services](external-services.md). Staff devices are not inventoried
+until an endpoint agent exists (TODO §37). `--output-dir DIR` writes
+`servers.csv`, `workloads.csv`, `data-stores.csv`, `external-services.csv` and
+`inventory.json` (mode `0600`); `--format json` prints the JSON. Every evidence
+pack includes it.
+
+Owner, data classification and criticality come from the `swirl-cloud.io/owner`,
+`swirl-cloud.io/data-classification` and `swirl-cloud.io/criticality` labels.
+Without a label, platform namespaces belong to `platform` and criticality follows
+the environment (`high` for platform, `corp` and production, `medium` for `uat`,
+`low` for `int`), marked *derived*. The run reads only node, workload and volume
+metadata, never Secrets, and exits 1 when a source could not be read.
 
 ## Records of processing
 

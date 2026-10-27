@@ -63,6 +63,7 @@ The validator runs only these safety suites:
 | `test-k3s-api-endpoint.sh` | An API VIP already held or outside the node network, a VIP on a server whose API is not ready, multicast VRRP fallback, and a certificate restart that leaves no fresh etcd majority. |
 | `test-k3s-kubelet-memory.sh` | A K3s reservation that does not scale with node memory, a drop-in that replaces other kubelet arguments, and an eviction threshold that drops K3s's disk thresholds. |
 | `test-install-record.sh` | An installation record that stops the installer when it cannot be written, records that grow without bound, and a `--status` summary that misses a failed run. |
+| `test-asset-inventory.py` | An asset inventory that reads Secrets, CSV sheets a spreadsheet would run as formulas, readable or overwritten output files, a source it could not read reported as complete, and outside services missing from the inventory. |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |
