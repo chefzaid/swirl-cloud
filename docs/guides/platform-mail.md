@@ -83,6 +83,15 @@ failed for an hour; it still reaches the other receiver. Alertmanager stops with
 cluster, so the [outage watch](service-levels.md#outage-watch) checks public
 endpoints from outside and mails through the same relay.
 
+## Installation report
+
+At the end of each installation, after the verification report passes,
+[`send-install-report.py`](../../scripts/send-install-report.py) emails it to the
+alert recipients with a link to every service: the portal first, then the
+platform, corporate and application hosts from their Ingresses. Nothing is sent
+while platform mail is off; a relay error only prints a warning, and
+`./install.sh --status` prints the report again.
+
 ## Verify
 
 - **Relay:** `--test-to` sends a message with the stored settings.

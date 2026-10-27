@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Guards for the platform mail relay: the password never reaches process
 arguments, output or error messages, nothing is stored when the relay refuses
-the login, and Alertmanager's rendered configuration stays valid with mail on
-and off."""
+the login, Alertmanager's rendered configuration stays valid with mail on and
+off, and the installation report reaches the alert recipients with every service
+link only when mail is on."""
 import base64
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import importlib.util
@@ -25,6 +26,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("platform_mail_cli", ROOT / "scripts/configure-platform-mail.py")
 mail = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mail)
+report_spec = importlib.util.spec_from_file_location("install_report", ROOT / "scripts/send-install-report.py")
+install_report = importlib.util.module_from_spec(report_spec)
+report_spec.loader.exec_module(install_report)
 from lib import platform_mail  # noqa: E402
 from lib.onboarding_services import Services  # noqa: E402
 
@@ -214,6 +218,64 @@ class PlatformMail(unittest.TestCase):
         self.assertEqual({"name": "email"}, receivers["email"])
         self.assertTrue(receivers["gitlab"]["webhook_configs"])
         self.assertEqual(enabled["route"], disabled["route"])
+
+
+class InstallReport(unittest.TestCase):
+    SMTP = {"enabled": "true", "host": "smtp.example.com", "port": "465", "tls": "ssl", "username": "resend",
+            "password": PASSWORD, "from_address": "cloud@example.com", "from_name": "Example Cloud",
+            "alert_to": "ops@example.com,cto@example.com"}
+    INGRESSES = {"items": [
+        {"metadata": {"name": "grafana", "namespace": "infra", "annotations": {"gethomepage.dev/name": "Grafana"}},
+         "spec": {"rules": [{"host": "grafana.example.com"}]}},
+        {"metadata": {"name": "homepage", "namespace": "infra"}, "spec": {"rules": [{"host": "cloud.example.com"}]}},
+        {"metadata": {"name": "odoo", "namespace": "corp"}, "spec": {"rules": [{"host": "odoo.example.com"}]}},
+        {"metadata": {"name": "shop", "namespace": "shop-prod"}, "spec": {"rules": [{"host": "shop.example.com"}]}},
+        {"metadata": {"name": "longhorn", "namespace": "longhorn-system"}, "spec": {"rules": [{"host": "lh.example.com"}]}}]}
+
+    def send(self, smtp):
+        FakeSMTP.instances = []
+
+        def kubectl_run(args, **_kwargs):
+            command = " ".join(args)
+            answer = self.INGRESSES if "ingresses" in command else {"data": {"PLATFORM_DOMAIN": "example.com",
+                                                                            "ORGANIZATION_NAME": "Example"}}
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
+
+        @contextmanager
+        def vault_session(_self):
+            yield FakeVault(smtp)
+
+        with tempfile.NamedTemporaryFile("w", suffix=".txt") as report:
+            report.write("Swirl Cloud verification\n[PASS] Nodes: 1/1 Ready\n\nSummary: 14 passed, 1 warning(s), 0 failed\n")
+            report.flush()
+            output = io.StringIO()
+            with patch.object(sys, "argv", ["send-install-report.py", "--report", report.name]), \
+                    patch.object(install_report.subprocess, "run", side_effect=kubectl_run), \
+                    patch.object(platform_mail.smtplib, "SMTP_SSL", FakeSMTP), \
+                    patch.object(Services, "_vault", vault_session), redirect_stdout(output), redirect_stderr(output):
+                code = install_report.main()
+        return code, output.getvalue()
+
+    def test_report_and_links_reach_the_alert_recipients(self):
+        code, output = self.send(self.SMTP)
+        self.assertEqual(0, code, output)
+        self.assertNotIn(PASSWORD, output)
+        [message] = FakeSMTP.instances[0].sent
+        self.assertEqual("ops@example.com, cto@example.com", message["To"])
+        self.assertEqual("Example Cloud installation report: 14 passed, 1 warning(s), 0 failed", message["Subject"])
+        body = message.get_content()
+        self.assertLess(body.index("homepage: https://cloud.example.com/"), body.index("Grafana: https://grafana.example.com/"))
+        self.assertIn("Corporate:\n  odoo: https://odoo.example.com/", body)
+        self.assertIn("Applications:\n  shop: https://shop.example.com/", body)
+        self.assertNotIn("lh.example.com", body)
+        self.assertIn("[PASS] Nodes: 1/1 Ready", body)
+
+    def test_nothing_is_sent_while_mail_is_off(self):
+        for smtp in (None, dict(self.SMTP, enabled="false"), dict(self.SMTP, password="")):
+            code, output = self.send(smtp)
+            self.assertEqual(0, code)
+            self.assertIn("not emailed", output)
+            self.assertEqual([], FakeSMTP.instances)
 
 
 if __name__ == "__main__":

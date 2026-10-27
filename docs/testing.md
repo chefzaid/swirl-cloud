@@ -79,7 +79,7 @@ The validator runs only these safety suites:
 | `test-environment-onboarding.py` | Wrong-target publication, runner privilege crossover, credential leakage, a certificate missing an environment hostname, a branch deployed to `uat`/`prod`, and concurrent runs on one environment. |
 | `test-odoo-website.py` | The integration key or inbound email secret leaking into arguments, errors or routing rules, reuse of another integration's key, and unvalidated values reaching Odoo's chat frame and settings. |
 | `test-outage-watch.py` | The relay password leaving the Worker secret, watching Access-gated or environment hosts, recreating the Durable Object class on each deploy, and SMTP failures over implicit TLS or STARTTLS, duplicate emails or dropped changes. |
-| `test-platform-mail.py` | The relay password in arguments, output or errors, settings saved after a refused login, needless restarts, header/YAML/JSON injection through addresses, and an Alertmanager configuration that breaks with mail on or off. |
+| `test-platform-mail.py` | The relay password in arguments, output or errors, settings saved after a refused login, needless restarts, header/YAML/JSON injection through addresses, an Alertmanager configuration that breaks with mail on or off, and an installation report sent while mail is off or without its recipients and service links. |
 | `test-install-inputs.py` | Shell execution through the input file, inputs leaking from the calling shell, readable credential files, secrets in setup-hub arguments, the input file, run logs or support bundles, and installs that start with unreported input problems. |
 
 Do not bring back broad application, UI, source-text or per-image test

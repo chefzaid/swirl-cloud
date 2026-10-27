@@ -1240,8 +1240,13 @@ fi
 if [[ "$RUN_K8S_FEATURES" == true ]]; then
     step "Verifying the installed platform..."
     # Endpoint probes stay warnings while new DNS records propagate; failures stop here.
-    python3 "$SCRIPT_DIR/scripts/verify-platform.py" || \
+    VERIFY_REPORT="$(mktemp /tmp/swirl-cloud-verify.XXXXXX)"
+    python3 "$SCRIPT_DIR/scripts/verify-platform.py" | tee "$VERIFY_REPORT" || \
         error "Platform verification failed; fix the [FAIL] items above, then rerun the installer or ./install.sh --status."
+    # The alert recipients get the report and every service link when platform mail is on.
+    python3 "$SCRIPT_DIR/scripts/send-install-report.py" --report "$VERIFY_REPORT" || \
+        warn "The installation report was not emailed; ./install.sh --status prints it again."
+    rm -f -- "$VERIFY_REPORT"
 fi
 
 info ""
