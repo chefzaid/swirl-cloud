@@ -76,6 +76,7 @@ Specialized procedures:
 - [Platform reports](./docs/guides/platform-reports.md): monthly availability, cost and compliance
 - [Compliance evidence](./docs/guides/compliance-evidence.md): NIS2, ISO/IEC 27001, DORA, GDPR and CIS
 - [Security detection](./docs/guides/security-detection.md): alerts on suspicious activity
+- [SOC forwarding](./docs/guides/soc-forwarding.md): audit events and findings to a SOC over syslog
 - [Incident response](./docs/guides/incident-response.md): incident records and NIS2/GDPR deadlines
 - [External services](./docs/guides/external-services.md): what leaves the platform
 - [Platform mail](./docs/guides/platform-mail.md): one SMTP relay for platform email

@@ -50,3 +50,37 @@
     "__PLATFORM_TITLE_JSON__" (toJson (printf "%s Cloud" $name)) "__KAFKA_CLUSTER_ID__" $kafka
     "__PORTAL_LANGUAGE__" $language | toJson -}}
 {{- end -}}
+{{- /* Optional forwarding of audit and detection events to a SOC over syslog
+     (docs/guides/soc-forwarding.md); an empty host turns it off. */ -}}
+{{- define "swirl-cloud.soc-forwarding" -}}
+{{- $host := .Values.socSyslogHost | default "" -}}
+{{- $port := .Values.socSyslogPort | default "" -}}
+{{- $sources := .Values.socSyslogSources | default "" -}}
+{{- $ca := .Values.socSyslogCa | default "" -}}
+{{- $known := list "identity" "kubernetes-audit" "vault-audit" "detection" "host-journal" -}}
+{{- if $host -}}
+{{- if or (gt (len $host) 253) (not (regexMatch "^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$" $host)) -}}
+{{- fail "socSyslogHost must be a host name or IPv4 address" -}}
+{{- end -}}
+{{- $port = $port | default "6514" -}}
+{{- if or (not (regexMatch "^[1-9][0-9]{0,4}$" $port)) (gt (atoi $port) 65535) -}}
+{{- fail "socSyslogPort must be a TCP port" -}}
+{{- end -}}
+{{- $sources = $sources | default "identity,kubernetes-audit,vault-audit,detection" -}}
+{{- range $source := splitList "," $sources -}}
+{{- if not (has $source $known) -}}
+{{- fail "socSyslogSources must list identity, kubernetes-audit, vault-audit, detection or host-journal, separated by commas" -}}
+{{- end -}}
+{{- end -}}
+{{- if and $ca (not (contains "-----BEGIN CERTIFICATE-----" (b64dec $ca))) -}}
+{{- fail "socSyslogCa must be a base64-encoded PEM certificate" -}}
+{{- end -}}
+{{- end -}}
+{{- $selected := list -}}
+{{- range $source := $known -}}
+{{- if and $host (has $source (splitList "," $sources)) -}}
+{{- $selected = append $selected $source -}}
+{{- end -}}
+{{- end -}}
+{{- dict "host" $host "port" $port "sources" $sources "ca" $ca "selected" $selected | toJson -}}
+{{- end -}}

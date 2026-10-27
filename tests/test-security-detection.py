@@ -2,7 +2,8 @@
 """Guards for the host rules of the security detection job, run against fake
 Elasticsearch, Keycloak and Alertmanager: an SSH login after five failures from
 the same address alerts and four do not, and sudo by a user outside the learned
-history alerts while the first run only learns."""
+history alerts while the first run only learns. Only findings first stored in
+the hour are printed for SOC forwarding."""
 import json
 from pathlib import Path
 import shutil
@@ -46,7 +47,12 @@ MOCK = textwrap.dedent("""\
       if (url.includes("/protocol/openid-connect/token")) return reply(200, { access_token: "token" });
       if (url.includes("/admin/realms/")) return reply(200, []);
       if (url.endsWith("/api/v2/alerts")) { posted.push(...JSON.parse(options.body)); return reply(200, {}); }
-      if (url.endsWith("/_bulk")) return reply(200, {});
+      if (url.endsWith("/_bulk")) {
+        // A finding already stored this hour conflicts, as Elasticsearch's "create" does.
+        const actions = options.body.trim().split("\\n").filter((_, line) => line % 2 === 0).map(JSON.parse);
+        return reply(200, { items: actions.map(({ create }) => ({ create: { status: (fixture.stored || []).some(
+          (prefix) => create._id.startsWith(prefix)) ? 409 : 201 } })) });
+      }
       return reply(404, `unexpected ${method} ${url}`);
     };
     process.on("exit", () => writeFileSync(process.env.RESULT, JSON.stringify({ posted, state })));
@@ -65,13 +71,13 @@ def sudo(timestamp, user, host="node-1"):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class SecurityDetectionTest(unittest.TestCase):
-    def run_detection(self, journal, state=None):
+    def run_detection(self, journal, state=None, stored=()):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         documents = yaml.safe_load_all((ROOT / "k8s/platform/security-detection.yaml").read_text())
         script = next(d for d in documents if d and d["kind"] == "ConfigMap")["data"]["detect.mjs"]
         (directory / "detect.mjs").write_text(script)
         (directory / "mock.mjs").write_text(MOCK)
-        (directory / "fixture.json").write_text(json.dumps({"now": NOW, "journal": journal, "state": state or {}}))
+        (directory / "fixture.json").write_text(json.dumps({"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored)}))
         env = {"PATH": "/usr/bin:/bin", "FIXTURE": str(directory / "fixture.json"), "RESULT": str(directory / "result.json"),
                "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "KEYCLOAK_URL": "http://kc",
                "KEYCLOAK_REALM": "example", "RUNBOOK_BASE_URL": "https://runbooks", "ELASTICSEARCH_USERNAME": "u",
@@ -79,6 +85,7 @@ class SecurityDetectionTest(unittest.TestCase):
         result = subprocess.run([shutil.which("node"), "--import", str(directory / "mock.mjs"), str(directory / "detect.mjs")],
                                 capture_output=True, text=True, env=env, timeout=60)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.findings = [json.loads(line)["security_finding"] for line in result.stdout.splitlines() if line.startswith("{")]
         output = json.loads((directory / "result.json").read_text())
         return {(alert["labels"]["alertname"], alert["labels"].get("source_address") or alert["labels"].get("user"))
                 for alert in output["posted"]}, output["state"]
@@ -92,6 +99,12 @@ class SecurityDetectionTest(unittest.TestCase):
         alerts, _ = self.run_detection(journal)
         self.assertEqual({("HostSSHBruteForceThenSuccess", "203.0.113.9")},
                          {alert for alert in alerts if alert[0].startswith("HostSSH")})
+        self.assertEqual([("HostSSHBruteForceThenSuccess", "203.0.113.9", "node-1")],
+                         [(f["alertname"], f["source_address"], f["node"]) for f in self.findings])
+        # A rerun in the same hour alerts again but prints nothing new for the SOC.
+        alerts, _ = self.run_detection(journal, stored=["HostSSHBruteForceThenSuccess|"])
+        self.assertIn(("HostSSHBruteForceThenSuccess", "203.0.113.9"), alerts)
+        self.assertEqual([], self.findings)
 
     def test_sudo_by_a_user_outside_the_learned_history(self):
         history = [sudo("2026-10-22T09:00:00.000Z", "zaid"), sudo("2026-10-27T11:55:00.000Z", "zaid")]

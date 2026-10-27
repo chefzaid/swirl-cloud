@@ -178,6 +178,7 @@ the company name alone.
 | `CLOUDFLARE_ACCESS_TEAM_NAME` | `cloudflareAccessTeamName` | Existing Zero Trust team label, or `swirl-cloud-<domain-with-hyphens>` for a new team. |
 | `GITOPS_REPOSITORY_URL` | `gitopsRepositoryURL` | Accessible HTTP(S) `.git` URL; interactive setup suggests the checkout's remote. |
 | `KAFKA_CLUSTER_ID` | `kafkaClusterId` | A new random ID when the cluster has no Kafka storage; otherwise the ID the running Kafka was formatted with, or `8ipNY9RxQtWkattTais5yQ` for installations made before IDs were recorded. Never change it on existing data: Kafka refuses to start. |
+| `SOC_SYSLOG_HOST`, `SOC_SYSLOG_PORT`, `SOC_SYSLOG_SOURCES`, `SOC_SYSLOG_CA` | `socSyslogHost`, `socSyslogPort`, `socSyslogSources`, `socSyslogCa` | Empty: no [SOC forwarding](guides/soc-forwarding.md). With a host, the port defaults to 6514 and the sources to `identity,kubernetes-audit,vault-audit,detection`; `SOC_SYSLOG_CA_FILE` names a PEM CA bundle, recorded base64-encoded. |
 | `PORTAL_LANGUAGE` | `portalLanguage` | `en`, or `fr` when the installer runs in French (`SWIRL_CLOUD_LANG=fr`); `fr` sets Homepage's language and the service descriptions from `k8s/files/homepage-fr.yaml`. |
 
 The generated Argo CD Application carries these into later Helm reconciliation. The

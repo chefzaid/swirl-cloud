@@ -453,6 +453,28 @@ groups:
           description: 'ipmitool could not read the BMC sensors on {{ $labels.node }} for two hours, so fans, power supplies and temperatures go unwatched.'
   - name: swirl-cloud.host-audit
     rules:
+      # SOC syslog forwarding (docs/guides/soc-forwarding.md); absent unless configured.
+      - alert: SocForwardingFailing
+        expr: |
+          sum by (node) (rate(fluentbit_output_retries_total{name="soc_syslog"}[10m])) > 0
+          unless sum by (node) (rate(fluentbit_output_proc_records_total{name="soc_syslog"}[10m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#socforwardingfailing
+          summary: Events no longer reach the SOC
+          description: 'Fluent Bit on {{ $labels.node }} has retried the SOC syslog output for 15 minutes without delivering; events wait in its disk buffer (512 MB).'
+      - alert: SocForwardingDroppedEvents
+        expr: sum by (node) (increase(fluentbit_output_dropped_records_total{name="soc_syslog"}[1h])) > 0
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#socforwardingdroppedevents
+          summary: Events were dropped before reaching the SOC
+          description: 'Fluent Bit on {{ $labels.node }} dropped {{ $value | humanize }} events for the SOC in the last hour after its retries ran out.'
       - alert: LynisAuditFailed
         expr: swirl_cloud_lynis_last_run_exit_code != 0
         labels:

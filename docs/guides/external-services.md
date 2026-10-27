@@ -11,6 +11,7 @@ external services in their repositories.
 | --- | --- | --- | --- | --- |
 | Cloudflare DNS, proxy, TLS, WAF and Access | Cloudflare, Inc. (United States) | Public DNS, edge TLS, DDoS protection, sign-in gate for administration hosts | The DNS zone; all public HTTP(S) traffic, decrypted at the edge; Access sign-in identities | `SERVER_EXPOSURE=local` installs without it; an edge without Cloudflare is planned (TODO §33) |
 | Tailscale coordination | Tailscale Inc. (Canada) | Private node network when `K3S_NODE_TRANSPORT=tailscale` | Node public keys, hostnames, addresses and tailnet membership; traffic stays end-to-end encrypted and may pass Tailscale relays | vRack or LAN transport |
+| SOC syslog receiver (optional) | Your SOC or managed security provider | [SOC forwarding](soc-forwarding.md) of audit events and detection findings | User names, IP addresses, Kubernetes object names, Vault request paths and detection findings | Leave `SOC_SYSLOG_HOST` empty |
 | GitHub | GitHub, Inc., Microsoft (United States) | Optional import and two-way branch and tag mirroring of application repositories | Repository content and history of mirrored projects | Leave repository import unconfigured |
 | OVHcloud API | OVH SAS (France) | Optional vRack attachment of new servers | Server and vRack service names | Attach servers manually |
 | S3-compatible backup target | Chosen by the operator | Encrypted off-node recovery archives and volume backups | Archives encrypted before upload (restic) | Keep archives on another host you control |

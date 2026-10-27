@@ -45,6 +45,18 @@ spec:
         - name: portalLanguage
           value: "__PORTAL_LANGUAGE__"
           forceString: true
+        - name: socSyslogHost
+          value: "__SOC_SYSLOG_HOST__"
+          forceString: true
+        - name: socSyslogPort
+          value: "__SOC_SYSLOG_PORT__"
+          forceString: true
+        - name: socSyslogSources
+          value: "__SOC_SYSLOG_SOURCES__"
+          forceString: true
+        - name: socSyslogCa
+          value: "__SOC_SYSLOG_CA__"
+          forceString: true
         - name: publicDomain
           value: __PUBLIC_DOMAIN__
         - name: internalDnsZone

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render validated public identity into a private installation staging directory."""
 import argparse
+import base64
 import importlib.util
 import json
 import os
@@ -20,6 +21,35 @@ def portal_in_french(content, root):
     for english, french in yaml.safe_load((root / "k8s/files/homepage-fr.yaml").read_text()).items():
         content = content.replace(f"description: {english}\n", f"description: {french}\n")
     return content
+
+
+SOC_SOURCES = ("identity", "kubernetes-audit", "vault-audit", "detection", "host-journal")
+
+
+def indent(text, width):
+    """Helm's indent: every line, empty ones too."""
+    return "\n".join(" " * width + line for line in text.split("\n"))
+
+
+def soc_forwarding(content, root, settings):
+    """The Fluent Bit SOC output templates/resources.yaml adds when SOC_SYSLOG_HOST is set."""
+    files = root / "k8s/files/soc-forwarding"
+    chosen = settings["SOC_SYSLOG_SOURCES"].split(",")
+    pipeline = "".join((files / f"{source}.conf").read_text() + "\n" for source in SOC_SOURCES if source in chosen)
+    output = (files / "output.conf").read_text()
+    data = "  soc-forwarding.lua: |\n" + indent((files / "soc-forwarding.lua").read_text().removesuffix("\n"), 4)
+    mounts = ("            - name: config\n              mountPath: /fluent-bit/etc/soc-forwarding.lua\n"
+              "              subPath: soc-forwarding.lua\n              readOnly: true")
+    if settings["SOC_SYSLOG_CA"]:
+        output = output.replace("    tls.verify_hostname       On\n", "    tls.verify_hostname       On\n"
+                                "    tls.ca_file               /fluent-bit/etc/soc-forwarding-ca.crt\n")
+        certificate = base64.b64decode(settings["SOC_SYSLOG_CA"]).decode()
+        data += "\n  soc-forwarding-ca.crt: |\n" + indent(certificate.removesuffix("\n"), 4)
+        mounts += ("\n            - name: config\n              mountPath: /fluent-bit/etc/soc-forwarding-ca.crt\n"
+                   "              subPath: soc-forwarding-ca.crt\n              readOnly: true")
+    content = content.replace("    # swirl-cloud:soc-forwarding-pipeline\n", indent((pipeline + output).removesuffix("\n"), 4) + "\n")
+    content = content.replace("  # swirl-cloud:soc-forwarding-files\n", data + "\n")
+    return content.replace("            # swirl-cloud:soc-forwarding-mounts\n", mounts + "\n")
 
 
 def render(root):
@@ -44,6 +74,8 @@ def render(root):
                 source = path.read_text()
             except UnicodeDecodeError:
                 continue
+            if path == root / "k8s/platform/logging-agent.yaml" and settings["SOC_SYSLOG_HOST"]:
+                source = soc_forwarding(source, root, settings)
             content = pattern.sub(lambda match: replacements[match[0]], source)
             if path == root / "k8s/platform/homepage.yaml" and settings["PORTAL_LANGUAGE"] == "fr":
                 content = portal_in_french(content, root)

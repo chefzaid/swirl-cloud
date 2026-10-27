@@ -300,6 +300,14 @@ data:
       const stored = await fetch(`${elasticsearch}/_bulk`, { method: "POST",
         headers: { Authorization: esAuth, "Content-Type": "application/x-ndjson" }, body: bulk });
       if (!stored.ok) failures.push(`findings history: HTTP ${stored.status}`);
+      else {
+        // One log line per finding first stored this hour, which Fluent Bit can
+        // forward to a SOC (docs/guides/soc-forwarding.md).
+        const { items = [] } = await stored.json().catch(() => ({}));
+        items.forEach((item, position) => {
+          if (item.create?.status === 201) console.log(JSON.stringify({ security_finding: findings[position] }));
+        });
+      }
     }
     console.log(`${findings.length} finding(s): ${findings.map((f) => f.alertname).join(", ") || "none"}`);
     if (failures.length) {

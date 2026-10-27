@@ -27,10 +27,24 @@ platform_identity_defaults() {
     # The portal follows the installer's language unless a language is recorded or set.
     [[ "${SWIRL_CLOUD_LANG:-}" == fr* ]] && PORTAL_LANGUAGE="${PORTAL_LANGUAGE:-fr}"
     PORTAL_LANGUAGE="${PORTAL_LANGUAGE:-en}"
+    # Optional SOC syslog forwarding (docs/guides/soc-forwarding.md); the CA comes
+    # from a PEM file and is recorded base64-encoded.
+    SOC_SYSLOG_HOST="${SOC_SYSLOG_HOST:-}"
+    if [[ -n "$SOC_SYSLOG_HOST" ]]; then
+        SOC_SYSLOG_PORT="${SOC_SYSLOG_PORT:-6514}"
+        SOC_SYSLOG_SOURCES="${SOC_SYSLOG_SOURCES:-identity,kubernetes-audit,vault-audit,detection}"
+    fi
+    SOC_SYSLOG_PORT="${SOC_SYSLOG_PORT:-}" SOC_SYSLOG_SOURCES="${SOC_SYSLOG_SOURCES:-}"
+    if [[ -n "${SOC_SYSLOG_CA_FILE:-}" ]]; then
+        SOC_SYSLOG_CA="$(base64 -w0 < "$SOC_SYSLOG_CA_FILE")" || {
+            printf '[ERROR] Cannot read SOC_SYSLOG_CA_FILE %s.\n' "$SOC_SYSLOG_CA_FILE" >&2; return 1;
+        }
+    fi
+    SOC_SYSLOG_CA="${SOC_SYSLOG_CA:-}"
     export ORGANIZATION_NAME ORGANIZATION_SLUG GITLAB_GROUP_PATH GITLAB_GROUP_NAME
     export GITLAB_PROJECT_NAME GITLAB_PROJECT_PATH KEYCLOAK_REALM TLS_SECRET_NAME
     export CLOUDFLARE_TLS_SECRET_NAME SONAR_ALM_SETTING CLOUDFLARE_ACCESS_IDP_NAME KAFKA_CLUSTER_ID
-    export PORTAL_LANGUAGE
+    export PORTAL_LANGUAGE SOC_SYSLOG_HOST SOC_SYSLOG_PORT SOC_SYSLOG_SOURCES SOC_SYSLOG_CA
 }
 
 # A cluster without Kafka storage gets a new random Kafka cluster ID. Storage that
@@ -80,6 +94,20 @@ platform_identity_validate() {
     }
     [[ "$PORTAL_LANGUAGE" == en || "$PORTAL_LANGUAGE" == fr ]] || {
         printf '[ERROR] PORTAL_LANGUAGE must be en or fr.\n' >&2; return 1;
+    }
+    [[ -z "$SOC_SYSLOG_HOST" ]] && return 0
+    [[ ${#SOC_SYSLOG_HOST} -le 253 && "$SOC_SYSLOG_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || {
+        printf '[ERROR] SOC_SYSLOG_HOST must be a host name or IPv4 address.\n' >&2; return 1;
+    }
+    if [[ ! "$SOC_SYSLOG_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || (( SOC_SYSLOG_PORT > 65535 )); then
+        printf '[ERROR] SOC_SYSLOG_PORT must be a TCP port.\n' >&2; return 1
+    fi
+    [[ "$SOC_SYSLOG_SOURCES" =~ ^(identity|kubernetes-audit|vault-audit|detection|host-journal)(,(identity|kubernetes-audit|vault-audit|detection|host-journal))*$ ]] || {
+        printf '[ERROR] SOC_SYSLOG_SOURCES must list identity, kubernetes-audit, vault-audit, detection or host-journal, separated by commas.\n' >&2
+        return 1
+    }
+    [[ -z "$SOC_SYSLOG_CA" ]] || base64 -d <<< "$SOC_SYSLOG_CA" 2>/dev/null | grep -q -- '-----BEGIN CERTIFICATE-----' || {
+        printf '[ERROR] SOC_SYSLOG_CA_FILE must hold a PEM certificate.\n' >&2; return 1;
     }
 }
 

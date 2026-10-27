@@ -303,6 +303,21 @@ not affect the running server), then check
 
 ## Host security and maintenance
 
+### SocForwardingFailing
+
+Fluent Bit cannot deliver to the SOC receiver ([SOC forwarding](soc-forwarding.md)).
+Read `kubectl -n host-agents logs daemonset/fluent-bit | grep -i syslog`: a TLS
+error points to the receiver's certificate or the recorded CA
+(`scripts/configure-soc-forwarding.py --show`), a timeout to the network path or
+the receiver's allowlist of node addresses. Events wait in the disk buffer and
+are sent once the receiver answers.
+
+### SocForwardingDroppedEvents
+
+Events were dropped after their retries ran out or the 512 MB buffer filled, so
+the SOC misses them. Fix the delivery first (above), then tell the SOC which time
+range to fill from Elasticsearch (Kibana, the same indices).
+
 ### LynisAuditFailed
 
 Read `sudo journalctl -u swirl-cloud-lynis.service -n 50` and rerun with

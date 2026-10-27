@@ -54,6 +54,7 @@ kubectl -n infra logs job/detection-test
 
 ## Related Guides
 
+- [SOC forwarding](soc-forwarding.md)
 - [Alert runbooks](alert-runbooks.md)
 - [Security](../security.md)
 - [Compliance evidence](compliance-evidence.md)

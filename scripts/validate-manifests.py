@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "scripts/lib"))
 from manifest_checks import (  # noqa: E402
     alert_policy, argocd_probe_policy, documents, embedded_syntax, identity, images, index, ingress_policy,
     lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run, runner_priority,
-    vulnerability_exceptions, workload_policy)
+    soc_forwarding, vulnerability_exceptions, workload_policy)
 
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
@@ -149,6 +149,10 @@ def render_profiles(output):
         profile_env = dict(env, HIGH_AVAILABILITY_ENABLED=flag(ha))
         if shared_data and not ha:
             profile_env["PORTAL_LANGUAGE"] = "fr"  # One profile proves the French portal renders the same both ways.
+        soc_host = "siem.example.net" if ha and not apps and not phase else ""
+        if soc_host:  # One profile forwards every source to a SOC with its own CA.
+            profile_env.update(SOC_SYSLOG_HOST=soc_host, SOC_SYSLOG_CA_FILE=str(ROOT / "config/cloudflare-origin-ca.pem"),
+                               SOC_SYSLOG_SOURCES="identity,kubernetes-audit,vault-audit,detection,host-journal")
         migration = {}
         if phase:
             migration = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())
@@ -198,6 +202,7 @@ def render_profiles(output):
         resource_wiring(list(runtime.values()))
         lifecycle_policies(rendered, label)
         prometheus_config(runtime, stage)
+        soc_forwarding(runtime, label, soc_host)
         owned = {identity(doc) for block in rendered.split("\n---")
                  if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
         require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")

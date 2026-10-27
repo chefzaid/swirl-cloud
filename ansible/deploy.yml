@@ -21,6 +21,10 @@
     CLOUDFLARE_ACCESS_IDP_NAME: "{{ cloudflare_access_idp_name }}"
     KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
     PORTAL_LANGUAGE: "{{ portal_language }}"
+    SOC_SYSLOG_HOST: "{{ soc_syslog_host }}"
+    SOC_SYSLOG_PORT: "{{ soc_syslog_port }}"
+    SOC_SYSLOG_SOURCES: "{{ soc_syslog_sources }}"
+    SOC_SYSLOG_CA: "{{ soc_syslog_ca }}"
 
   vars:
     infra_namespace: infra
@@ -129,6 +133,10 @@
     cloudflare_access_idp_name: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_ACCESS_IDP_NAME') | default(organization_name ~ ' Keycloak', true) }}"
     kafka_cluster_id: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
     portal_language: "{{ lookup('ansible.builtin.env', 'PORTAL_LANGUAGE') }}"
+    soc_syslog_host: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_HOST') }}"
+    soc_syslog_port: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_PORT') }}"
+    soc_syslog_sources: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_SOURCES') }}"
+    soc_syslog_ca: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_CA') }}"
     gitlab_project_name: "{{ lookup('ansible.builtin.env', 'GITLAB_PROJECT_NAME') | default('swirl-cloud', true) }}"
     trusted_node_cidr: "{{ k3s_node_network_cidr | default(lookup('ansible.builtin.env', 'K3S_NODE_NETWORK_CIDR'), true) }}"
     private_transport_enabled: "{{ manage_private_transport | default(false) | bool }}"
@@ -229,6 +237,10 @@
         CLOUDFLARE_TLS_SECRET_NAME: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TLS_SECRET_NAME') }}"
         KAFKA_CLUSTER_ID: "{{ lookup('ansible.builtin.env', 'KAFKA_CLUSTER_ID') }}"
         PORTAL_LANGUAGE: "{{ lookup('ansible.builtin.env', 'PORTAL_LANGUAGE') }}"
+        SOC_SYSLOG_HOST: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_HOST') }}"
+        SOC_SYSLOG_PORT: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_PORT') }}"
+        SOC_SYSLOG_SOURCES: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_SOURCES') }}"
+        SOC_SYSLOG_CA: "{{ lookup('ansible.builtin.env', 'SOC_SYSLOG_CA') }}"
       register: installed_identity
       changed_when: false
 
@@ -250,6 +262,10 @@
         # Reconciliation never generates an ID: empty renders the legacy one installations formatted with.
         kafka_cluster_id: "{{ (installed_identity.stdout | from_json).get('KAFKA_CLUSTER_ID', kafka_cluster_id) }}"
         portal_language: "{{ (installed_identity.stdout | from_json).get('PORTAL_LANGUAGE', portal_language) }}"
+        soc_syslog_host: "{{ (installed_identity.stdout | from_json).get('SOC_SYSLOG_HOST', soc_syslog_host) }}"
+        soc_syslog_port: "{{ (installed_identity.stdout | from_json).get('SOC_SYSLOG_PORT', soc_syslog_port) }}"
+        soc_syslog_sources: "{{ (installed_identity.stdout | from_json).get('SOC_SYSLOG_SOURCES', soc_syslog_sources) }}"
+        soc_syslog_ca: "{{ (installed_identity.stdout | from_json).get('SOC_SYSLOG_CA', soc_syslog_ca) }}"
 
     - name: Validate the shared platform contract
       ansible.builtin.assert:

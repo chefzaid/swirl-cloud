@@ -164,7 +164,9 @@ on a host, `sudo jq 'select(.objectRef.resource=="secrets")' <log>`.
 ## Security detection
 
 The [security detection](guides/security-detection.md) job turns identity
-events, the API audit log and Keycloak state into alerts every five minutes.
+events, the API audit log, host SSH and sudo lines and Keycloak state into alerts
+every five minutes. [SOC forwarding](guides/soc-forwarding.md) sends identity,
+API and Vault audit events and detection findings to a SOC over syslog.
 
 ## Compliance evidence
 

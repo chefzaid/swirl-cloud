@@ -408,3 +408,55 @@ def runner_priority(resources):
                 named = re.findall(r'^\s*priority_class_name = "([^"]+)"', content, re.M)
                 require(named and set(named) <= classes,
                         f"ConfigMap {doc['metadata']['name']}: runners need priority_class_name of a rendered PriorityClass")
+
+
+def fluent_bit_sections(text):
+    """Classic Fluent Bit configuration as [(section, {key: value})], rejecting lines it would not parse."""
+    sections = []
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.fullmatch(r"\[[A-Z]+\]", stripped):
+            sections.append((stripped[1:-1], {}))
+            continue
+        pair = re.fullmatch(r"(\S+)\s+(\S.*)", stripped)
+        require(pair and sections and line.startswith("    "), f"Fluent Bit configuration line {number} does not parse: {line!r}")
+        sections[-1][1][pair[1].lower()] = pair[2]
+    return sections
+
+
+def soc_forwarding(runtime, label, host):
+    """The SOC syslog output exists only when configured, verifies its peer, and every file it names is mounted."""
+    found = {(doc["kind"], doc["metadata"].get("name")): doc for doc in runtime.values()
+             if doc["metadata"].get("namespace") == "host-agents"}
+    config = found[("ConfigMap", "fluent-bit-config")]["data"]
+    daemonset = found[("DaemonSet", "fluent-bit")]["spec"]["template"]["spec"]
+    mounts = {mount["mountPath"]: mount.get("subPath") for container in daemonset["containers"]
+              for mount in container.get("volumeMounts", []) if mount["name"] == "config"}
+    sections = fluent_bit_sections(config["fluent-bit.conf"])
+    for kind, keys in sections:
+        if kind in ("FILTER", "OUTPUT"):
+            require("name" in keys and ("match" in keys or "match_regex" in keys), f"{label}: Fluent Bit {kind} without Name or Match")
+    emitters = [keys["emitter_name"] for _, keys in sections if "emitter_name" in keys]
+    require(len(emitters) == len(set(emitters)), f"{label}: Fluent Bit emitter names repeat")
+    outputs = [keys for kind, keys in sections if kind == "OUTPUT" and keys["name"] == "syslog"]
+    if not host:
+        require(not outputs and "soc-forwarding.lua" not in config, f"{label}: SOC forwarding rendered without a host")
+        return
+    require(len(outputs) == 1, f"{label}: expected one SOC syslog output")
+    output = outputs[0]
+    require(output["host"] == host and output["mode"] == "tls" and output["tls.verify"] == "On"
+            and output["tls.verify_hostname"] == "On", f"{label}: the SOC output must verify the peer {host} over TLS")
+    files = [keys["script"] for kind, keys in sections if kind == "FILTER" and keys["name"] == "lua"] + [output.get("tls.ca_file")]
+    for path in filter(None, files):
+        require(mounts.get(path) in config, f"{label}: {path} is not mounted from the Fluent Bit ConfigMap")
+    if output.get("tls.ca_file"):
+        require("-----BEGIN CERTIFICATE-----" in config[mounts[output["tls.ca_file"]]], f"{label}: the SOC CA is not a certificate")
+    luajit = subprocess.run(["sh", "-c", "command -v luajit"], capture_output=True, text=True).stdout.strip()
+    if luajit:
+        with tempfile.NamedTemporaryFile("w", suffix=".lua") as script:
+            script.write(config["soc-forwarding.lua"])
+            script.flush()
+            compiled = subprocess.run([luajit, "-bl", script.name], capture_output=True, text=True)
+            require(compiled.returncode == 0, f"{label}: soc-forwarding.lua does not compile: {compiled.stderr.strip()}")

@@ -17,6 +17,13 @@ cloudflareAccessIdpName: ""
 kafkaClusterId: ""
 # Portal (Homepage) language: en or fr (files/homepage-fr.yaml); empty is en.
 portalLanguage: ""
+# Syslog forwarding to a SOC (docs/guides/soc-forwarding.md); an empty host turns it off.
+# The port defaults to 6514, the sources to identity,kubernetes-audit,vault-audit,detection;
+# socSyslogCa is a base64-encoded PEM CA bundle (empty: the system CAs).
+socSyslogHost: ""
+socSyslogPort: ""
+socSyslogSources: ""
+socSyslogCa: ""
 # Controls centrally managed corporate workloads; the apps foundation is always included.
 appsEnabled: false
 deschedulerEnabled: true

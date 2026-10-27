@@ -1,0 +1,30 @@
+# promtool unit test for the SOC forwarding alerts, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  # n1 retries without delivering; n2 retries but delivers (a transient error);
+  # n3 dropped one chunk's records at 30 m.
+  - interval: 1m
+    input_series:
+      - series: 'fluentbit_output_retries_total{name="soc_syslog",node="n1",pod="fluent-bit-a"}'
+        values: '0+1x60'
+      - series: 'fluentbit_output_proc_records_total{name="soc_syslog",node="n1",pod="fluent-bit-a"}'
+        values: '100x60'
+      - series: 'fluentbit_output_retries_total{name="soc_syslog",node="n2",pod="fluent-bit-b"}'
+        values: '0+1x60'
+      - series: 'fluentbit_output_proc_records_total{name="soc_syslog",node="n2",pod="fluent-bit-b"}'
+        values: '0+10x60'
+      - series: 'fluentbit_output_dropped_records_total{name="soc_syslog",node="n3",pod="fluent-bit-c"}'
+        values: '0x30 25x30'
+      # The Elasticsearch outputs never raise these alerts.
+      - series: 'fluentbit_output_retries_total{name="es.0",node="n3",pod="fluent-bit-c"}'
+        values: '0+1x60'
+    promql_expr_test:
+      - expr: ALERTS{alertstate="firing", alertname=~"SocForwarding.*"}
+        eval_time: 40m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SocForwardingFailing",alertstate="firing",severity="warning",owner="security",node="n1"}'
+            value: 1
+          - labels: 'ALERTS{alertname="SocForwardingDroppedEvents",alertstate="firing",severity="warning",owner="security",node="n3"}'
+            value: 1

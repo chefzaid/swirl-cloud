@@ -60,7 +60,7 @@ for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vaul
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
              test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py \
              test-licence-register.py test-console-i18n.py test-assurance-pack.py \
-             test-hardware-health.py test-security-detection.py; do
+             test-hardware-health.py test-security-detection.py test-soc-forwarding.py; do
     python3 "tests/$suite"
 done
 printf '[PASS] Deployment, recovery and release safety suites\n'

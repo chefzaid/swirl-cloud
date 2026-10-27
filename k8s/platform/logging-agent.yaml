@@ -143,6 +143,8 @@ data:
         Emitter_Storage.type      filesystem
         Emitter_Mem_Buf_Limit     10MB
 
+    # swirl-cloud:soc-forwarding-pipeline
+
     [OUTPUT]
         Name                      es
         Match                     kube.*
@@ -440,6 +442,7 @@ data:
         }
       }
     }
+  # swirl-cloud:soc-forwarding-files
 
 ---
 apiVersion: apps/v1
@@ -589,6 +592,7 @@ spec:
               mountPath: /fluent-bit/etc/enrich-kubernetes.lua
               subPath: enrich-kubernetes.lua
               readOnly: true
+            # swirl-cloud:soc-forwarding-mounts
             - name: varlogcontainers
               mountPath: /var/log/containers
               readOnly: true

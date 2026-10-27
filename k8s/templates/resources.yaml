@@ -5,6 +5,7 @@
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}
 {{- $content := $root.Files.Get $path -}}
+{{- $soc := include "swirl-cloud.soc-forwarding" $root | fromJson -}}
 {{- /* A block scalar holding only "# swirl-cloud:file <path>" takes files/<path>, indented to the marker; images are base64 for binaryData. */ -}}
 {{- range $marker := regexFindAll "(?m)^ *# swirl-cloud:file \\S+$" $content -1 -}}
 {{- $file := printf "files/%s" (regexReplaceAll "^ *# swirl-cloud:file " $marker "") -}}
@@ -24,6 +25,12 @@
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
 {{- end -}}
 {{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary (printf "%s%s" ($root.Files.Get "files/compliance-controls.yaml") ($root.Files.Get "files/vulnerability-exceptions.yaml")) "" -}}
+{{- if and (eq $annotation "swirl-cloud.io/logging-agent") $soc.host -}}
+{{- $extra = toJson $soc -}}
+{{- range $file, $_ := $root.Files.Glob "files/soc-forwarding/*" -}}
+{{- $extra = printf "%s%s" $extra ($root.Files.Get $file) -}}
+{{- end -}}
+{{- end -}}
 {{- /* None of these sources holds the Kafka cluster ID, and the default portal language
      restarts nothing, so neither changes these checksums. */ -}}
 {{- $identity := omit (include "swirl-cloud.identity" $root | fromJson) "__KAFKA_CLUSTER_ID__" -}}
@@ -45,6 +52,24 @@
 {{- $content = replace (printf "description: %s\n" $english) (printf "description: %s\n" $french) $content -}}
 {{- end -}}
 {{- end -}}
+{{- if and (eq $path "platform/logging-agent.yaml") $soc.host -}}
+{{- /* scripts/render-identity.py expands the same markers for the installer. */ -}}
+{{- $pipeline := "" -}}
+{{- range $source := $soc.selected -}}
+{{- $pipeline = printf "%s%s\n" $pipeline ($root.Files.Get (printf "files/soc-forwarding/%s.conf" $source)) -}}
+{{- end -}}
+{{- $output := $root.Files.Get "files/soc-forwarding/output.conf" -}}
+{{- $files := printf "  soc-forwarding.lua: |\n%s" ($root.Files.Get "files/soc-forwarding/soc-forwarding.lua" | trimSuffix "\n" | indent 4) -}}
+{{- $mounts := "            - name: config\n              mountPath: /fluent-bit/etc/soc-forwarding.lua\n              subPath: soc-forwarding.lua\n              readOnly: true" -}}
+{{- if $soc.ca -}}
+{{- $output = replace "    tls.verify_hostname       On\n" "    tls.verify_hostname       On\n    tls.ca_file               /fluent-bit/etc/soc-forwarding-ca.crt\n" $output -}}
+{{- $files = printf "%s\n  soc-forwarding-ca.crt: |\n%s" $files (b64dec $soc.ca | trimSuffix "\n" | indent 4) -}}
+{{- $mounts = printf "%s\n            - name: config\n              mountPath: /fluent-bit/etc/soc-forwarding-ca.crt\n              subPath: soc-forwarding-ca.crt\n              readOnly: true" $mounts -}}
+{{- end -}}
+{{- $content = replace "    # swirl-cloud:soc-forwarding-pipeline\n" (printf "%s\n" (printf "%s%s" $pipeline $output | trimSuffix "\n" | indent 4)) $content -}}
+{{- $content = replace "  # swirl-cloud:soc-forwarding-files\n" (printf "%s\n" $files) $content -}}
+{{- $content = replace "            # swirl-cloud:soc-forwarding-mounts\n" (printf "%s\n" $mounts) $content -}}
+{{- end -}}
 {{- if eq $path "corp/odoo.yaml" -}}
 {{- $content = replace "# swirl-cloud:odoo-addon-configmaps" (include "swirl-cloud.odoo-addon-configmaps" $root) $content -}}
 {{- $content = replace "            # swirl-cloud:odoo-addon-mounts" (include "swirl-cloud.odoo-addon-mounts" $root | trim | indent 12) $content -}}
@@ -60,6 +85,9 @@
 {{- $content = replace "__GITOPS_REPOSITORY_URL__" (required "gitopsRepositoryURL is required" $root.Values.gitopsRepositoryURL) $content -}}
 {{- $content = replace "__CLOUDFLARE_ACCESS_TEAM_NAME__" (required "cloudflareAccessTeamName is required" $root.Values.cloudflareAccessTeamName) $content -}}
 {{- $content = replace "__APPS_ENABLED__" (toString $root.Values.appsEnabled) $content -}}
+{{- range $token, $key := dict "__SOC_SYSLOG_HOST__" "host" "__SOC_SYSLOG_PORT__" "port" "__SOC_SYSLOG_SOURCES__" "sources" "__SOC_SYSLOG_CA__" "ca" -}}
+{{- $content = replace $token (index $soc $key) $content -}}
+{{- end -}}
 {{- $content = replace "__DESCHEDULER_ENABLED__" (toString $root.Values.deschedulerEnabled) $content -}}
 {{- $ha := dict "highAvailabilityEnabled" $root.Values.highAvailabilityEnabled -}}
 {{- if $root.Values.postgresHa -}}
