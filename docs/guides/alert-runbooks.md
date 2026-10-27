@@ -307,6 +307,18 @@ No successful recovery archive for 36 hours. Read
 credentials, S3 target), then run **Maintenance → Run the recovery backup now** in
 `./install.sh`.
 
+### K3sBackupVerificationMissing
+
+The weekly read-back of the off-node restic repository has not succeeded for
+eight days, so a damaged or unreadable repository would go unnoticed. Check
+`systemctl list-timers swirl-cloud-k3s-backup-verify.timer` and
+`sudo journalctl -u swirl-cloud-k3s-backup-verify.service -n 50`, then run it now:
+`sudo systemctl start swirl-cloud-k3s-backup-verify.service`. Reinstall the timer
+with `./scripts/configure-k3s-backups.sh` if it is missing. After the off-node
+target was removed on purpose, delete
+`/var/lib/node_exporter/textfile_collector/swirl_cloud_unit_swirl_cloud_k3s_backup_verify_service.prom`
+([backups and recovery](../operations.md#backups-and-recovery)).
+
 ### VaultUnsealTimerStopped
 
 The unseal service has not run for 15 minutes, so Vault would stay sealed after a

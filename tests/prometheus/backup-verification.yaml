@@ -1,0 +1,25 @@
+# promtool unit test for K3sBackupVerificationMissing, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1h
+tests:
+  # Hourly samples of the last success time, in seconds: the first node verified
+  # at time 0 and never again; the second verifies every seven days.
+  - interval: 1h
+    input_series:
+      - series: 'swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup-verify.service",node="stale"}'
+        values: '0x240'
+      - series: 'swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup-verify.service",node="weekly"}'
+        values: '0x167 604800x73'
+      # The nightly backup's own metric never raises this alert.
+      - series: 'swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-k3s-backup.service",node="stale"}'
+        values: '0x240'
+    promql_expr_test:
+      - expr: ALERTS{alertname="K3sBackupVerificationMissing", alertstate="firing"}
+        eval_time: 7d
+        exp_samples: []
+      - expr: ALERTS{alertname="K3sBackupVerificationMissing", alertstate="firing"}
+        eval_time: 9d
+        exp_samples:
+          - labels: 'ALERTS{alertname="K3sBackupVerificationMissing",alertstate="firing",severity="warning",owner="platform",unit="swirl-cloud-k3s-backup-verify.service",node="stale"}'
+            value: 1
