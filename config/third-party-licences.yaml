@@ -253,6 +253,13 @@ components:
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: CloudNativePG operator.
+  - name: public.ecr.aws/docker/library/haproxy
+    licence: GPL-2.0-or-later
+    source: https://github.com/haproxy/haproxy
+    customer_use: allowed
+    obligations: Copies must come with the licence and an offer of the corresponding source.
+    notes: HA profiles only, in front of the platform and Argo CD Redis. HAProxy's headers are LGPL or MIT, and
+      its licence permits linking with OpenSSL.
   - name: quay.io/keycloak/keycloak
     licence: Apache-2.0
     source: https://github.com/keycloak/keycloak
@@ -318,8 +325,8 @@ components:
     source: https://github.com/argoproj/argo-helm
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
-    notes: Deploys the chart's default Argo CD image (Apache-2.0) and, in HA profiles, its default HAProxy
-      image (GPL core, LGPL headers).
+    notes: Deploys the chart's default Argo CD image (Apache-2.0) and, in HA profiles, the pinned HAProxy
+      image (public.ecr.aws/docker/library/haproxy).
   - name: helm-chart:external-secrets
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
@@ -336,8 +343,8 @@ components:
     source: https://github.com/DandyDeveloper/charts
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
-    notes: Vendored in k8s/charts/, so release source archives redistribute it. Deploys the chart's default
-      HAProxy image (GPL core, LGPL headers) in HA profiles.
+    notes: Vendored in k8s/charts/, so release source archives redistribute it. Deploys the pinned HAProxy
+      image (public.ecr.aws/docker/library/haproxy) in HA profiles.
   - name: helm-chart:traefik
     licence: Apache-2.0
     source: https://github.com/traefik/traefik-helm-chart

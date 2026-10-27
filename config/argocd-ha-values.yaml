@@ -78,6 +78,10 @@ redis-ha:
       limits: {cpu: 250m, memory: 64Mi}
   haproxy:
     enabled: true
+    # The chart default names ecr-public.aws.com; public.ecr.aws is the same Amazon ECR Public registry.
+    image:
+      repository: public.ecr.aws/docker/library/haproxy
+      tag: "3.3.10-alpine@sha256:29c775f541ba6364ac95de998a8d3d16eb4882470c4fd7bbe8de8315edfdd883"
     replicas: 2
     hardAntiAffinity: true
     podDisruptionBudget:

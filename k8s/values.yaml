@@ -103,6 +103,9 @@ redis-ha:
         limits: {cpu: 100m, memory: 64Mi}
   haproxy:
     enabled: true
+    image:
+      repository: public.ecr.aws/docker/library/haproxy
+      tag: "3.3.10-alpine@sha256:29c775f541ba6364ac95de998a8d3d16eb4882470c4fd7bbe8de8315edfdd883"
     replicas: 3
     hardAntiAffinity: true
     podDisruptionBudget:

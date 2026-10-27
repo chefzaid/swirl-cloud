@@ -28,6 +28,7 @@ Downloads only; these services learn the requesting address and what was downloa
 | `ghcr.io` | GitHub (United States) | External Secrets, Homepage, Kafbat UI, CloudNativePG, the Grafana dashboard sidecar and Trivy node-collector images; the Trivy vulnerability database |
 | `mirror.gcr.io` | Google (United States) | Trivy vulnerability database mirror, tried before `ghcr.io` |
 | `registry.k8s.io` | Kubernetes project | kube-state-metrics and Kubernetes images |
+| `public.ecr.aws` | Amazon Web Services (United States) | HAProxy images in front of Redis in HA profiles |
 | `docker.elastic.co` | Elastic N.V. (Netherlands) | Elasticsearch, Kibana and Logstash images |
 | `cr.fluentbit.io` | Fluent Bit project | The Fluent Bit image |
 | `get.k3s.io`, GitHub releases | K3s project | K3s installer and binaries |
