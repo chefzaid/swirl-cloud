@@ -355,16 +355,28 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#lynisauditmissing
           summary: Monthly Lynis audit is overdue
           description: 'No successful Lynis audit on {{ $labels.node }} for more than 35 days; check swirl-cloud-lynis.timer.'
-      # Known findings are triaged in docs/security.md; alert only when an image
-      # exceeds its own 6 h critical maximum or arrives with critical findings.
+      # Alert only when an image exceeds its own 6 h critical maximum or arrives
+      # with critical findings; findings under an unexpired exception
+      # (k8s/files/vulnerability-exceptions.yaml) do not count.
       # 6 h fits the size-bound retention; widen it with TODO §26.
       - alert: TrivyNewCriticalVulnerability
+        # Distinct critical findings per image, without unexpired exceptions. The
+        # baseline is a subquery over raw data, so it needs no recorded history.
         expr: |
-          max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+          count by (exported_namespace, image_repository) (
+            max by (exported_namespace, image_repository, vuln_id) (trivy_vulnerability_id{severity="Critical"})
+            unless on (image_repository, vuln_id) swirl_cloud:vulnerability_exception
+          ) > 0
           unless on (exported_namespace, image_repository)
           (
-            max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})
-            <= max_over_time(max by (exported_namespace, image_repository) (trivy_image_vulnerabilities{severity="Critical"})[6h:15m] offset 1h)
+            count by (exported_namespace, image_repository) (
+              max by (exported_namespace, image_repository, vuln_id) (trivy_vulnerability_id{severity="Critical"})
+              unless on (image_repository, vuln_id) swirl_cloud:vulnerability_exception
+            )
+            <= max_over_time(count by (exported_namespace, image_repository) (
+              max by (exported_namespace, image_repository, vuln_id) (trivy_vulnerability_id{severity="Critical"})
+              unless on (image_repository, vuln_id) swirl_cloud:vulnerability_exception
+            )[6h:15m] offset 1h)
           )
         for: 30m
         labels:
@@ -373,7 +385,7 @@ groups:
         annotations:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#trivynewcriticalvulnerability
           summary: New critical vulnerabilities in a running image
-          description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
+          description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings without an exception. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
       - alert: HostFirewallDisabled
         expr: swirl_cloud_host_firewall_active == 0
         for: 5m
@@ -558,9 +570,11 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#alertnotificationsfailing
           summary: Alert notifications are not being delivered
           description: 'Every {{ $labels.integration }} notification from Alertmanager failed in the last hour; alerts may reach only the other receiver.'
-  # Helm replaces the next line with per-check rules generated from
-  # k8s/files/compliance-controls.yaml (status 2 passing, 1 no evidence, 0 failing).
+  # Helm replaces the next two lines with per-check rules generated from
+  # k8s/files/compliance-controls.yaml (status 2 passing, 1 no evidence, 0 failing)
+  # and with k8s/files/vulnerability-exceptions.yaml as swirl_cloud:vulnerability_exception.
   # swirl-cloud:compliance-evidence-rules
+  # swirl-cloud:vulnerability-exception-rules
   - name: swirl-cloud.compliance
     rules:
       - record: swirl_cloud_compliance_control_status

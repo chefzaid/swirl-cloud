@@ -271,8 +271,17 @@ findings over its recent maximum, or a newly deployed image has any. Deadlines
 run from first sighting in a running image: 15 days for Critical, 30 for High.
 `./install.sh --vulnerability-report` lists items past deadline; the Grafana
 **Platform Report** tracks monthly counts
-([platform reports](guides/platform-reports.md)). A triaged item still counts
-until its image changes, so record decisions here.
+([platform reports](guides/platform-reports.md)).
+
+Record each accepted finding in
+[`k8s/files/vulnerability-exceptions.yaml`](../k8s/files/vulnerability-exceptions.yaml):
+one image repository and one CVE or GHSA ID, an owner, the triage date, an expiry
+at most 92 days later and the reason. Until the end of its expiry day (UTC) the
+finding is left out of `TrivyNewCriticalVulnerability`, the Platform Report's
+counts and `--vulnerability-report` (shown with `--all`); it stays tracked from
+first sighting, so its deadline resumes on expiry, and the report lists expired
+exceptions. A finding triaged without an ID stays in the tables below only and
+still counts: an image-wide exception would also hide new findings.
 
 List critical findings by image, deduplicated across workloads (Trivy Operator
 keeps one report per running digest):

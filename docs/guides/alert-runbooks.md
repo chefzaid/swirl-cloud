@@ -240,7 +240,10 @@ No successful monthly audit for 35 days. Check
 An image's critical vulnerabilities rose above its recent maximum, or a new image
 has some. Check Grafana **Trivy Security Reports**, update when a fix exists and
 record the decision in [vulnerability triage](../security.md#vulnerability-triage).
-Application images are fixed in their own repository.
+An accepted finding goes in `k8s/files/vulnerability-exceptions.yaml`, which keeps
+it out of this alert until it expires; the alert fires again when an exception
+expires on a finding still present. Application images are fixed in their own
+repository.
 
 ### HostFirewallDisabled
 

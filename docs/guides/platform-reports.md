@@ -15,7 +15,7 @@ Report** dashboard turns them into a monthly report.
 | `usage` | `namespace`, `cpu_cores`, `memory_bytes` (larger of requests and usage) | cost showback allocation |
 | `compliance` | `control`, `status`, `passing` (1 or 0) | [compliance evidence](compliance-evidence.md) |
 | `compliance_framework` | `framework`, `ratio` (share of automated controls passing) | compliance evidence |
-| `vulnerabilities` | `severity`, `open`, `past_deadline`, `deadline_days` | Trivy findings in running images |
+| `vulnerabilities` | `severity`, `open`, `past_deadline`, `deadline_days` | Trivy findings in running images, without unexpired [exceptions](../security.md#vulnerability-triage) |
 | `game_day` | `namespace`, `scope` (scenario), `ratio` (endpoint availability during the drill), `value` (slowest recovery, seconds) | [game days](service-levels.md#game-days), written by `./install.sh --game-day --record`, not the hourly snapshot |
 | `sli` | `indicator` (`datastore:<service>`, `ci_queue_p90_seconds`, `ci_platform_failure_ratio`, `argocd_sync_failure_ratio`), `value` | [service indicators](service-levels.md#other-indicators) |
 

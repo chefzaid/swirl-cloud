@@ -23,12 +23,13 @@
 {{- range $file, $_ := $root.Files.Glob $source -}}
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
 {{- end -}}
-{{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary ($root.Files.Get "files/compliance-controls.yaml") "" -}}
+{{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary (printf "%s%s" ($root.Files.Get "files/compliance-controls.yaml") ($root.Files.Get "files/vulnerability-exceptions.yaml")) "" -}}
 {{- $checksum := printf "%s\n%s%s" $files (include "swirl-cloud.identity" $root) $extra | sha256sum -}}
 {{- $content = replace (printf "%s: pending" $annotation) (printf "%s: %s" $annotation $checksum) $content -}}
 {{- end -}}
 {{- if eq $path "platform/monitoring.yaml" -}}
 {{- $content = replace "      # swirl-cloud:compliance-evidence-rules" (include "swirl-cloud.compliance-rule-groups" $root | indent 6) $content -}}
+{{- $content = replace "      # swirl-cloud:vulnerability-exception-rules" (include "swirl-cloud.vulnerability-exception-rule-groups" $root | indent 6) $content -}}
 {{- end -}}
 {{- if eq $path "corp/odoo.yaml" -}}
 {{- $content = replace "# swirl-cloud:odoo-addon-configmaps" (include "swirl-cloud.odoo-addon-configmaps" $root) $content -}}

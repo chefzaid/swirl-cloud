@@ -177,6 +177,9 @@ data:
       + `(trivy_vulnerability_id{severity=~"${Object.keys(deadlines).join("|")}"})`);
     const seen = hour.toISOString();
     const counts = Object.fromEntries(Object.keys(deadlines).map((severity) => [severity, { open: 0, past_deadline: 0 }]));
+    // Unexpired exceptions (files/vulnerability-exceptions.yaml) stay tracked from first sight but are not counted.
+    const excepted = new Set((await query("count by (image_repository, vuln_id) (swirl_cloud:vulnerability_exception)"))
+      .map(({ metric }) => `${metric.image_repository}|${metric.vuln_id}`));
     for (let start = 0; start < vulnerabilities.length; start += 500) {
       const batch = vulnerabilities.slice(start, start + 500);
       const body = batch.flatMap(({ metric }) => {
@@ -190,7 +193,8 @@ data:
       }).join("\n") + "\n";
       const result = await elastic("/_bulk", "POST", body, "application/x-ndjson");
       result.items.forEach((item, position) => {
-        const { severity } = batch[position].metric;
+        const { severity, image_repository: repository, vuln_id: id } = batch[position].metric;
+        if (excepted.has(`${repository}|${id}`)) return;
         const firstSeen = item.update?.get?._source?.first_seen || seen;
         counts[severity].open += 1;
         if (hour.getTime() - Date.parse(firstSeen) > deadlines[severity] * 86400000) counts[severity].past_deadline += 1;

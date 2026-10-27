@@ -1,0 +1,38 @@
+# promtool unit test for TrivyNewCriticalVulnerability, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  # One-minute samples: a sparser series vanishes between samples (5 m lookback).
+  - interval: 1m
+    input_series:
+      # A new image with a critical finding from 8 h: alerts.
+      - series: 'trivy_vulnerability_id{exported_namespace="apps",image_repository="example/new",vuln_id="CVE-1",severity="Critical"}'
+        values: '_x480 1x120'
+      # A finding under an exception that stays valid: never alerts.
+      - series: 'trivy_vulnerability_id{exported_namespace="apps",image_repository="example/excepted",vuln_id="CVE-2",severity="Critical"}'
+        values: '_x480 1x120'
+      - series: 'swirl_cloud:vulnerability_exception{image_repository="example/excepted",vuln_id="CVE-2"}'
+        values: '1x600'
+      # A finding seen for 9 h whose exception ends at 8 h: alerts when it expires.
+      - series: 'trivy_vulnerability_id{exported_namespace="apps",image_repository="example/expiring",vuln_id="CVE-3",severity="Critical"}'
+        values: '1x600'
+      - series: 'swirl_cloud:vulnerability_exception{image_repository="example/expiring",vuln_id="CVE-3"}'
+        values: '1x479'
+      # A finding seen for 9 h without an exception: already known, no alert.
+      - series: 'trivy_vulnerability_id{exported_namespace="apps",image_repository="example/steady",vuln_id="CVE-4",severity="Critical"}'
+        values: '1x600'
+      # High findings never count.
+      - series: 'trivy_vulnerability_id{exported_namespace="apps",image_repository="example/high",vuln_id="CVE-5",severity="High"}'
+        values: '_x480 1x120'
+    # The new count becomes the baseline after an hour, so the alert fires once
+    # (from 30 m to about 1 h); 8 h 45 m is inside that window for both images.
+    # ALERTS carries labels only, so the rendered annotation URLs do not matter.
+    promql_expr_test:
+      - expr: ALERTS{alertname="TrivyNewCriticalVulnerability", alertstate="firing"}
+        eval_time: 8h45m
+        exp_samples:
+          - labels: 'ALERTS{alertname="TrivyNewCriticalVulnerability",alertstate="firing",severity="warning",owner="security",exported_namespace="apps",image_repository="example/expiring"}'
+            value: 1
+          - labels: 'ALERTS{alertname="TrivyNewCriticalVulnerability",alertstate="firing",severity="warning",owner="security",exported_namespace="apps",image_repository="example/new"}'
+            value: 1

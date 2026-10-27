@@ -4,6 +4,7 @@
 import argparse
 import base64
 import copy
+import datetime
 import itertools
 import json
 import os
@@ -331,14 +332,45 @@ def lifecycle_policies(rendered, label):
     require(named <= stored, f"{label}: lifecycle policies never stored: {', '.join(sorted(named - stored))}")
 
 
+def vulnerability_exceptions():
+    """Each exception names one repository and one finding, an owner, a reason and a bounded expiry.
+    Expiry is not compared with today: an expired entry only stops subtracting its finding."""
+    path = ROOT / "k8s/files/vulnerability-exceptions.yaml"
+    entries = yaml.safe_load(path.read_text()).get("exceptions") or []
+    seen = set()
+    for number, entry in enumerate(entries, 1):
+        label = f"{path.relative_to(ROOT)} entry {number}"
+        require(set(entry) == {"image", "vulnerability", "owner", "triaged", "expires", "reason"}, f"{label}: unexpected fields")
+        require(re.fullmatch(r"[a-z0-9]+([._/-][a-z0-9]+)*", str(entry["image"])),
+                f"{label}: image is a repository without registry, tag or digest")
+        require(re.fullmatch(r"(CVE-\d{4}-\d{4,}|GHSA(-[a-z0-9]{4}){3})", str(entry["vulnerability"])),
+                f"{label}: vulnerability must be one CVE or GHSA ID")
+        require(str(entry["owner"]).strip() and str(entry["reason"]).strip(), f"{label}: owner and reason are required")
+        require(all(isinstance(entry[key], str) for key in ("triaged", "expires")), f"{label}: quote the dates")
+        triaged, expires = (datetime.date.fromisoformat(entry[key]) for key in ("triaged", "expires"))
+        require(0 <= (expires - triaged).days <= 92, f"{label}: expires within 92 days of its triage")
+        key = (entry["image"], entry["vulnerability"])
+        require(key not in seen, f"{label}: duplicate exception {key}")
+        seen.add(key)
+
+
 def prometheus_config(runtime, stage):
-    """The rendered Prometheus configuration and rules pass promtool."""
+    """The rendered Prometheus configuration and rules pass promtool and the rule unit tests in tests/prometheus."""
     config = runtime[("v1", "ConfigMap", "infra", "prometheus-config")]["data"]
     for name, content in config.items():
         (stage / name).write_text(content)
     # Only syntax: the referenced rule and credential files exist in the pod, not here.
     run("promtool", "check", "config", "--syntax-only", str(stage / "prometheus.yml"))
     run("promtool", "check", "rules", str(stage / "rules.yaml"))
+    exceptions = yaml.safe_load((ROOT / "k8s/files/vulnerability-exceptions.yaml").read_text())["exceptions"]
+    recorded = [rule for group in yaml.safe_load(config["rules.yaml"])["groups"] for rule in group["rules"]
+                if rule.get("record") == "swirl_cloud:vulnerability_exception"]
+    require(len(recorded) == len(exceptions), "rendered rules miss vulnerability exceptions")
+    for path in sorted((ROOT / "tests/prometheus").glob("*.yaml")):
+        test = yaml.safe_load(path.read_text())
+        test["rule_files"] = [str(stage / "rules.yaml")]
+        (stage / path.name).write_text(yaml.safe_dump(test, sort_keys=False))
+        run("promtool", "test", "rules", str(stage / path.name))
 
 
 def argocd_probe_policy(contract):
@@ -448,6 +480,7 @@ def source_inputs():
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")
     ingress_policy(contract)
+    vulnerability_exceptions()
     argocd_probe_policy(contract)
     for path in (ROOT / ".github/workflows").glob("*.y*ml"):
         for action in re.findall(r"^\s+(?:- )?uses:\s*(\S+)", path.read_text(), re.M):
