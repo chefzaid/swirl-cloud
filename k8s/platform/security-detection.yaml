@@ -1,5 +1,5 @@
-# Security detection rules over identity events, the Kubernetes API audit log
-# and Keycloak state, every five minutes; findings go to Alertmanager like
+# Security detection rules over identity events, the Kubernetes API audit log,
+# host SSH and sudo journal lines and Keycloak state, every five minutes; findings go to Alertmanager like
 # Prometheus alerts (docs/guides/security-detection.md). The job's Elasticsearch
 # account uses a password generated here; the Elasticsearch bootstrap creates it.
 apiVersion: generators.external-secrets.io/v1alpha1
@@ -132,6 +132,75 @@ data:
       return findings;
     }
 
+    // Host journal lines (kubernetes-logs-host-*), parsed here because the message
+    // field is full text. Fail2ban and CrowdSec bans are not in the journal; a
+    // success after repeated failures from one address is the same signal.
+    async function hostLines(identifiers, since, size) {
+      const result = await search("kubernetes-logs-host-*", { size, sort: [{ "@timestamp": "asc" }],
+        _source: ["@timestamp", "hostname", "message"],
+        query: { bool: { filter: [{ terms: { syslog_identifier: identifiers } }, { range: { "@timestamp": { gte: since } } }] } } });
+      return result.hits.hits.map((hit) => hit._source);
+    }
+
+    const SSH_FAILURE = /^(?:Failed \S+ for (?:invalid user )?\S+|Invalid user \S*) from (\S+)/;
+    const SSH_SUCCESS = /^Accepted \S+ for (\S+) from (\S+)/;
+    async function sshBruteForceThenSuccess() {
+      const failures = new Map();
+      const findings = new Map();
+      for (const line of await hostLines(["sshd", "sshd-session", "sshd-auth"], minutes(15), 5000)) {
+        const message = line.message || "";
+        const failed = SSH_FAILURE.exec(message);
+        if (failed) {
+          const key = `${line.hostname}|${failed[1]}`;
+          failures.set(key, (failures.get(key) || 0) + 1);
+          continue;
+        }
+        const accepted = SSH_SUCCESS.exec(message);
+        const key = accepted && `${line.hostname}|${accepted[2]}`;
+        if (accepted && (failures.get(key) || 0) >= 5 && !findings.has(key)) {
+          findings.set(key, { alertname: "HostSSHBruteForceThenSuccess", severity: "critical", node: line.hostname || "",
+            user: accepted[1], source_address: accepted[2],
+            summary: "Successful SSH login after repeated failures from the same address",
+            description: `${accepted[1]} signed in over SSH to ${line.hostname} from ${accepted[2]} after ${failures.get(key)} `
+              + "failed attempts from that address in 15 minutes; confirm it was the owner." });
+        }
+      }
+      return [...findings.values()];
+    }
+
+    // The first run learns a week of sudo users; later runs report a new one for a day.
+    const SUDO_COMMAND = /^\s*(\S+) : .*COMMAND=/;
+    async function sudoByNewUser() {
+      const state = `${elasticsearch}/security-detection-state/_doc/sudo-users`;
+      const previous = await fetch(state, { headers: { Authorization: esAuth } });
+      if (!previous.ok && previous.status !== 404) throw new Error(`state: HTTP ${previous.status}`);
+      const stored = previous.ok ? (await previous.json())._source : null;
+      const seen = new Map();
+      for (const line of await hostLines(["sudo"], stored ? minutes(15) : `now-${LEARNING_DAYS}d`, 10000)) {
+        const match = SUDO_COMMAND.exec(line.message || "");
+        if (match && !seen.has(match[1])) seen.set(match[1], { at: line["@timestamp"], node: line.hostname || "" });
+      }
+      const known = new Set(stored?.users || []);
+      const pending = stored?.pending || {};
+      for (const [user, first] of seen) {
+        if (!stored) known.add(user);
+        else if (!known.has(user) && !pending[user]) pending[user] = first;
+      }
+      for (const [user, first] of Object.entries(pending)) {
+        if (now - Date.parse(first.at) > 86400000) {
+          known.add(user);
+          delete pending[user];
+        }
+      }
+      const write = await fetch(state, { method: "PUT", headers: { Authorization: esAuth, "Content-Type": "application/json" },
+        body: JSON.stringify({ "@timestamp": new Date(now).toISOString(), users: [...known].sort(), pending }) });
+      if (!write.ok) throw new Error(`state: HTTP ${write.status} ${(await write.text()).slice(0, 200)}`);
+      return Object.entries(pending).map(([user, first]) => ({ alertname: "HostSudoByNewUser", severity: "warning", user,
+        node: first.node, summary: "A user ran sudo for the first time",
+        description: `${user} ran a command with sudo on ${first.node} at ${first.at}, the first time in the recorded history; `
+          + "confirm the account and its sudo rights are expected." }));
+    }
+
     async function keycloakToken() {
       const response = await fetch(`${keycloak}/realms/master/protocol/openid-connect/token`, { method: "POST",
         body: new URLSearchParams({ client_id: "admin-cli", grant_type: "password",
@@ -205,7 +274,7 @@ data:
     const findings = [];
     const failures = [];
     for (const rule of [bruteForceThenSuccess, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
-                        expireTemporaryAdministrators]) {
+                        expireTemporaryAdministrators, sshBruteForceThenSuccess, sudoByNewUser]) {
       try {
         findings.push(...await rule());
       } catch (error) {

@@ -418,6 +418,22 @@ A user joined `platform-admins` in the platform realm or got `admin` in the mast
 realm; the alert lasts a day. If the grant was not approved, remove it, end the
 user's sessions and check Keycloak admin events for who granted it.
 
+### HostSSHBruteForceThenSuccess
+
+An address failed SSH logins at least five times, then signed in. Contact the
+account's owner through another channel. On the host, read
+`sudo journalctl -t sshd-session -t sshd --since -1h` and `last -n 20`. If it was
+not the owner, remove the key or lock the account, kill its sessions
+(`sudo pkill -KILL -u <user>`), block the address and review what it ran
+(`sudo journalctl _UID=<uid>`). Key-only SSH (TODO §4) prevents the password case.
+
+### HostSudoByNewUser
+
+A user ran sudo for the first time in the recorded history; the alert lasts a day.
+Confirm the account and its sudo rights (`sudo -l -U <user>`, `/etc/sudoers.d`).
+If unexpected, remove the rights, lock the account and review its commands with
+`sudo journalctl -t sudo --since -1d`.
+
 ## Ingress and monitoring
 
 ### IngressServiceErrorRateHigh

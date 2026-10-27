@@ -421,11 +421,11 @@ spec:
               put_user "$KIBANA_PROXY_USERNAME" "$KIBANA_PROXY_PASSWORD" '["kibana_keycloak_proxy"]' 'Kibana Keycloak Proxy'
               put_user ci_observer "$CI_OBSERVER_PASSWORD" '["logs_reader"]' 'CI Delivery Observer'
               put_user metrics_monitor "$METRICS_MONITOR_PASSWORD" '["metrics_monitor"]' 'Prometheus Metrics Monitor'
-              # Security detection reads audit indices and keeps its state; its
+              # Security detection reads audit and host journal indices and keeps its state; its
               # password is generated in the cluster (security-detection.yaml).
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*"],"privileges":["read"]},{"names":["security-detection-state","security-findings-*","access-grants"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
+                --data-binary '{"cluster":[],"indices":[{"names":["identity-audit-*","kubernetes-audit-*","kubernetes-logs-host-*"],"privileges":["read"]},{"names":["security-detection-state","security-findings-*","access-grants"],"privileges":["read","write","create_index"]}],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/security_detection" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
