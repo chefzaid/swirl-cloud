@@ -82,6 +82,7 @@ Specialized procedures:
 - [Odoo website](./docs/guides/odoo-website.md): website leads and Live Chat
 - [Releases](./docs/guides/releases.md): versioning, SBOM and signed bundles
 - [Exit plan](./docs/guides/exit-plan.md): operating without the vendor or moving data elsewhere
+- [Self-operation](./docs/guides/self-operation.md): routine checks, updates and credentials without the vendor
 - [September 2026 service upgrades](./docs/guides/service-upgrades-2026-09.md): upgrade record
 - [October 2026 service upgrades](./docs/guides/service-upgrades-2026-10.md): upgrade record
 
