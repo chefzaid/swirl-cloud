@@ -78,7 +78,9 @@ run_backup() (
             *) return 1 ;;
         esac
     }
-    export -f install k3s kubectl
+    # Plenty of space, unless MOCK_DF gives the filesystem's size and free bytes.
+    df() { printf 'Size Avail\n%s\n' "${MOCK_DF:-1000000000000 900000000000}"; }
+    export -f install k3s kubectl df
     # Replace only the root check and fixed host paths; all other logic is the
     # production script's.
     # shellcheck disable=SC1090
@@ -224,6 +226,21 @@ fi
 exec {held_lock}>&-
 grep -Fq 'The backup lock is still held' "$TEST_DIR/backup-lock-held.err"
 [[ -z "$(find "$TEST_DIR/lock-held" -name 'k3s-*')" ]]
+# Each run records its staging plus archive size. A run that would leave less
+# than 15 % of the filesystem free writes nothing; the same space without that
+# expected size, or with a lower floor, is enough.
+expected="$(< "$TEST_DIR/sqlite/.last-run-bytes")"
+(( expected > $(stat -c %s "${sqlite_archives[0]}") ))
+mkdir "$TEST_DIR/disk-full" && printf '100\n' > "$TEST_DIR/disk-full/.last-run-bytes"
+if MOCK_DF='1000 200' bash -c 'set -e; run_backup disk-full' >/dev/null 2>"$TEST_DIR/disk-full.err"; then
+    printf 'A backup that would fill the disk was accepted.\n' >&2
+    exit 1
+fi
+grep -Fq 'must leave 15 % of the filesystem free' "$TEST_DIR/disk-full.err"
+[[ -z "$(find "$TEST_DIR/disk-full" -name 'k3s-*')" && -z "$(find "$TEST_DIR/disk-full" -name '.staging.*')" ]]
+MOCK_DF='1000 200' BACKUP_MIN_FREE_PERCENT=10 run_backup disk-full >/dev/null
+rm "$TEST_DIR/disk-full/"k3s-* && printf '0\n' > "$TEST_DIR/disk-full/.last-run-bytes"
+MOCK_DF='1000 200' run_backup disk-full >/dev/null
 
 # Off-node copies. The restic stand-in is a separate process, so it sees only
 # what backup.env exported; it keeps each snapshot's files under its id.
@@ -353,4 +370,4 @@ MOCK_BACKUP_ENVIRONMENT='' MOCK_RESTIC_STORE="$TEST_DIR/restic" run_verification
 grep -Fxq 'No off-node restic repository is configured; nothing to verify.' "$TEST_DIR/unconfigured.out"
 [[ ! -s "$TEST_DIR/restic/calls" ]]
 
-printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, held lock, recovery-kit key separation, GitLab configuration capture, off-node upload and its weekly verification (restic check rotation, missing checksum, checksum mismatch, corrupt archive, empty repository, held lock, no repository)\n'
+printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, held lock, free-space floor, recovery-kit key separation, GitLab configuration capture, off-node upload and its weekly verification (restic check rotation, missing checksum, checksum mismatch, corrupt archive, empty repository, held lock, no repository)\n'

@@ -23,6 +23,8 @@ fi
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 RETENTION_COUNT="${RETENTION_COUNT:-7}"
 BACKUP_LOCK_WAIT_SECONDS="${BACKUP_LOCK_WAIT_SECONDS:-14400}"
+# Free share the backup must leave: the kubelet's image GC starts at 85 % used.
+BACKUP_MIN_FREE_PERCENT="${BACKUP_MIN_FREE_PERCENT:-15}"
 K3S_DATA_DIR="${K3S_DATA_DIR:-/var/lib/rancher/k3s}"
 K3S_CONFIG_DIR="${K3S_CONFIG_DIR:-/etc/rancher/k3s}"
 K3S_DB="${K3S_DB:-$K3S_DATA_DIR/server/db/state.db}"
@@ -33,6 +35,7 @@ ARCHIVE="$BACKUP_DIR/k3s-$TIMESTAMP.tar.gz"
 [[ "$EUID" -eq 0 ]] || { echo "Run this backup as root." >&2; exit 1; }
 [[ "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]] || { echo "RETENTION_COUNT must be a positive integer." >&2; exit 1; }
 [[ "$BACKUP_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds." >&2; exit 1; }
+[[ "$BACKUP_MIN_FREE_PERCENT" =~ ^[0-9]$|^[1-9][0-9]$ ]] || { echo "BACKUP_MIN_FREE_PERCENT must be 0 to 99." >&2; exit 1; }
 command -v k3s >/dev/null || { echo "k3s is required." >&2; exit 1; }
 [[ -s "$K3S_DATA_DIR/server/token" ]] || { echo "K3s server token is required for a restorable backup." >&2; exit 1; }
 # SQLite servers can have an empty etcd directory, and migrated servers keep
@@ -56,6 +59,20 @@ flock -w "$BACKUP_LOCK_WAIT_SECONDS" 9 || {
   echo "The backup lock is still held after $BACKUP_LOCK_WAIT_SECONDS seconds; no archive was created." >&2
   exit 1
 }
+
+# A backup that fills the disk evicts pods (2026-09-28). Expect the previous
+# run's staging plus archive size, and stop before anything is written.
+estimate_file="$BACKUP_DIR/.last-run-bytes"
+expected_bytes=0
+[[ -r "$estimate_file" ]] && expected_bytes="$(< "$estimate_file")"
+[[ "$expected_bytes" =~ ^[0-9]+$ ]] || expected_bytes=0
+read -r filesystem_bytes available_bytes < <(df -B1 --output=size,avail "$BACKUP_DIR" | tail -n 1)
+if (( (available_bytes - expected_bytes) * 100 < filesystem_bytes * BACKUP_MIN_FREE_PERCENT )); then
+  echo "$((available_bytes / 1073741824)) GiB free under $BACKUP_DIR; this backup needs about" \
+    "$((expected_bytes / 1073741824)) GiB and must leave $BACKUP_MIN_FREE_PERCENT % of the filesystem free." \
+    "Free space first (alert runbook NodeMaintenanceHeadroomLow); no archive was created." >&2
+  exit 1
+fi
 
 staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
@@ -288,6 +305,7 @@ fi
 
 tar -C "$staging_dir" -czf "$ARCHIVE" .
 chmod 0600 "$ARCHIVE"
+printf '%s\n' "$(( $(du -sb "$staging_dir" | cut -f1) + $(stat -c %s "$ARCHIVE") ))" > "$estimate_file"
 sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 chmod 0600 "$ARCHIVE.sha256"
 

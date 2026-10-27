@@ -358,6 +358,14 @@ control plane, which also starts a backup (the installer and
 **Maintenance → Run the recovery backup now** in `./install.sh` runs the
 installed copy unchanged.
 
+A backup that fills the disk makes the kubelet evict pods, so the backup checks
+space before it writes anything. It expects the previous run's size (its staging
+copy plus the archive) and fails, alerting through
+[`K3sRecoveryBackupMissing`](guides/alert-runbooks.md#k3srecoverybackupmissing),
+if that would leave less than 15 % of the filesystem free, where the kubelet's
+image garbage collection starts. Set `BACKUP_MIN_FREE_PERCENT` in
+`/etc/swirl-cloud/backup.env` to change the floor.
+
 GitLab data still needs its own native backup, restored into the same version.
 With the Registry metadata database, that backup must include
 `db/registry_database.sql.gz`, or a verified PostgreSQL dump from the same
