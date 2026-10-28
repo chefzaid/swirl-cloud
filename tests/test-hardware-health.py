@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Guards for bare-metal hardware health: a disk smartctl cannot read is reported
 as unreadable and never as healthy, BMC sensors keep their state and a BMC that
-does not answer is reported, the metrics file is valid exposition format, and a
-virtual machine installs nothing and loses a previous install."""
+does not answer is reported, iSCSI disks (Longhorn volumes) are left out, the metrics
+file is valid exposition format, and a virtual machine installs nothing and loses a
+previous install."""
 import json
 import os
 from pathlib import Path
@@ -47,8 +48,9 @@ class HardwareHealthTest(unittest.TestCase):
         exporter = self.directory / "exporter.py"
         exporter.write_text(exporter_source())
         metrics = self.directory / "smart.prom"
+        sys_block = self.directory / "sys-block"  # Every disk is local unless a test links it to a session.
         program = (f"import runpy; module = runpy.run_path({str(exporter)!r}); "
-                   f"module['main']({str(metrics)!r}, {[str(device) for device in ipmi_devices]!r})")
+                   f"module['main']({str(metrics)!r}, {[str(device) for device in ipmi_devices]!r}, {str(sys_block)!r})")
         result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True,
                                 env={**os.environ, "PATH": f"{self.directory / 'bin'}:{os.environ['PATH']}"})
         self.assertEqual(0, result.returncode, result.stderr)
@@ -80,6 +82,25 @@ class HardwareHealthTest(unittest.TestCase):
         self.assertIn('swirl_cloud_nvme_percentage_used{device="/dev/nvme0"} 7', text)
         self.assertEqual([], [p for p in self.directory.iterdir() if p.name.startswith(".swirl_cloud_smart.")])
         self.assertNotIn("swirl_cloud_bmc_", text)  # No IPMI device: no BMC metrics.
+
+    def test_iscsi_disks_are_left_out(self):
+        scan = {"devices": [{"name": "/dev/sda", "type": "sat"}, {"name": "/dev/sdb", "type": "scsi"}]}
+        self.stub("smartctl", textwrap.dedent(f"""\
+            #!/bin/sh
+            case "$*" in
+              *--scan-open*) echo {json.dumps(json.dumps(scan))} ;;
+              *) echo '{{"smart_status": {{"passed": true}}}}' ;;
+            esac
+            """))
+        devices = self.directory / "devices"
+        for name, parent in (("sda", "pci0000:00/0000:00:1f.2/ata1/host0/target0:0:0/0:0:0:0"),
+                             ("sdb", "platform/host6/session394/target6:0:0/6:0:0:1")):
+            (devices / parent / "block" / name).mkdir(parents=True)
+            (self.directory / "sys-block").mkdir(exist_ok=True)
+            (self.directory / "sys-block" / name).symlink_to(devices / parent / "block" / name)
+        text = self.export()
+        self.assertIn('swirl_cloud_smart_healthy{device="/dev/sda"} 1', text)
+        self.assertNotIn("/dev/sdb", text)
 
     def test_bmc_sensors_keep_their_state(self):
         device = self.directory / "ipmi0"

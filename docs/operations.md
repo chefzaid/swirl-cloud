@@ -533,7 +533,8 @@ NVMe wear and reallocated sectors through an hourly `swirl-cloud-smart-metrics`
 timer (it installs `smartmontools`). Where the server has a BMC reachable over
 IPMI, the same timer exports its threshold sensors (fans, power supplies,
 voltages, temperatures) with `ipmitool`, installed only then. A disk smartctl or
-a BMC ipmitool cannot read is reported as unreadable, not healthy. Virtual
+a BMC ipmitool cannot read is reported as unreadable, not healthy. iSCSI disks,
+which are Longhorn volumes attached to the node, are left out. Virtual
 servers get none of it. The alerts and their runbooks are under
 [Hardware](guides/alert-runbooks.md#hardware). Redfish-only BMCs are not read.
 It applies when the host baseline runs

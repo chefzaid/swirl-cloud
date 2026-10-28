@@ -32,9 +32,10 @@ configure_hardware_health() {
   write_root_file /usr/local/sbin/swirl-cloud-smart-metrics 0755 <<'EOF'
 #!/usr/bin/env python3
 # Managed by scripts/configure-node-security.sh
-"""Write SMART health, NVMe wear and reallocated sectors of every disk, and the BMC's
+"""Write SMART health, NVMe wear and reallocated sectors of every local disk, and the BMC's
 threshold sensors, for node-exporter. A disk smartctl cannot read is reported as
-unreadable, never as healthy; so is a BMC ipmitool cannot read."""
+unreadable, never as healthy; so is a BMC ipmitool cannot read. iSCSI disks, such as
+Longhorn volumes, have no hardware behind them and are left out."""
 import json
 import os
 import re
@@ -45,6 +46,7 @@ import time
 
 METRICS = "/var/lib/node_exporter/textfile_collector/swirl_cloud_smart.prom"
 IPMI_DEVICES = ("/dev/ipmi0", "/dev/ipmi/0", "/dev/ipmidev/0")
+SYS_BLOCK = "/sys/block"
 BMC_STATUS = {"ok": 0, "nc": 1, "cr": 2, "nr": 3}  # ipmitool's threshold states.
 FAMILIES = {
     "swirl_cloud_smart_read_ok": "Whether smartctl returned this disk's health.",
@@ -64,6 +66,11 @@ def smartctl(*args):
         return json.loads(result.stdout)
     except ValueError:
         return {}
+
+
+def network_disk(name, sys_block=SYS_BLOCK):
+    """An iSCSI disk sits under its session in sysfs; smartctl lists it as a plain SCSI disk."""
+    return re.search(r"/session[0-9]+/", os.path.realpath(os.path.join(sys_block, os.path.basename(name)))) is not None
 
 
 def disk_metrics(name, kind):
@@ -131,9 +138,10 @@ def render(disks, bmc=None):
     return "\n".join(lines) + "\n"
 
 
-def main(path=METRICS, ipmi_devices=IPMI_DEVICES):
+def main(path=METRICS, ipmi_devices=IPMI_DEVICES, sys_block=SYS_BLOCK):
     devices = smartctl("--scan-open").get("devices", [])
-    disks = [disk_metrics(device["name"], device.get("type", "auto")) for device in devices if device.get("name")]
+    disks = [disk_metrics(device["name"], device.get("type", "auto")) for device in devices
+             if device.get("name") and not network_disk(device["name"], sys_block)]
     bmc = bmc_sensors(ipmi_devices)
     directory = os.path.dirname(path)
     descriptor, temporary = tempfile.mkstemp(prefix=".swirl_cloud_smart.", dir=directory)
