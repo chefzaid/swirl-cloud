@@ -284,7 +284,7 @@ change and ask the owner before pushing it.
   - `two-copies`: about half the raw disk space is usable, and the data survives the loss of one node.
   - `three-copies`: about a third of the raw disk space is usable, and the data survives the loss of two nodes. Required by the HA profile (§15).
   - Default: `capacity` on one storage node, `two-copies` on two, `three-copies` on three or more.
-  - The hub shows the usable space for each option from the storage-eligible nodes' disks, after Longhorn's 20 % reserve. It refuses a profile that needs more storage nodes than exist, and on reruns it warns before changing the copy count of existing volumes.
+  - The hub explains the trade-off before the user chooses: every extra copy stores the same data again, so it uses up as much disk space as the data itself. Each option shows the space left for data in GiB, worked out from the storage-eligible nodes' disks after Longhorn's 20 % reserve (for example, 2 TB of raw disk gives about 1.6 TB with one copy, 800 GB with two and 530 GB with three), and says what the option survives. It refuses a profile that needs more storage nodes than exist, and on reruns it warns before changing the copy count of existing volumes.
   - The choice goes into the same `default-replica-count` setting and StorageClass that `scripts/reconcile-cluster-topology.sh` manages today. `--status` and the Capacity Planning dashboard show the profile and the space left.
 
 ### 9. Secrets (Vault + External Secrets)
