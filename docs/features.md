@@ -14,7 +14,8 @@ pieces fit together.
 - local administrator password alignment across infrastructure services
 - rerunnable steps that keep installed identity, exposure, topology and HA state
 - operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`
-- semantic [releases](guides/releases.md) with a changelog, a CycloneDX SBOM and SSH-signed bundles
+- semantic [releases](guides/releases.md) with a changelog, a CycloneDX SBOM, OpenVEX statements, third-party notices and SSH-signed bundles; a bundle refuses a component past its end of life
+- a record of every installer and Ansible run shown by `--status`, and the installation report emailed when platform mail is configured
 
 ## Cluster Topology
 
@@ -33,6 +34,7 @@ pieces fit together.
 - opt-in encrypted volumes (`longhorn-encrypted`), key held in Vault
 - daily root-only recovery archive: datastore snapshot, K3s credentials, Vault Raft snapshot, PostgreSQL and MongoDB dumps, GitLab configuration and secrets, restore instructions
 - optional restic encryption and upload with daily/weekly/monthly retention
+- the backup stops before writing when it would leave less than 15 % of the disk free
 
 ## Edge, Ingress And DNS
 
@@ -83,7 +85,9 @@ pieces fit together.
 - [platform mail](guides/platform-mail.md) through one SMTP relay: critical and warning alerts, Keycloak password resets, GitLab notifications and Odoo mail
 - every alert has an owner and a runbook section
 - availability probes for every Ingress host, a 99.5 % objective, multi-window burn-rate alerts and a Service Levels dashboard
-- an [outage watch](guides/service-levels.md#outage-watch) on Cloudflare that checks public endpoints from outside the cluster and emails on down and recovery
+- an [outage watch](guides/service-levels.md#outage-watch) on Cloudflare that checks public endpoints from outside the cluster and emails on down and recovery (removed from the live installation on 2026-10-26)
+- Registry API probes on the public and internal endpoints
+- bare-metal hardware health: disk SMART, NVMe wear, software RAID, memory ECC, temperatures and BMC sensors over IPMI
 - hourly availability, cost and compliance snapshots kept 13 months for the monthly Platform Report
 - capacity planning: requests and usage, headroom after losing the largest server, capacity to add and days until storage fills
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
@@ -94,7 +98,8 @@ pieces fit together.
 ## Security Detection
 
 - GitLab incident template and `./install.sh --incident-report`: evidence timeline, NIS2/GDPR due times and report drafts
-- alerts every five minutes for a login after repeated failures, RBAC changes outside GitOps, Secret reads by new identities and new platform administrators
+- alerts every five minutes for a login after repeated failures, RBAC changes outside GitOps, Secret reads by new identities, new platform administrators, an SSH login after repeated failures and sudo by a new user
+- optional [SOC forwarding](guides/soc-forwarding.md) of identity, API and Vault audit events and detection findings as syslog over TLS
 
 ## Host Security
 
@@ -119,11 +124,13 @@ pieces fit together.
 - control catalog mapped to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS, evaluated continuously in Prometheus
 - Compliance Evidence dashboard and a drift alert when a control fails or loses its evidence
 - `./install.sh --compliance` report and a hashed, optionally SSH-signed evidence pack that auditors verify offline
+- licence register with each component's maintainer, jurisdiction and end of life; security questionnaire, contract annex, ISMS document kit and [exit plan](guides/exit-plan.md)
 
 ## Cost Showback
 
 - each server's monthly cost split across environments, namespaces and workloads by the larger of requests and usage
 - idle capacity, shared costs and a rightsizing view in Grafana
+- the same capacity priced at AWS Paris on-demand list prices, for comparison
 
 ## Administration And Corporate Tools
 

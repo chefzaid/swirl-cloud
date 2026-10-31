@@ -17,8 +17,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts/lib"))
-from repository_onboarding import Onboarding, OnboardingError, ServiceError
-from onboarding_services import forward
+from repository_onboarding import Onboarding, OnboardingError
+from onboarding_services import ServiceError, forward
 WORKFLOW = ".github/workflows/sync-gitlab.yml"
 NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\Z")
 

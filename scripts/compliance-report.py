@@ -18,7 +18,6 @@ Everything is read-only; Kubernetes Secrets are never read.
 import argparse
 from datetime import datetime, timezone
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
@@ -40,7 +39,6 @@ STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "
 PROXY = "/api/v1/namespaces/infra/services/prometheus:9090/proxy"
 SIGNATURE_NAMESPACE = "swirl-cloud-evidence"
 PASS, FAIL, NO_EVIDENCE, MANUAL = "PASS", "FAIL", "NO EVIDENCE", "MANUAL"
-STATUS_VALUES = {0: FAIL, 1: NO_EVIDENCE, 2: PASS}
 
 
 class Prometheus:

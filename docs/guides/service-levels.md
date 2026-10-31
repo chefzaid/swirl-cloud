@@ -22,6 +22,11 @@ that.
 
 ## Outage watch
 
+**Status:** removed from the live installation on 2026-10-26 at the owner's
+request (its down and recovery emails were too frequent). Reruns of
+`install-control-plane.sh` with Cloudflare and platform mail configured deploy it
+again; see TODO.md.
+
 `scripts/configure-outage-watch.py` deploys a Cloudflare Worker that checks public
 endpoints every five minutes from outside the cluster
 ([ADR 0030](../adr/0030-outage-watch-outside-the-cluster.md)). It emails the alert

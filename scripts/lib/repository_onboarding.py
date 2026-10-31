@@ -19,7 +19,7 @@ import uuid
 
 import yaml
 
-from onboarding_services import Services, ServiceError
+from onboarding_services import Services
 
 CONTRACT = "infra/onboarding.json"
 SETTINGS = "infra/onboarding-values.json"

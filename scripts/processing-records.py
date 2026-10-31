@@ -86,7 +86,7 @@ def application(app):
 
 def render(organization, nodes, apps):
     now = datetime.now(timezone.utc)
-    lines = [f"# Records of processing activities (GDPR Article 30): draft", "",
+    lines = ["# Records of processing activities (GDPR Article 30): draft", "",
              f"Generated {now:%Y-%m-%d} from the running platform for {organization}. Items in [brackets] must be"
              " completed by the controller; the technical facts below come from the cluster.", "",
              f"Processing runs on: {', '.join(nodes)} [hosting provider and country].", "",
