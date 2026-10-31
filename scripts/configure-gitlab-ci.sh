@@ -251,12 +251,6 @@ if [[ -z "$retention_api_token" ]]; then
   retention_api_token="$(jq -er '.token' "$work_dir/retention-token.json")"
 fi
 
-api_json GET "projects/$project_id/runners?type=project_type&per_page=100" > "$work_dir/legacy-runners.json"
-mapfile -t legacy_runner_ids < <(
-  jq -r --arg description "$RUNNER_DESCRIPTION" \
-    '.[] | select(.description==$description) | .id' "$work_dir/legacy-runners.json"
-)
-
 api_json GET "runners/all?type=instance_type&per_page=100" > "$work_dir/runners.json"
 runner_id="$(jq -r --arg description "$RUNNER_DESCRIPTION" '.[] | select(.description==$description) | .id' "$work_dir/runners.json" | head -n 1)"
 
@@ -270,8 +264,7 @@ if [[ -n "$runner_token" ]]; then
   fi
 fi
 
-if [[ -n "$runner_id" ]] &&
-   { [[ -z "$runner_token" ]] || (( ${#legacy_runner_ids[@]} > 0 )); }; then
+if [[ -n "$runner_id" && -z "$runner_token" ]]; then
   info "Resetting the stored token for GitLab runner $RUNNER_DESCRIPTION"
   runner_token="$(api_json POST "runners/$runner_id/reset_authentication_token" | jq -er '.token')"
 elif [[ -z "$runner_id" ]]; then
@@ -293,11 +286,6 @@ api_json PUT "runners/$runner_id" \
   --form-string "tag_list=$RUNNER_TAGS" \
   --form-string run_untagged=false \
   --form-string locked=false > /dev/null
-
-for legacy_runner_id in "${legacy_runner_ids[@]}"; do
-  info "Removing legacy project-scoped runner $legacy_runner_id"
-  api_json DELETE "runners/$legacy_runner_id" > /dev/null
-done
 
 if { printf '%s\n' "$vault_token"; } | kubectl exec -i -n "$NAMESPACE" "$VAULT_POD" -- sh -ceu '
   IFS= read -r VAULT_TOKEN

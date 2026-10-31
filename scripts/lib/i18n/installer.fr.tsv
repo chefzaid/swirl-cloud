@@ -9,7 +9,6 @@ Cloudflare returned no Zero Trust organization auth domain.	Cloudflare n'a renvo
 Created the Cloudflare Zero Trust organization.	Organisation Cloudflare Zero Trust créée.
 Created the Keycloak OIDC identity provider for Cloudflare Access.	Fournisseur d'identité OIDC Keycloak créé pour Cloudflare Access.
 Created the Swirl Cloud email allowlist policy.	Politique de liste d'adresses e-mail autorisées Swirl Cloud créée.
-Deleted the retired Access application for $fqdn.	Application Access retirée supprimée pour $fqdn.
 Discovered the existing Cloudflare Access team: $ACCESS_TEAM_NAME	Équipe Cloudflare Access existante trouvée : $ACCESS_TEAM_NAME
 Enabled automatic redirect from Cloudflare Access to Keycloak.	Redirection automatique de Cloudflare Access vers Keycloak activée.
 Invalid Access hostname label: $label	Libellé de nom d'hôte Access invalide : $label

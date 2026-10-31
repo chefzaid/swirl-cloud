@@ -10,7 +10,6 @@ pieces fit together.
 - unattended runs from a saved input file (`./install.sh --env-file FILE`) or `install-control-plane.sh --yes`, with every input problem reported before any change
 - Ansible install and reconciliation playbooks on the same contract
 - scopes: `infra` (shared platform) or `apps` (adds Odoo in `corp`)
-- read-only legacy migration guard before any Kubernetes change
 - local administrator password alignment across infrastructure services
 - rerunnable steps that keep installed identity, exposure, topology and HA state
 - operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`

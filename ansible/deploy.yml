@@ -308,19 +308,6 @@
       changed_when: false
       register: enrolled_node_exposure
 
-    - name: Check whether legacy ingress and images require a prepared migration
-      ansible.builtin.command: "{{ repository_root }}/scripts/check-platform-migration.sh"
-      environment:
-        PLATFORM_MIGRATION_APPROVED: "{{ platform_migration_approved | default(lookup('env', 'PLATFORM_MIGRATION_APPROVED') | default('false', true)) | lower }}"
-      changed_when: false
-
-    - name: Reject retired image profile inputs
-      ansible.builtin.assert:
-        that:
-          - security_images_enabled is not defined
-          - lookup('env', 'SECURITY_IMAGES_ENABLED') == ''
-        fail_msg: "Image profiles were retired; follow docs/guides/platform-migration.md and remove the old inputs."
-
     - name: Preserve an enrolled control plane's private exposure
       ansible.builtin.set_fact:
         server_exposure_mode: local

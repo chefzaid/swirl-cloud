@@ -22,7 +22,7 @@ configure_access() {
     local organization_response organization_file organization_auth_domain callback_url
     local idp_response idp_count oidc_idp_id oidc_client_secret idp_auth_url idp_matches
     local idp_file policy_response policy_count policy_id policy_file update_response
-    local access_emails_json app_response app_count app_id app_file app_name fqdn label retired_label
+    local access_emails_json app_response app_count app_id app_file app_name fqdn label
     local current_fingerprint desired_fingerprint
     local configured_labels=" ${HOST_LABELS[*]} "
 
@@ -226,21 +226,5 @@ configure_access() {
                 info "Reconciled Access protection for $fqdn."
             fi
         fi
-    done
-
-    for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
-        fqdn="$retired_label.$ZONE_NAME"
-        app_response="$(cf_request GET "/accounts/$ACCOUNT_ID/access/apps?per_page=100")"
-        require_success "$app_response" "Reading retired Access applications"
-        mapfile -t retired_app_ids < <(
-            jq -r --arg domain "$fqdn" \
-                '.result[] | select(.domain == $domain and .type == "self_hosted") | .id' \
-                <<< "$app_response"
-        )
-        for app_id in "${retired_app_ids[@]}"; do
-            update_response="$(cf_request DELETE "/accounts/$ACCOUNT_ID/access/apps/$app_id")"
-            require_success "$update_response" "Deleting the retired Access application for $fqdn"
-            info "Deleted the retired Access application for $fqdn."
-        done
     done
 }

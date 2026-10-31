@@ -34,9 +34,7 @@ enables Smart Tiered Cache zone-wide. Apex DNS is off unless
 (including apex/`www`), their cache rules in the zone's cache ruleset and their
 purges; the configurator reconciles only its own rule there.
 
-Homepage is at `cloud.<your-domain>` behind Access. The retired `dashboard` and
-`intranet` labels stay in `DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS` so their old
-records and Access applications are removed. Node administration has a separate
+Homepage is at `cloud.<your-domain>` behind Access. Node administration has a separate
 unproxied hostname, `CLOUDFLARE_NODE_DNS_LABEL` (default `node-01`); HA
 reconciliation does not publish it, so maintain any needed record yourself.
 
@@ -110,7 +108,7 @@ The platform installs Traefik as its own pinned Helm release, with K3s's bundled
 Traefik disabled. Native Kubernetes Ingress keeps application-owned hosts,
 DNS/Homepage discovery and TLS secrets; same-namespace Middleware adds
 authentication and request limits, and Thoughty's canary uses native weighted
-routes. Existing clusters follow the [controller migration](guides/platform-migration.md).
+routes.
 
 Client addresses:
 

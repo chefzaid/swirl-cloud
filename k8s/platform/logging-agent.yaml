@@ -517,12 +517,6 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/identity-audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/identity-audit >/dev/null
-              # Also moves indices off the renamed swirl-cloud-logs-7d policy
-              # (docs/operations.md#storage-and-retention).
-              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
-                -H 'Content-Type: application/json' \
-                --data-binary '{"index.lifecycle.name":"swirl-cloud-logs"}' \
-                'http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/kubernetes-logs-*,app-logs-*/_settings?allow_no_indices=true&ignore_unavailable=true' >/dev/null
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

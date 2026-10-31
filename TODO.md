@@ -163,7 +163,7 @@ change and ask the owner before pushing it.
 - [x] Safety suites in `tests/`, listed in the [validation policy](docs/testing.md#validation-policy).
 - [x] Documentation in the shared layout ([ADR 0001](docs/adr/0001-documentation-structure.md)), with 25 ADRs reconstructed from the Git history (three superseded).
 - [x] Ansible hardening step renamed; private image overrides retired in Chart 2.
-- [ ] Reconcile the Elasticsearch ILM policy name `swirl-cloud-logs-7d` with its actual delete phase (`min_age: 1d`) and the retention decision in §26; migrate existing index/template references without dropping retained logs. *Progress 2026-10-14:* source ready, not pushed: the policy is renamed `swirl-cloud-logs` (same phases, so §26 changes it in place); Fluent Bit and Logstash (`config-version` 3) move the templates and existing `kubernetes-logs-*`/`app-logs-*` indices to it; nothing deletes the old policy ([storage and retention](docs/operations.md#storage-and-retention)); `validate-manifests.py` rejects an `index.lifecycle.name` no manifest stores. Closes after the owner-approved push and two checks in Kibana Dev Tools. Right after the sync: `GET _ilm/policy/swirl-cloud-logs` returns the policy; `_ilm/explain` on `kubernetes-logs-*,app-logs-*` shows every index `managed: true` on `swirl-cloud-logs` with no `ERROR` step, `failed_step` or error `step_info`; the `app-logs-single-node`, `kubernetes-logs-v2` and `kubernetes-logs-host` templates name it; and `_cat/indices` sampled before and after still lists every earlier index with no lower document count (except one created over a day before the second sample, which ILM deletes as designed). 25 hours or more after the sync: `_ilm/explain` shows every index managed, none older than about `1.1d`, and no `swirl-cloud-logs-7d` under `phase_execution`.
+- [x] The log ILM policy is `swirl-cloud-logs` (renamed from `swirl-cloud-logs-7d`, whose name did not match its one-day delete phase); existing indices and templates moved to it. Retention itself is §26.
 
 ### 2. Installer (`install-control-plane.sh`)
 
@@ -178,7 +178,6 @@ change and ask the owner before pushing it.
 - [x] HA activation gate (≥3 control planes, ≥3 workers when controller-only) through `resolve-ha-profile.py`.
 - [x] K3s installed pinned, bundled Traefik disabled, secrets encryption on, kubeconfig `0600`.
 - [x] Embedded-etcd preparation when more than one control plane is planned (`configure-k3s-ha.sh`).
-- [x] Read-only legacy migration check before any Kubernetes change (`check-platform-migration.sh`).
 - [x] Ordered platform deployment from namespaces and hardening through TLS, storage, ingress, Vault/ESO, data stores, platform services, SSO, CI, Odoo, Argo CD and repository onboarding.
 - [x] Ephemeral GitLab administrator token, revoked on exit; hidden secret prompts and credential cleanup on exit.
 - [x] Final summary shows Longhorn replicas from the topology and points Argo CD and GitLab to Keycloak SSO; a GitLab local root password exists only in Vault after `rotate-local-admin-passwords.sh`.
@@ -190,7 +189,7 @@ change and ask the owner before pushing it.
 - [x] `ansible/deploy.yml` reconciles an installed control plane from its recorded identity, exposure and HA, with contract, migration and capacity checks.
 - [x] Opt-in private transport (Tailscale, or vRack with optional OVH API attachment) before firewall changes.
 - [x] Feature switches with dependency closure (`install_longhorn` … `manage_private_transport`).
-- [x] `platform_migration_approved` gate; password alignment and repository onboarding with `no_log`.
+- [x] Password alignment and repository onboarding with `no_log`.
 
 ### 4. Hosts and operating-system security
 
@@ -254,7 +253,6 @@ change and ask the owner before pushing it.
 - [x] Platform middlewares `platform-sso`, `platform-body-limit` (1 MiB) and `keycloak-root`; cross-namespace references disabled.
 - [x] Ingresses for every platform UI, GitLab, Registry, Keycloak, Vault, Homepage and Odoo.
 - [x] Admission rule validating environment Traefik Middleware plugins (`0c032c0`).
-- [x] Candidate mode (`INGRESS_MIGRATION_CANDIDATE=true`) for rehearsing Traefik alongside the old controller.
 - [x] Cloudflare configurator (`configure-cloudflare.sh`): proxied DNS, Origin CA certificate, Full (strict) and edge TLS settings, DNSSEC, WAF and login rate-limit rules, cache rules and Keycloak-backed Access for admin hosts.
 - [x] Origin CA certificate valid until 2041 in `infra`, `apps` and `corp`. *(live)*
 - [x] HA ingress profile: Traefik DaemonSet with co-located `cloudflared`, connector and origin checks before the DNS switch.
@@ -528,7 +526,7 @@ and availability of a compatible upstream image must be checked separately.
 - [x] Exposed-secret findings triaged; no real credential to rotate ([security](docs/security.md#exposed-secret-findings)). *(2026-10-05)*
 - [x] No stale reports for retired owners remain. *(live, 2026-10-03)*
 - [x] Non-blocking CI job `report:platform-artifacts` scans the vendored charts and the CI image. *(2026-10-04)*
-- [x] Patch upgrades toward the dated exceptions: MongoDB 7.0.45 (database tools 100.19.1), DBGate 7.3.2, GitLab CE 19.4.3, Homepage v2.7.0 and the PostgreSQL 18.6 rebuild, each checked offline against the previous image ([October upgrades](docs/guides/service-upgrades-2026-10.md)). *(2026-10-26)*
+- [x] Patch upgrades toward the dated exceptions: MongoDB 7.0.45 (database tools 100.19.1), DBGate 7.3.2, GitLab CE 19.4.3, Homepage v2.7.0 and the PostgreSQL 18.6 rebuild, each checked offline against the previous image. *(2026-10-26)*
 - [ ] Rescan PostgreSQL, MongoDB, DBGate, GitLab and Homepage on their new digests and update or close their exceptions in [security](docs/security.md#vulnerability-triage) before they expire on 2026-11-04; SonarQube (26.10 available, needs its database migration step) and Kafka UI (no newer release) still run the triaged versions. Argo CD v3.5.6 (chart 10.11.6) is ready to apply: rendered with this repository's values (single node and HA) it differs from chart 10.9.2 only in the image tag and GitHub's SSH known-hosts entry; pin `DEFAULT_ARGOCD_IMAGE_TAG` to the v3.5.6 index digest (`crane digest quay.io/argoproj/argocd:v3.5.6`; Quay is unreachable from the agent's environment), set `DEFAULT_ARGOCD_CHART_VERSION=10.11.6` and its probe-default check in `validate-manifests.py`, then run `scripts/reconcile-platform-release.sh argocd`.
 - [x] Application image findings handed to the owning repositories' **Bugs to fix**: TravelMapster (Debian bookworm runtime base), Thoughty and Indezy (`postgres:18.6-bookworm` helper image, an amd64-only 2026-08-13 build). *(2026-10-26)*
 
@@ -851,7 +849,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] On-call routing: escalation policies and a paging channel in Alertmanager, with acknowledgement, on top of §27/§29 notifications. Name a second person or partner who is paged after a set delay, write the severity matrix in `docs/guides/on-call.md`, and close with a dated paging drill acknowledged end to end.
 - [ ] OpenTelemetry: a collector, a trace backend and automatic instrumentation for Java and Node applications; correlate traces with logs and metrics in Grafana. Decide in the ADR whether logs stay in Elasticsearch.
 - [x] Capacity planning: Grafana **Capacity Planning**, `ClusterCapacityRequestsHigh` and `ClusterCannotSurviveNodeLoss` ([capacity planning](docs/guides/capacity-planning.md)). *(2026-10-05)*
-- [x] CPU requests lowered to measured peaks (Kibana, SonarQube, Trivy operator, Prometheus) and Longhorn guaranteed instance-manager CPU set to 5 % ([October upgrades](docs/guides/service-upgrades-2026-10.md)). *(2026-10-05)*
+- [x] CPU requests lowered to measured peaks (Kibana, SonarQube, Trivy operator, Prometheus) and Longhorn guaranteed instance-manager CPU set to 5 %. *(2026-10-05)*
 - [ ] Application-level backup and restore per project namespace (manifests, volumes and claimed databases), including self-service restore into a sandbox and moving a project between clusters.
 - [x] Game days: `./install.sh --game-day` pod-loss drill outside `prod`, recorded in the **Platform Report** ([game days](docs/guides/service-levels.md#game-days)). *(2026-10-05)*
 - [ ] Add node-loss, DNS-failure and storage-degradation scenarios on disposable hosts, and run the pod-loss drill on a schedule.

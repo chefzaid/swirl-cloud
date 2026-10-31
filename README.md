@@ -66,7 +66,6 @@ Specialized procedures:
 - [PostgreSQL HA](./docs/guides/postgres-ha.md): replicated PostgreSQL
 - [Kafka HA](./docs/guides/kafka-ha.md): three-node Kafka quorum
 - [Node fencing](./docs/guides/node-fencing.md): recovering single-writer services after a host failure
-- [Platform migration](./docs/guides/platform-migration.md): move to Traefik and upstream images
 - [Repository onboarding](./docs/guides/repository-onboarding.md): import and deploy repositories
 - [Application onboarding](./docs/guides/application-onboarding.md): the application contract
 - [Alert runbooks](./docs/guides/alert-runbooks.md): response for every platform alert
@@ -84,8 +83,6 @@ Specialized procedures:
 - [Releases](./docs/guides/releases.md): versioning, SBOM and signed bundles
 - [Exit plan](./docs/guides/exit-plan.md): operating without the vendor or moving data elsewhere
 - [Self-operation](./docs/guides/self-operation.md): routine checks, updates and credentials without the vendor
-- [September 2026 service upgrades](./docs/guides/service-upgrades-2026-09.md): upgrade record
-- [October 2026 service upgrades](./docs/guides/service-upgrades-2026-10.md): upgrade record
 
 ## Roadmap
 

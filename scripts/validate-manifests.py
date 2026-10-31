@@ -129,12 +129,6 @@ def render_profiles(output):
     # operator's environment, kubeconfig and installed cluster identity.
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "TMPDIR"}}
     env.update(PYTHONDONTWRITEBYTECODE="1", KUBECONFIG="/dev/null")
-    for legacy in ("bootstrap", "patched"):
-        result = subprocess.run(["helm", "template", "swirl-cloud", str(ROOT / "k8s"),
-                                 "--values", str(ROOT / f"k8s/profiles/security-images-{legacy}.values")],
-                                text=True, capture_output=True, env=env)
-        require(result.returncode != 0 and "Legacy ingress/image settings require explicit migration" in result.stderr,
-                f"Retired {legacy} profile did not stop reconciliation")
     profiles = [(ha, apps, None, False) for ha, apps in itertools.product((False, True), repeat=2)]
     profiles += [(True, True, phase, False) for phase in ("dynamic", "expanded", "active")]
     profiles += [(False, True, None, True), (True, True, "active", True)]

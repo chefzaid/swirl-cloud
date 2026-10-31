@@ -173,7 +173,7 @@ if mirror is not None and mirror.get('endpoint') != [endpoint]:
 PY
 fi
 K3S_REGISTRY_HOST="$registry_host" K3S_REGISTRY_ENDPOINT="$registry_endpoint" \
-    K3S_REMOVED_REGISTRY_HOSTS="" "$ROOT/scripts/configure-k3s-registry-mirror.sh"
+    "$ROOT/scripts/configure-k3s-registry-mirror.sh"
 "$ROOT/scripts/configure-k3s-apparmor.sh"
 python3 - "$ROOT" "$work/settings.json" <<'PY' > "$work/foundation.json"
 import importlib.util,json,sys

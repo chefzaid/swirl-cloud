@@ -141,17 +141,6 @@ if [[ "$initialized" != "true" ]]; then
   info "Stored Vault initialization material in root-only host files."
 fi
 
-if [[ ! -s "$VAULT_UNSEAL_KEY_FILE" && ! -s "$VAULT_BOOTSTRAP_TOKEN_FILE" ]] && \
-   kubectl get secret vault-init -n "$NAMESPACE" >/dev/null 2>&1; then
-  info "Migrating legacy Vault initialization material out of Kubernetes..."
-  legacy_unseal_key="$(kubectl get secret vault-init -n "$NAMESPACE" -o jsonpath='{.data.unseal_key}' | base64 -d)"
-  legacy_root_token="$(kubectl get secret vault-init -n "$NAMESPACE" -o jsonpath='{.data.root_token}' | base64 -d)"
-  [[ -n "$legacy_unseal_key" && -n "$legacy_root_token" ]] || error "Legacy Vault bootstrap secret is incomplete."
-  install_host_secret "$legacy_unseal_key" "$VAULT_UNSEAL_KEY_FILE"
-  install_host_secret "$legacy_root_token" "$VAULT_BOOTSTRAP_TOKEN_FILE"
-  unset legacy_unseal_key legacy_root_token
-fi
-
 sudo test -s "$VAULT_UNSEAL_KEY_FILE" || error "Missing $VAULT_UNSEAL_KEY_FILE. Restore the Vault unseal key before continuing."
 sudo test -s "$VAULT_BOOTSTRAP_TOKEN_FILE" || error "Missing $VAULT_BOOTSTRAP_TOKEN_FILE. Restore the Vault bootstrap token before continuing."
 
@@ -620,11 +609,6 @@ fi
 
 install_host_unseal_service
 sudo systemctl start swirl-cloud-vault-unseal.service
-
-# Remove the old in-cluster unseal path only after the host timer is installed.
-kubectl delete cronjob/vault-unseal rolebinding/vault-unseal role/vault-unseal \
-  serviceaccount/vault-unseal -n "$NAMESPACE" --ignore-not-found >/dev/null
-kubectl delete secret vault-init -n "$NAMESPACE" --ignore-not-found >/dev/null
 
 unset unseal_key root_token
 info "Vault bootstrap/configuration completed."

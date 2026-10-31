@@ -27,5 +27,4 @@ routes as standard Ingress objects.
 
 Routing depended on NGINX-specific annotations and a controller the Kubernetes
 project later retired. Platform migration required replacing annotations with
-Traefik Middleware while preserving native Ingress ownership; the
-[platform migration guide](../guides/platform-migration.md) documents that cutover.
+Traefik Middleware while preserving native Ingress ownership ([ADR 0021](0021-traefik-ingress.md)).

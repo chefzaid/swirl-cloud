@@ -163,7 +163,6 @@ The [README](../README.md) lists them all; the main ones are:
 - [High availability](guides/high-availability.md),
   [PostgreSQL HA](guides/postgres-ha.md), [Kafka HA](guides/kafka-ha.md) and
   [node fencing](guides/node-fencing.md)
-- [Platform migration to Traefik and upstream images](guides/platform-migration.md)
 - [Repository onboarding](guides/repository-onboarding.md) and the
   [application onboarding contract](guides/application-onboarding.md)
 

@@ -11,8 +11,6 @@ fi
 PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 REGISTRY_HOST="${K3S_REGISTRY_HOST:-${DEFAULT_K3S_REGISTRY_HOST:-${PLATFORM_DOMAIN:+registry.$PLATFORM_DOMAIN}}}"
 REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-http://10.43.255.251:5050}}"
-REMOVED_REGISTRY_HOSTS="${K3S_REMOVED_REGISTRY_HOSTS:-${PLATFORM_DOMAIN:+gitlab.$PLATFORM_DOMAIN}}"
-RETAIN_LEGACY_REGISTRY="${K3S_RETAIN_LEGACY_REGISTRY:-false}"
 REGISTRY_CONFIG="${K3S_REGISTRY_CONFIG:-/etc/rancher/k3s/registries.yaml}"
 # Dropping each layer's compressed copy after unpacking roughly halves image
 # storage; nodes then cannot serve or export layers, which K3s does not need.
@@ -23,10 +21,6 @@ sudo_command=()
 info() { printf '[INFO] %s\n' "$*"; }
 error() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 
-case "$RETAIN_LEGACY_REGISTRY" in
-    true|false) ;;
-    *) error "K3S_RETAIN_LEGACY_REGISTRY must be true or false" ;;
-esac
 case "$DISCARD_UNPACKED_LAYERS" in
     true|false) ;;
     *) error "K3S_DISCARD_UNPACKED_LAYERS must be true or false" ;;
@@ -65,34 +59,6 @@ elif ! "${sudo_command[@]}" grep -Fq "\"$REGISTRY_HOST\"" "$REGISTRY_CONFIG"; th
     rm -f "$temporary_config"
     trap - EXIT
     changed=true
-fi
-
-if [[ "$RETAIN_LEGACY_REGISTRY" == "false" ]]; then
-    # Dependency Proxy requests must retain their canonical URL. A containerd
-    # mirror adds an ns= query parameter that breaks GitLab Workhorse uploads.
-    IFS=',' read -r -a legacy_registry_hosts <<< "$REMOVED_REGISTRY_HOSTS"
-    for legacy_registry_host in "${legacy_registry_hosts[@]}"; do
-        [[ -n "$legacy_registry_host" && "$legacy_registry_host" != "$REGISTRY_HOST" ]] || continue
-        if "${sudo_command[@]}" grep -Fq "\"$legacy_registry_host\"" "$REGISTRY_CONFIG"; then
-            temporary_config="$(mktemp)"
-            trap 'rm -f "$temporary_config"' EXIT
-            "${sudo_command[@]}" awk \
-                -v legacy_header="  \"$legacy_registry_host\":" '
-                  $0 == legacy_header {
-                    skipping_legacy_mirror = 1
-                    next
-                  }
-                  skipping_legacy_mirror && (/^[^[:space:]]/ || /^  [^[:space:]].*:[[:space:]]*$/) {
-                    skipping_legacy_mirror = 0
-                  }
-                  !skipping_legacy_mirror { print }
-                ' "$REGISTRY_CONFIG" > "$temporary_config"
-            "${sudo_command[@]}" install -o root -g root -m 0600 "$temporary_config" "$REGISTRY_CONFIG"
-            rm -f "$temporary_config"
-            trap - EXIT
-            changed=true
-        fi
-    done
 fi
 
 # K3s imports config-v3.toml.d/*.toml into its generated containerd config.

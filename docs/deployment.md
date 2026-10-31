@@ -89,11 +89,6 @@ the hub, `--prompts` asks plain terminal questions, and
 provide the `apps` namespace foundation for
 [application-owned deployments](guides/repository-onboarding.md).
 
-Existing ingress-nginx or private-image installations must first follow the
-[platform migration](guides/platform-migration.md). Ordinary reconciliation stops at
-a read-only migration check; `platform_migration_approved=true` is only for a
-prepared Ansible maintenance run. Retired image-profile inputs are rejected.
-
 ## Setup hub and the input file
 
 `./install.sh` refuses to run as root, offers to apt-get install missing `python3`

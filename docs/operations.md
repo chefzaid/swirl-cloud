@@ -316,20 +316,8 @@ remove only closed, processed archives outside the window; keep current logs,
 unprocessed `.u` files and audit records. Clean registry and artifact data only
 through GitLab's supported paths.
 
-The log policy was renamed from `swirl-cloud-logs-7d` (same phases); Fluent Bit
-and Logstash move indices and templates to `swirl-cloud-logs`. Do not remove a
-policy from indices to switch it: that leaves them unmanaged. Nothing deletes
-the old policy. Two days after the change, check in Kibana Dev Tools that
-nothing uses it, then delete it. Fix a template that still names it first:
-`kubectl -n infra rollout restart deployment/logstash` and
-`kubectl -n host-agents rollout restart daemonset/fluent-bit` reinstall theirs.
-
-```text
-GET */_ilm/explain?filter_path=indices.*.policy,indices.*.phase_execution.policy
-GET _ilm/policy/swirl-cloud-logs-7d?filter_path=*.in_use_by
-GET _template/kubernetes-logs-v2,kubernetes-logs-host?filter_path=**.lifecycle
-DELETE _ilm/policy/swirl-cloud-logs-7d
-```
+To switch an index to another policy, set the new one; do not remove the
+policy first, which leaves the index unmanaged.
 
 ### GitLab storage
 
@@ -543,9 +531,6 @@ enrollment).
 
 ## Maintenance
 
-Installations still on ingress-nginx or private platform images must finish the
-[platform migration](guides/platform-migration.md) first.
-
 ### Image updates
 
 Platform images are pinned by digest in their owning manifests and Helm values;
@@ -581,9 +566,7 @@ request is still an update to review with the steps below.
    review unfixed advisories.
 
 Keep experiments, images, reports and archives outside Git
-([validation policy](testing.md#validation-policy)). Past upgrades:
-[October 2026](guides/service-upgrades-2026-10.md) (Longhorn 1.13.0) and
-[September 2026](guides/service-upgrades-2026-09.md).
+([validation policy](testing.md#validation-policy)).
 
 ### Runtime and recovery constraints
 

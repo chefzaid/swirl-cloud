@@ -381,16 +381,6 @@ else
     HOST_LABELS=("${DEFAULT_HOST_LABELS[@]}")
 fi
 (( ${#HOST_LABELS[@]} > 0 )) || error "At least one public hostname is required."
-IFS=',' read -r -a RETIRED_HOST_LABELS <<< "${CLOUDFLARE_RETIRED_HOST_LABELS:-${DEFAULT_CLOUDFLARE_RETIRED_HOST_LABELS:-}}"
-
-configured_host_labels=" $(printf '%s ' "${HOST_LABELS[@]}")"
-for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
-    [[ -n "$retired_label" ]] || continue
-    [[ "$retired_label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || \
-        error "Invalid retired hostname label: $retired_label"
-    [[ "$configured_host_labels" != *" $retired_label "* ]] || \
-        error "Retired hostname $retired_label is also present in CLOUDFLARE_HOST_LABELS."
-done
 
 DNS_HOSTS=()
 if [[ "$PUBLISH_APEX" == "true" ]]; then
@@ -403,22 +393,6 @@ done
 
 reconcile_public_dns() {
 step "Reconciling proxied DNS records"
-for retired_label in "${RETIRED_HOST_LABELS[@]}"; do
-    [[ -n "$retired_label" ]] || continue
-    fqdn="$retired_label.$ZONE_NAME"
-    record_response="$(cf_request GET "/zones/$ZONE_ID/dns_records?name=$fqdn&per_page=100")"
-    require_success "$record_response" "DNS lookup for retired hostname $fqdn"
-    mapfile -t retired_record_ids < <(
-        jq -r '.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME") | .id' \
-            <<< "$record_response"
-    )
-    for record_id in "${retired_record_ids[@]}"; do
-        update_response="$(cf_request DELETE "/zones/$ZONE_ID/dns_records/$record_id")"
-        require_success "$update_response" "Deleting retired DNS record $fqdn"
-        info "Deleted retired DNS record $fqdn."
-    done
-done
-
 for fqdn in "${DNS_HOSTS[@]}"; do
     record_response="$(cf_request GET "/zones/$ZONE_ID/dns_records?name=$fqdn&per_page=100")"
     require_success "$record_response" "DNS lookup for $fqdn"

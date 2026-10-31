@@ -776,9 +776,6 @@ if [[ "$NEEDS_HELM" == "true" ]] && ! command -v helm &>/dev/null; then
     info "Installing pinned Helm ${DEFAULT_HELM_VERSION:-}..."
     install_pinned_helm
 fi
-if [[ "$RUN_K8S_FEATURES" == true ]] && command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
-    "$SCRIPT_DIR/scripts/check-platform-migration.sh"
-fi
 prepare_rendered_configuration
 
 if [[ "$RUN_K8S_FEATURES" == "true" ]]; then

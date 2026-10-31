@@ -341,7 +341,6 @@ exploit-tested.
 
 | Image | Critical findings | Status |
 | --- | --- | --- |
-| Keycloak 26.7.4 | Netty SNI routing, FreeMarker path traversal, Bouncy Castle | Resolved: upgraded to 26.7.5 (0 critical, 7 high). |
 | Homepage v2.4.0 (v2.7.0 since 2026-10-26, not rescanned) | Next.js `next/og` RCE, node-tar | Latest release; no fix yet. The server bundle has no `ImageResponse`/`next/og` code, so the RCE path is unreachable; behind Cloudflare Access and Keycloak. Exception. |
 | Argo CD v3.5.3 | Go `crypto/tls` (CVE-2025-68121) | Latest 3.5 patch; no fix yet. Exception. |
 | Elasticsearch, Kibana, Logstash 9.5.4 | Netty SNI routing; `piscina`; Bouncy Castle | Latest 9.5 patch. Netty SNI does not apply to the plain-HTTP in-cluster listeners. Exception. |
@@ -349,7 +348,6 @@ exploit-tested.
 | SonarQube 26.9.0 Community | Netty SNI routing, Bouncy Castle | Latest Community release; plain HTTP behind Traefik. Exception. |
 | GitLab CE 19.4.1 (19.4.3 since 2026-10-26, not rescanned) | `handlebars` 1.0.0 | Bundled asset, not a server-side template engine. Exception; recheck on 19.4.3. |
 | GitLab Runner helper 19.4.1 (Alpine) | `miniperl` regular-expression handling | Fixed in Alpine `5.42.2-r1`; 19.4.1 is the latest helper. Job helpers do not run untrusted Perl. Exception. |
-| Longhorn `csi-provisioner` v5.3.0 | Go `crypto/tls`, gRPC authz | Resolved: Longhorn 1.13.0 (2026-10-05) runs `csi-provisioner` v6.3.0. |
 | MongoDB 7.0.43 (7.0.45 since 2026-10-26, not rescanned) | Go `crypto/tls` in bundled tools | Exception; 7.0.45 ships database tools 100.19.1, recheck it. |
 | PostgreSQL 18.6, DBGate 7.3.1 (7.3.2 since 2026-10-26) (Debian bookworm) | Perl, zlib minizip, SQLite, libxml2 | No Debian fix. A newer Debian base changes glibc collation and needs a reindex plan. Exception. |
 
@@ -537,7 +535,7 @@ their host, so replacing a host needs an audit-volume recovery plan too.
 Use [the shared configurator](../scripts/configure-vault-ha.sh), not the overlay:
 Kubernetes cannot add a claim template to a StatefulSet in place. Run it as one
 maintenance operation from one control plane after verifying a restore backup,
-and do any [image transition](guides/platform-migration.md) separately.
+and do any image change separately.
 `VAULT_VALUES_FILE` is the rendered `config/vault-values.yaml`.
 
 ```sh

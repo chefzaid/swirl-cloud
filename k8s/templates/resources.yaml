@@ -1,6 +1,3 @@
-{{- if or .Values.platformMigrationRequired (hasKey .Values "securityImagesEnabled") -}}
-{{- fail "Legacy ingress/image settings require explicit migration; follow docs/guides/platform-migration.md and replace the root Application Helm settings." -}}
-{{- end -}}
 {{- define "swirl-cloud.render" -}}
 {{- $root := index . 0 -}}
 {{- $path := index . 1 -}}

@@ -15,8 +15,6 @@ platform_identity_defaults
 VALUES="${INGRESS_VALUES_FILE:-$ROOT/config/traefik-values.yaml}"
 NAMESPACE="${INGRESS_NAMESPACE:-infra}"
 MODE="${HIGH_AVAILABILITY_ENABLED:-}"
-CANDIDATE="${INGRESS_MIGRATION_CANDIDATE:-false}"
-[[ "$CANDIDATE" =~ ^(true|false)$ ]] || fail 'INGRESS_MIGRATION_CANDIDATE must be true or false.'
 # The origin mirrors the zone's HSTS inputs (configure-cloudflare.sh); with
 # max-age 0 Traefik sends no Strict-Transport-Security header.
 ENABLE_HSTS="${CLOUDFLARE_ENABLE_HSTS:-}"
@@ -28,15 +26,9 @@ state="$(kubectl get configmap swirl-cloud-public-ingress -n "$NAMESPACE" --igno
 stored_mode="$(jq -r '.data.mode // "direct"' <<< "$state")"
 [[ -n "$MODE" ]] || { MODE=false; [[ "$stored_mode" != tunnel ]] || MODE=true; }
 [[ "$MODE" =~ ^(true|false)$ ]] || fail 'HIGH_AVAILABILITY_ENABLED must be true or false.'
-[[ "$CANDIDATE" == true || "$stored_mode" != tunnel || "$MODE" == true ]] || fail 'Existing HA ingress cannot be downgraded by a single-node installer run.'
+[[ "$stored_mode" != tunnel || "$MODE" == true ]] || fail 'Existing HA ingress cannot be downgraded by a single-node installer run.'
 releases="$(helm list -n "$NAMESPACE" -o json)"
 jq -e 'type == "array" and all(.[]; type == "object" and (.name | type) == "string")' <<< "$releases" >/dev/null || fail 'Helm returned an invalid release inventory.'
-if [[ "$CANDIDATE" == true ]] && jq -e 'any(.[]; .name == "traefik")' <<< "$releases" >/dev/null; then
-    fail 'A traefik release already exists; candidate mode cannot replace an active ingress. Remove only a verified disposable candidate before repeating its installation.'
-fi
-if [[ "$CANDIDATE" != true ]] && jq -e 'any(.[]; .name == "ingress-nginx")' <<< "$releases" >/dev/null; then
-    fail 'Migrate the existing ingress-nginx release first; see docs/guides/platform-migration.md. Use INGRESS_MIGRATION_CANDIDATE=true for an isolated ClusterIP candidate.'
-fi
 # With neither input a rerun keeps the deployed max-age, as the zone keeps its
 # own; only a first installation uses the defaults.
 if [[ -z "$ENABLE_HSTS$HSTS_MAX_AGE" ]] && jq -e 'any(.[]; .name == "traefik")' <<< "$releases" >/dev/null; then
@@ -56,7 +48,7 @@ text = Path(sys.argv[1]).read_text().replace('__TLS_SECRET_NAME__', sys.argv[3])
 Path(sys.argv[2]).write_text(text.replace('__HSTS_MAX_AGE__', str(int(sys.argv[4]))))
 PY
 args=(--values "$temporary/base.yaml")
-if [[ "$MODE" == true && "$CANDIDATE" != true ]]; then
+if [[ "$MODE" == true ]]; then
     HIGH_AVAILABILITY_ENABLED=true "$SCRIPT_DIR/reconcile-cluster-topology.sh" --print-longhorn-replicas >/dev/null
     if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || ! kubectl get secret cloudflare-tunnel -n "$NAMESPACE" >/dev/null 2>&1; then
         python3 "$SCRIPT_DIR/configure-cloudflare-tunnel.py" --namespace "$NAMESPACE"
@@ -79,16 +71,11 @@ Path(sys.argv[2]).write_text(json.dumps({'ports': {name: {'forwardedHeaders': {'
 PY
     args+=(--values "$temporary/trust.json")
 fi
-if [[ "$CANDIDATE" == true ]]; then
-    args+=(--set service.spec.type=ClusterIP --set service.spec.externalTrafficPolicy=null --set ingressClass.isDefaultClass=false)
-fi
 helm repo add traefik https://traefik.github.io/charts --force-update >/dev/null
 helm repo update traefik --fail-on-repo-update-fail >/dev/null
 helm upgrade --install traefik traefik/traefik \
     --namespace "$NAMESPACE" --version "${TRAEFIK_CHART_VERSION:-$DEFAULT_TRAEFIK_CHART_VERSION}" \
     --reset-values "${args[@]}" --wait --timeout "${INGRESS_HELM_TIMEOUT:-$DEFAULT_INGRESS_HELM_TIMEOUT}"
-if [[ "$CANDIDATE" == true ]]; then
-    printf '[INFO] Isolated ClusterIP candidate is ready; no tunnel connector was started. Follow docs/guides/platform-migration.md.\n'
-elif [[ "$MODE" == true ]]; then
+if [[ "$MODE" == true ]]; then
     printf '[INFO] HA ingress is ready. Run configure-cloudflare.sh to publish the tunnel CNAMEs.\n'
 fi

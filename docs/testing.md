@@ -52,8 +52,7 @@ compatibility or failover. Rehearse installer and enrollment changes on
 disposable hosts and follow each service's upgrade and recovery guide. See
 [delivery](deployment.md#infrastructure-reconciliation-and-verification) for the
 default-branch checks. A synthetic restore does not prove compatibility with
-existing data; use protected copies of real backups for
-[migration rehearsal](guides/platform-migration.md#prepare-and-rehearse).
+existing data; rehearse migrations with protected copies of real backups.
 
 ## Validation policy
 
@@ -115,9 +114,7 @@ Rendering and unit-style tests cannot establish:
 - physical Redfish fencing for [persistent singletons](guides/node-fencing.md);
 - restoring backups into an isolated environment and comparing data;
 - Longhorn recovery, production authentication, Cloudflare Tunnel failover and
-  Registry push/pull through the public edge;
-- [platform migration](guides/platform-migration.md#prepare-and-rehearse) with
-  protected copies of real backups.
+  Registry push/pull through the public edge.
 
 ## Known Verification Gaps
 
