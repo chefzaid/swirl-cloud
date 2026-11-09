@@ -1,9 +1,13 @@
-/* Swirl colours from swirlit.dev (styles/base.css): plum, a deeper shade of
-   Scaleway's purple, on neutral backgrounds, with one orange for focus. Flat on
-   purpose: solid fills and 1px borders, no gradients or glows. */
+/* swirlit.dev's look (styles/base.css), as on the portal
+   (files/homepage-custom.css): the "Swirl." wordmark, a layered card with a soft
+   shadow, small-capital labels, plum for actions and one orange for the brand's
+   full stop and keyboard focus. Depth comes from surfaces, not gradients or glows. */
 :root {
-    --swirl-background: #f7f6f9;
+    --swirl-background: #f2f1f4;
     --swirl-surface: #ffffff;
+    --swirl-inset: #f7f6f9;
+    --swirl-line: #e2dfe5;
+    --swirl-shadow: 0 1px 2px rgb(16 12 24 / 0.06), 0 16px 40px -20px rgb(16 12 24 / 0.22);
     --swirl-foreground: #1a181f;
     --swirl-muted: #4f4c54;
     --swirl-border: #dcd9df;
@@ -20,6 +24,9 @@
 :root.pf-v5-theme-dark {
     --swirl-background: #121115;
     --swirl-surface: #1b1a1f;
+    --swirl-inset: #141318;
+    --swirl-line: #2b2a31;
+    --swirl-shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 40px -20px rgb(0 0 0 / 0.7);
     --swirl-foreground: #f3f2f6;
     --swirl-muted: #a9a8ac;
     --swirl-border: #36343a;
@@ -73,28 +80,35 @@
     color: var(--swirl-foreground);
 }
 
+.pf-v5-c-login__container {
+    grid-template-columns: 27rem;
+}
+
+/* The card: a raised surface with a hairline border, no accent bar. */
 .pf-v5-c-login__main {
     background-color: var(--swirl-surface);
-    border: 1px solid var(--swirl-border);
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+    border: 1px solid var(--swirl-line);
+    border-radius: 0.875rem;
+    box-shadow: var(--swirl-shadow);
     overflow: hidden;
 }
 
 .pf-v5-c-login__main-header {
-    border-top-width: 3px;
+    border-top: 0;
+    padding-top: 2rem;
+    row-gap: 0.75rem;
 }
 
-/* The mark beside the name ("Swirl", messages_*.properties). */
+/* "Swirl." beside the mark, as on swirlit.dev ("Swirl" is messages_*.properties). */
 #kc-header-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
+    gap: 0.5rem;
     font-family: var(--pf-v5-global--FontFamily--heading);
-    font-size: 29px;
+    font-size: 30px;
     font-weight: 700;
-    letter-spacing: -1px;
+    letter-spacing: -0.04em;
     text-transform: none;
     color: var(--swirl-foreground) !important;
 }
@@ -102,15 +116,40 @@
 #kc-header-wrapper::before {
     content: "";
     flex: none;
-    width: 46px;
-    height: 46px;
+    width: 40px;
+    height: 40px;
     background: url("../img/swirl-mark.svg") center / contain no-repeat;
 }
 
+#kc-header-wrapper::after {
+    content: ".";
+    margin-left: -0.5rem;
+    color: var(--swirl-highlight);
+}
+
+/* A small-capital label over the title, as on swirlit.dev's panels. */
 #kc-page-title {
     font-family: var(--pf-v5-global--FontFamily--heading);
+    font-size: 1.5rem;
     font-weight: 700;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+}
+
+#kc-page-title::before {
+    content: "Swirl Cloud";
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--swirl-muted);
+}
+
+.pf-v5-c-form__label-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
 }
 
 /* Buttons: solid fills; the colour deepens on hover. */
@@ -122,13 +161,13 @@
 }
 
 .pf-v5-c-button.pf-m-primary {
-    padding-block: 0.65rem;
+    min-height: 2.75rem;
+    font-size: 0.9375rem;
 }
 
-/* One focus style everywhere: an orange ring. */
+/* Keyboard focus on links and buttons: an orange ring (clicks show none). */
 .login-pf a:focus-visible,
 .login-pf .pf-v5-c-button:focus-visible,
-.login-pf .pf-v5-c-form-control:focus-within,
 .login-pf .pf-v5-c-check__input:focus-visible {
     outline: 2px solid var(--swirl-highlight);
     outline-offset: 2px;
@@ -145,15 +184,22 @@
     text-decoration: underline;
 }
 
-/* Inputs: rounded fields with a 1px border instead of PatternFly's underline. */
-.pf-v5-c-form-control {
+/* Inputs: inset fields with a 1px border instead of PatternFly's underline; the
+   border and a soft ring turn plum while typing. */
+.login-pf .pf-v5-c-form-control {
+    --pf-v5-c-form-control--BackgroundColor: var(--swirl-inset);
+    min-height: 2.75rem;
     border-radius: 0.5rem;
     box-shadow: inset 0 0 0 1px var(--swirl-input);
     transition: box-shadow 120ms ease;
 }
 
-.pf-v5-c-form-control:hover {
-    box-shadow: inset 0 0 0 1px var(--swirl-primary);
+.login-pf .pf-v5-c-form-control:hover {
+    box-shadow: inset 0 0 0 1px var(--swirl-cta);
+}
+
+.login-pf .pf-v5-c-form-control:focus-within {
+    box-shadow: inset 0 0 0 1px var(--swirl-cta), 0 0 0 3px color-mix(in srgb, var(--swirl-cta) 22%, transparent);
 }
 
 /* The field's orange ring replaces the browser's outline on the input inside. */
@@ -176,6 +222,8 @@
 }
 
 .pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control {
+    min-height: 2.75rem;
+    background: var(--swirl-inset);
     border-start-end-radius: 0.5rem;
     border-end-end-radius: 0.5rem;
     box-shadow: inset 0 0 0 1px var(--swirl-input);
@@ -187,4 +235,13 @@
 
 .pf-v5-c-check__input {
     accent-color: var(--swirl-cta);
+}
+
+/* The language list: a small bordered pill (after the field rules it overrides). */
+.login-pf .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+    --pf-v5-c-form-control--BackgroundColor: var(--swirl-surface);
+    width: auto;
+    min-height: 2rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
 }
