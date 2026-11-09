@@ -1,0 +1,26 @@
+// The chat window in the company website's colours; the brand colour itself is
+// set in chat_theme_variables.scss.
+
+// The visitor's messages in a light plum, the chatbot's and the team's in white,
+// instead of Odoo's green and blue.
+.o-mail-Message-bubble,
+.o-mail-Message-bubbleTail {
+    &.o-green {
+        --o-message-bubble-bg: #{mix($o-view-background-color, $o-brand-primary, 90%)};
+        --o-message-bubble-border-color: #{mix($o-view-background-color, $o-brand-primary, 75%)};
+        --o-message-bubble-color-base: #{$o-brand-primary};
+    }
+    &.o-blue {
+        --o-message-bubble-bg: #{$o-view-background-color};
+        --o-message-bubble-border-color: #{$border-color};
+        --o-message-bubble-color-base: #{$o-brand-primary};
+    }
+}
+
+// Keyboard focus as on the website and the sign-in pages: one orange ring.
+// Text fields keep their plum border, which shows whenever they have focus.
+:focus-visible:not(input, textarea, [contenteditable]) {
+    outline: 2px solid #e8650f !important;
+    outline-offset: 2px;
+    box-shadow: none !important;
+}

@@ -100,6 +100,27 @@ class OdooWebsite(unittest.TestCase):
             for name in ("jpeg", "step"):
                 with self.assertRaises(odoo.ServiceError):
                     odoo.chat_parameters(self.chat_args(chat_persona=str(folder / f"{name}.json")))
+            self.assertNotIn("colors", params["persona"])
+
+    def test_persona_colours_are_plain_hex_before_reaching_odoo_styles(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / "face.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+
+            def persona(colors):
+                (folder / "persona.json").write_text(json.dumps({"name": "Chloé", "avatar": "face.png", "colors": colors,
+                    "messages": [{"type": "text", "en": "Hi", "fr": "Bonjour"}]}))
+                return odoo.chat_parameters(self.chat_args(chat_persona=str(folder / "persona.json")))
+
+            self.assertEqual({"background": "#6a33a6", "text": "#ffffff"},
+                             persona({"background": "#6A33A6", "text": "#ffffff"})["persona"]["colors"])
+            # Odoo writes the colours into style attributes of the chat button and header.
+            for colors in ({"background": "#6a33a6"}, {"background": "#6a33a6", "text": "#fff"},
+                           {"background": "#6a33a6; position: fixed", "text": "#ffffff"},
+                           {"background": "red", "text": "#ffffff"},
+                           {"background": "#6a33a6", "text": "#ffffff", "button": "#000000"}, ["#6a33a6", "#ffffff"]):
+                with self.assertRaises(odoo.ServiceError):
+                    persona(colors)
 
     def test_email_worker_routes_the_chat_address_and_keeps_the_secret_in_a_binding(self):
         calls = []

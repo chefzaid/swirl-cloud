@@ -121,7 +121,13 @@ left open, for example on the next page.
 | `{type: "odoo-livechat-open"}` | website → Odoo | Reopen the chat, or start a new one |
 
 The frame shows the correspondent (chatbot or agent) as online in the page `lang`,
-and reports an opened chat within 100 ms. Messages are exchanged only with the
+and reports an opened chat within 100 ms. The add-on draws the chat window in the
+company website's plum (`#6a33a6`) instead of Odoo's lavender: buttons, links,
+the send button and focus borders, the visitor's messages in a light plum and the
+chatbot's and team's in white, with the website's orange ring for keyboard focus
+([`chat_theme_variables.scss`](../../k8s/files/odoo-addons/platform_crm_intake/static/src/chat_theme_variables.scss),
+[`chat_theme.scss`](../../k8s/files/odoo-addons/platform_crm_intake/static/src/chat_theme.scss)).
+The header and button colours come from the persona file (`--chat-persona`). Messages are exchanged only with the
 `--website-origin`. The page sends `Content-Security-Policy: frame-ancestors <website
 origin>` and returns `404` until the origin is set. `lang` is kept in Odoo's
 `frontend_lang` cookie.
@@ -158,7 +164,7 @@ python3 scripts/configure-odoo-website.py --application <website> \
 | `--reply-sender` | Repeatable. Addresses whose replies are accepted; defaults to `--notify`. List every address you reply from, such as a forwarding target mailbox. |
 | `--chat-from` | Sender of chat emails, default `chat@<website host>`. Its plus-addresses receive replies. |
 | `--notify-lang`, `--timezone` | Language (`fr` default, or `en`) and time zone (default `UTC`) of the team's emails. |
-| `--chat-persona` | JSON naming the chatbot, its PNG avatar and its messages (`type`, `en`, `fr` per step, in bootstrap step order). |
+| `--chat-persona` | JSON naming the chatbot, its PNG avatar and its messages (`type`, `en`, `fr` per step, in bootstrap step order). Optional `colors` (`background`, `text`, as `#rrggbb`) set the channel's chat button and window header. |
 | `--resend-key-path` | Vault path whose `RESEND_API_KEY` becomes Odoo's outgoing server (`smtp.resend.com`, limited to the sender's domain, which also becomes Odoo's mail domain). |
 | `--email-worker` | Deploys the Cloudflare Email Worker and routing rule. Needs `CLOUDFLARE_API_TOKEN` with **Workers Scripts: Edit** and **Email Routing Rules: Edit**. |
 

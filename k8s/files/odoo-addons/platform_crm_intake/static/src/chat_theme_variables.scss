@@ -1,0 +1,5 @@
+// The company website's plum (swirl-website styles/base.css, --chat-header) in
+// place of Odoo Community's lavender, for everything the chat window derives
+// from the brand colour: buttons, links, the send button, focus borders and
+// read receipts. Loaded before web's primary variables, which only set defaults.
+$o-community-color: #6a33a6;

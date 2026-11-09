@@ -8,7 +8,8 @@ with the application name as UTM source. Its API key crosses process boundaries
 only through stdin/stdout and is stored at Vault apps/<application>/odoo.
 The website origin is the only page allowed to frame the Live Chat window.
 
-Chat options also dress the chatbot as the website's persona, email new chat
+Chat options also dress the chatbot as the website's persona (with the chat
+button and window header in the website's colours), email new chat
 messages to the team, send Odoo's mail through the website's Resend account,
 and (with CLOUDFLARE_API_TOKEN) deploy the Cloudflare Email Worker that relays
 email replies back into the chats. See docs/guides/odoo-website.md.
@@ -36,6 +37,7 @@ FAILURE = "PLATFORM_ODOO_ERROR "
 LOCAL_URL = "http://odoo.corp.svc.cluster.local:8069"
 EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\Z")
 STEP_TYPES = {"text", "question_email", "free_input_multi", "create_lead"}
+COLOR = re.compile(r"#[0-9a-f]{6}\Z")
 WORKER_NAME = "platform-chat-email"
 WORKER_SOURCE = Path(__file__).resolve().parent / "lib" / "chat_email_worker.js"
 ROUTING_RULE = "Website chat replies to Odoo"
@@ -129,6 +131,13 @@ if persona:
     for step, message in zip(steps, persona['messages']):
         step.with_context(lang='en_US').message = message['en']
         step.update_field_translations('message', {'fr_FR': {message['en']: message['fr']}})
+    colors = persona.get('colors')
+    if colors:
+        # Odoo's chat button and window header, as the website draws its own
+        # button and the window shown while the chat loads.
+        env.ref('im_livechat.im_livechat_channel_data').write({
+            'button_background_color': colors['background'], 'header_background_color': colors['background'],
+            'button_text_color': colors['text'], 'title_color': colors['text']})
 env.cr.commit()
 report({'inboundSecret': params.get_param(PARAM_PREFIX + 'inbound_secret'), 'baseUrl': params.get_param('web.base.url')})
 '''
@@ -194,7 +203,8 @@ def odoo_shell(program):
 
 
 def load_persona(file):
-    """Read the chatbot persona: a name, a PNG avatar beside the file and one message per chatbot step."""
+    """Read the chatbot persona: a name, a PNG avatar beside the file, one message per chatbot step
+    and optionally the chat's colours."""
     path = Path(file)
     persona = json.loads(path.read_text())
     messages = persona.get("messages")
@@ -205,7 +215,15 @@ def load_persona(file):
     avatar = (path.parent / persona["avatar"]).read_bytes()
     if not avatar.startswith(b"\x89PNG\r\n\x1a\n") or len(avatar) > 1024 * 1024:
         raise ServiceError("The persona avatar must be a PNG of at most 1 MiB")
-    return {"name": persona["name"].strip(), "messages": messages, "avatar": base64.b64encode(avatar).decode()}
+    result = {"name": persona["name"].strip(), "messages": messages, "avatar": base64.b64encode(avatar).decode()}
+    if "colors" in persona:
+        # Odoo writes them into style attributes, so only plain hex colours pass.
+        colors = persona["colors"]
+        if (not isinstance(colors, dict) or set(colors) != {"background", "text"}
+                or not all(isinstance(value, str) and COLOR.fullmatch(value.lower()) for value in colors.values())):
+            raise ServiceError("Persona colors need background and text as #rrggbb")
+        result["colors"] = {name: value.lower() for name, value in colors.items()}
+    return result
 
 
 def chat_parameters(args, smtp_password=None):
