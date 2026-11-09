@@ -31,6 +31,10 @@ data:
     # swirl-cloud:file keycloak-theme/swirl.css
   swirl-mark.svg: |
     # swirl-cloud:file homepage-icons/swirl.svg
+  messages_en.properties: |
+    # swirl-cloud:file keycloak-theme/messages_en.properties
+  messages_fr.properties: |
+    # swirl-cloud:file keycloak-theme/messages_fr.properties
 
 ---
 apiVersion: apps/v1
@@ -176,3 +180,7 @@ spec:
             path: login/resources/css/swirl.css
           - key: swirl-mark.svg
             path: login/resources/img/swirl-mark.svg
+          - key: messages_en.properties
+            path: login/messages/messages_en.properties
+          - key: messages_fr.properties
+            path: login/messages/messages_fr.properties
