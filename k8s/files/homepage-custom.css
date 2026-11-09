@@ -1,8 +1,9 @@
-/* Swirl colours from swirlit.dev, as in the Keycloak sign-in theme
-   (files/keycloak-theme/swirl.css): plum on a neutral ink background, orange
-   for focus. Flat on purpose: solid fills and 1px borders, no gradients or
-   glows. settings.yaml selects Homepage's purple palette, which these values
-   replace; Homepage reads them as "R G B" and uses the dark theme. */
+/* The portal in swirlit.dev's dark theme (styles/base.css): neutral ink
+   surfaces in layers, plum for interaction and data, one orange for the brand's
+   full stop and keyboard focus. Depth comes from surfaces, borders and soft
+   shadows, not gradients or glows. Same colours as the Keycloak sign-in theme
+   (files/keycloak-theme/swirl.css). settings.yaml selects Homepage's purple
+   palette, which .theme-purple replaces; Homepage reads it as "R G B". */
 .theme-purple {
   --color-50: 248 247 250;
   --color-100: 234 231 238;
@@ -16,65 +17,294 @@
   --color-900: 12 11 14;
   --color-logo-start: 169 139 216;
   --color-logo-stop: 106 51 166;
+
+  --swirl-page: #121115;
+  --swirl-panel: #17161b;
+  --swirl-card: #1d1c22;
+  --swirl-card-hover: #232229;
+  --swirl-tile: #26252c;
+  --swirl-line: #29282f;
+  --swirl-line-strong: #34333b;
+  --swirl-text: #f3f2f6;
+  --swirl-muted: #a9a8ac;
+  --swirl-subtle: #807e86;
+  --swirl-plum: #7646ad;
+  --swirl-plum-light: #b9a1de;
+  --swirl-orange: #e8650f;
+  --swirl-shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px -16px rgb(0 0 0 / 0.6);
 }
 
 html body {
-  background: rgb(18 17 21);
+  background: var(--swirl-page);
+  color: var(--swirl-text);
+  letter-spacing: 0;
 }
 
 #__next {
   background: transparent;
 }
 
-/* Group titles. */
-.service-group-name {
+/* Header bar: the brand, cluster usage, search and time, as one panel. */
+#information-widgets {
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--swirl-line);
+  border-radius: 0.875rem;
+  background: var(--swirl-panel);
+  box-shadow: var(--swirl-shadow);
+}
+
+#widgets-wrap {
+  align-items: center;
+  column-gap: 1.5rem;
+}
+
+/* "Swirl." beside the mark, as on swirlit.dev. */
+.information-widget-logo {
+  flex-direction: row;
+  align-items: center;
+}
+
+.information-widget-logo .resolved {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0;
+}
+
+.information-widget-logo img {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.information-widget-logo .resolved::after {
+  content: "Swirl";
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: -0.3px;
-  color: rgb(243 242 246);
+  letter-spacing: -0.04em;
+  color: var(--swirl-text);
+}
+
+.information-widget-logo::after {
+  content: ".";
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--swirl-orange);
+}
+
+/* Cluster usage: compact meters in plum, separated by a hairline. */
+.information-widget-kubernetes {
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--swirl-line);
+}
+
+.information-widget-kubernetes .rounded-full.h-1 {
+  height: 0.3rem;
+  background: var(--swirl-line-strong);
+}
+
+.information-widget-kubernetes .rounded-full.h-1 > div {
+  height: 0.3rem;
+  background: var(--swirl-plum-light);
+}
+
+.information-widget-kubernetes .text-xs {
+  color: var(--swirl-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.information-widget-kubernetes svg {
+  color: var(--swirl-plum-light);
+}
+
+/* On a phone the header stacks: no divider, and the search takes the width. */
+@media (max-width: 639px) {
+  .information-widget-kubernetes {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .information-widget-search {
+    width: 100%;
+  }
+}
+
+/* Search: a quiet field that brightens when in use. */
+.information-widget-search input {
+  height: 2.25rem;
+  padding-left: 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--swirl-line-strong);
+  background-color: var(--swirl-card);
+  color: var(--swirl-text);
+  font-size: 0.8125rem;
+}
+
+.information-widget-search input::placeholder {
+  color: var(--swirl-subtle);
+}
+
+.information-widget-search input:focus {
+  border-color: var(--swirl-plum);
+  box-shadow: none;
+}
+
+.information-widget-search button {
+  background: transparent;
+  border-start-end-radius: 0.5rem;
+  border-end-end-radius: 0.5rem;
+}
+
+.information-widget-datetime span {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--swirl-muted);
+}
+
+/* Groups: panels titled like swirlit.dev's small capitals, with a rule. */
+#layout-groups,
+#services {
+  row-gap: 1.25rem;
+}
+
+.services-group {
+  margin: 0 0.25rem;
+  padding: 1rem 1.25rem 0.75rem !important;
+  border: 1px solid var(--swirl-line);
+  border-radius: 0.875rem;
+  background: var(--swirl-panel);
+  box-shadow: var(--swirl-shadow);
+}
+
+.services-group > button {
+  gap: 0.625rem;
+}
+
+.services-group > button::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  margin-left: 0.5rem;
+  background: var(--swirl-line);
 }
 
 .service-group-icon {
-  color: rgb(185 161 222);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: 0;
+  border-radius: 0.5rem;
+  background: var(--swirl-tile);
 }
 
-/* Service cards: solid, with a border that turns plum on hover. */
+.service-group-icon > * {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.service-group-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--swirl-muted);
+}
+
+.services-list {
+  margin-top: 0.875rem;
+  column-gap: 0.625rem;
+}
+
+/* Service cards: the app's icon on a tile, its name, a description and a
+   status badge. The border turns plum on hover. */
 .service-card {
-  border: 1px solid rgb(54 52 58);
+  margin-bottom: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid var(--swirl-line-strong);
   border-radius: 0.625rem;
-  background: rgb(27 26 31);
+  background: var(--swirl-card);
+  color: var(--swirl-text);
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .service-card:hover {
-  border-color: rgb(118 70 173);
-  background: rgb(34 32 37);
+  border-color: var(--swirl-plum);
+  background: var(--swirl-card-hover);
+  color: var(--swirl-text);
+}
+
+.service-title {
+  align-items: center;
+}
+
+.service-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--swirl-line-strong);
+  border-radius: 0.625rem;
+  background: var(--swirl-tile);
+}
+
+.service-icon > * {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
 }
 
 .service-name {
-  color: rgb(243 242 246);
+  padding: 0 0 0 0.875rem;
+  font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.3;
+  color: var(--swirl-text);
+}
+
+/* Room for the status badge on the first line only. */
+.service-name::before {
+  content: "";
+  float: right;
+  width: 4.75rem;
+  height: 1.1rem;
 }
 
 .service-description {
-  color: rgb(169 168 172);
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--swirl-muted);
 }
 
-/* The search box: a plain field. */
-.information-widget-search input {
-  border-radius: 0.5rem;
-  border-color: rgb(65 62 70);
-  background-color: rgb(27 26 31);
+/* Status: a small badge in the status colour on its own tint. */
+.service-tags {
+  top: 0.75rem;
+  right: 0.75rem;
+  margin: 0;
 }
 
-.information-widget-search button {
-  border-start-end-radius: 0.5rem;
-  border-end-end-radius: 0.5rem;
+.k8s-status,
+.docker-status,
+.service-ping > div,
+.service-site-monitor > div {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.k8s-status > div,
+.docker-status > div {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 /* Links elsewhere: plum, underlined on hover. */
 #footer a,
 .bookmark a {
-  color: rgb(185 161 222);
+  color: var(--swirl-plum-light);
   text-decoration: none;
   text-underline-offset: 3px;
 }
@@ -88,15 +318,15 @@ html body {
   border-radius: 0.625rem;
 }
 
-/* One focus style everywhere: an orange ring. */
+/* Keyboard focus only: an orange ring (clicks show none). */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-.service-card:focus-within {
-  outline: 2px solid rgb(232 101 15);
+.service-card:has(:focus-visible) {
+  outline: 2px solid var(--swirl-orange);
   outline-offset: 2px;
 }
 
-.information-widget-search input:focus {
-  box-shadow: none;
+.service-card a:focus-visible {
+  outline: none;
 }
