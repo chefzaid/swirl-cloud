@@ -1,0 +1,109 @@
+/* Swirl colours from swirlit.dev (styles/base.css): dark background, purple
+   accents, and the paper-plane mark beside the realm name. */
+:root {
+    color-scheme: dark;
+    --swirl-background: #12101b;
+    --swirl-surface: #1f1e2f;
+    --swirl-foreground: #f4f1fb;
+    --swirl-muted: #a8a7b3;
+    --swirl-border: #333345;
+    --swirl-input: #3f3d52;
+    --swirl-primary: #c4a3ff;
+    --swirl-cta: #8c40ef;
+    --swirl-cta-hover: #7e2ee0;
+    --keycloak-card-top-color: var(--swirl-cta);
+}
+
+:root.pf-v5-theme-dark {
+    --pf-v5-global--FontFamily--text: "DM Sans", "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --pf-v5-global--FontFamily--heading: "Manrope", "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --pf-v5-global--BackgroundColor--100: var(--swirl-surface);
+    --pf-v5-global--BackgroundColor--200: var(--swirl-background);
+    --pf-v5-global--Color--100: var(--swirl-foreground);
+    --pf-v5-global--Color--200: var(--swirl-muted);
+    --pf-v5-global--BorderColor--100: var(--swirl-border);
+    --pf-v5-global--primary-color--100: var(--swirl-cta);
+    --pf-v5-global--primary-color--200: var(--swirl-cta-hover);
+    --pf-v5-global--link--Color: var(--swirl-primary);
+    --pf-v5-global--link--Color--hover: #ad7cff;
+    --pf-v5-global--active-color--100: var(--swirl-primary);
+}
+
+/* PatternFly sets these on the components themselves, so override them there. */
+.pf-v5-theme-dark .pf-v5-c-button {
+    --pf-v5-c-button--m-primary--BackgroundColor: var(--swirl-cta);
+    --pf-v5-c-button--m-primary--Color: #ffffff;
+    --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--swirl-cta-hover);
+    --pf-v5-c-button--m-primary--hover--Color: #ffffff;
+    --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--swirl-cta-hover);
+    --pf-v5-c-button--m-primary--focus--Color: #ffffff;
+    --pf-v5-c-button--m-primary--active--BackgroundColor: var(--swirl-cta-hover);
+    --pf-v5-c-button--m-primary--active--Color: #ffffff;
+    --pf-v5-c-button--m-link--Color: var(--swirl-primary);
+    --pf-v5-c-button--m-link--hover--Color: #ad7cff;
+    --pf-v5-c-button--m-control--BackgroundColor: var(--swirl-background);
+    --pf-v5-c-button--m-control--hover--BackgroundColor: var(--swirl-background);
+    --pf-v5-c-button--m-control--after--BorderColor: var(--swirl-input);
+}
+
+.pf-v5-theme-dark .pf-v5-c-form-control {
+    --pf-v5-c-form-control--BackgroundColor: var(--swirl-background);
+    --pf-v5-c-form-control--before--BorderColor: var(--swirl-input);
+    --pf-v5-c-form-control--after--BorderBottomColor: var(--swirl-input);
+    --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--swirl-primary);
+    --pf-v5-c-form-control--m-expanded--after--BorderBottomColor: var(--swirl-primary);
+    --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--swirl-primary);
+}
+
+.pf-v5-theme-dark .pf-v5-c-check__input {
+    accent-color: var(--swirl-cta);
+}
+
+.login-pf body {
+    background: radial-gradient(60rem 40rem at 15% 0%, rgba(140, 64, 239, 0.28), transparent 70%),
+        radial-gradient(50rem 35rem at 100% 100%, rgba(91, 22, 194, 0.22), transparent 70%),
+        var(--swirl-background);
+    color: var(--swirl-foreground);
+}
+
+.pf-v5-c-login__main {
+    background-color: var(--swirl-surface);
+    border: 1px solid var(--swirl-border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.pf-v5-c-login__main-header {
+    border-top-width: 3px;
+}
+
+#kc-header-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    font-family: var(--pf-v5-global--FontFamily--heading);
+    font-size: 29px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    text-transform: none;
+    color: var(--swirl-foreground) !important;
+}
+
+#kc-header-wrapper::before {
+    content: "";
+    flex: none;
+    width: 46px;
+    height: 46px;
+    background: url("../img/swirl-mark.svg") center / contain no-repeat;
+}
+
+#kc-page-title {
+    font-family: var(--pf-v5-global--FontFamily--heading);
+    font-weight: 700;
+}
+
+.pf-v5-c-button.pf-m-primary {
+    border-radius: 0.5rem;
+    font-weight: 600;
+}

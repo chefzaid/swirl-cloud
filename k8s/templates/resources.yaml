@@ -16,7 +16,7 @@
 {{- $indent := regexReplaceAll "^( *).*$" $marker "${1}" | len -}}
 {{- $content = replace $marker ($body | trimSuffix "\n" | indent $indent) $content -}}
 {{- end -}}
-{{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "files/prometheus/*" "swirl-cloud.io/homepage-icons" "files/homepage-icons/*" -}}
+{{- range $annotation, $source := dict "swirl-cloud.io/application-observability" "platform/application-observability.yaml" "swirl-cloud.io/logging-agent" "platform/logging-agent.yaml" "swirl-cloud.io/prometheus-config" "files/prometheus/*" "swirl-cloud.io/homepage-icons" "files/homepage-icons/*" "swirl-cloud.io/keycloak-theme" "files/keycloak-theme/*" -}}
 {{- $files := "" -}}
 {{- range $file, $_ := $root.Files.Glob $source -}}
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}

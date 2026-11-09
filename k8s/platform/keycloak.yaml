@@ -15,6 +15,24 @@ spec:
   type: ClusterIP
 
 ---
+# Swirl login theme (keycloak.v2 in swirlit.dev's colours), selected as the login
+# theme of both realms by keycloak-sso.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-theme
+  namespace: infra
+  labels:
+    app: keycloak
+data:
+  theme.properties: |
+    # swirl-cloud:file keycloak-theme/theme.properties
+  swirl.css: |
+    # swirl-cloud:file keycloak-theme/swirl.css
+  swirl-mark.svg: |
+    # swirl-cloud:file homepage-icons/swirl.svg
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,6 +53,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/path: /auth/metrics
         prometheus.io/port: "9000"
+        swirl-cloud.io/keycloak-theme: pending
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -134,6 +153,9 @@ spec:
         - name: realm-config
           mountPath: /opt/keycloak/data/import
           readOnly: true
+        - name: theme
+          mountPath: /opt/keycloak/themes/swirl
+          readOnly: true
       volumes:
       - name: runtime-data
         emptyDir:
@@ -144,3 +166,13 @@ spec:
       - name: realm-config
         secret:
           secretName: keycloak-realm-config
+      - name: theme
+        configMap:
+          name: keycloak-theme
+          items:
+          - key: theme.properties
+            path: login/theme.properties
+          - key: swirl.css
+            path: login/resources/css/swirl.css
+          - key: swirl-mark.svg
+            path: login/resources/img/swirl-mark.svg

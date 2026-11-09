@@ -54,6 +54,7 @@ pieces fit together.
 
 - declarative Keycloak realm with password and brute-force policy
 - sign-in and account pages in English and French, following the browser
+- Swirl-branded sign-in pages in both realms: Keycloak's own theme in swirlit.dev's dark purple colours with the Swirl mark ([`k8s/files/keycloak-theme`](../k8s/files/keycloak-theme/))
 - just-in-time administration: approved, recorded grants of 1-24 hours that end automatically
 - login and admin events kept 90 days in Keycloak and a year in `identity-audit-*` indices
 - native OIDC for GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo
