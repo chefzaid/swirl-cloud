@@ -541,6 +541,7 @@ and the wiring. CRM and Live Chat serve only the company website
 - [x] Public Live Chat framed only by the website origin (strict CSP kept), with the Cloudflare rate limit covering chat session starts. *(live, 2026-10-07)*
 - [x] Chat by email with signed plus-addresses and a sender allowlist, through the Cloudflare Email Worker `platform-chat-email` (`configure-odoo-website.py --email-worker`). *(live, 2026-10-08)*
 - [x] Chatbot persona from the website's `chat-persona.json`, online indicator and closing message. *(2026-10-09)*
+- [ ] **Quick, in Odoo:** give the Live Chat channel the website's plum. Under Live Chat → Configuration → Channels, set the chat button and the chat window header (the bar) to `#6a33a6` with white text, replacing Scaleway's `#8c40ef`. swirlit.dev draws its loading window in the same `#6a33a6` (`--chat-header`), so the two now differ until this is done. Optionally make `scripts/configure-odoo-website.py` set them, since the Odoo bootstrap configures the channel only once.
 
 ### 23. Installer: TUI, central `.env`, reruns, verification and email
 
