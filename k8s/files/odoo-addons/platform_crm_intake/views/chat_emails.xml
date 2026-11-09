@@ -2,39 +2,39 @@
 <odoo>
     <!-- Emails about website chats; strings come from tools.TEXTS. -->
     <template id="chat_team_email" name="Website chat: message for the team">
-        <div style="font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1a1731; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1d1922; max-width: 600px; margin: 0 auto;">
             <p style="font-size: 15px; margin: 0 0 16px;" t-out="intro"/>
-            <div style="border-left: 4px solid #d3beff; background: #f7f6ff; padding: 12px 16px; border-radius: 6px; margin: 0 0 16px;">
+            <div style="border-left: 4px solid #d3c1f1; background: #f7f6f9; padding: 12px 16px; border-radius: 6px; margin: 0 0 16px;">
                 <p t-foreach="new" t-as="text" style="margin: 0 0 8px; font-size: 15px; white-space: pre-wrap;" t-out="text"/>
             </div>
-            <p style="font-size: 13px; color: #4b5563; margin: 0 0 20px;" t-out="t['team_reply']"/>
+            <p style="font-size: 13px; color: #555359; margin: 0 0 20px;" t-out="t['team_reply']"/>
             <p style="margin: 0 0 28px;">
-                <a t-att-href="open_url" style="display: inline-block; background: #8c40ef; color: #ffffff; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;" t-out="t['team_open']"/>
-                <a t-if="lead_url" t-att-href="lead_url" style="margin-left: 14px; color: #1a1731; font-size: 14px;" t-out="t['team_lead']"/>
+                <a t-att-href="open_url" style="display: inline-block; background: #6a33a6; color: #ffffff; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;" t-out="t['team_open']"/>
+                <a t-if="lead_url" t-att-href="lead_url" style="margin-left: 14px; color: #1d1922; font-size: 14px;" t-out="t['team_lead']"/>
             </p>
             <t t-call="platform_crm_intake.chat_email_transcript"/>
         </div>
     </template>
 
     <template id="chat_visitor_email" name="Website chat: answer for the visitor">
-        <div style="font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1a1731; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1d1922; max-width: 600px; margin: 0 auto;">
             <p style="font-size: 15px; margin: 0 0 16px;" t-out="t['visitor_intro']"/>
-            <div style="border-left: 4px solid #d3beff; background: #f7f6ff; padding: 12px 16px; border-radius: 6px; margin: 0 0 16px;">
+            <div style="border-left: 4px solid #d3c1f1; background: #f7f6f9; padding: 12px 16px; border-radius: 6px; margin: 0 0 16px;">
                 <p style="margin: 0 0 10px; font-size: 15px; white-space: pre-wrap;" t-out="reply"/>
-                <p style="margin: 0; font-size: 13px; color: #4b5563;">— <t t-out="persona"/>, <t t-out="company"/></p>
+                <p style="margin: 0; font-size: 13px; color: #555359;">— <t t-out="persona"/>, <t t-out="company"/></p>
             </div>
-            <p style="font-size: 13px; color: #4b5563; margin: 0 0 28px;" t-out="t['visitor_reply']"/>
+            <p style="font-size: 13px; color: #555359; margin: 0 0 28px;" t-out="t['visitor_reply']"/>
             <t t-call="platform_crm_intake.chat_email_transcript"/>
         </div>
     </template>
 
     <template id="chat_email_transcript" name="Website chat: email transcript">
-        <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 0 0 8px;" t-out="t['conversation']"/>
+        <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #737176; margin: 0 0 8px;" t-out="t['conversation']"/>
         <table role="presentation" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            <tr t-foreach="transcript" t-as="line" style="border-top: 1px solid #eeeefb;">
-                <td style="padding: 8px 10px 8px 0; vertical-align: top; color: #6b7280; white-space: nowrap;" t-out="line['time']"/>
+            <tr t-foreach="transcript" t-as="line" style="border-top: 1px solid #f0eef3;">
+                <td style="padding: 8px 10px 8px 0; vertical-align: top; color: #737176; white-space: nowrap;" t-out="line['time']"/>
                 <td style="padding: 8px 0; vertical-align: top;">
-                    <strong t-att-style="'color: #9c3b1f;' if line['visitor'] else 'color: #1a1731;'" t-out="line['author']"/><br/>
+                    <strong t-att-style="'color: #9c3b1f;' if line['visitor'] else 'color: #1d1922;'" t-out="line['author']"/><br/>
                     <span style="white-space: pre-wrap;" t-out="line['text']"/>
                 </td>
             </tr>

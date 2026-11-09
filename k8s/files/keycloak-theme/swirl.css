@@ -1,22 +1,37 @@
-/* Swirl colours from swirlit.dev (styles/base.css): dark background, purple
-   accents, and the paper-plane mark beside the realm name. */
+/* Swirl colours from swirlit.dev (styles/base.css): plum, a deeper shade of
+   Scaleway's purple, on neutral backgrounds, with amber for focus. Flat on
+   purpose: solid fills and 1px borders, no gradients or glows. */
 :root {
-    color-scheme: dark;
-    --swirl-background: #12101b;
-    --swirl-surface: #1f1e2f;
-    --swirl-foreground: #f4f1fb;
-    --swirl-muted: #a8a7b3;
-    --swirl-border: #333345;
-    --swirl-input: #3f3d52;
-    --swirl-primary: #c4a3ff;
-    --swirl-cta: #8c40ef;
-    --swirl-cta-hover: #7e2ee0;
+    --swirl-background: #f7f6f9;
+    --swirl-surface: #ffffff;
+    --swirl-foreground: #1a181f;
+    --swirl-muted: #4f4c54;
+    --swirl-border: #dcd9df;
+    --swirl-input: #bab8bd;
+    --swirl-primary: #5e2b93;
+    --swirl-cta: #6a33a6;
+    --swirl-cta-hover: #5a2b8e;
+    --swirl-highlight: #b8731a;
     --keycloak-card-top-color: var(--swirl-cta);
+    --pf-v5-global--FontFamily--text: "DM Sans", "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --pf-v5-global--FontFamily--heading: "Manrope", "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 :root.pf-v5-theme-dark {
-    --pf-v5-global--FontFamily--text: "DM Sans", "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-    --pf-v5-global--FontFamily--heading: "Manrope", "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --swirl-background: #121115;
+    --swirl-surface: #1b1a1f;
+    --swirl-foreground: #f3f2f6;
+    --swirl-muted: #a9a8ac;
+    --swirl-border: #36343a;
+    --swirl-input: #413e46;
+    --swirl-primary: #b9a1de;
+    --swirl-cta: #7646ad;
+    --swirl-cta-hover: #6a33a6;
+    --swirl-highlight: #e8a33d;
+}
+
+:root,
+:root.pf-v5-theme-dark {
     --pf-v5-global--BackgroundColor--100: var(--swirl-surface);
     --pf-v5-global--BackgroundColor--200: var(--swirl-background);
     --pf-v5-global--Color--100: var(--swirl-foreground);
@@ -25,12 +40,12 @@
     --pf-v5-global--primary-color--100: var(--swirl-cta);
     --pf-v5-global--primary-color--200: var(--swirl-cta-hover);
     --pf-v5-global--link--Color: var(--swirl-primary);
-    --pf-v5-global--link--Color--hover: #ad7cff;
+    --pf-v5-global--link--Color--hover: var(--swirl-primary);
     --pf-v5-global--active-color--100: var(--swirl-primary);
 }
 
 /* PatternFly sets these on the components themselves, so override them there. */
-.pf-v5-theme-dark .pf-v5-c-button {
+.login-pf .pf-v5-c-button {
     --pf-v5-c-button--m-primary--BackgroundColor: var(--swirl-cta);
     --pf-v5-c-button--m-primary--Color: #ffffff;
     --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--swirl-cta-hover);
@@ -40,38 +55,30 @@
     --pf-v5-c-button--m-primary--active--BackgroundColor: var(--swirl-cta-hover);
     --pf-v5-c-button--m-primary--active--Color: #ffffff;
     --pf-v5-c-button--m-link--Color: var(--swirl-primary);
-    --pf-v5-c-button--m-link--hover--Color: #ad7cff;
-    --pf-v5-c-button--m-control--BackgroundColor: var(--swirl-background);
+    --pf-v5-c-button--m-link--hover--Color: var(--swirl-primary);
+    --pf-v5-c-button--m-control--BackgroundColor: var(--swirl-surface);
     --pf-v5-c-button--m-control--hover--BackgroundColor: var(--swirl-background);
     --pf-v5-c-button--m-control--after--BorderColor: var(--swirl-input);
 }
 
-.pf-v5-theme-dark .pf-v5-c-form-control {
-    --pf-v5-c-form-control--BackgroundColor: var(--swirl-background);
+.login-pf .pf-v5-c-form-control {
+    --pf-v5-c-form-control--BackgroundColor: var(--swirl-surface);
     --pf-v5-c-form-control--before--BorderColor: var(--swirl-input);
     --pf-v5-c-form-control--after--BorderBottomColor: var(--swirl-input);
     --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--swirl-primary);
-    --pf-v5-c-form-control--m-expanded--after--BorderBottomColor: var(--swirl-primary);
     --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--swirl-primary);
 }
 
-.pf-v5-theme-dark .pf-v5-c-check__input {
-    accent-color: var(--swirl-cta);
-}
-
 .login-pf body {
-    background: radial-gradient(60rem 40rem at 15% 0%, rgba(140, 64, 239, 0.28), transparent 70%),
-        radial-gradient(50rem 35rem at 100% 100%, rgba(91, 22, 194, 0.22), transparent 70%),
-        var(--swirl-background);
+    background: var(--swirl-background);
     color: var(--swirl-foreground);
 }
 
 .pf-v5-c-login__main {
-    background-color: rgb(31 30 47 / 0.88);
-    border: 1px solid rgb(255 255 255 / 0.08);
-    border-radius: 1rem;
-    box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(140 64 239 / 0.08);
-    backdrop-filter: blur(12px);
+    background-color: var(--swirl-surface);
+    border: 1px solid var(--swirl-border);
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
     overflow: hidden;
 }
 
@@ -79,6 +86,7 @@
     border-top-width: 3px;
 }
 
+/* The mark beside the name ("Swirl", messages_*.properties). */
 #kc-header-wrapper {
     display: flex;
     align-items: center;
@@ -103,72 +111,55 @@
 #kc-page-title {
     font-family: var(--pf-v5-global--FontFamily--heading);
     font-weight: 700;
+    letter-spacing: -0.3px;
 }
 
-/* Buttons: a gradient call to action that lifts on hover, with a visible
-   focus ring for keyboard users. */
-.pf-v5-c-button.pf-m-primary {
-    border-radius: 0.75rem;
-    padding-block: 0.7rem;
+/* Buttons: solid fills; the colour deepens on hover. */
+.pf-v5-c-button.pf-m-primary,
+.pf-v5-c-button.pf-m-secondary {
+    border-radius: 0.5rem;
     font-weight: 600;
-    letter-spacing: 0.2px;
-    background-image: linear-gradient(135deg, #9d5cff 0%, var(--swirl-cta) 55%, var(--swirl-cta-hover) 100%);
-    box-shadow: 0 8px 24px -10px rgb(140 64 239 / 0.75);
-    transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+    transition: background-color 120ms ease;
 }
 
-.pf-v5-c-button.pf-m-primary:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.08);
-    box-shadow: 0 12px 28px -10px rgb(140 64 239 / 0.9);
+.pf-v5-c-button.pf-m-primary {
+    padding-block: 0.65rem;
 }
 
-.pf-v5-c-button.pf-m-primary:active {
-    transform: translateY(0);
-    filter: brightness(0.96);
-}
-
-.pf-v5-c-button:focus-visible,
-.pf-v5-c-form-control:focus-within,
-a:focus-visible {
-    outline: 3px solid rgb(196 163 255 / 0.55);
+/* One focus style everywhere: an amber ring. */
+.login-pf a:focus-visible,
+.login-pf .pf-v5-c-button:focus-visible,
+.login-pf .pf-v5-c-form-control:focus-within,
+.login-pf .pf-v5-c-check__input:focus-visible {
+    outline: 2px solid var(--swirl-highlight);
     outline-offset: 2px;
 }
 
-.pf-v5-c-button.pf-m-secondary {
-    border-radius: 0.75rem;
-}
-
-/* Links: no underline at rest; one slides in on hover. */
+/* Links: plum, underlined on hover. */
 .login-pf a:not(.pf-v5-c-button) {
     color: var(--swirl-primary);
     text-decoration: none;
-    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
-    transition: background-size 200ms ease, color 150ms ease;
+    text-underline-offset: 3px;
 }
 
 .login-pf a:not(.pf-v5-c-button):hover {
-    color: #ad7cff;
-    background-size: 100% 1px;
+    text-decoration: underline;
 }
 
-/* Inputs: rounded fields with a soft border instead of PatternFly's underline. */
+/* Inputs: rounded fields with a 1px border instead of PatternFly's underline. */
 .pf-v5-c-form-control {
-    border-radius: 0.625rem;
+    border-radius: 0.5rem;
     box-shadow: inset 0 0 0 1px var(--swirl-input);
-    transition: box-shadow 150ms ease;
+    transition: box-shadow 120ms ease;
 }
 
 .pf-v5-c-form-control:hover {
-    box-shadow: inset 0 0 0 1px rgb(196 163 255 / 0.6);
+    box-shadow: inset 0 0 0 1px var(--swirl-primary);
 }
 
-.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control {
-    box-shadow: inset 0 0 0 1px var(--swirl-input);
-}
-
-.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control::after {
-    border-width: 0;
+/* The field's amber ring replaces the browser's outline on the input inside. */
+.pf-v5-c-form-control > :is(input, select, textarea):focus {
+    outline: none;
 }
 
 .pf-v5-c-form-control::before,
@@ -185,7 +176,16 @@ a:focus-visible {
     border-end-end-radius: 0;
 }
 
-.pf-v5-c-input-group__item:last-child > .pf-v5-c-button {
-    border-start-end-radius: 0.625rem;
-    border-end-end-radius: 0.625rem;
+.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control {
+    border-start-end-radius: 0.5rem;
+    border-end-end-radius: 0.5rem;
+    box-shadow: inset 0 0 0 1px var(--swirl-input);
+}
+
+.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control::after {
+    border-width: 0;
+}
+
+.pf-v5-c-check__input {
+    accent-color: var(--swirl-cta);
 }

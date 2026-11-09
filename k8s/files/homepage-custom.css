@@ -1,28 +1,25 @@
-/* Swirl colours from swirlit.dev, the same as the Keycloak sign-in theme
-   (files/keycloak-theme/swirl.css). settings.yaml selects Homepage's purple
-   palette; these values replace it. Homepage reads them as "R G B". */
+/* Swirl colours from swirlit.dev, as in the Keycloak sign-in theme
+   (files/keycloak-theme/swirl.css): plum on a neutral ink background, amber
+   for focus. Flat on purpose: solid fills and 1px borders, no gradients or
+   glows. settings.yaml selects Homepage's purple palette, which these values
+   replace; Homepage reads them as "R G B" and uses the dark theme. */
 .theme-purple {
-  --color-50: 248 246 253;
-  --color-100: 233 227 250;
-  --color-200: 244 241 251;
-  --color-300: 196 163 255;
-  --color-400: 173 124 255;
-  --color-500: 140 64 239;
-  --color-600: 115 42 207;
-  --color-700: 34 31 45;
-  --color-800: 18 16 27;
-  --color-900: 12 10 18;
-  --color-logo-start: 173 124 255;
-  --color-logo-stop: 91 22 194;
+  --color-50: 248 247 250;
+  --color-100: 234 231 238;
+  --color-200: 243 242 246;
+  --color-300: 185 161 222;
+  --color-400: 157 131 201;
+  --color-500: 118 70 173;
+  --color-600: 106 51 166;
+  --color-700: 34 32 37;
+  --color-800: 18 17 21;
+  --color-900: 12 11 14;
+  --color-logo-start: 169 139 216;
+  --color-logo-stop: 106 51 166;
 }
 
-/* The page: Swirl's near-black background with two soft purple glows. */
 html body {
-  background:
-    radial-gradient(60rem 40rem at 10% -10%, rgb(140 64 239 / 0.24), transparent 70%),
-    radial-gradient(50rem 35rem at 100% 110%, rgb(91 22 194 / 0.2), transparent 70%),
-    rgb(18 16 27);
-  background-attachment: fixed;
+  background: rgb(18 17 21);
 }
 
 #__next {
@@ -33,86 +30,73 @@ html body {
 .service-group-name {
   font-weight: 700;
   letter-spacing: -0.3px;
-  color: rgb(244 241 251);
+  color: rgb(243 242 246);
 }
 
 .service-group-icon {
-  color: rgb(196 163 255);
+  color: rgb(185 161 222);
 }
 
-/* Service cards: glassy, rounded, lifting with a purple glow on hover. */
+/* Service cards: solid, with a border that turns plum on hover. */
 .service-card {
-  border: 1px solid rgb(255 255 255 / 0.07);
-  border-radius: 0.875rem;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.025));
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  border: 1px solid rgb(54 52 58);
+  border-radius: 0.625rem;
+  background: rgb(27 26 31);
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .service-card:hover {
-  transform: translateY(-2px);
-  border-color: rgb(196 163 255 / 0.45);
-  background: linear-gradient(180deg, rgb(140 64 239 / 0.14), rgb(255 255 255 / 0.04));
-  box-shadow: 0 12px 32px -14px rgb(140 64 239 / 0.6);
-}
-
-.service-card:focus-within {
-  outline: 3px solid rgb(196 163 255 / 0.55);
-  outline-offset: 2px;
+  border-color: rgb(118 70 173);
+  background: rgb(34 32 37);
 }
 
 .service-name {
-  color: rgb(244 241 251);
+  color: rgb(243 242 246);
   font-weight: 600;
 }
 
 .service-description {
-  color: rgb(168 167 179);
+  color: rgb(169 168 172);
 }
 
-/* Information widgets: the search box as a rounded field with a purple focus ring. */
+/* The search box: a plain field. */
 .information-widget-search input {
-  border-radius: 0.75rem;
-  border-color: rgb(63 61 82);
-  background-color: rgb(255 255 255 / 0.05);
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
-.information-widget-search input:focus {
-  border-color: rgb(196 163 255);
-  box-shadow: 0 0 0 3px rgb(196 163 255 / 0.3);
-  outline: none;
+  border-radius: 0.5rem;
+  border-color: rgb(65 62 70);
+  background-color: rgb(27 26 31);
 }
 
 .information-widget-search button {
-  border-start-end-radius: 0.75rem;
-  border-end-end-radius: 0.75rem;
+  border-start-end-radius: 0.5rem;
+  border-end-end-radius: 0.5rem;
 }
 
-.information-widget-logo img {
-  filter: drop-shadow(0 6px 16px rgb(140 64 239 / 0.45));
-}
-
-/* Links and buttons elsewhere: Swirl purple, an underline that slides in. */
+/* Links elsewhere: plum, underlined on hover. */
 #footer a,
 .bookmark a {
-  color: rgb(196 163 255);
+  color: rgb(185 161 222);
   text-decoration: none;
-  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
-  transition: background-size 200ms ease, color 150ms ease;
+  text-underline-offset: 3px;
 }
 
 #footer a:hover,
 .bookmark a:hover {
-  color: rgb(173 124 255);
-  background-size: 100% 1px;
+  text-decoration: underline;
 }
 
 #myTab {
-  border-radius: 0.875rem;
+  border-radius: 0.625rem;
 }
 
+/* One focus style everywhere: an amber ring. */
 a:focus-visible,
-button:focus-visible {
-  outline: 3px solid rgb(196 163 255 / 0.55);
+button:focus-visible,
+input:focus-visible,
+.service-card:focus-within {
+  outline: 2px solid rgb(232 163 61);
   outline-offset: 2px;
+}
+
+.information-widget-search input:focus {
+  box-shadow: none;
 }

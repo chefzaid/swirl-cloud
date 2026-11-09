@@ -54,7 +54,7 @@ pieces fit together.
 
 - declarative Keycloak realm with password and brute-force policy
 - sign-in and account pages in English and French, following the browser
-- Swirl-branded sign-in pages in both realms: Keycloak's own theme in swirlit.dev's dark purple colours, headed by the Swirl mark and name, which is also the tab icon ([`k8s/files/keycloak-theme`](../k8s/files/keycloak-theme/))
+- Swirl-branded sign-in pages in both realms: Keycloak's own theme in swirlit.dev's plum colours, light or dark following the system, headed by the Swirl mark and name, which is also the tab icon ([`k8s/files/keycloak-theme`](../k8s/files/keycloak-theme/))
 - just-in-time administration: approved, recorded grants of 1-24 hours that end automatically
 - login and admin events kept 90 days in Keycloak and a year in `identity-audit-*` indices
 - native OIDC for GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo
@@ -134,7 +134,7 @@ pieces fit together.
 
 ## Administration And Corporate Tools
 
-- Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery, in the same Swirl colours as the sign-in pages, with the Swirl mark as logo and favicon ([`k8s/files/homepage-custom.css`](../k8s/files/homepage-custom.css))
+- Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery, in the same plum colours as the sign-in pages (dark), with the Swirl mark as logo and favicon ([`k8s/files/homepage-custom.css`](../k8s/files/homepage-custom.css))
 - Portainer, DBGate and Kafbat UI behind SSO; DBGate also signs in with Keycloak (`platform-admins`)
 - Descheduler for manual rebalancing
 - Odoo ERP with SSO and a persistent dark mode
