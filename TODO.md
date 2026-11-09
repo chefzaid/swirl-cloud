@@ -658,7 +658,7 @@ resource budgets, network policy, ingress/Access, Homepage, alerts and restore.
 - [ ] Mattermost: verify a supported edition/SSO path, PostgreSQL and file storage, then create deployment/release/alert channels with backups, quotas and service health checks.
 - [ ] Wire GitLab pipelines, Argo CD sync/health, Alertmanager, installer and Deployment UI notifications using scoped webhook credentials, deduplication and actionable links. Verify failure and recovery delivery; retain the external outage path in §14 because in-cluster Mattermost can fail with the platform.
 - [ ] Nexterm: verify supported SSO and audited session access behind Access; use dedicated non-root SSH credentials and narrow sudo rights. Prove the actual pod/node egress source before updating private SSH allowlists, and choose placement compatible with moving workloads off the old node. Preserve independent console/private SSH recovery.
-- [ ] Bitwarden for human logins: **ADR** comparing official self-hosting and Vaultwarden on supported clients, current SSO/licensing, updates and recovery. Disable open sign-ups, store required secrets in Vault, back up and restore-test data, and verify browser/mobile APIs without Access interception. Keep an independent emergency credential/recovery copy; HashiCorp Vault continues to hold machine secrets.
+- [ ] Bitwarden for human logins: the owner chose **Vaultwarden** (2026-11-09); it waits on the NAS (§31). Before deploying, confirm in an **ADR** against official self-hosting on supported clients, current SSO/licensing, updates and recovery. Disable open sign-ups, store required secrets in Vault, back up and restore-test data, and verify browser/mobile APIs without Access interception. Keep an independent emergency credential/recovery copy; HashiCorp Vault continues to hold machine secrets.
 - [ ] Apply the same opt-in service integration and restore requirements as §28; verify namespace placement in the ADR before adding new runtime resources.
 
 ### 30. Host backup and virtualization
@@ -669,6 +669,10 @@ resource budgets, network policy, ingress/Access, Homepage, alerts and restore.
 ### 31. Future hardware
 
 - [ ] NAS/private S3: choose a maintained implementation after checking current support/licensing and consumer API compatibility. Define separate buckets/credentials, durability, capacity, monitoring and migration for GitLab artifacts/Registry/LFS and other service files. Keep an independent offsite copy; NAS on the same site is not §16's disaster-recovery target by itself.
+- [ ] Once the NAS prerequisites above are met (implementation chosen, buckets and credentials, monitoring, and an offsite copy), deploy:
+  - **Vaultwarden** for staff passwords (§29): Keycloak SSO, open sign-ups off, admin token in Vault, attachments on the NAS, database in the platform PostgreSQL, browser and mobile apps tested without Access in the way, a restore test, and an emergency recovery copy kept off the platform.
+  - **Nextcloud** for files (§40): Keycloak SSO with group folders, files on the NAS through its S3 API, database in the platform PostgreSQL, Collabora Online or ONLYOFFICE for documents, quotas, a restore test, and the platform's flat plum theme.
+  Both follow the [platform capability checklist](docs/development.md#adding-a-platform-capability) and appear in the portal.
 - [ ] GPU LLM server: retain 512 GB–1 TB RAM and 120 GB+ aggregate VRAM as a candidate budget, then size from the actual model, quantization, context, concurrency, GPU interconnect and latency/throughput measurements before purchase. Compare a rented benchmark with expected usage/cost; expose the chosen runtime privately to Open WebUI and developer tools on separate or tainted capacity.
 
 ---
@@ -873,7 +877,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 ### 40. Business and workplace modules
 
 - [ ] Module catalog in the hub and portal generalizing the [platform capability checklist](docs/development.md#adding-a-platform-capability): each optional service declares dependencies, sizing, SSO, Vault secrets, network policy, backups, alerts and restore test, and installs or uninstalls with an explicit data-retention choice. §28 and §29 services become modules.
-- [ ] Files and office module: Nextcloud with Collabora Online or ONLYOFFICE, Keycloak SSO, object or Longhorn storage, backups and restore test.
+- [ ] Files and office module: Nextcloud with Collabora Online or ONLYOFFICE, Keycloak SSO, object or Longhorn storage, backups and restore test. Waits on the NAS (§31), which holds its files.
 - [ ] Video-conferencing module: Jitsi Meet with Keycloak-authenticated room creation and a TURN service.
 - [ ] Offer the mail and directory outcome of §27 as an installation option for customers.
 - [ ] Odoo business profiles: preconfigured module sets (CRM and sales, invoicing and accounting, projects and timesheets, HR) applied by the Odoo bootstrap, with French localization.
