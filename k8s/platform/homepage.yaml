@@ -480,7 +480,7 @@ spec:
         app.kubernetes.io/name: homepage
         app.kubernetes.io/part-of: swirl-cloud
       annotations:
-        swirl-cloud/config-revision: "10"
+        swirl-cloud/config-revision: "11"
         # settings.yaml uses subPath; replace pods when the organization title changes.
         swirl-cloud/organization-name: __ORGANIZATION_NAME_JSON__
         # Homepage finds local icons only at start; roll it when an icon is added or changed.

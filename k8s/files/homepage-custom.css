@@ -3,8 +3,11 @@
    full stop and keyboard focus. Depth comes from surfaces, borders and soft
    shadows, not gradients or glows. Same colours as the Keycloak sign-in theme
    (files/keycloak-theme/swirl.css). settings.yaml selects Homepage's purple
-   palette, which .theme-purple replaces; Homepage reads it as "R G B". */
-.theme-purple {
+   palette, which html.theme-purple replaces; Homepage reads it as "R G B".
+   Homepage links this file before its own stylesheets, so rules that compete
+   with Homepage's own (the palette, the page wrapper) carry the html element
+   to win on specificity rather than order. */
+html.theme-purple {
   --color-50: 248 247 250;
   --color-100: 234 231 238;
   --color-200: 243 242 246;
@@ -40,7 +43,7 @@ html body {
   letter-spacing: 0;
 }
 
-#__next {
+html body #__next {
   background: transparent;
 }
 
