@@ -93,7 +93,9 @@ data:
     description: Private cloud applications, infrastructure, data, delivery, and observability
     startUrl: https://cloud.__PUBLIC_DOMAIN__
     theme: dark
-    color: slate
+    # The purple palette, redefined with Swirl's colours in custom.css.
+    color: purple
+    favicon: /icons/swirl.svg
     language: en
     target: _blank
     headerStyle: clean
@@ -369,6 +371,8 @@ data:
             description: Cluster control and API service
 
   widgets.yaml: |
+    - logo:
+        icon: /icons/swirl.svg
     - kubernetes:
         cluster:
           show: true
@@ -401,12 +405,7 @@ data:
     {}
 
   custom.css: |
-    .service-card {
-      transition: transform 120ms ease, border-color 120ms ease;
-    }
-    .service-card:hover {
-      transform: translateY(-2px);
-    }
+    # swirl-cloud:file homepage-custom.css
 
   custom.js: |
     // Managed by swirl-cloud. Intentionally empty.
@@ -482,7 +481,7 @@ spec:
         app.kubernetes.io/name: homepage
         app.kubernetes.io/part-of: swirl-cloud
       annotations:
-        swirl-cloud/config-revision: "8"
+        swirl-cloud/config-revision: "9"
         # settings.yaml uses subPath; replace pods when the organization title changes.
         swirl-cloud/organization-name: __ORGANIZATION_NAME_JSON__
         # Homepage finds local icons only at start; roll it when an icon is added or changed.

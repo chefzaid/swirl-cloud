@@ -67,9 +67,11 @@
 }
 
 .pf-v5-c-login__main {
-    background-color: var(--swirl-surface);
-    border: 1px solid var(--swirl-border);
-    border-radius: 0.5rem;
+    background-color: rgb(31 30 47 / 0.88);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 1rem;
+    box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(140 64 239 / 0.08);
+    backdrop-filter: blur(12px);
     overflow: hidden;
 }
 
@@ -103,7 +105,87 @@
     font-weight: 700;
 }
 
+/* Buttons: a gradient call to action that lifts on hover, with a visible
+   focus ring for keyboard users. */
 .pf-v5-c-button.pf-m-primary {
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
+    padding-block: 0.7rem;
     font-weight: 600;
+    letter-spacing: 0.2px;
+    background-image: linear-gradient(135deg, #9d5cff 0%, var(--swirl-cta) 55%, var(--swirl-cta-hover) 100%);
+    box-shadow: 0 8px 24px -10px rgb(140 64 239 / 0.75);
+    transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow: 0 12px 28px -10px rgb(140 64 239 / 0.9);
+}
+
+.pf-v5-c-button.pf-m-primary:active {
+    transform: translateY(0);
+    filter: brightness(0.96);
+}
+
+.pf-v5-c-button:focus-visible,
+.pf-v5-c-form-control:focus-within,
+a:focus-visible {
+    outline: 3px solid rgb(196 163 255 / 0.55);
+    outline-offset: 2px;
+}
+
+.pf-v5-c-button.pf-m-secondary {
+    border-radius: 0.75rem;
+}
+
+/* Links: no underline at rest; one slides in on hover. */
+.login-pf a:not(.pf-v5-c-button) {
+    color: var(--swirl-primary);
+    text-decoration: none;
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+    transition: background-size 200ms ease, color 150ms ease;
+}
+
+.login-pf a:not(.pf-v5-c-button):hover {
+    color: #ad7cff;
+    background-size: 100% 1px;
+}
+
+/* Inputs: rounded fields with a soft border instead of PatternFly's underline. */
+.pf-v5-c-form-control {
+    border-radius: 0.625rem;
+    box-shadow: inset 0 0 0 1px var(--swirl-input);
+    transition: box-shadow 150ms ease;
+}
+
+.pf-v5-c-form-control:hover {
+    box-shadow: inset 0 0 0 1px rgb(196 163 255 / 0.6);
+}
+
+.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control {
+    box-shadow: inset 0 0 0 1px var(--swirl-input);
+}
+
+.pf-v5-c-input-group__item > .pf-v5-c-button.pf-m-control::after {
+    border-width: 0;
+}
+
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+    border-radius: inherit;
+}
+
+.pf-v5-c-form-control::after {
+    border-bottom-width: 0;
+}
+
+.pf-v5-c-input-group__item:first-child .pf-v5-c-form-control {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+}
+
+.pf-v5-c-input-group__item:last-child > .pf-v5-c-button {
+    border-start-end-radius: 0.625rem;
+    border-end-end-radius: 0.625rem;
 }
