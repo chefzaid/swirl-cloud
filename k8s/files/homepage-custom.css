@@ -1,5 +1,5 @@
 /* Swirl colours from swirlit.dev, as in the Keycloak sign-in theme
-   (files/keycloak-theme/swirl.css): plum on a neutral ink background, amber
+   (files/keycloak-theme/swirl.css): plum on a neutral ink background, orange
    for focus. Flat on purpose: solid fills and 1px borders, no gradients or
    glows. settings.yaml selects Homepage's purple palette, which these values
    replace; Homepage reads them as "R G B" and uses the dark theme. */
@@ -88,12 +88,12 @@ html body {
   border-radius: 0.625rem;
 }
 
-/* One focus style everywhere: an amber ring. */
+/* One focus style everywhere: an orange ring. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 .service-card:focus-within {
-  outline: 2px solid rgb(232 163 61);
+  outline: 2px solid rgb(232 101 15);
   outline-offset: 2px;
 }
 

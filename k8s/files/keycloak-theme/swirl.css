@@ -1,5 +1,5 @@
 /* Swirl colours from swirlit.dev (styles/base.css): plum, a deeper shade of
-   Scaleway's purple, on neutral backgrounds, with amber for focus. Flat on
+   Scaleway's purple, on neutral backgrounds, with one orange for focus. Flat on
    purpose: solid fills and 1px borders, no gradients or glows. */
 :root {
     --swirl-background: #f7f6f9;
@@ -11,7 +11,7 @@
     --swirl-primary: #5e2b93;
     --swirl-cta: #6a33a6;
     --swirl-cta-hover: #5a2b8e;
-    --swirl-highlight: #b8731a;
+    --swirl-highlight: #e8650f;
     --keycloak-card-top-color: var(--swirl-cta);
     --pf-v5-global--FontFamily--text: "DM Sans", "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
     --pf-v5-global--FontFamily--heading: "Manrope", "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -27,7 +27,6 @@
     --swirl-primary: #b9a1de;
     --swirl-cta: #7646ad;
     --swirl-cta-hover: #6a33a6;
-    --swirl-highlight: #e8a33d;
 }
 
 :root,
@@ -126,7 +125,7 @@
     padding-block: 0.65rem;
 }
 
-/* One focus style everywhere: an amber ring. */
+/* One focus style everywhere: an orange ring. */
 .login-pf a:focus-visible,
 .login-pf .pf-v5-c-button:focus-visible,
 .login-pf .pf-v5-c-form-control:focus-within,
@@ -157,7 +156,7 @@
     box-shadow: inset 0 0 0 1px var(--swirl-primary);
 }
 
-/* The field's amber ring replaces the browser's outline on the input inside. */
+/* The field's orange ring replaces the browser's outline on the input inside. */
 .pf-v5-c-form-control > :is(input, select, textarea):focus {
     outline: none;
 }
