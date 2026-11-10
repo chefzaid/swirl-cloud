@@ -45,6 +45,7 @@
 {{- if and (eq $path "platform/homepage.yaml") (eq ($root.Values.portalLanguage | default "en") "fr") -}}
 {{- /* scripts/render-identity.py applies the same text for the installer. */ -}}
 {{- $content = replace "\n    language: en\n" "\n    language: fr\n" $content -}}
+{{- $content = replace "const language = \"en\";" "const language = \"fr\";" $content -}}
 {{- range $english, $french := $root.Files.Get "files/homepage-fr.yaml" | fromYaml -}}
 {{- $content = replace (printf "description: %s\n" $english) (printf "description: %s\n" $french) $content -}}
 {{- end -}}

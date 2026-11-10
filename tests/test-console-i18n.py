@@ -136,6 +136,9 @@ class PortalTest(unittest.TestCase):
         self.assertIn("    language: fr\n", french.stdout)
         self.assertIn("description: Livraison continue GitOps\n", french.stdout)
         self.assertNotIn("description: GitOps continuous delivery\n", french.stdout)
+        # The header's search field (custom.js) labels itself in the portal's language.
+        self.assertIn('const language = "en";', english.stdout)
+        self.assertIn('const language = "fr";', french.stdout)
         rejected = self.render("de")
         self.assertNotEqual(0, rejected.returncode)
         self.assertIn("portalLanguage must be en or fr", rejected.stderr)

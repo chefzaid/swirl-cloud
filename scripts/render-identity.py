@@ -15,9 +15,13 @@ identity = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(identity)
 
 
+PORTAL_FILES = ("k8s/platform/homepage.yaml", "k8s/files/homepage-custom.js")
+
+
 def portal_in_french(content, root):
     """The French portal text templates/resources.yaml applies for portalLanguage fr."""
     content = content.replace("\n    language: en\n", "\n    language: fr\n")
+    content = content.replace('const language = "en";', 'const language = "fr";')
     for english, french in yaml.safe_load((root / "k8s/files/homepage-fr.yaml").read_text()).items():
         content = content.replace(f"description: {english}\n", f"description: {french}\n")
     return content
@@ -77,7 +81,7 @@ def render(root):
             if path == root / "k8s/platform/logging-agent.yaml" and settings["SOC_SYSLOG_HOST"]:
                 source = soc_forwarding(source, root, settings)
             content = pattern.sub(lambda match: replacements[match[0]], source)
-            if path == root / "k8s/platform/homepage.yaml" and settings["PORTAL_LANGUAGE"] == "fr":
+            if path.relative_to(root).as_posix() in PORTAL_FILES and settings["PORTAL_LANGUAGE"] == "fr":
                 content = portal_in_french(content, root)
             # configure-ingress.sh resolves the origin HSTS max-age from the edge inputs.
             unresolved = set(re.findall(r"__[A-Z][A-Z0-9_]+__", content)) - {"__RUNNER_TOKEN__", "__HSTS_MAX_AGE__"}

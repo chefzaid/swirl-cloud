@@ -134,7 +134,7 @@ pieces fit together.
 
 ## Administration And Corporate Tools
 
-- Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery, in the same plum colours as the sign-in pages (dark), with the Swirl mark as logo and favicon ([`k8s/files/homepage-custom.css`](../k8s/files/homepage-custom.css))
+- Homepage portal titled `<company name> Cloud` with live Kubernetes status and app discovery, in the same plum colours as the sign-in pages (dark), with the Swirl mark as logo and favicon, and a header search over the portal's apps and services (click, `/` or Ctrl+K), not the web ([`k8s/files/homepage-custom.css`](../k8s/files/homepage-custom.css), [`homepage-custom.js`](../k8s/files/homepage-custom.js))
 - Portainer, DBGate and Kafbat UI behind SSO; DBGate also signs in with Keycloak (`platform-admins`)
 - Descheduler for manual rebalancing
 - Odoo ERP with SSO and a persistent dark mode
