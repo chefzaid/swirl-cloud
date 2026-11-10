@@ -1114,6 +1114,13 @@ spec:
               value: "false"
             - name: GF_SECURITY_DISABLE_GRAVATAR
               value: "true"
+            # Grafana 13 updates its bundled data source plugins from
+            # grafana.com at startup. The read-only root filesystem makes the
+            # update fail after the old plugin is stopped, which left the
+            # Prometheus data source unregistered and every Prometheus panel
+            # empty. The plugins shipped in the image are used as they are.
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: "true"
             - name: GF_AUTH_BASIC_ENABLED
               value: "false"
             - name: GF_AUTH_GENERIC_OAUTH_ENABLED

@@ -55,7 +55,7 @@ installation:
 | Component | Default behaviour | Setting |
 | --- | --- | --- |
 | GitLab | Service Ping usage data and version checks | `usage_ping_enabled` and `version_check_enabled` set to false by the SSO bootstrap |
-| Grafana | Usage reports, update checks, news feed and Gravatar images | `GF_ANALYTICS_*`, `GF_NEWS_NEWS_FEED_ENABLED` and `GF_SECURITY_DISABLE_GRAVATAR` |
+| Grafana | Usage reports, update checks, news feed, Gravatar images and plugin downloads at startup | `GF_ANALYTICS_*`, `GF_NEWS_NEWS_FEED_ENABLED`, `GF_SECURITY_DISABLE_GRAVATAR` and `GF_PLUGINS_PREINSTALL_DISABLED` |
 | Kibana | Usage telemetry | `--telemetry.optIn=false`, locked for users |
 | SonarQube | Anonymous statistics | `SONAR_TELEMETRY_ENABLE=false` |
 | Portainer | Anonymous statistics | `EnableTelemetry: false` set by its bootstrap |
