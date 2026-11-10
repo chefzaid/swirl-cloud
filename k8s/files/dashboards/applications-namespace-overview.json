@@ -51,7 +51,7 @@
       "title": "Unavailable Deployments",
       "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum((kube_deployment_spec_replicas{namespace=~\"$namespace\"} - kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) > 0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum((kube_deployment_spec_replicas{namespace=~\"$namespace\"} - kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) > 0) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },

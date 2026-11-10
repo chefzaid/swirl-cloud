@@ -101,7 +101,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service) (rate(traefik_service_requests_total{code=~\"5..\"}[5m])) / sum by (service) (rate(traefik_service_requests_total[5m]))",
+          "expr": "(sum by (service) (rate(traefik_service_requests_total{code=~\"5..\"}[5m])) or sum by (service) (rate(traefik_service_requests_total[5m])) * 0) / sum by (service) (rate(traefik_service_requests_total[5m]))",
           "legendFormat": "{{service}}"
         }
       ]

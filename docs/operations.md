@@ -199,7 +199,9 @@ metadata:
     prometheus.io/port: "8080"
 ```
 
-**No data** means no series, not a healthy endpoint. Apps own detailed
+The endpoint panels (targets up, endpoint health, scrape duration) appear only
+for applications with an annotated pod or pod template. On those panels, **No
+data** means no series, not a healthy endpoint. Apps own detailed
 instrumentation; extra ConfigMaps labeled `grafana_dashboard: "1"` still load.
 Each Grafana dashboard links to a Kibana view on `kubernetes-logs-v2-*`. Filters
 organize data; they are not access controls.

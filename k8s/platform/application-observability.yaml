@@ -81,6 +81,8 @@ data:
     const kindKey = object => `${object.kind}/${object.metadata.name}`;
 
     const resourceKey = object => `${object.metadata.namespace}/${kindKey(object)}`;
+    // The kubernetes-pods scrape job keeps only pods with this annotation.
+    const scrapeAnnotated = metadata => metadata?.annotations?.['prometheus.io/scrape'] === 'true';
     export function discover(objects, namespaces = ['apps']) {
       const workloads = objects.filter(object => namespaces.includes(object.metadata?.namespace));
       const byName = new Map(workloads.map(object => [resourceKey(object), object]));
@@ -99,11 +101,14 @@ data:
           root = parent;
         }
         const key = resourceKey(root);
-        if (!roots.has(key)) roots.set(key, { root, pods: new Set() });
-        if (object.kind === 'Pod') roots.get(key).pods.add(object.metadata.name);
+        if (!roots.has(key)) roots.set(key, { root, pods: new Set(), scraped: false });
+        if (object.kind === 'Pod') {
+          roots.get(key).pods.add(object.metadata.name);
+          if (scrapeAnnotated(object.metadata)) roots.get(key).scraped = true;
+        }
       }
       const applications = new Map();
-      for (const { root, pods } of roots.values()) {
+      for (const { root, pods, scraped } of roots.values()) {
         const metadata = root.metadata;
         const template = root.kind === 'CronJob' ? root.spec?.jobTemplate?.spec?.template : root.spec?.template;
         const labels = { ...template?.metadata?.labels, ...metadata.labels };
@@ -122,9 +127,11 @@ data:
         if (!applications.has(key)) applications.set(key, {
           key, uid: `apps-${hash(key).slice(0, 20)}`, namespace: metadata.namespace,
           name: metadata.namespace === 'apps' ? identity[1] : `${identity[1]} (${metadata.namespace})`, workloads: [], patterns: new Set(),
+          scraped: false,
         });
         const application = applications.get(key);
         application.workloads.push(kindKey(root));
+        if (scraped || scrapeAnnotated(template?.metadata)) application.scraped = true;
         const name = escapeRegex(metadata.name);
         const suffix = {
           Deployment: '-[a-z0-9]+-[a-z0-9]+', StatefulSet: '-[0-9]+', DaemonSet: '-[a-z0-9]+',
@@ -144,8 +151,10 @@ data:
     export function grafanaDashboard(application, kibanaUrl) {
       const selector = `namespace=${JSON.stringify(application.namespace)},pod=~${JSON.stringify(application.patterns.join('|'))}`;
       const datasource = { type: 'prometheus', uid: 'prometheus' };
+      // Workloads without the scrape annotation get no scrape panels, which would only ever be empty.
+      const stat = application.scraped ? 6 : 8;
       const panel = (id, title, expressions, unit, x, y, type = 'timeseries') => ({
-        id, title, type, datasource, gridPos: { x, y, w: type === 'stat' ? 6 : 12, h: type === 'stat' ? 4 : 8 },
+        id, title, type, datasource, gridPos: { x, y, w: type === 'stat' ? stat : 12, h: type === 'stat' ? 4 : 8 },
         targets: expressions.map((expr, index) => ({
           refId: String.fromCharCode(65 + index), expr,
           legendFormat: expr.includes('by (pod)') ? '{{pod}}' : '{{pod}} / {{container}}', instant: type === 'stat',
@@ -157,23 +166,27 @@ data:
       });
       return {
         uid: application.uid, title: `Applications / ${application.name}`,
-        description: `Automatically managed from ${application.namespace}: ${application.workloads.join(', ')}. CPU, memory, readiness and restarts use cluster metrics. Scrape panels need prometheus.io/scrape annotations; no data means no metric series, not a healthy target.`,
+        description: `Automatically managed from ${application.namespace}: ${application.workloads.join(', ')}. CPU, memory, readiness and restarts use cluster metrics. ${application.scraped
+          ? 'Scrape panels follow the pods annotated prometheus.io/scrape; no data there means no metric series, not a healthy target.'
+          : 'No pod is annotated prometheus.io/scrape, so there are no scrape panels.'}`,
         tags: ['applications', 'auto-discovered', 'swirl-cloud'], timezone: 'browser', schemaVersion: 41,
         version: 1, refresh: '30s', time: { from: 'now-6h', to: 'now' }, editable: false,
         links: [{ title: 'Application logs in Kibana', type: 'link', url: `${kibanaUrl}/app/dashboards#/view/${application.uid}-logs`, targetBlank: true }],
         panels: [
           panel(1, 'Pods', [`count(kube_pod_info{${selector}}) or vector(0)`], 'short', 0, 0, 'stat'),
-          panel(2, 'Ready pods', [`sum(kube_pod_status_ready{${selector},condition="true"}) or vector(0)`], 'short', 6, 0, 'stat'),
-          panel(3, 'Restarts (1h)', [`sum(increase(kube_pod_container_status_restarts_total{${selector}}[1h])) or vector(0)`], 'short', 12, 0, 'stat'),
-          panel(4, 'Metrics endpoints up', [`sum(up{job="kubernetes-pods",${selector}})`], 'short', 18, 0, 'stat'),
+          panel(2, 'Ready pods', [`sum(kube_pod_status_ready{${selector},condition="true"}) or vector(0)`], 'short', stat, 0, 'stat'),
+          panel(3, 'Restarts (1h)', [`sum(increase(kube_pod_container_status_restarts_total{${selector}}[1h])) or vector(0)`], 'short', 2 * stat, 0, 'stat'),
+          ...application.scraped ? [panel(4, 'Metrics endpoints up', [`sum(up{job="kubernetes-pods",${selector}})`], 'short', 18, 0, 'stat')] : [],
           panel(5, 'CPU by pod', [`sum by (pod) (rate(container_cpu_usage_seconds_total{${selector},container!="",image!=""}[$__rate_interval]))`], 'cores', 0, 4),
           panel(6, 'Memory working set by pod', [`sum by (pod) (container_memory_working_set_bytes{${selector},container!="",image!=""})`], 'bytes', 12, 4),
           panel(7, 'Network received by pod', [`sum by (pod) (rate(container_network_receive_bytes_total{${selector}}[$__rate_interval]))`], 'Bps', 0, 12),
           panel(8, 'Network sent by pod', [`sum by (pod) (rate(container_network_transmit_bytes_total{${selector}}[$__rate_interval]))`], 'Bps', 12, 12),
           panel(9, 'Container readiness', [`kube_pod_container_status_ready{${selector}}`], 'short', 0, 20),
           panel(10, 'Restarts by container', [`increase(kube_pod_container_status_restarts_total{${selector}}[1h])`], 'short', 12, 20),
-          panel(11, 'Metrics endpoint health', [`up{job="kubernetes-pods",${selector}}`], 'short', 0, 28),
-          panel(12, 'Prometheus scrape duration', [`scrape_duration_seconds{job="kubernetes-pods",${selector}}`], 's', 12, 28),
+          ...application.scraped ? [
+            panel(11, 'Metrics endpoint health', [`up{job="kubernetes-pods",${selector}}`], 'short', 0, 28),
+            panel(12, 'Prometheus scrape duration', [`scrape_duration_seconds{job="kubernetes-pods",${selector}}`], 's', 12, 28),
+          ] : [],
         ],
       };
     }

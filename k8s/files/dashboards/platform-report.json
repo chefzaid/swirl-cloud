@@ -1384,7 +1384,9 @@
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "No drill recorded in this period"
+        },
         "overrides": [
           {
             "matcher": {

@@ -216,7 +216,7 @@
             "mode": "fixed",
             "fixedColor": "text"
           },
-          "noValue": "Set server costs"
+          "noValue": "None recorded"
         },
         "overrides": []
       },
