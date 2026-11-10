@@ -5,7 +5,7 @@
   "tags": ["trivy", "security", "kubernetes", "provisioned"],
   "timezone": "browser",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "refresh": "1m",
   "time": {"from": "now-24h", "to": "now"},
   "templating": {
@@ -15,7 +15,7 @@
         "label": "Namespace",
         "type": "query",
         "datasource": {"type": "prometheus", "uid": "prometheus"},
-        "query": {"query": "label_values(trivy_image_vulnerabilities, namespace)", "refId": "TrivyNamespace"},
+        "query": {"query": "label_values(trivy_image_vulnerabilities, exported_namespace)", "refId": "TrivyNamespace"},
         "includeAll": true,
         "allValue": ".*",
         "multi": true,
@@ -31,7 +31,7 @@
       "title": "Critical Vulnerabilities",
       "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum(trivy_image_vulnerabilities{namespace=~\"$namespace\",severity=\"Critical\"}) or vector(0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum(trivy_image_vulnerabilities{exported_namespace=~\"$namespace\",severity=\"Critical\"}) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },
@@ -41,7 +41,7 @@
       "title": "High Vulnerabilities",
       "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum(trivy_image_vulnerabilities{namespace=~\"$namespace\",severity=\"High\"}) or vector(0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum(trivy_image_vulnerabilities{exported_namespace=~\"$namespace\",severity=\"High\"}) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },
@@ -51,7 +51,7 @@
       "title": "High/Critical Misconfigurations",
       "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum(trivy_resource_configaudits{namespace=~\"$namespace\",severity=~\"High|Critical\"}) or vector(0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum(trivy_resource_configaudits{exported_namespace=~\"$namespace\",severity=~\"High|Critical\"}) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },
@@ -61,7 +61,7 @@
       "title": "Exposed Secrets",
       "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum(trivy_image_exposedsecrets{namespace=~\"$namespace\"}) or vector(0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum(trivy_image_exposedsecrets{exported_namespace=~\"$namespace\"}) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },
@@ -91,7 +91,7 @@
       "title": "Vulnerabilities by Severity",
       "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum by (severity) (trivy_image_vulnerabilities{namespace=~\"$namespace\"})", "legendFormat": "{{severity}}", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum by (severity) (trivy_image_vulnerabilities{exported_namespace=~\"$namespace\"})", "legendFormat": "{{severity}}", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
       "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true}
     },
@@ -101,7 +101,7 @@
       "title": "Configuration Findings by Severity",
       "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum by (severity) (trivy_resource_configaudits{namespace=~\"$namespace\"})", "legendFormat": "{{severity}}", "instant": true}],
+      "targets": [{"refId": "A", "expr": "sum by (severity) (trivy_resource_configaudits{exported_namespace=~\"$namespace\"})", "legendFormat": "{{severity}}", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
       "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true}
     },
@@ -111,8 +111,8 @@
       "title": "Vulnerability Report Summary by Workload",
       "gridPos": {"x": 0, "y": 12, "w": 24, "h": 9},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "sum by (namespace, resource_kind, resource_name, container_name, severity) (trivy_image_vulnerabilities{namespace=~\"$namespace\"})", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "sum by (exported_namespace, resource_kind, resource_name, container_name, severity) (trivy_image_vulnerabilities{exported_namespace=~\"$namespace\"})", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
@@ -122,8 +122,8 @@
       "title": "Detailed Vulnerabilities (All Severities)",
       "gridPos": {"x": 0, "y": 21, "w": 24, "h": 11},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_vulnerability_id{namespace=~\"$namespace\"}", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "trivy_vulnerability_id{exported_namespace=~\"$namespace\"}", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
@@ -133,8 +133,8 @@
       "title": "Configuration Audit Findings",
       "gridPos": {"x": 0, "y": 32, "w": 12, "h": 10},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_configaudits_info{namespace=~\"$namespace\",config_audit_success=\"false\"}", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "trivy_configaudits_info{exported_namespace=~\"$namespace\",config_audit_success=\"false\"}", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
@@ -143,8 +143,8 @@
       "title": "RBAC Assessment Findings",
       "gridPos": {"x": 12, "y": 32, "w": 12, "h": 10},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_rbacassessments_info{namespace=~\"$namespace\",rbac_assessment_success=\"false\"}", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "trivy_rbacassessments_info{exported_namespace=~\"$namespace\",rbac_assessment_success=\"false\"}", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
@@ -153,8 +153,8 @@
       "title": "Exposed Secret Findings",
       "gridPos": {"x": 0, "y": 42, "w": 12, "h": 9},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_exposedsecrets_info{namespace=~\"$namespace\"}", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "trivy_exposedsecrets_info{exported_namespace=~\"$namespace\"}", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
@@ -163,8 +163,8 @@
       "title": "Infrastructure Assessment Findings",
       "gridPos": {"x": 12, "y": 42, "w": 12, "h": 9},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_infraassessments_info{namespace=~\"$namespace\",infra_assessment_success=\"false\"}", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "targets": [{"refId": "A", "expr": "trivy_infraassessments_info{exported_namespace=~\"$namespace\",infra_assessment_success=\"false\"}", "instant": true, "format": "table"}],
+      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}, {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "container": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true}, "renameByName": {"exported_namespace": "namespace"}}}],
       "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
@@ -173,8 +173,10 @@
       "title": "Cluster Compliance Reports",
       "gridPos": {"x": 0, "y": 51, "w": 24, "h": 9},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "trivy_compliance_info", "instant": true, "format": "table"}],
-      "transformations": [{"id": "labelsToFields", "options": {"mode": "columns"}}],
+      "description": "Controls passing and failing in each ClusterComplianceReport. Failing checks per control: kubectl get clustercompliancereport <name> -o yaml.",
+      "targets": [{"refId": "A", "expr": "sum by (title, status) (trivy_cluster_compliance)", "instant": true, "format": "table"}],
+      "transformations": [{"id": "groupingToMatrix", "options": {"columnField": "status", "rowField": "title", "valueField": "Value"}}, {"id": "organize", "options": {"indexByName": {"title\\status": 0, "Pass": 1, "Fail": 2}, "renameByName": {"title\\status": "Standard", "Pass": "Controls passing", "Fail": "Controls failing"}}}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": [{"matcher": {"id": "byName", "options": "Controls failing"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}]}]},
       "options": {"showHeader": true, "cellHeight": "sm"}
     }
   ]

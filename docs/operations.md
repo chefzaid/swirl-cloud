@@ -157,6 +157,8 @@ Trivy Operator ([trivy.yaml](../k8s/platform/trivy.yaml), scanner settings in
 configuration, RBAC, exposed-secret, infrastructure and compliance reports
 (secret findings hold no values). For private application images, declare
 `imagePullSecrets` on the workload or ServiceAccount; the application owns them.
+In Trivy metrics, `exported_namespace` is the scanned workload's namespace;
+`namespace` is the operator pod's (`infra`), set by the scrape job.
 
 ```bash
 kubectl get vulnerabilityreports,configauditreports,exposedsecretreports -A
