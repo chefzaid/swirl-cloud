@@ -36,25 +36,6 @@ Repeated gaps in the inventory point to their owning roadmap section; they are
 not separate implementations. Close operational items only with a dated result
 (restore, migration or failure drill); source/render checks alone are insufficient.
 
-**Reviewing for gaps** (added 2026-11-11, after a review checked this inventory
-against itself and missed that only administrators can use the platform):
-
-1. Start from the people, not the inventory. For each kind of person the product
-   serves (owner, administrator, IT support, developer, ordinary employee,
-   manager, contractor, an application's customer, auditor), walk their first
-   day, an ordinary day, a bad day and their last day against the platform as it
-   runs today.
-2. Follow each step to its end through every layer: edge, sign-in, service, data
-   and record. An area is covered when the person reaches the outcome, not when
-   an item with the right name exists.
-3. Look for every place the design assumes one: one administrator group, one
-   realm, one company, one brand, one approver, one recipient. Each is where a
-   second person, team or company breaks it.
-4. Rank findings by what stops a real company soonest, and say which seats the
-   review did not take.
-5. Check what a person sees (portal, sign-in page, email) as that person, through
-   the public address, not in a copy.
-
 ## Bugs to fix
 
 Defects found while working on another task: misconfiguration, drift, failing
@@ -755,6 +736,7 @@ product. §44 covers go-to-market and market validation. §45 adds everyday
 features for any company. §46 adds the operating controls a regulated mid-size
 company expects. §47 covers people who are not administrators: realms, access
 roles, the portal each person sees, and tickets for IT support and access.
+§48 lists services still missing for the platform, developers and employees.
 
 Recovery and operating gaps (Part V P0/P1) stay ahead of this roadmap: a product
 cannot be sold before its own backups, MFA and alerting are proven.
@@ -909,7 +891,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [ ] French electronic invoicing in Odoo. **Overdue for the company's own installation:** every French company has had to be able to receive e-invoices since 2026-09-01, and SMEs and micro-enterprises must issue them and send e-reporting from 2027-09-01 ([economie.gouv.fr](https://www.economie.gouv.fr/tout-savoir-sur-la-facturation-electronique-pour-les-entreprises), news items up to 2026-10-12). Odoo is an approved platform (plateforme agréée) through the `l10n_fr_pdp` module, which sends UBL and receives Factur-X, UBL and CII ([Odoo documentation](https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/france.html), read 2026-10-23). Steps: check that `odoo/addons/l10n_fr_pdp` exists in the pinned Community image `odoo:19.0-20260908`; it is unverified whether the module works on Community, and the documentation names Enterprise only for the EDI VAT return. Then activate the module with the legal representative's identity check, or record the other approved platform already designated ([Needs Input](#needs-input)). Add Odoo SA to the external-services inventory and the processing records as the platform that receives invoice data. Test receiving, then test issuing before 2027-09-01. The "invoicing and accounting" profile above then ships the same activation steps for customers.
 - [ ] **ADR — workplace suite:** package openDesk Community Edition (an existing Kubernetes-based sovereign workplace, [openDesk docs](https://docs.opendesk.eu/operations/introduction)) or La Suite numérique components behind Keycloak, or assemble the files, video and chat modules above separately. Check openDesk's deployment tooling and Community licence terms first (unverified). Also decide whether the vendor applies to the ZenDiS partner programme, which opened 2026-09-23 and takes applications until 2027-01-31. Its approved sovereign service providers need a BSI C5 attestation and SEAL-3; certified integrators need open-source and Kubernetes experience ([cloudmagazin, 2026-09-27](https://www.cloudmagazin.com/fr/2026/09/27/opendesk-souvre-aux-fournisseurs-cloud-prives/)). Partners pay EUR 18 000 a year with a two-year minimum ([WZ-IT, 2026-09-27](https://wz-it.com/en/blog/opendesk-partner-program-smes-nextcloud/), secondary source).
 - [ ] Knowledge base module: a self-hosted wiki (Outline, Docmost or BookStack, ADR) with Keycloak SSO, group permissions from the project resource (§34), full-text search, backups and a restore test; the platform's runbooks can be published into it.
-- [ ] IT helpdesk module: ticketing for staff and customers (Zammad, or Odoo Helpdesk if the edition allows, ADR) with Keycloak SSO, email intake through the mail relay, SLA timers and a link to the asset inventory (§36). Its first use is the tickets for IT support and access rights of §47, which moves this item to P2.
+- [ ] IT helpdesk module: ticketing for staff and customers with Zammad (chosen in §47), Keycloak SSO, email intake, SLA timers and a link to the asset inventory (§36). Its first use is the tickets for IT support and access rights of §47, which moves this item to P2.
 - [ ] Privacy-friendly web analytics module (Umami, Plausible Community Edition or Matomo, ADR) for the company website and applications: no third-party cookies, IP truncation, data kept on the platform, configured to meet the CNIL's conditions for consent-exempt audience measurement, with a per-site dashboard.
 - [ ] Document signing module (DocuSeal or Documenso, ADR): templates, signing by email with an audit trail and a sealed PDF, Keycloak SSO for senders, Odoo integration for quotes and contracts. Record which eIDAS signature level it provides (simple electronic signature unless a qualified provider is connected).
 - [ ] If §27 keeps Microsoft 365 or Google Workspace: back up mailboxes, calendars and drives onto the platform's backup target (for example Corso for Microsoft 365), with a restore test, since the providers' retention is not a backup.
@@ -983,11 +965,9 @@ running cost.
 
 ### 46. Enterprise operations and controls (added 2026-11-11)
 
-Operating features and controls a regulated mid-size company expects, found
-missing in a review of the source, the documentation and the website on
-2026-11-11. Each closes a failure that nothing alerts on today, an access that
-cannot be traced to a person, or a question auditors and buyers ask. None adds a
-service to run unless it says so.
+Operating features and controls a regulated mid-size company expects: failures
+that nothing alerts on today, access that cannot be traced to a person, and
+what auditors and buyers ask to see.
 
 Alerting and operations:
 
@@ -1026,21 +1006,17 @@ Application delivery:
 
 Evidence:
 
-- [ ] Change records. §35 refers twice to change records that no item defines. Record every change to production as one entry: promotions to `prod`, pushes under `k8s/` (which deploy at once), installer and Ansible runs, upgrades and just-in-time grants, each with who asked, who approved, the revision, the pipeline, the result and the way back, assembled from Git, GitLab, Argo CD and the run records. `./install.sh --change-log --since <date>` prints them, the evidence pack carries the month's log, and emergency changes are flagged for review afterwards (ISO/IEC 27001 A.8.32). Done when a month's log on `swirlit-node-01` matches Argo CD's sync history for `prod`.
+- [ ] Change records, which §35's release freezes and feature flags rely on. Record every change to production as one entry: promotions to `prod`, pushes under `k8s/` (which deploy at once), installer and Ansible runs, upgrades and just-in-time grants, each with who asked, who approved, the revision, the pipeline, the result and the way back, assembled from Git, GitLab, Argo CD and the run records. `./install.sh --change-log --since <date>` prints them, the evidence pack carries the month's log, and emergency changes are flagged for review afterwards (ISO/IEC 27001 A.8.32). Done when a month's log on `swirlit-node-01` matches Argo CD's sync history for `prod`.
 - [ ] Two-person approval for production. GitLab Community Edition cannot require merge-request approvals, so one person can write, merge and deploy a change to `prod`, and a push under `k8s/` in this repository reaches the live cluster at once. The release gate (`deploy-application.py` and the pipeline contract) requires an approval from someone other than the author before a `prod` promotion, and merges to this repository's `main` get the same check. An installation with one operator records the waiver as an accepted risk with a review date. This is segregation of duties (ISO/IEC 27001 A.5.3). Done when a self-approved promotion of a test application is refused and the approval appears in the change record.
 - [ ] Control calendar. The catalog evaluates technical controls continuously, but the periodic duties are scattered dates: quarterly access reviews, restore and exit drills, game days, key rotations, reviews of accepted risks and vulnerability exceptions, the penetration test and the policy reviews of the ISMS kit. Hold them as data (duty, period, owner, last done, evidence), show what is due in `--status` and the Platform Report, alert when one is overdue, and let each command that performs a duty (`--access-review`, `--game-day`, the restore drill) record its completion. Audits fail on a missed periodic review more often than on a missing tool. Done when an overdue test duty alerts and running its command clears it.
 - [ ] Exposure check from outside. The firewall and the edge are verified only from the servers themselves. On a schedule, from outside the platform (the outage watch's location or the reference installation of §44), check each server's public address for open ports against the expected list, and confirm that the origin refuses web traffic that did not come through the edge, that administration hosts answer only with the sign-in gate, that every DNS record of the zone points at something the platform owns (no leftover record open to takeover), and that DNSSEC validates. The dated result answers the questionnaire's external-scan question (§36), and a difference raises an alert. Done when a port opened on a disposable host is reported at the next run.
 
 ### 47. People, access and IT support (added 2026-11-11)
 
-Access today is one group: `platform-admins` opens everything, the portal
-included, and nobody else can open the portal at all. Any other account in the
-realm still gets rights nobody granted ([Bugs to fix](#bugs-to-fix)), and
-applications sign their users in to the same realm as the internal tools. This
-section follows an ordinary employee, their manager, the IT support person and
-an application's customer from first sign-in to departure. §34's role model
-says what a person may do inside a service; these items decide who may open it,
-who grants that, and how people ask.
+Access for people who are not administrators. Today `platform-admins` opens
+everything, the portal included, and nobody else can open the portal. §34's
+role model says what a person may do inside a service; these items decide who
+may open it, who grants that, and how people ask.
 
 - [ ] **ADR — realms:** a realm is a set of people who cannot sign in to another realm's services. Decide which realms an installation carries: the staff realm for internal tools; a customer realm for the users of public applications (below); and, where one installation serves several companies or subsidiaries, a realm per company, compared with Keycloak Organizations inside one realm. State how the tools that exist only once (GitLab, Grafana, Argo CD) admit more than one realm. The onboarding contract names the realm each application signs in to. Done when a test account of one realm is refused by every service of another.
 - [ ] An access role for every service and application, refused without it. Each platform service and each onboarded application gets an access role on its Keycloak client, next to the application's own roles declared in the onboarding contract. Keycloak refuses the sign-in when the person lacks the role, which also covers services that cannot check roles themselves (GitLab Community Edition, Portainer). Today's implicit rights go ([Bugs to fix](#bugs-to-fix)).
@@ -1058,7 +1034,8 @@ who grants that, and how people ask.
   - Done when a realm administrator grants and removes a role without `platform-admins`, is refused when granting `platform-admins`, and each action appears in the identity events under their name.
 - [ ] A portal that shows each person their own services. Open the portal to every signed-in person of the realm and build its list from their roles: first the services they can open, then those they could ask for, greyed, with a "Request access" link that opens the ticket below. Services marked hidden in the contract are not sent to the browser at all. Cluster usage, pod status and the infrastructure groups show to administrators only. Homepage has no per-person view, so this is a filter in front of its service list using the identity OAuth2 Proxy already passes, or the portal chosen in §35's ADR. Done when two test accounts with different roles see different portals, a greyed tile opens a filled-in access request, and the name of a hidden service appears nowhere in the page or its API answers for a person without the role.
 - [ ] Tickets for IT support and access rights: one place where staff ask for help and for access. It is the first use of the helpdesk module (§40), which moves up from P3 with it.
-  - **ADR** on the tool: Zammad, GLPI or a helpdesk add-on for Odoo Community. Odoo's own Helpdesk is Enterprise only, and GLPI needs MariaDB, which the platform does not offer. It needs Keycloak sign-in, email intake through the mail relay, and French and English. GitLab Service Desk stays for vendor support (§39).
+  - The tool is **Zammad**: free and open source (AGPL-3.0, with no paid edition or locked feature), widely used, and its maker sells support contracts for self-hosted installations (from EUR 2 999 a year, [pricing](https://zammad.com/en/pricing), read 2026-11-11). It runs on PostgreSQL, Redis and Elasticsearch, which the platform already has (check that it supports the platform's Elasticsearch version, or give it its own), signs in through Keycloak with OpenID Connect or SAML ([documented for Keycloak](https://admin-docs.zammad.org/en/latest/settings/security/third-party/saml/saml-keycloak.html)), and comes in French and English. GLPI was the alternative: it adds device inventory, but it needs MariaDB and its single sign-on plugin needs a paid subscription. GitLab Service Desk stays for vendor support (§39).
+  - Requests also arrive by email with no sign-in, so a person locked out of their account can still ask; that needs a mailbox (§27) or an inbound route like the chat's Email Worker (§22). Zammad's knowledge base holds the how-to articles people read before asking, and its shared inboxes serve addresses such as `support@`.
   - An access request names the person, the service or application, the role, the reason and an optional end date. It goes to the service's owner (from the onboarding contract or the platform's catalog), and to the requester's manager too for a sensitive role.
   - Approval applies the grant: a job with a Keycloak account limited to role assignments adds the role, records the ticket number with it, tells the requester and closes the ticket. A refusal says why. Nobody edits roles by hand for a ticketed request.
   - Every grant therefore has a ticket (who asked, who approved, when, why and until when), which the access review (§36) and the change records (§46) read.
@@ -1066,9 +1043,36 @@ who grants that, and how people ask.
   - Done when a test user requests a role from a greyed portal tile, the owner approves, the role works within a minute without an administrator, and the access review shows the ticket beside the grant.
 - [ ] Accounts and roles with an end date. Contractors, interns, auditors and temporary project access are where access outlives its reason. A guest account needs a sponsor among the staff and an end date, and any role grant may carry one. The job that already ends just-in-time administrator grants ([security detection](docs/guides/security-detection.md)) ends these too: it warns the person and the sponsor a week before, removes the role at its date and disables a guest account at its end. Done when a test guest loses access at the set time and the sponsor received the warning.
 - [ ] Access reviews by the people who know. `--access-review` gives one administrator one sheet for everything. Each quarter, every service or application owner gets a ticket listing who holds its roles, since when and under which request, and keeps or revokes each line; managers get the same for their team. Unanswered lines are escalated, then the grant ends. The signed result joins the evidence pack, and the control calendar (§46) tracks the campaign. Done when a test campaign revokes one grant through the ticket and records the reviewer and date for every line.
-- [ ] Customer accounts for public applications, in their own realm (ADR above): self-registration with a verified email address, password reset, sign-in pages in the application's own name and colours instead of Swirl's, acceptance of the application's terms, optional sign-in through an outside identity provider, and account deletion by the customer, wired to the `privacy` hook of §36. An application gets all of it by naming the customer realm in its contract. Registration is off in the organization realm today, and turning it on there would give every customer the implicit rights above, so no application can let the public sign up through Keycloak. Done when a test customer registers on a test application, is refused by every internal tool, and deletes their account with its data.
+- [ ] Customer accounts for public applications, in their own realm (ADR above): self-registration with a verified email address and protection against bots that needs no non-EU captcha service, password reset, sign-in pages in the application's own name and colours instead of Swirl's, acceptance of the application's terms, optional sign-in through an outside identity provider, and account deletion by the customer, wired to the `privacy` hook of §36. An application gets all of it by naming the customer realm in its contract. Registration is off in the organization realm today, and turning it on there would give every customer the implicit rights above, so no application can let the public sign up through Keycloak. Done when a test customer registers on a test application, is refused by every internal tool, and deletes their account with its data.
 - [ ] IT charter acceptance at first sign-in. Keycloak's terms step shows the company's acceptable-use policy (the charte informatique, from the ISMS kit of §36) in French or English at the first sign-in and again when it changes, and records the acceptance with its date and version. The access review lists who has not accepted. Auditors ask for this record, and a charter that people were never shown is hard to enforce. Done when a new account must accept before reaching the portal and the acceptances are in the evidence pack.
 - [ ] Notices to the people affected. When a maintenance window (§4) or an incident touches a service, the people who hold its access role get an email and see a banner on the portal ("GitLab: maintenance tonight, 22:00 to 23:00"), in French and English, written from the declared window or the incident record, and removed when it ends. Only administrators learn of either today. Done when a test window shows the banner to the service's users only and clears itself.
+
+### 48. Services for the platform, developers and employees (added 2026-11-11)
+
+Services a company expects from its cloud that the platform neither runs nor
+plans elsewhere. Each follows the
+[platform capability checklist](docs/development.md#adding-a-platform-capability):
+opt-in, pinned images, single sign-on, secrets in Vault, backups with a restore
+test, alerts and a portal entry.
+
+For the platform:
+
+- [ ] Setup checklist for the first administrator. `./install.sh --status` and the administrators' portal list the steps a new installation still owes, each with its command, until it is done: the recovery kit exported off the host, an off-site backup target set and a restore tested, alert notifications on with a tested receiver, a second administrator, the SSH policy chosen and a maintenance window declared. The checks read the platform's own state, most of it already in `verify-platform.py`. Done when a fresh installation lists every step and each one disappears when it is done.
+- [ ] MariaDB as a data service. The platform offers PostgreSQL, MongoDB, Redis and Kafka, but much of what a company already runs needs MySQL or MariaDB: WordPress and most PHP applications, and candidate modules such as BookStack and Matomo (§40). Add MariaDB (GPL-2.0, with support sold by MariaDB plc and others) as an opt-in data service like PostgreSQL: per-environment users from the application data profile, a nightly dump in the recovery archive, an exporter and alerts, a DBGate connection, claims (§34), and replication in the HA profile later. Done when a WordPress site is onboarded on it and restored from the nightly archive.
+- [ ] Malware scanning for uploaded files. ClamAV (`clamd`, GPL-2.0) runs as a shared service in `infra`; the file service (§40), mail if it is self-hosted (§27) and any application through the onboarding contract send uploads to it and refuse infected files. Signatures come through a private mirror, so strict mode (§33) needs no outside call, and an alert fires when they are older than three days. Malware protection is a standard questionnaire question (ISO/IEC 27001 A.8.7). Done when the EICAR test file is refused by a test application and by the file service.
+- [ ] Package proxy for builds. CI downloads npm, Maven, PyPI and apt packages from the internet on every build: builds fail when a public registry is down, strict and offline installations (§32, §33) cannot build at all, and nothing records which outside packages entered the company. GitLab's Dependency Proxy covers container images only. Add a caching proxy that CI and development workspaces use by default, with a list of allowed upstream registries. **ADR:** Pulp (GPL-2.0, backed by Red Hat) or Sonatype Nexus Repository Community Edition (free, capped at 100 000 components and 200 000 requests a day, [Sonatype](https://www.sonatype.com/products/nexus-repository-community-edition/learn), read 2026-11-11). Done when a test project builds with the runners' access to the public registries closed.
+
+For developers:
+
+- [ ] Mail catcher for non-production. Mailpit (MIT) is the SMTP server of `int` and `uat`: the onboarding contract gives those environments its address in place of the relay's, so a test never emails a real customer, and developers read the captured messages on its page behind Keycloak, per environment. Needed before test data comes from production (§46). Done when an email sent by a test application in `uat` appears in Mailpit and never reaches the relay.
+- [ ] Static sites and documentation with GitLab Pages, which ships with GitLab and is not set up today. Projects publish documentation, reports and small sites from CI; private ones are readable by project members only. It also hosts the versioned product documentation of §32. Done when a project's documentation is published from its pipeline and a non-member is refused.
+
+For employees and IT support:
+
+- [ ] Remote assistance on staff computers, started from a ticket (§47): the support agent sees and controls the person's screen once the person accepts, and the session is recorded on the ticket (who, when, how long). Reachable only through the staff VPN (§45) or from enrolled devices (§37). **ADR:** MeshCentral (Apache-2.0, signs in through Keycloak; check that it is still maintained) or RustDesk (AGPL-3.0; its free server has no web console or single sign-on, which are in the paid Pro server, [RustDesk](https://rustdesk.com/pricing), read 2026-11-11). Done when a support agent helps a test laptop outside the office and the session appears on the ticket.
+- [ ] Backup of staff computers. Laptops hold work that exists nowhere else, and file sync copies a file encrypted by ransomware to the server as faithfully as a good one. Back up staff computers to the platform's object storage (§31), encrypted on the device, with versions the device cannot delete, a status per device for IT support and an alert when a device has not backed up for a week. **ADR:** UrBackup (AGPL-3.0, a server with a status page per device) or Kopia (Apache-2.0, with a repository server). Done when a folder deleted on a test laptop is restored from another machine, and a week without a backup raises the alert.
+- [ ] Sign-in for equipment that cannot use single sign-on. Office Wi-Fi, NAS, printers and VPN appliances speak LDAP or RADIUS, not OpenID Connect, so they end up with shared passwords that survive every departure. Offer LDAP and RADIUS on the same accounts and groups: FreeRADIUS (GPL-2.0) in front of the directory chosen in §27's ADR, since Keycloak cannot serve LDAP itself, with one service account per device. Done when a test access point admits a person with their own account and refuses them once the account is disabled.
+- [ ] Cost per team. Cost showback splits each server's cost by environment, namespace and workload (§34). Add the split by team or department, from the job profiles of §47 and each application's owner, so a manager sees what their team's applications and environments cost each month, in Cost Showback and the Platform Report. Done when two test teams' costs add up to the platform's total.
 
 ---
 
@@ -1123,8 +1127,10 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Major-version upgrades of data stores and Odoo, and kept Kubernetes events | `--upgrade` (§32) and a restored copy to rehearse on; end-of-life dates from the licence register | §46 |
 | P2 | Branding as an installation input | Owner's choice ([Needs Input](#needs-input)); a test installation under another name shows the chosen brand on the sign-in pages, the portal and emails | §32 |
 | P2 | Realms, an access role per service and application, administration per realm and the portal each person sees | Realm ADR first; today's implicit rights removed ([Bugs to fix](#bugs-to-fix)); a new account opens nothing until a role is granted | §47 |
-| P2 | Tickets for IT support and access rights, end-dated access, owner access reviews and IT charter acceptance | Helpdesk tool ADR (§40) and the roles above; a requested role is granted from the ticket without an administrator | §40, §47 |
+| P2 | Tickets for IT support and access rights, end-dated access, owner access reviews and IT charter acceptance | Zammad installed (§40) and the roles above; a requested role is granted from the ticket without an administrator | §40, §47 |
+| P2 | Setup checklist, mail catcher for non-production, package proxy and GitLab Pages | Useful from the first installation; the mail catcher before production-like test data (§46); the proxy before strict and offline installations build software (§32–33) | §48 |
 | P3 | Customer accounts realm and notices to the people affected | Realm ADR; maintenance windows as data (§4); a test customer is refused by every internal tool | §47 |
+| P3 | MariaDB, malware scanning, remote assistance, staff computer backup, equipment sign-in and cost per team | A first application or module that needs each; object storage (§31) for device backups; the directory ADR (§27) for equipment sign-in; job profiles (§47) for cost per team | §48 |
 | P3 | ILM/task naming and new-install Kafka identity cleanup | Preserve existing indices and Kafka cluster identity | §1, §10 |
 | P3 | Optional installer web UI, n8n and Open WebUI/RAG | Proven engine/capacity, source permissions, regional routing and usage budgets | §23, §28 |
 | P3 | Additional backup products, virtualization, NAS and GPU server | Named need, compatibility/restore proof and measured sizing/cost | §30–31 |
