@@ -235,6 +235,8 @@ Write these decisions before implementing:
 - virtualization layer: Apache CloudStack versus KubeVirt
 - S3 object storage for backups and GitLab: MinIO versus alternatives
 - application outbound control: an egress proxy with NetworkPolicies versus a network plugin with host-name policies
+- realms: staff, customer and per-company realms (or Keycloak Organizations), and how single-instance tools admit them
+- helpdesk tool for IT support and access requests: Zammad, GLPI or an Odoo Community add-on
 
 ## ADR Template
 
