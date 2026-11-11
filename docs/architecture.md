@@ -234,6 +234,7 @@ Write these decisions before implementing:
 - password manager: Bitwarden versus Vaultwarden
 - virtualization layer: Apache CloudStack versus KubeVirt
 - S3 object storage for backups and GitLab: MinIO versus alternatives
+- application outbound control: an egress proxy with NetworkPolicies versus a network plugin with host-name policies
 
 ## ADR Template
 
