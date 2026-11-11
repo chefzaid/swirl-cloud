@@ -36,6 +36,25 @@ Repeated gaps in the inventory point to their owning roadmap section; they are
 not separate implementations. Close operational items only with a dated result
 (restore, migration or failure drill); source/render checks alone are insufficient.
 
+**Reviewing for gaps** (added 2026-11-11, after a review checked this inventory
+against itself and missed that only administrators can use the platform):
+
+1. Start from the people, not the inventory. For each kind of person the product
+   serves (owner, administrator, IT support, developer, ordinary employee,
+   manager, contractor, an application's customer, auditor), walk their first
+   day, an ordinary day, a bad day and their last day against the platform as it
+   runs today.
+2. Follow each step to its end through every layer: edge, sign-in, service, data
+   and record. An area is covered when the person reaches the outcome, not when
+   an item with the right name exists.
+3. Look for every place the design assumes one: one administrator group, one
+   realm, one company, one brand, one approver, one recipient. Each is where a
+   second person, team or company breaks it.
+4. Rank findings by what stops a real company soonest, and say which seats the
+   review did not take.
+5. Check what a person sees (portal, sign-in page, email) as that person, through
+   the public address, not in a copy.
+
 ## Bugs to fix
 
 Defects found while working on another task: misconfiguration, drift, failing
@@ -126,6 +145,8 @@ change and ask the owner before pushing it.
 - [ ] Are Vault references for installer secrets still wanted? On an installed host a rerun already keeps every stored secret when its input is left empty, and `NAME_FILE` and `--secrets-stdin` keep secrets out of the input file. A `NAME_VAULT=<path>#<key>` reference would add a third way, read with the Vault root token on the control plane, and could never serve a fresh install or a recovery. Options: (a) drop the item; (b) implement it for reruns only. *(task: §32 › secret resolution, P3; asked by: Infra Agent)*
   - Answer:
 - [ ] Which key signs release bundles in CI, and where does it live? `release.py bundle --sign-key` signs with an SSH key today. Options: (a) a dedicated key in Vault, read by a protected tag pipeline in GitLab (the key can sign on the platform it releases); (b) a key kept offline by you, with CI building unsigned bundles that you sign before publishing; (c) the same key as the evidence packs (see the evidence-pack question above). The public key then goes in the documentation so customers can verify. *(task: §32 › signed bundles in CI, P2; asked by: Infra Agent)*
+  - Answer:
+- [ ] Whose name and logo should a customer's staff see on the sign-in pages and the portal? Every installation shows "Swirl" and "Swirl Cloud" on the sign-in pages and "Swirl." in the portal header (`k8s/files/keycloak-theme/messages_*.properties` and `swirl.css`, `k8s/files/homepage-custom.css`), while the portal's title and the README promise the installing company's name. That is right for Swirl's own installation; on a customer's, their staff would sign in to "Swirl". Options: (a) Swirl everywhere, as the product's brand; (b) the customer's name, logo and accent colour from installation inputs, with "Powered by Swirl Cloud" in the footer; (c) the customer's when a logo is supplied, Swirl otherwise. *(task: §32 › branding as an installation input, P2; asked by: Infra Agent)*
   - Answer:
 
 ---
@@ -758,6 +779,7 @@ cannot be sold before its own backups, MFA and alerting are proven.
 - [x] Third-party licence register: [`config/third-party-licences.yaml`](config/third-party-licences.yaml) records every image, chart and tool in the release SBOM with its SPDX licence (read from each source repository, 2026-10-27), source, `customer_use` and obligations; `validate-repository.sh` fails on an SBOM entry without a valid record or a record without an SBOM entry, and bundles ship `THIRD_PARTY_NOTICES` ([releases](docs/guides/releases.md#third-party-licences)). Vault 2.x is BUSL-1.1, which the earlier list missed. The components marked `decision-needed` (Vault, Redis 8, MongoDB, the Elastic images, `cp-kafka`) wait in [Needs Input](#needs-input); SonarQube, Odoo and Portainer are recorded as allowed under their community licences. This feeds the licensing ADR, and the website's editions page depends on it.
 - [x] The HAProxy images that the `redis-ha` and `argo-cd` charts deploy in HA profiles are pinned by digest (`public.ecr.aws/docker/library/haproxy:3.3.10-alpine`), so the SBOM, the licence register and Renovate list them. *(2026-10-27)*
 - [ ] Secure-by-default product profile, kept separate from this installation's choices. New installations require MFA for `platform-admins` (`--admin-mfa require`), use key-only SSH with a key-provisioning step in the installer (§4), bind the application policy pack in `Deny` for `prod`, and keep vendor telemetry off. Each opt-out is an explicit input recorded in the evidence pack. The CRA requires a secure-by-default configuration for products placed on the market from 2027-12-11 ([Annex I](https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng)). Depends on the `Deny` move (§36).
+- [ ] Branding as an installation input: the name, logo and accent colour on the sign-in pages, the portal, the favicon and platform emails come from the installation's inputs, like the organization name (ADR 0020), instead of being fixed to Swirl in the theme files. Waits on the choice in [Needs Input](#needs-input). Done when a test installation under another name shows no Swirl name or mark except where that choice keeps one.
 - [ ] Measure installation. Every installer run, including failed ones, writes a record under `/var/lib/swirl-cloud/` (phases, durations, exit class, versions), and `--status` shows it. Release qualification times an express install on a reference host, from bare Ubuntu to a passing `verify-platform.py --strict` and the first SSO login. It runs with and without the offline bundle, on at least two named EU offers, and writes the median time and success rate to the release notes and the support matrix. Until then, neither Part IV's "installs in hours" nor the website gives an install time. Depends on the release qualification pipeline. *Progress 2026-10-26:* run records done for the installer engine (`./install.sh` and unattended `--env-file` runs): each run writes `/var/lib/swirl-cloud/install-runs/<run>.jsonl` (mode, revision, versions, steps with times, result, exit code, duration; no inputs), and `--status` shows the last one ([verify the result](docs/deployment.md#verify-the-result)). *Progress 2026-10-27:* `ansible/install.yml` and `ansible/deploy.yml` runs write the same record through a callback plugin (mode `ansible:<playbook>`, one step per task, no variables; check-mode runs skipped). Still open: release qualification.
 - [ ] Small-company and evaluation profile (§26): one server below today's 24 GiB minimum. SonarQube and Kafka are optional, and a lighter log store is offered (chosen in an ADR). The support matrix gives the profile's measured requests and monthly cost at current list prices. Done when it installs from a README quick start on one named EU offer without help from the vendor. Server prices rose in 2026 ([Hetzner, new orders from 2026-06-15](https://docs.hetzner.com/de/general/infrastructure-and-availability/price-adjustment/)), so memory sets most of the fixed cost the product promises.
 - [ ] Signed release and update feed, hosted by the vendor in the EU. It carries release bundles, security advisories (CSAF with VEX) and, where the licence register allows, mirrors of the Trivy database and the pinned images for strict and offline installations. The hub and `--status` report available updates. Component update checks stay off (§33), so this feed is the single disclosed update channel, listed in the external-services inventory. From 2027-12-11 the CRA requires update notification and secure update distribution. Depends on bundles built and signed in CI.
@@ -1025,8 +1047,9 @@ who grants that, and how people ask.
   - Job profiles: groups such as Developer, Sales or Accounting bundle the roles a job needs, so a newcomer gets one profile instead of twenty roles (§45 joiner).
   - Each access role maps to at least a read-only level inside its service; the role model of §34 decides the rest.
   - A role can be marked sensitive: it then needs a second factor (§11, §37) and the manager's approval as well as the owner's.
+  - The edge follows the roles. Ten administration hosts, the portal included, sit behind Cloudflare Access with an email list typed at installation (`CLOUDFLARE_ACCESS_ALLOWED_EMAILS`, `DEFAULT_CLOUDFLARE_ACCESS_HOST_LABELS` in `config/platform.env`), so a person granted a role in Keycloak is still stopped at the edge. Each host's Access policy takes the role from Keycloak's token instead of that list, so a grant or a removal needs no configurator run; the edge without Cloudflare (§33) gets the same rule.
   - Removing a role ends the access: Keycloak ends the person's sessions for that service and signs them out where the service supports it. The longest delay per service is documented.
-  - Done when a new account with no role opens nothing but its own account page, opens a service once its role is granted, and loses it within the documented delay once the role is removed.
+  - Done when, through the public addresses, a new account with no role opens nothing but its own account page, opens a service once its role is granted, and loses it within the documented delay once the role is removed.
 - [ ] Administration per realm without a platform administrator. Everyday access work needs `platform-admins` today, which gives full rights over the whole platform to whoever resets a password. Add delegated roles, limited with Keycloak's fine-grained admin permissions:
   - Realm administrator: creates, suspends and removes the realm's people, assigns job profiles and access roles, and sees who holds what. Cannot grant `platform-admins`, change clients or see another realm.
   - Application owner: grants and removes the roles of their own application only.
@@ -1098,6 +1121,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Outbound allowlists, security checks in CI, server package scans, application-owned alerts and offboarding | Report mode before enforcement, `prod` first; contract changes adopted by the application repositories | §46 |
 | P2 | Change records, two-person approval, control calendar and outside exposure check | What auditors and buyers ask to see; a second approver or a recorded waiver; a location outside the platform for the scan | §46 |
 | P2 | Major-version upgrades of data stores and Odoo, and kept Kubernetes events | `--upgrade` (§32) and a restored copy to rehearse on; end-of-life dates from the licence register | §46 |
+| P2 | Branding as an installation input | Owner's choice ([Needs Input](#needs-input)); a test installation under another name shows the chosen brand on the sign-in pages, the portal and emails | §32 |
 | P2 | Realms, an access role per service and application, administration per realm and the portal each person sees | Realm ADR first; today's implicit rights removed ([Bugs to fix](#bugs-to-fix)); a new account opens nothing until a role is granted | §47 |
 | P2 | Tickets for IT support and access rights, end-dated access, owner access reviews and IT charter acceptance | Helpdesk tool ADR (§40) and the roles above; a requested role is granted from the ticket without an administrator | §40, §47 |
 | P3 | Customer accounts realm and notices to the people affected | Realm ADR; maintenance windows as data (§4); a test customer is refused by every internal tool | §47 |
