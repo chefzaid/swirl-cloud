@@ -14,6 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from install_inputs import resolve
 from platform_mail import MailError, check, default_port
 
 PASS, WARN, FAIL, INFO = "PASS", "WARN", "FAIL", "INFO"
@@ -172,6 +173,9 @@ def smtp_relay(values):
 
 
 def credential_checks(values):
+    # Secrets may come from protected files (NAME_FILE); test those too. Unreadable
+    # files are left to Review, which reports them.
+    values, _ = resolve(values)
     results = []
     if values.get("CLOUDFLARE_API_TOKEN"):
         results += cloudflare(values["CLOUDFLARE_API_TOKEN"], values.get("PLATFORM_DOMAIN"))

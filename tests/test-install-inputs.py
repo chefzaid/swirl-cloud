@@ -257,6 +257,22 @@ class InstallInputs(unittest.TestCase):
         for leaked in ("glpat-", PASSWORD, "cfut_", "BEGIN OPENSSH"):
             self.assertNotIn(leaked, text)
 
+    def test_credential_checks_test_secrets_read_from_protected_files(self):
+        import tui_checks
+        secret = self.dir / "smtp"
+        secret.write_text("relay-password\n")
+        secret.chmod(0o600)
+        seen = {}
+        original = tui_checks.smtp_relay
+        tui_checks.smtp_relay = lambda values: seen.update(values) or [("PASS", "SMTP relay", "ok")]
+        try:
+            results = tui_checks.credential_checks({"PLATFORM_MAIL_HOST": "smtp.example.com",
+                                                    "PLATFORM_MAIL_PASSWORD_FILE": str(secret)})
+        finally:
+            tui_checks.smtp_relay = original
+        self.assertEqual(results, [("PASS", "SMTP relay", "ok")])
+        self.assertEqual(seen.get("PLATFORM_MAIL_PASSWORD"), "relay-password")
+
 
 if __name__ == "__main__":
     unittest.main()
