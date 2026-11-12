@@ -12,7 +12,8 @@ INSTALL_RECORD_STARTED="$(date +%s)"
 # Appends one event; arguments are key=value pairs.
 install_record_event() {
     [[ -n "$INSTALL_RECORD_FILE" ]] || return 0
-    python3 - "$@" >> "$INSTALL_RECORD_FILE" 2>/dev/null <<'PY' || true
+    local line
+    line="$(python3 - "$@" 2>/dev/null <<'PY'
 import json, sys, time
 from datetime import datetime, timezone
 event = dict(argument.split("=", 1) for argument in sys.argv[1:])
@@ -20,6 +21,12 @@ event["at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 event["epoch"] = int(time.time())
 print(json.dumps(event))
 PY
+)" || return 0
+    # The default directory sits under root's 0700 /var/lib/swirl-cloud, which the
+    # invoking user cannot traverse even to reach its own file; append through
+    # passwordless sudo then, as the Ansible callback does.
+    { printf '%s\n' "$line" >> "$INSTALL_RECORD_FILE"; } 2>/dev/null ||
+        printf '%s\n' "$line" | sudo -n tee -a "$INSTALL_RECORD_FILE" >/dev/null 2>&1 || true
 }
 
 # Creates this run's record while sudo is fresh; later events need no sudo

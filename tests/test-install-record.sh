@@ -65,6 +65,15 @@ for case in 0:success 130:interrupted 143:interrupted 2:failed; do
     grep -q "\"result\": \"${case#*:}\"" "$INSTALL_RECORD_FILE" || fail "Exit ${case%:*} is not recorded as ${case#*:}"
 done
 
+# Under root's 0700 /var/lib/swirl-cloud the user cannot reach its own record;
+# events then go through passwordless sudo.
+INSTALL_RECORD_FILE="$WORK/unreachable/run.jsonl"
+# shellcheck disable=SC2329  # called by install_record_event
+sudo() { [[ "$*" == "-n tee -a $INSTALL_RECORD_FILE" ]] && cat >> "$WORK/through-sudo.jsonl"; }
+install_record_step 'Through sudo' 2>/dev/null || fail 'An unreachable record stops the installer'
+grep -q '"name": "Through sudo"' "$WORK/through-sudo.jsonl" 2>/dev/null || \
+    fail 'Events are not appended through sudo when the record cannot be reached'
+
 INSTALL_RECORD_FILE=""
 sudo() { return 1; }
 install_record_start prompts 2>/dev/null || fail 'An unwritable record directory stops the installer'
