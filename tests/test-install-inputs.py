@@ -257,6 +257,23 @@ class InstallInputs(unittest.TestCase):
         for leaked in ("glpat-", PASSWORD, "cfut_", "BEGIN OPENSSH"):
             self.assertNotIn(leaked, text)
 
+    def test_repository_import_passes_a_token_read_from_a_protected_file(self):
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("install_tui", ROOT / "scripts/install-tui.py")
+        hub = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hub)
+        token = self.dir / "github"
+        token.write_text("github-token\n")
+        token.chmod(0o600)
+        seen = {}
+        with patch.object(hub, "unit_exists", return_value=True), \
+                patch.object(hub, "run_logged", side_effect=lambda title, command, env: seen.update(env) or (0, None)):
+            hub.import_repositories(None, {"REPOSITORY_SOURCE": "github", "GITHUB_USERNAME": "example",
+                                           "GITHUB_ADMIN_TOKEN_FILE": str(token), "GITHUB_REPOSITORIES": "app"})
+        self.assertEqual(seen.get("GITHUB_ADMIN_TOKEN"), "github-token")
+        self.assertNotIn("GITHUB_ADMIN_TOKEN_FILE", seen)
+
     def test_credential_checks_test_secrets_read_from_protected_files(self):
         import tui_checks
         secret = self.dir / "smtp"

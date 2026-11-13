@@ -371,8 +371,10 @@ def import_repositories(dialog, values):
         return
     names = ("REPOSITORY_SOURCE", "GITLAB_PROJECTS", "GITHUB_USERNAME", "GITHUB_ADMIN_TOKEN", "GITHUB_REPOSITORIES",
              "DEPLOY_REPOSITORIES")
+    # The GitHub token may come from a protected file (GITHUB_ADMIN_TOKEN_FILE).
+    resolved, _ = resolve(values)
     code, log = run_logged("Import repositories", [str(ROOT / "add-repos.sh")],
-                           {name: values[name] for name in names if values.get(name)})
+                           {name: resolved[name] for name in names if resolved.get(name)})
     if code:
         dialog.message(f"Repository import stopped (exit code {code}). Last lines:\n\n{tail(log)}\n\nLog: {log}")
 
