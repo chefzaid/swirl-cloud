@@ -198,6 +198,10 @@ def restart_alertmanager():
 
 def rerun_realm_reconciliation():
     """Sync the root Application so its PostSync Keycloak reconciliation applies the settings."""
+    # A first installation configures mail before Argo CD exists; its first sync runs
+    # the reconciliation anyway.
+    if not kubectl("get", "crd", "applications.argoproj.io", "-o", "json", optional=True):
+        return False
     name = "swirl-cloud"
     deadline = time.monotonic() + 600
     while True:

@@ -162,6 +162,20 @@ class PlatformMail(unittest.TestCase):
         self.assertIn("unchanged", output)
         self.assertFalse(any("rollout" in call or "annotate" in call for call in self.calls))
 
+    def test_a_first_installation_configures_mail_before_argo_cd_exists(self):
+        installed = self.kubectl_run
+
+        def before_argo_cd(args, input=None, **kwargs):
+            if "application" in args and "get" in args:
+                self.calls.append([str(argument) for argument in args])
+                return subprocess.CompletedProcess(args, 1, "", "the server doesn't have a resource type \"application\"")
+            return installed(args, input=input, **kwargs)
+
+        self.kubectl_run = before_argo_cd
+        output, failure = self.configure(FakeVault())
+        self.assertIsNone(failure, output)
+        self.assertFalse(any("application" in call and "swirl-cloud" in call for call in self.calls))
+
     def test_values_that_would_break_headers_yaml_or_json_are_rejected(self):
         identity = {"PLATFORM_DOMAIN": "example.com", "ORGANIZATION_NAME": "Example"}
         good = dict(host="smtp.example.com", port=None, tls="ssl", username="resend", sender=None,
