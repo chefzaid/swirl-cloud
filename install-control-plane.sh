@@ -1137,6 +1137,11 @@ EOF
             "$CLOUDFLARE_SCRIPT"
         fi
 
+        # Vault checks Keycloak's discovery URL, so its first bootstrap defers SSO
+        # sign-in until Keycloak runs (and, with Cloudflare, answers publicly).
+        step "Connecting Vault sign-in to Keycloak..."
+        VAULT_SSO_ONLY=true "$VAULT_BOOTSTRAP_SCRIPT" infra
+
         [[ -x "$GITLAB_CI_SCRIPT" ]] || error "GitLab CI configurator is not executable: $GITLAB_CI_SCRIPT"
         [[ -r "$GITLAB_TOKEN_LIBRARY" ]] || error "GitLab token helper is missing: $GITLAB_TOKEN_LIBRARY"
         # shellcheck source=scripts/lib/gitlab-admin-token.sh

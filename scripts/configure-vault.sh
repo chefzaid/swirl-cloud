@@ -119,6 +119,52 @@ done < <(jq -r '.items[] | select(.status.phase == "Running") |
   select(any(.metadata.ownerReferences[]?; .kind == "StatefulSet" and .name == "vault")) |
   .metadata.name | select(test("^vault-[0-9]+$"))' <<< "$vault_pods")
 
+# Vault sign-in through Keycloak. Vault checks the discovery URL when the config is
+# written, so a first installation, which configures Vault before Keycloak runs or
+# before public DNS reaches this cluster, defers it with a warning: the installer
+# retries after the platform services (VAULT_SSO_ONLY=true), and the bootstrap
+# token keeps working meanwhile.
+configure_vault_sso() {
+  local discovery_url="https://keycloak.$PLATFORM_DOMAIN/auth/realms/$KEYCLOAK_REALM" client_secret output
+  client_secret="$(vault_cmd_auth "$root_token" kv get -field=vault_client_secret secret/infra/keycloak)"
+
+  if ! vault_cmd_auth "$root_token" auth list -format=json | jq -e '."oidc/"' >/dev/null 2>&1; then
+    info "Enabling Vault OIDC authentication..."
+    vault_cmd_auth "$root_token" auth enable oidc >/dev/null
+  fi
+
+  info "Configuring Vault OIDC authentication against the $KEYCLOAK_REALM Keycloak realm..."
+  if ! output="$(vault_cmd_auth "$root_token" write auth/oidc/config \
+      oidc_discovery_url="$discovery_url" \
+      oidc_client_id="vault" \
+      oidc_client_secret="$client_secret" \
+      default_role="platform-admin" 2>&1 >/dev/null)"; then
+    [[ "$output" == *"oidc discovery URL"* ]] || error "Vault rejected its OIDC configuration: $output"
+    warn "Vault SSO sign-in waits until Keycloak answers at $discovery_url; the installer retries after the platform services, or rerun ./install.sh."
+  fi
+
+  cat <<'EOF' | vault_stdin_auth "$root_token" policy write platform-admin >/dev/null
+path "*" {
+  capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+}
+EOF
+
+  jq -n --arg redirect_uri "https://vault.$PLATFORM_DOMAIN/ui/vault/auth/oidc/oidc/callback" '
+    {
+      role_type: "oidc",
+      bound_audiences: ["vault"],
+      allowed_redirect_uris: [$redirect_uri, "http://localhost:8250/oidc/callback"],
+      user_claim: "preferred_username",
+      groups_claim: "groups",
+      oidc_scopes: ["openid", "profile", "email", "groups"],
+      bound_claims: {groups: "platform-admins"},
+      policies: ["platform-admin"],
+      ttl: "1h",
+      max_ttl: "8h"
+    }
+  ' | vault_stdin_auth "$root_token" write auth/oidc/role/platform-admin >/dev/null
+}
+
 info "Waiting for Vault pod ($VAULT_POD) to be running..."
 kubectl wait --for=jsonpath='{.status.phase}'=Running "pod/$VAULT_POD" -n "$NAMESPACE" --timeout=300s >/dev/null
 
@@ -158,6 +204,11 @@ fi
 
 status_json="$(vault_cmd status -format=json 2>/dev/null || true)"
 [[ -n "$status_json" ]] || error "Unable to read Vault status after unseal."
+
+if [[ "${VAULT_SSO_ONLY:-false}" == "true" ]]; then
+  configure_vault_sso
+  exit 0
+fi
 sealed="$(echo "$status_json" | jq -r '.sealed')"
 [[ "$sealed" == "false" ]] || error "Vault remains sealed after unseal attempt."
 
@@ -467,43 +518,8 @@ for keycloak_sso_field in "${!keycloak_sso_defaults[@]}"; do
   fi
 done
 
-keycloak_sso_secret_json="$(vault_cmd_auth "$root_token" kv get -format=json secret/infra/keycloak)"
-vault_oidc_client_secret="$(jq -r '.data.data.vault_client_secret' <<<"$keycloak_sso_secret_json")"
+configure_vault_sso
 
-if ! vault_cmd_auth "$root_token" auth list -format=json | jq -e '."oidc/"' >/dev/null 2>&1; then
-  info "Enabling Vault OIDC authentication..."
-  vault_cmd_auth "$root_token" auth enable oidc >/dev/null
-fi
-
-info "Configuring Vault OIDC authentication against the $KEYCLOAK_REALM Keycloak realm..."
-vault_cmd_auth "$root_token" write auth/oidc/config \
-  oidc_discovery_url="https://keycloak.$PLATFORM_DOMAIN/auth/realms/$KEYCLOAK_REALM" \
-  oidc_client_id="vault" \
-  oidc_client_secret="$vault_oidc_client_secret" \
-  default_role="platform-admin" >/dev/null
-
-cat <<'EOF' | vault_stdin_auth "$root_token" policy write platform-admin >/dev/null
-path "*" {
-  capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
-}
-EOF
-
-jq -n --arg redirect_uri "https://vault.$PLATFORM_DOMAIN/ui/vault/auth/oidc/oidc/callback" '
-  {
-    role_type: "oidc",
-    bound_audiences: ["vault"],
-    allowed_redirect_uris: [$redirect_uri, "http://localhost:8250/oidc/callback"],
-    user_claim: "preferred_username",
-    groups_claim: "groups",
-    oidc_scopes: ["openid", "profile", "email", "groups"],
-    bound_claims: {groups: "platform-admins"},
-    policies: ["platform-admin"],
-    ttl: "1h",
-    max_ttl: "8h"
-  }
-' | vault_stdin_auth "$root_token" write auth/oidc/role/platform-admin >/dev/null
-
-unset vault_oidc_client_secret
 unset keycloak_sso_secret_json keycloak_sso_defaults keycloak_sso_field
 unset requested_sso_username requested_sso_password requested_sso_email requested_sso_display_name
 unset existing_sso_username default_sso_username default_sso_password default_sso_email
