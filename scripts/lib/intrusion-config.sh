@@ -187,6 +187,21 @@ labels:
 EOF
 }
 
+# Succeeds when the local API accepts the key. The header goes through stdin so the
+# key never appears in the process list; the API may still be starting.
+crowdsec_bouncer_key_valid() {
+  local code attempt
+  for attempt in $(seq 15); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' -H @- http://127.0.0.1:8080/v1/decisions <<< "X-Api-Key: $1" || true)"
+    case "$code" in
+      200) return 0 ;;
+      401|403) return 1 ;;
+    esac
+    sleep 2
+  done
+  return 1
+}
+
 get_crowdsec_bouncer_api_key() {
   local config_path="/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml"
   local api_key=""
@@ -194,6 +209,12 @@ get_crowdsec_bouncer_api_key() {
 
   if sudo test -f "$config_path"; then
     api_key="$(sudo awk -F': ' '$1=="api_key"{gsub(/"/,"",$2); print $2; exit}' "$config_path")"
+  fi
+
+  # The package leaves a <API_KEY> placeholder when it cannot register a bouncer
+  # itself; reuse only a key the local API accepts.
+  if [[ -n "$api_key" ]] && ! crowdsec_bouncer_key_valid "$api_key"; then
+    api_key=""
   fi
 
   if [[ -z "$api_key" ]]; then
