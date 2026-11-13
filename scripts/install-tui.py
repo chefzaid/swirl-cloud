@@ -284,6 +284,9 @@ def run_logged(title, command, env=None, stdin_data=None):
             sys.stdout.buffer.write(chunk)
             sys.stdout.flush()
             log.write(redactor.feed(ANSI.sub("", chunk.decode(errors="replace"))).encode())
+            # Keep the log current: it can be followed during a long run, and the
+            # last lines (usually the error) survive if the hub itself is killed.
+            log.flush()
         log.write(redactor.feed("", final=True).encode())
         code = process.wait()
     record = {"title": title, "code": code, "log": str(log_path), "finished": f"{datetime.now():%Y-%m-%d %H:%M}"}
