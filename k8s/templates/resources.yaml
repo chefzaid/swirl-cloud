@@ -22,6 +22,12 @@
 {{- $files = printf "%s%s" $files ($root.Files.Get $file) -}}
 {{- end -}}
 {{- $extra := eq $annotation "swirl-cloud.io/prometheus-config" | ternary (printf "%s%s" ($root.Files.Get "files/compliance-controls.yaml") ($root.Files.Get "files/vulnerability-exceptions.yaml")) "" -}}
+{{- /* A sizing profile rewrites the source after this checksum is taken (the log
+     retention in logging-agent.yaml), so its entry counts too. */ -}}
+{{- $sized := get ((include "swirl-cloud.sizing" $root | fromYaml).manifests | default dict) $source -}}
+{{- if $sized -}}
+{{- $extra = printf "%s%s" $extra (toJson $sized) -}}
+{{- end -}}
 {{- if and (eq $annotation "swirl-cloud.io/logging-agent") $soc.host -}}
 {{- $extra = toJson $soc -}}
 {{- range $file, $_ := $root.Files.Glob "files/soc-forwarding/*" -}}

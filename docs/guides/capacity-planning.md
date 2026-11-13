@@ -62,7 +62,9 @@ Configure → Nodes):
 
 Left empty, the installer keeps the installed profile, or suggests `large` from
 the host's threads and memory on a first installation. The root Application
-records the profile, so Argo CD, reruns and `ansible/deploy.yml` keep it. A
+records the profile, so Argo CD, reruns and `ansible/deploy.yml` keep it; a
+changed profile is recorded there right after rendering, before any sized
+manifest is applied, so Argo CD's self-heal does not restore the previous sizes. A
 profile is a file in [`k8s/files/sizing/`](../../k8s/files/sizing/large.yaml):
 per manifest and document it replaces exact text, then sets container
 resources, environment values, arguments and volume sizes, and every entry must

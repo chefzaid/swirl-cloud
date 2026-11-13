@@ -74,6 +74,13 @@ class Sizing(unittest.TestCase):
         logs = docs[("ConfigMap", "host-agents", "fluent-bit-config")]["data"]["ilm-policy.json"]
         self.assertIn('"min_age": "14d"', logs)
 
+    def test_a_profile_that_rewrites_a_config_map_restarts_its_consumer(self):
+        # The log retention reaches Elasticsearch only when fluent-bit starts.
+        def checksum(docs):
+            return docs[("DaemonSet", "host-agents", "fluent-bit")]["spec"]["template"]["metadata"]["annotations"][
+                "swirl-cloud.io/logging-agent"]
+        self.assertNotEqual(checksum(self.docs), checksum(documents(self.standard.stdout)))
+
     def test_untouched_documents_keep_their_requests_and_the_root_application_records_the_profile(self):
         standard = documents(self.standard.stdout)
         self.assertEqual(container(self.docs[("Deployment", "infra", "vault-ui-theme")], "ui-theme")["resources"],
