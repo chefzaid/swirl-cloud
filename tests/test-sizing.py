@@ -112,6 +112,16 @@ class Sizing(unittest.TestCase):
                          [("infra/postgres-v18-pvc", "20Gi", "2Gi")])
         self.assertEqual(sizing.shrinking({"infra/postgres-v18-pvc": "20480Mi"}, live), [])
 
+    def test_the_root_application_records_a_changed_profile_before_sized_manifests_apply(self):
+        rendered = self.docs[("Application", "infra", "swirl-cloud")]
+        standard = documents(self.standard.stdout)[("Application", "infra", "swirl-cloud")]
+        values = rendered["spec"]["source"]["helm"]["valuesObject"]
+        self.assertEqual(sizing.recording_patch(standard, rendered)["spec"]["source"]["helm"]["valuesObject"],
+                         {"sizingProfile": "large", "trivy-operator": values["trivy-operator"]})
+        self.assertIsNone(sizing.recording_patch(rendered, rendered))
+        self.assertEqual(sizing.recording_patch(rendered, standard)["spec"]["source"]["helm"]["valuesObject"],
+                         {"sizingProfile": None, "trivy-operator": None})
+
     def test_the_suggestion_and_the_installer_choices_follow_the_profiles(self):
         self.assertEqual(sizing.suggested(threads=16, memory_gib=125), "large")
         self.assertEqual(sizing.suggested(threads=8, memory_gib=125), "standard")

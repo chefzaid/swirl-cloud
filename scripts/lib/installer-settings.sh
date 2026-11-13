@@ -228,6 +228,11 @@ prepare_rendered_configuration() {
         --descheduler-enabled "$INSTALL_DESCHEDULER" >/dev/null
     python3 "$SCRIPT_DIR/scripts/lib/sizing.py" check-volumes --root "$RENDERED_CONFIG_DIR" || \
         error "The sizing profile would shrink volumes; keep the larger profile."
+    # Argo CD renders the platform from the root Application's values: record the
+    # profile there before sized manifests are applied, or its self-sync reverts them.
+    sizing="$(python3 "$SCRIPT_DIR/scripts/lib/sizing.py" record --root "$RENDERED_CONFIG_DIR")" || \
+        error "Could not record the sizing profile on the platform Argo CD Application."
+    [[ -z "$sizing" ]] || info "Recorded sizing profile $SIZING_PROFILE on the platform Argo CD Application."
     K8S_DIR="$RENDERED_CONFIG_DIR/k8s"
     ARGOCD_VALUES_FILE="$RENDERED_CONFIG_DIR/config/argocd-values.yaml"
     VAULT_VALUES_FILE="$RENDERED_CONFIG_DIR/config/vault-values.yaml"

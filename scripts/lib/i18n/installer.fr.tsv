@@ -367,3 +367,5 @@ The installation report was not emailed; ./install.sh --status prints it again.	
 Choose a valid SIZING_PROFILE.	Choisissez un SIZING_PROFILE valide.
 Sizing profile: $SIZING_PROFILE ($sizing_reason).	Profil de dimensionnement : $SIZING_PROFILE ($sizing_reason).
 The sizing profile would shrink volumes; keep the larger profile.	Le profil de dimensionnement réduirait des volumes ; gardez le profil le plus grand.
+Could not record the sizing profile on the platform Argo CD Application.	Impossible d'enregistrer le profil de dimensionnement dans l'Application Argo CD de la plateforme.
+Recorded sizing profile $SIZING_PROFILE on the platform Argo CD Application.	Profil de dimensionnement $SIZING_PROFILE enregistré dans l'Application Argo CD de la plateforme.

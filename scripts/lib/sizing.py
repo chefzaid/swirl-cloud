@@ -4,6 +4,7 @@
     sizing.py resolve [--explicit NAME]   print the profile: explicit, recorded, else suggested
     sizing.py recorded                    print the profile the root Application records, if any
     sizing.py check-volumes --root DIR    fail if rendered PVCs in DIR would shrink live ones
+    sizing.py record --root DIR           put DIR's profile on the live root Application
 
 The chart applies profiles in templates/_sizing.tpl; apply_replacements() repeats its
 text replacements for helpers that start from the raw manifests (application delivery).
@@ -67,13 +68,56 @@ def kubectl_json(*args):
         return None
 
 
+def values_object(application):
+    return application.get("spec", {}).get("source", {}).get("helm", {}).get("valuesObject") or {}
+
+
 def recorded():
     """The profile on the live root Application; None when it cannot be read."""
     application = kubectl_json("-n", "infra", "get", "application", "swirl-cloud")
     if application is None:
         return None
-    values = application.get("spec", {}).get("source", {}).get("helm", {}).get("valuesObject") or {}
-    return values.get("sizingProfile") or STANDARD
+    return values_object(application).get("sizingProfile") or STANDARD
+
+
+def recording_patch(live, rendered):
+    """The merge patch that moves the live root Application's valuesObject to the
+    rendered profile, or None when it already records it. The previous profile's
+    subchart values are removed; the rendered profile's are set."""
+    current = values_object(live).get("sizingProfile") or STANDARD
+    wanted = values_object(rendered)
+    profile = wanted.get("sizingProfile") or STANDARD
+    if profile == current:
+        return None
+    try:
+        patch = {key: None for key in load(current)["values"]}
+    except SizingError:
+        patch = {}
+    patch["sizingProfile"] = None if profile == STANDARD else profile
+    patch.update({key: wanted[key] for key in load(profile)["values"]})
+    return {"spec": {"source": {"helm": {"valuesObject": patch}}}}
+
+
+def record(root):
+    """Record the rendered profile on the live root Application before the installer
+    applies sized manifests: Argo CD renders the platform from that Application, so
+    its self-sync would otherwise put the previous sizes back. A first installation
+    has no Application yet and applies the rendered one later."""
+    live = kubectl_json("-n", "infra", "get", "application", "swirl-cloud")
+    if live is None:
+        return None
+    path = Path(root) / "k8s/addons/swirl-cloud-application.yaml"
+    rendered = next(document for document in yaml.safe_load_all(path.read_text())
+                    if isinstance(document, dict) and document.get("kind") == "Application")
+    patch = recording_patch(live, rendered)
+    if patch is None:
+        return None
+    result = subprocess.run(["kubectl", "--request-timeout=10s", "-n", "infra", "patch", "application",
+                             "swirl-cloud", "--type", "merge", "-p", json.dumps(patch)],
+                            capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise SizingError(f"Could not record the sizing profile on the root Application: {result.stderr.strip()}")
+    return values_object(rendered).get("sizingProfile") or STANDARD
 
 
 def suggested(threads=None, memory_gib=None):
@@ -148,6 +192,7 @@ def main():
     commands.add_parser("resolve").add_argument("--explicit", default="")
     commands.add_parser("recorded")
     commands.add_parser("check-volumes").add_argument("--root", required=True)
+    commands.add_parser("record").add_argument("--root", required=True)
     args = parser.parse_args()
     try:
         if args.command == "resolve":
@@ -155,6 +200,8 @@ def main():
             print(f"{profile}\t{reason}")
         elif args.command == "recorded":
             print(recorded() or "")
+        elif args.command == "record":
+            print(record(args.root) or "")
         else:
             problems = shrinking(rendered_claims(args.root), live_claims())
             for name, live, size in problems:
