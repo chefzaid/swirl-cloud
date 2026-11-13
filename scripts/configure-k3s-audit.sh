@@ -60,6 +60,10 @@ if [[ "$mode" == --check ]]; then
 fi
 
 [[ -r "$POLICY_SOURCE" ]] || error "Audit policy not found: $POLICY_SOURCE"
+# K3s's configuration tree is world-readable: kubectl (the k3s binary) reads these
+# drop-ins as any user. Create it explicitly so the installer's umask 077 cannot
+# leave it 0700, which also hides the drop-ins from the check below.
+sudo install -d -o root -g root -m 0755 "$(dirname "$CONFIG_ROOT")" "$CONFIG_ROOT" "$CONFIG_ROOT/config.yaml.d"
 # A later drop-in that sets kube-apiserver-arg replaces this list and silently drops auditing.
 for file in "$CONFIG_ROOT"/config.yaml.d/*.yaml; do
     sudo test -f "$file" || continue
