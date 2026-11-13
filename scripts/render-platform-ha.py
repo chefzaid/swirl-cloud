@@ -17,6 +17,13 @@ def identity(resource):
     return resource.get("apiVersion"), resource.get("kind"), meta.get("namespace", ""), meta.get("name")
 
 
+def mounted_config_maps(resource):
+    """Names of the ConfigMaps a workload's pod template mounts as volumes."""
+    spec = resource.get("spec", {}).get("jobTemplate", {}).get("spec", resource.get("spec", {}))
+    volumes = spec.get("template", {}).get("spec", {}).get("volumes", []) or []
+    return [volume["configMap"]["name"] for volume in volumes if volume.get("configMap", {}).get("name")]
+
+
 def merge(base, override):
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
@@ -58,8 +65,11 @@ def main():
         migrated_templates = [f"templates/{name}-ha.yaml" for name in ("postgres", "kafka")
                               if values.get(name + "Ha", {}).get("enabled")]
         migrated = {identity(doc) for doc in render(enabled, migrated_templates)} if migrated_templates else set()
+    groups = ("base", "datastores", "platform", "corp", "addons")
+    raw = {identity(doc) for group in groups for path in (args.root / "k8s" / group).glob("*.yaml")
+           for doc in yaml.safe_load_all(path.read_text()) if doc}
     existing = set()
-    for group in ("base", "datastores", "platform", "corp", "addons"):
+    for group in groups:
         for path in (args.root / "k8s" / group).glob("*.yaml"):
             original = list(yaml.safe_load_all(path.read_text()))
             transformed = []
@@ -75,7 +85,16 @@ def main():
                     continue
                 key = identity(doc)
                 existing.add(key)
-                transformed.append(desired.get(key, doc))
+                rendered = desired.get(key, doc)
+                # ConfigMaps the chart generates from a marker (Odoo's add-ons) exist only
+                # in the render; ship them before the workload that mounts them, which a
+                # first installation applies before Argo CD exists.
+                for name in mounted_config_maps(rendered):
+                    generated = ("v1", "ConfigMap", rendered.get("metadata", {}).get("namespace", ""), name)
+                    if generated in desired and generated not in raw and generated not in existing:
+                        transformed.append(desired[generated])
+                        existing.add(generated)
+                transformed.append(rendered)
             path.write_text(yaml.safe_dump_all(transformed, sort_keys=False))
     # The installer's profile phase applies the auth ConfigMap before Redis reads it.
     auth_config = ("v1", "ConfigMap", "infra", "application-data-access")
