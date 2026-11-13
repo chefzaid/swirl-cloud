@@ -586,7 +586,7 @@ metadata:
   name: odoo
   namespace: corp
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: corp-odoo-body-limit@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: corp-odoo-body-limit@kubernetescrd,corp-odoo-forwarded-host@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -612,6 +612,22 @@ spec:
                 port:
                   number: 8069
 
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: odoo-forwarded-host
+  namespace: corp
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  headers:
+    customRequestHeaders:
+      # The websecure entrypoint blanks X-Forwarded-Host, and Odoo's proxy_mode
+      # applies X-Forwarded-Proto only when that header is present. Without it Odoo
+      # builds http:// URLs, which Keycloak rejects as the SSO redirect_uri. The
+      # value is fixed, never taken from the client.
+      X-Forwarded-Host: odoo.__PUBLIC_DOMAIN__
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
