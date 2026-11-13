@@ -144,6 +144,12 @@ write_root_file() {
 
   tmp_file="$(mktemp)"
   cat > "$tmp_file"
+  # install -D creates missing parents under the installer's umask 077 (0700), which
+  # hides world-readable files such as systemd drop-ins from the administrator's
+  # systemctl; a missing parent of a world-readable file gets the usual 0755.
+  if (( 8#$mode & 8#004 )) && ! sudo test -d "$(dirname "$destination_path")"; then
+    sudo install -d -o root -g root -m 0755 "$(dirname "$destination_path")"
+  fi
   if ! sudo test -f "$destination_path" || ! sudo cmp -s "$tmp_file" "$destination_path" || \
       [[ "$(sudo stat -c '%a %u %g' "$destination_path")" != "$(printf '%o' "$((8#$mode))") 0 0" ]]; then
     sudo install -D -o root -g root -m "$mode" "$tmp_file" "$destination_path"
