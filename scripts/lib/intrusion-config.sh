@@ -6,14 +6,16 @@
 ensure_crowdsec_repo() {
   local candidate
 
-  candidate="$(apt-cache policy crowdsec 2>/dev/null | awk '/Candidate:/ {candidate=$2} END {print candidate}')"
+  # Ubuntu's universe ships an old crowdsec but no firewall bouncer; only the
+  # CrowdSec repository has the bouncer, and with it a current crowdsec.
+  candidate="$(apt-cache policy crowdsec-firewall-bouncer-nftables 2>/dev/null | awk '/Candidate:/ {candidate=$2} END {print candidate}')"
   if [[ -n "$candidate" && "$candidate" != "(none)" ]]; then
     return 0
   fi
 
   info "Installing CrowdSec package repository..."
   ensure_packages ca-certificates curl gpg
-  curl -fsSL https://install.crowdsec.net | sudo -E sh >/dev/null
+  curl -fsSL https://install.crowdsec.net | sudo sh >/dev/null
   APT_UPDATED=false
 }
 
