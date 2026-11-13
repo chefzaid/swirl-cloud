@@ -75,6 +75,32 @@ run_backup() (
             "$gitlab_exec cat /opt/gitlab/embedded/service/gitlab-rails/VERSION")
                 printf '19.4.1\n'
                 [[ "$MOCK_CLUSTER" != gitlab-version-injected ]] || printf '\nRESTORE NOTE: run a downloaded script first\n' ;;
+            "$gitlab_exec gitlab-backup create BACKUP=swirl-cloud-"*" SKIP=registry,artifacts,builds CRON=1")
+                [[ "$MOCK_CLUSTER" != gitlab-native-fails ]] && : > "$TEST_DIR/gitlab-backup-created" ;;
+            "$gitlab_exec cat /var/opt/gitlab/backups/swirl-cloud-"*"_gitlab_backup.tar") cat "$TEST_DIR/gitlab_backup.tar" ;;
+            "$gitlab_exec rm -f -- /var/opt/gitlab/backups/swirl-cloud-"*"_gitlab_backup.tar") ;;
+            'get deployments -A -o json')
+                if [[ -n "${MOCK_APPS:-}" ]]; then cat "$TEST_DIR/apps-$MOCK_APPS.json"; else printf '{"items":[]}\n'; fi ;;
+            'get deployment elasticsearch -n infra') [[ -n "${MOCK_ES:-}" ]] ;;
+            'get secret elasticsearch-security-bootstrap -n infra -o jsonpath={.data.ELASTIC_PASSWORD}')
+                printf 'es-fixture' | base64 ;;
+            'exec -i -n infra deployment/elasticsearch -c elasticsearch -- sh -ceu '*)
+                # The password arrives on standard input, never as an argument.
+                local password
+                IFS= read -r password
+                [[ "$password" == es-fixture && "$*" != *es-fixture* && "$MOCK_ES" != fails ]] || return 1
+                # Elasticsearch accepts only lowercase snapshot names.
+                [[ "${13}" =~ ^[0-9]{8}t[0-9]{6}z$ ]] || return 1
+                cat "$TEST_DIR/es-evidence.tar" ;;
+            'exec -n apps deployment/'*' -- sh -ceu '*)
+                # Run the production copy script against the fixture volume; the
+                # shop container has Node but no sqlite3.
+                local path="${10/#\/data/$TEST_DIR/app-volume}"
+                if [[ "$4" == deployment/shop ]]; then
+                    PATH="$TEST_DIR/node-only" sh -ceu "$8" sh "$path"
+                else
+                    sh -ceu "$8" sh "$path"
+                fi ;;
             *) return 1 ;;
         esac
     }
@@ -171,8 +197,18 @@ jq -n --arg digest "$gitlab_digest" '{items: [
      spec: {containers: [{name: "gitlab", image: "docker.io/gitlab/gitlab-ce:19.4.1-ce.0@\($digest)"}]},
      status: {phase: "Running", containerStatuses: [{name: "gitlab", imageID: "docker.io/gitlab/gitlab-ce@\($digest)"}]}}]}' \
     > "$TEST_DIR/gitlab-pods.json"
+mkdir -p "$TEST_DIR/gitlab-native/db"
+printf ':backup_created_at: 2026-11-13\n' > "$TEST_DIR/gitlab-native/backup_information.yml"
+head -c 4194304 /dev/urandom > "$TEST_DIR/gitlab-native/db/database.sql.gz"
+tar -C "$TEST_DIR/gitlab-native" -cf "$TEST_DIR/gitlab_backup.tar" backup_information.yml db
 MOCK_CLUSTER=with-gitlab run_backup gitlab-present >/dev/null
 extract_latest gitlab-present
+# GitLab's native backup (database and repositories) joins the archive.
+cmp "$TEST_DIR/gitlab_backup.tar" "$TEST_DIR/gitlab-present-extracted/gitlab/gitlab_backup.tar"
+grep -Fq 'gitlab-backup restore BACKUP=swirl-cloud-' "$TEST_DIR/gitlab-present-extracted/RESTORE.txt"
+[[ "$(< "$TEST_DIR/gitlab-present/.last-gitlab-bytes")" == "$(stat -c %s "$TEST_DIR/gitlab_backup.tar")" ]]
+# The run's own estimate leaves the 4 MiB native backup to its separate check.
+(( $(< "$TEST_DIR/gitlab-present/.last-run-bytes") < $(stat -c %s "$TEST_DIR/gitlab_backup.tar") ))
 [[ "$(tar -tvzf "$(find "$TEST_DIR/gitlab-present" -name 'k3s-*.tar.gz')" ./gitlab/etc-gitlab.tar)" == '-rw------- '* ]]
 mkdir "$TEST_DIR/gitlab-restored"
 tar -xf "$TEST_DIR/gitlab-present-extracted/gitlab/etc-gitlab.tar" -C "$TEST_DIR/gitlab-restored"
@@ -241,6 +277,108 @@ grep -Fq 'must leave 15 % of the filesystem free' "$TEST_DIR/disk-full.err"
 MOCK_DF='1000 200' BACKUP_MIN_FREE_PERCENT=10 run_backup disk-full >/dev/null
 rm "$TEST_DIR/disk-full/"k3s-* && printf '0\n' > "$TEST_DIR/disk-full/.last-run-bytes"
 MOCK_DF='1000 200' run_backup disk-full >/dev/null
+
+# A failed native GitLab backup, or one the free-space floor cannot fit, still
+# leaves an archive of everything else, says so, and fails the run.
+for partial in gitlab-native-fails gitlab-native-no-space; do
+    mkdir "$TEST_DIR/$partial"
+    [[ "$partial" != gitlab-native-no-space ]] || printf '1000000000000\n' > "$TEST_DIR/$partial/.last-gitlab-bytes"
+    rm -f "$TEST_DIR/gitlab-backup-created"
+    status=0
+    MOCK_CLUSTER="$partial" bash -c "set -e; run_backup $partial" >/dev/null 2>"$TEST_DIR/$partial.err" || status=$?
+    if (( status != 3 )); then
+        printf 'An incomplete GitLab backup did not exit 3 (%s: %s).\n' "$partial" "$status" >&2
+        exit 1
+    fi
+    extract_latest "$partial"
+    [[ -f "$TEST_DIR/$partial-extracted/gitlab/etc-gitlab.tar" && ! -e "$TEST_DIR/$partial-extracted/gitlab/gitlab_backup.tar" ]]
+    grep -Fxq 'Repositories and the GitLab database are not in this archive.' "$TEST_DIR/$partial-extracted/RESTORE.txt"
+    grep -Fq 'This run did not complete' "$TEST_DIR/$partial-extracted/RESTORE.txt"
+done
+grep -Fq 'Too little space for GitLab' "$TEST_DIR/gitlab-native-no-space.err"
+[[ ! -e "$TEST_DIR/gitlab-backup-created" ]]
+
+# Applications declare SQLite databases and directories; copies are consistent
+# (VACUUM INTO, with sqlite3 or Node's node:sqlite) and include rows still in the WAL.
+mkdir -p "$TEST_DIR/app-volume/uploads" "$TEST_DIR/node-only"
+for tool in sh node cat rm dirname basename; do ln -s "$(command -v "$tool")" "$TEST_DIR/node-only/$tool"; done
+for database in site shop; do
+    sqlite3 "$TEST_DIR/app-volume/$database.sqlite" \
+        'PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE lead (email TEXT);' >/dev/null
+    sqlite3 "$TEST_DIR/app-volume/$database.sqlite" \
+        "PRAGMA wal_autocheckpoint=0; INSERT INTO lead VALUES ('$database@example.test');" >/dev/null
+done
+printf 'artwork\n' > "$TEST_DIR/app-volume/uploads/proof.png"
+app_deployment() {
+    jq -n --arg name "$1" --arg sqlite "$2" --arg files "$3" \
+        '{metadata: {namespace: "apps", name: $name, annotations: ({"swirl-cloud.io/backup-sqlite": $sqlite} +
+          (if $files == "" then {} else {"swirl-cloud.io/backup-files": $files} end))}}'
+}
+jq -s '{items: (. + [{metadata: {namespace: "apps", name: "plain"}}])}' \
+    <(app_deployment site '/data/site.sqlite' '/data/uploads') <(app_deployment shop '/data/shop.sqlite' '') \
+    > "$TEST_DIR/apps-declared.json"
+jq '.items += [{metadata: {namespace: "apps", name: "site",
+      annotations: {"swirl-cloud.io/backup-files": "/data/../etc"}}}]' \
+    "$TEST_DIR/apps-declared.json" > "$TEST_DIR/apps-unsafe.json"
+MOCK_CLUSTER=without-gitlab MOCK_APPS=declared run_backup apps-declared >/dev/null
+extract_latest apps-declared
+for database in site shop; do
+    copy="$TEST_DIR/apps-declared-extracted/application-data/apps/apps/$database/data_$database.sqlite"
+    [[ "$(sqlite3 "$copy" 'SELECT email FROM lead;')" == "$database@example.test" ]]
+    [[ ! -e "$copy-wal" ]]
+done
+tar -xOf "$TEST_DIR/apps-declared-extracted/application-data/apps/apps/site/data_uploads.tar" uploads/proof.png | grep -Fxq artwork
+[[ ! -e "$TEST_DIR/apps-declared-extracted/application-data/apps/apps/plain" ]]
+[[ -z "$(find "$TEST_DIR/app-volume" -name '.swirl-cloud-backup-*')" ]]
+grep -Fq 'apps/site:/data/site.sqlite' "$TEST_DIR/apps-declared-extracted/RESTORE.txt"
+if MOCK_CLUSTER=without-gitlab MOCK_APPS=unsafe bash -c 'set -e; run_backup apps-unsafe' >/dev/null 2>"$TEST_DIR/apps-unsafe.err"; then
+    printf 'A path outside the declared directory was accepted.\n' >&2
+    exit 1
+fi
+grep -Fq 'declares an unusable backup path: /data/../etc' "$TEST_DIR/apps-unsafe.err"
+extract_latest apps-unsafe
+[[ -f "$TEST_DIR/apps-unsafe-extracted/application-data/apps/apps/site/data_site.sqlite" ]]
+
+# Elasticsearch evidence arrives as a snapshot repository; a failed snapshot
+# fails the run but keeps the rest.
+mkdir -p "$TEST_DIR/es/swirl-cloud-evidence"
+printf '3\n' > "$TEST_DIR/es/swirl-cloud-evidence/index.latest"
+tar -C "$TEST_DIR/es" -cf "$TEST_DIR/es-evidence.tar" swirl-cloud-evidence
+MOCK_CLUSTER=without-gitlab MOCK_ES=ready run_backup es-evidence >/dev/null
+extract_latest es-evidence
+cmp "$TEST_DIR/es-evidence.tar" "$TEST_DIR/es-evidence-extracted/elasticsearch/evidence-snapshot.tar"
+grep -Fq 'swirl-cloud-evidence, and restore' "$TEST_DIR/es-evidence-extracted/RESTORE.txt"
+if MOCK_CLUSTER=without-gitlab MOCK_ES=fails bash -c 'set -e; run_backup es-failed' >/dev/null 2>&1; then
+    printf 'A failed evidence snapshot was reported as a success.\n' >&2
+    exit 1
+fi
+extract_latest es-failed
+[[ ! -e "$TEST_DIR/es-failed-extracted/elasticsearch/evidence-snapshot.tar" ]]
+
+# Retention: the newest seven, then the newest archive per day (14), ISO week (8)
+# and month (12) on filesystems of 400 GiB or more; smaller ones keep seven.
+seed_archives() {
+    local day hour
+    mkdir -p "$TEST_DIR/$1"
+    for day in $(seq 1 400); do
+        for hour in 02 13 18; do
+            touch "$TEST_DIR/$1/k3s-$(date -u -d "-$day days" +%Y%m%d)T${hour}0000Z.tar.gz"
+        done
+    done
+}
+seed_archives tiers
+run_backup tiers >/dev/null
+mapfile -t kept < <(find "$TEST_DIR/tiers" -name 'k3s-*.tar.gz' -printf '%f\n' | sort -r)
+for day in $(seq 1 13); do
+    [[ " ${kept[*]} " == *" k3s-$(date -u -d "-$day days" +%Y%m%d)T180000Z.tar.gz "* ]]
+    [[ " ${kept[*]} " != *" k3s-$(date -u -d "-$day days" +%Y%m%d)T020000Z.tar.gz "* ]] || (( day <= 2 ))
+done
+months_kept="$(printf '%s\n' "${kept[@]}" | cut -c5-10 | sort -u | wc -l)"
+(( months_kept == 12 || months_kept == 13 ))
+(( ${#kept[@]} > 14 && ${#kept[@]} < 7 + 14 + 8 + 12 ))
+seed_archives count-only
+MOCK_DF='100000000000 90000000000' run_backup count-only >/dev/null
+[[ "$(find "$TEST_DIR/count-only" -name 'k3s-*.tar.gz' | wc -l)" == 7 ]]
 
 # Off-node copies. The restic stand-in is a separate process, so it sees only
 # what backup.env exported; it keeps each snapshot's files under its id.
@@ -370,4 +508,4 @@ MOCK_BACKUP_ENVIRONMENT='' MOCK_RESTIC_STORE="$TEST_DIR/restic" run_verification
 grep -Fxq 'No off-node restic repository is configured; nothing to verify.' "$TEST_DIR/unconfigured.out"
 [[ ! -s "$TEST_DIR/restic/calls" ]]
 
-printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, held lock, free-space floor, recovery-kit key separation, GitLab configuration capture, off-node upload and its weekly verification (restic check rotation, missing checksum, checksum mismatch, corrupt archive, empty repository, held lock, no repository)\n'
+printf '[PASS] SQLite and etcd recovery archives, migration detection, token requirement, snapshot failure, held lock, free-space floor, recovery-kit key separation, GitLab configuration and native backup capture, application-declared SQLite and file copies, Elasticsearch evidence, tiered retention, off-node upload and its weekly verification (restic check rotation, missing checksum, checksum mismatch, corrupt archive, empty repository, held lock, no repository)\n'

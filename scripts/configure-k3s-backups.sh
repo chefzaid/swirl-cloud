@@ -78,8 +78,10 @@ if sudo grep -qs '^RESTIC_REPOSITORY=.' /etc/swirl-cloud/backup.env; then
 else
   sudo systemctl disable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
 fi
-if [[ "$RUN_BACKUP_NOW" == "true" ]]; then
-  sudo systemctl start swirl-cloud-k3s-backup.service
+if [[ "$RUN_BACKUP_NOW" == "true" ]] && ! sudo systemctl start swirl-cloud-k3s-backup.service; then
+  # Exit 3 left an archive without some parts; the unit stays failed for the alerts.
+  [[ "$(systemctl show -p ExecMainStatus --value swirl-cloud-k3s-backup.service)" == 3 ]] || exit 1
+  echo "WARNING: the recovery archive is incomplete; see journalctl -u swirl-cloud-k3s-backup.service." >&2
 fi
 
 if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \

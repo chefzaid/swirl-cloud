@@ -374,8 +374,15 @@ sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 
 ### Coverage and recovery points
 
-The archive runs at 02:15 UTC and keeps 7 local copies; restic keeps 7 daily, 5
-weekly and 12 monthly. Recovery times are unmeasured (restore drill, TODO §16).
+The archive runs at 02:15 UTC (installer runs add one each). Locally the newest
+7 are kept; on a backup filesystem of 400 GiB or more also the newest archive of
+each of the last 14 days, 8 ISO weeks and 12 months (`RETENTION_COUNT`,
+`RETENTION_DAYS`, `RETENTION_WEEKS`, `RETENTION_MONTHS`). restic keeps 7 daily, 5
+weekly and 12 monthly. A part that fails (GitLab's native backup, the evidence
+snapshot, an application copy) leaves an archive of everything else, is listed
+at the end of its `RESTORE.txt`, and fails the run (exit 3) so the backup alerts
+fire; the installer's own backup then warns and continues.
+Recovery times are unmeasured (restore drill, TODO §16).
 
 | Data | How it is protected | Recovery point | Notes and gaps |
 | --- | --- | --- | --- |
@@ -385,12 +392,15 @@ weekly and 12 monthly. Recovery times are unmeasured (restore drill, TODO §16).
 | MongoDB | `mongodump` in the nightly archive | Up to 24 h | |
 | Odoo filestore | `tar` in the nightly archive, taken after `pg_dumpall` | Up to 24 h, consistent with its database dump | |
 | GitLab configuration and secrets (`/etc/gitlab`), version and image | `tar` of the running container in the nightly archive (`gitlab/`) | Up to 24 h | Restore before GitLab starts against restored data, with the same image. |
-| GitLab repositories, issues, merge requests, CI artifacts, LFS, packages | `gitlab-data` Longhorn volume only, when off-node volume backups are active | None until then | Native GitLab backup is missing; scope waits on an owner decision ([Needs Input](../TODO.md#needs-input), TODO §12). Repositories mirrored to GitHub survive there. |
-| Container registry | Same `gitlab-data` volume | None until then | Images can be rebuilt from their pipelines; pinned upstream images are re-pulled. |
+| GitLab database (issues, merge requests, CI settings), repositories, uploads, packages, LFS | GitLab's native backup (`gitlab-backup create`, `gitlab/gitlab_backup.tar`) in the nightly archive | Up to 24 h | Skipped, and the run failed, when three times the previous backup's size would break the free-space floor. Restore with the same image after `/etc/gitlab`; steps in `RESTORE.txt`. Repositories mirrored to GitHub survive there too. |
+| GitLab CI artifacts and job logs | `gitlab-data` Longhorn volume only, when off-node volume backups are active | None until then | Artifacts expire after 7 days in every application. |
+| Container registry | Same `gitlab-data` volume | None until then | Left out of the native backup (13 GB on 2026-11-13). Images can be rebuilt from their release tags; pinned upstream images are re-pulled. |
+| Application SQLite databases and files (Swirl Website leads, designXprint orders and artwork) | Declared by each application on its Deployment (`swirl-cloud.io/backup-sqlite`, `swirl-cloud.io/backup-files`, comma-separated absolute paths); copied in the application's own container, databases with `VACUUM INTO` | Up to 24 h | Under `application-data/apps/<namespace>/<deployment>/`, named after the path with `/` as `_`. |
 | Grafana dashboards | Provisioned from Git; user-made dashboards on the `grafana-data` volume | Git: current; volume: none until volume backups | |
 | SonarQube analysis | Database in `pg_dumpall`; search index on its volume | Up to 24 h | Rebuildable: the index regenerates; rerun analyses for history. |
-| Elasticsearch logs and API audit events | Not backed up | None | Short retention by design; a snapshot repository is open (TODO §14). |
-| Prometheus metrics | Not backed up | None | Rebuildable; about 12 h of history today (TODO §26). |
+| Elasticsearch evidence: identity audit, platform reports, Lynis, security findings, access grants | Snapshot `nightly-<time>` of the `swirl-cloud-evidence` fs repository, streamed into the nightly archive (`elasticsearch/evidence-snapshot.tar`) | Up to 24 h | The repository keeps only the newest snapshot (about 55 MB on 2026-11-13). |
+| Elasticsearch container logs and API audit events | Not backed up | None | Short retention by design. |
+| Prometheus metrics | Not backed up | None | Rebuildable; 30 days in the `large` sizing profile, 15 days or 1.5 GB otherwise. |
 | Kafka topics | Not backed up; volume only with volume backups | None | Applications must tolerate replaying from their own state. |
 | Redis, Trivy reports | Not backed up | None | Rebuildable caches. |
 | Portainer, DBGate settings | Their volumes, with volume backups | None until then | Low value; recreated by the installer. |

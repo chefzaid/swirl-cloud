@@ -21,7 +21,11 @@ if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
 fi
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
+# Newest archives always kept; on a filesystem of RETENTION_TIERS_MIN_GIB or more,
+# also the newest archive of each of the last RETENTION_DAYS days, RETENTION_WEEKS
+# ISO weeks and RETENTION_MONTHS months that have one (restic's --keep-* rules).
 RETENTION_COUNT="${RETENTION_COUNT:-7}"
+RETENTION_TIERS_MIN_GIB="${RETENTION_TIERS_MIN_GIB:-400}"
 BACKUP_LOCK_WAIT_SECONDS="${BACKUP_LOCK_WAIT_SECONDS:-14400}"
 # Free share the backup must leave: the kubelet's image GC starts at 85 % used.
 BACKUP_MIN_FREE_PERCENT="${BACKUP_MIN_FREE_PERCENT:-15}"
@@ -34,6 +38,9 @@ ARCHIVE="$BACKUP_DIR/k3s-$TIMESTAMP.tar.gz"
 
 [[ "$EUID" -eq 0 ]] || { echo "Run this backup as root." >&2; exit 1; }
 [[ "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]] || { echo "RETENTION_COUNT must be a positive integer." >&2; exit 1; }
+for retention_setting in RETENTION_TIERS_MIN_GIB RETENTION_DAYS RETENTION_WEEKS RETENTION_MONTHS; do
+  [[ "${!retention_setting:-0}" =~ ^[0-9]+$ ]] || { echo "$retention_setting must be a whole number." >&2; exit 1; }
+done
 [[ "$BACKUP_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds." >&2; exit 1; }
 [[ "$BACKUP_MIN_FREE_PERCENT" =~ ^[0-9]$|^[1-9][0-9]$ ]] || { echo "BACKUP_MIN_FREE_PERCENT must be 0 to 99." >&2; exit 1; }
 command -v k3s >/dev/null || { echo "k3s is required." >&2; exit 1; }
@@ -74,11 +81,32 @@ if (( (available_bytes - expected_bytes) * 100 < filesystem_bytes * BACKUP_MIN_F
   exit 1
 fi
 
+# Whether the filesystem keeps the free share after another $1 bytes.
+space_allows() {
+  local size available
+  read -r size available < <(df -B1 --output=size,avail "$BACKUP_DIR" | tail -n 1)
+  (( (available - $1) * 100 >= size * BACKUP_MIN_FREE_PERCENT ))
+}
+if (( filesystem_bytes >= RETENTION_TIERS_MIN_GIB * 1073741824 )); then
+  RETENTION_DAYS="${RETENTION_DAYS:-14}" RETENTION_WEEKS="${RETENTION_WEEKS:-8}" RETENTION_MONTHS="${RETENTION_MONTHS:-12}"
+else
+  RETENTION_DAYS="${RETENTION_DAYS:-0}" RETENTION_WEEKS="${RETENTION_WEEKS:-0}" RETENTION_MONTHS="${RETENTION_MONTHS:-0}"
+fi
+
+# Parts that fail later still leave an archive of everything else; the run then
+# exits nonzero so the backup alerts fire.
+failures=()
+application_backups=()
+backup_failed() {
+  echo "$1" >&2
+  failures+=("$1")
+}
+
 staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
 install -d -m 0700 "$staging_dir/k3s-db" "$staging_dir/k3s-server" \
   "$staging_dir/k3s-config" "$staging_dir/vault" "$staging_dir/application-data" \
-  "$staging_dir/kubernetes" "$staging_dir/gitlab"
+  "$staging_dir/kubernetes" "$staging_dir/gitlab" "$staging_dir/elasticsearch"
 
 if [[ "$DATASTORE" == "etcd" ]]; then
   # Snapshot into staging so it follows the archive's retention and off-node
@@ -213,6 +241,110 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
       > "$staging_dir/application-data/odoo-filestore.tar.gz"
   fi
 
+  # Long-retention evidence (identity audit, platform reports, Lynis, security
+  # findings, access grants) as an Elasticsearch snapshot (names are lowercase).
+  # The repository keeps only the newest snapshot; container logs and the API
+  # audit stream stay out.
+  if kubectl get deployment elasticsearch -n infra >/dev/null 2>&1; then
+    elastic_password="$(kubectl get secret elasticsearch-security-bootstrap -n infra -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)"
+    evidence="$staging_dir/elasticsearch/evidence-snapshot.tar"
+    evidence_script="$(cat <<'SCRIPT'
+IFS= read -r password
+escaped="$(printf '%s' "$password" | sed 's/[\\"]/\\&/g')"
+api() { printf 'user = "elastic:%s"\n' "$escaped" | curl --fail --silent --show-error -K - -H 'Content-Type: application/json' "$@"; }
+base=http://127.0.0.1:9200/_snapshot/swirl-cloud-evidence
+api -X PUT "$base" -d '{"type":"fs","settings":{"location":"swirl-cloud-evidence","compress":true}}' >/dev/null
+for old in $(api "$base/_all" | grep -o '"snapshot":"[^"]*"' | cut -d'"' -f4); do
+  api -X DELETE "$base/$old" >/dev/null
+done
+api -X PUT "$base/nightly-$1?wait_for_completion=true" -d '{"indices":"identity-audit-*,platform-reports*,lynis-audits-*,security-findings-*,access-grants,security-detection-state,swirl-cloud-kibana-identity-ownership-*","ignore_unavailable":true,"include_global_state":false}' |
+  grep -q '"state":"SUCCESS"'
+cd /usr/share/elasticsearch/snapshots
+exec tar -cf - swirl-cloud-evidence
+SCRIPT
+)"
+    if { printf '%s\n' "$elastic_password"; } |
+        kubectl exec -i -n infra deployment/elasticsearch -c elasticsearch -- sh -ceu "$evidence_script" sh "${TIMESTAMP,,}" > "$evidence" &&
+      [[ -z "$(tail -c 1024 "$evidence" | tr -d '\0')" ]] &&
+      tar -tf "$evidence" swirl-cloud-evidence/index.latest >/dev/null 2>&1; then
+      elasticsearch_evidence=true
+    else
+      rm -f -- "$evidence"
+      backup_failed "The Elasticsearch evidence snapshot failed; this archive holds no audit or report evidence."
+    fi
+    unset elastic_password
+  fi
+
+  # Applications declare the files they keep on their Deployment (docs/operations.md):
+  #   swirl-cloud.io/backup-sqlite  SQLite databases, copied consistently (VACUUM INTO)
+  #   swirl-cloud.io/backup-files   directories, copied with tar
+  # Both take comma-separated absolute paths. Copies run in the application's own
+  # container (sqlite3, else Node's node:sqlite), next to the database.
+  sqlite_copy_script="$(cat <<'SCRIPT'
+copy="$(dirname "$1")/.swirl-cloud-backup-$(basename "$1")"
+rm -f -- "$copy"
+trap 'rm -f -- "$copy"' EXIT
+vacuum="VACUUM INTO '$copy'"
+if command -v sqlite3 >/dev/null 2>&1; then
+  sqlite3 "$1" ".timeout 60000" "$vacuum" >/dev/null
+else
+  node --no-warnings -e 'const { DatabaseSync } = require("node:sqlite");
+const database = new DatabaseSync(process.argv[1]);
+database.exec("PRAGMA busy_timeout = 60000");
+database.exec(process.argv[2]);
+database.close();' "$1" "$vacuum"
+fi
+cat -- "$copy"
+SCRIPT
+)"
+  files_copy_script='cd "$(dirname "$1")" && exec tar -cf - "$(basename "$1")"'
+  if declared="$(kubectl get deployments -A -o json | jq -r '.items[] |
+      (.metadata.annotations // {}) as $a |
+      select($a["swirl-cloud.io/backup-sqlite"] or $a["swirl-cloud.io/backup-files"]) |
+      [.metadata.namespace, .metadata.name, ($a["swirl-cloud.io/backup-sqlite"] // ""),
+       ($a["swirl-cloud.io/backup-files"] // "")] | @tsv')"; then
+    while IFS=$'\t' read -r app_namespace app_name app_databases app_directories; do
+      [[ -n "$app_namespace" ]] || continue
+      app_dir="$staging_dir/application-data/apps/$app_namespace/$app_name"
+      install -d -m 0700 "$app_dir"
+      for kind in sqlite files; do
+        if [[ "$kind" == sqlite ]]; then app_paths="$app_databases"; else app_paths="$app_directories"; fi
+        IFS=, read -r -a declared_paths <<< "${app_paths// /}"
+        for app_path in "${declared_paths[@]}"; do
+          [[ -n "$app_path" ]] || continue
+          if [[ ! "$app_path" =~ ^/[A-Za-z0-9._/-]+$ || "$app_path" == *..* ]]; then
+            backup_failed "$app_namespace/$app_name declares an unusable backup path: $app_path"
+            continue
+          fi
+          target="$app_dir/$(tr / _ <<< "${app_path#/}")"
+          if [[ "$kind" == sqlite ]]; then
+            if kubectl exec -n "$app_namespace" "deployment/$app_name" -- sh -ceu "$sqlite_copy_script" sh "$app_path" \
+                < /dev/null > "$target" &&
+              [[ -s "$target" ]] &&
+              { ! command -v sqlite3 >/dev/null 2>&1 || [[ "$(sqlite3 "$target" 'PRAGMA integrity_check;')" == ok ]]; }; then
+              application_backups+=("$app_namespace/$app_name:$app_path")
+            else
+              rm -f -- "$target"
+              backup_failed "Could not copy $app_namespace/$app_name's SQLite database $app_path."
+            fi
+          else
+            target="$target.tar"
+            if kubectl exec -n "$app_namespace" "deployment/$app_name" -- sh -ceu "$files_copy_script" sh "$app_path" \
+                < /dev/null > "$target" &&
+              [[ -s "$target" && -z "$(tail -c 1024 "$target" | tr -d '\0')" ]]; then
+              application_backups+=("$app_namespace/$app_name:$app_path")
+            else
+              rm -f -- "$target"
+              backup_failed "Could not copy $app_namespace/$app_name's files under $app_path."
+            fi
+          fi
+        done
+      done
+    done <<< "$declared"
+  else
+    backup_failed "Could not list Deployments for application-declared backups."
+  fi
+
   # GitLab data restores need the same version and this /etc/gitlab (secrets,
   # SSH host keys, gitlab.rb). GitLab's native backup is separate.
   if kubectl get deployment gitlab -n infra >/dev/null 2>&1; then
@@ -242,6 +374,33 @@ if command -v kubectl >/dev/null 2>&1 && kubectl get --raw=/readyz >/dev/null 2>
     }
     printf 'GitLab version: %s\nImage: %s\nRunning image: %s\n' \
       "$gitlab_version" "$gitlab_image" "$gitlab_image_id" > "$staging_dir/gitlab/version.txt"
+
+    # GitLab's own database, repositories, uploads, packages and LFS objects
+    # (TODO §12). The Registry, CI artifacts and job logs stay out: images are
+    # rebuilt from release tags and artifacts expire within days. The backup is
+    # written in the GitLab volume, then here, then into the archive: three
+    # times its size, which must leave the free share.
+    gitlab_estimate_file="$BACKUP_DIR/.last-gitlab-bytes"
+    gitlab_expected=0
+    [[ -r "$gitlab_estimate_file" ]] && gitlab_expected="$(< "$gitlab_estimate_file")"
+    [[ "$gitlab_expected" =~ ^[0-9]+$ ]] || gitlab_expected=0
+    gitlab_backup_id="swirl-cloud-$TIMESTAMP"
+    gitlab_backup_file="/var/opt/gitlab/backups/${gitlab_backup_id}_gitlab_backup.tar"
+    gitlab_backup="$staging_dir/gitlab/gitlab_backup.tar"
+    if ! space_allows "$((gitlab_expected * 3 + expected_bytes))"; then
+      backup_failed "Too little space for GitLab's native backup (about $((gitlab_expected * 3 / 1073741824)) GiB); this archive holds only /etc/gitlab."
+    elif kubectl exec -n infra "$gitlab_pod_name" -c gitlab -- \
+        gitlab-backup create BACKUP="$gitlab_backup_id" SKIP=registry,artifacts,builds CRON=1 >/dev/null &&
+      kubectl exec -n infra "$gitlab_pod_name" -c gitlab -- cat "$gitlab_backup_file" > "$gitlab_backup" &&
+      [[ -z "$(tail -c 1024 "$gitlab_backup" | tr -d '\0')" ]] &&
+      tar -tf "$gitlab_backup" backup_information.yml db/database.sql.gz >/dev/null 2>&1; then
+      gitlab_native_backup=true
+      stat -c %s "$gitlab_backup" > "$gitlab_estimate_file"
+    else
+      rm -f -- "$gitlab_backup"
+      backup_failed "GitLab's native backup failed; this archive holds only /etc/gitlab."
+    fi
+    kubectl exec -n infra "$gitlab_pod_name" -c gitlab -- rm -f -- "$gitlab_backup_file" >/dev/null 2>&1 || true
   fi
 fi
 
@@ -254,8 +413,9 @@ This archive contains credentials and encryption keys. Keep it root-only and
 is uploaded through an encrypted restic repository when off-node storage is
 configured. It also contains a Vault Raft snapshot, logical PostgreSQL and
 MongoDB dumps and the Odoo filestore (application-data/odoo-filestore.tar.gz;
-restore it into /var/lib/odoo after the database) when those services were present. Longhorn recurring backups hold
-the remaining PVC data. Restore with the same K3s minor version. Restore the
+restore it into /var/lib/odoo after the database) when those services were present; the
+sections below list what else it holds. Longhorn volume backups, once an off-node
+target is configured, hold the remaining PVC data. Restore with the same K3s minor version. Restore the
 server token, encryption files, and K3s configuration (including config.yaml.d)
 before starting the restored server. Review node-specific private addresses,
 names, and join settings before reusing configuration on a replacement host.
@@ -298,23 +458,86 @@ SSH host keys, gitlab.rb) and gitlab/version.txt the exact image. Before GitLab
 starts against restored data, extract the tar as root into its gitlab-config
 volume (mounted at /etc/gitlab) and run that same image: GitLab data restores
 need the same version, and without these secrets CI variables, two-factor
-secrets and runner tokens cannot be decrypted. Repositories and the GitLab
-database are not in this archive.
+secrets and runner tokens cannot be decrypted.
 EOF
+  if [[ "${gitlab_native_backup:-false}" == true ]]; then
+    cat >> "$staging_dir/RESTORE.txt" <<EOF
+gitlab/gitlab_backup.tar is GitLab's native backup $gitlab_backup_id: its database,
+repositories, uploads, packages and LFS objects, without the Registry, CI
+artifacts and job logs. With /etc/gitlab restored and that image running, copy
+it to /var/opt/gitlab/backups/${gitlab_backup_id}_gitlab_backup.tar (owner git),
+run gitlab-ctl stop puma and gitlab-ctl stop sidekiq, then
+gitlab-backup restore BACKUP=$gitlab_backup_id and gitlab-ctl restart.
+EOF
+  else
+    printf 'Repositories and the GitLab database are not in this archive.\n' >> "$staging_dir/RESTORE.txt"
+  fi
+fi
+if [[ "${elasticsearch_evidence:-false}" == true ]]; then
+  cat >> "$staging_dir/RESTORE.txt" <<EOF
+
+elasticsearch/evidence-snapshot.tar is an Elasticsearch snapshot repository
+holding snapshot nightly-${TIMESTAMP,,} of the identity audit, platform report,
+Lynis, security finding and access grant indices. Extract it into
+/usr/share/elasticsearch/snapshots, register an fs repository with location
+swirl-cloud-evidence, and restore with POST _snapshot/<repository>/nightly-${TIMESTAMP,,}/_restore.
+EOF
+fi
+if (( ${#application_backups[@]} > 0 )); then
+  cat >> "$staging_dir/RESTORE.txt" <<EOF
+
+application-data/apps/<namespace>/<deployment>/ holds what applications declare
+with swirl-cloud.io/backup-sqlite and swirl-cloud.io/backup-files: ${application_backups[*]}.
+Each file is named after its path with / as _. Scale the Deployment to zero,
+put each .sqlite back at its path with no -wal or -shm file beside it, extract
+each .tar in the parent of its directory, then scale the Deployment back up.
+EOF
+fi
+if (( ${#failures[@]} > 0 )); then
+  {
+    printf '\nThis run did not complete; missing from this archive:\n'
+    printf -- '- %s\n' "${failures[@]}"
+  } >> "$staging_dir/RESTORE.txt"
 fi
 
 tar -C "$staging_dir" -czf "$ARCHIVE" .
 chmod 0600 "$ARCHIVE"
-printf '%s\n' "$(( $(du -sb "$staging_dir" | cut -f1) + $(stat -c %s "$ARCHIVE") ))" > "$estimate_file"
+# GitLab's native backup has its own estimate and space check.
+run_bytes="$(( $(du -sb "$staging_dir" | cut -f1) + $(stat -c %s "$ARCHIVE") ))"
+[[ "${gitlab_native_backup:-false}" != true ]] || run_bytes="$(( run_bytes - 2 * $(< "$gitlab_estimate_file") ))"
+printf '%s\n' "$(( run_bytes > 0 ? run_bytes : 0 ))" > "$estimate_file"
 sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 chmod 0600 "$ARCHIVE.sha256"
 
+# Installer runs add archives too, so a count alone can keep only one busy day.
 mapfile -t archives < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'k3s-*.tar.gz' -printf '%f\n' | sort -r)
-if (( ${#archives[@]} > RETENTION_COUNT )); then
-  for old_archive in "${archives[@]:RETENTION_COUNT}"; do
-    rm -f -- "$BACKUP_DIR/$old_archive" "$BACKUP_DIR/$old_archive.sha256"
-  done
-fi
+declare -A keep=() seen_day=() seen_week=() seen_month=()
+days=0 weeks=0 months=0
+for index in "${!archives[@]}"; do
+  archive_name="${archives[$index]}"
+  day="${archive_name:4:8}"
+  if [[ ! "$day" =~ ^[0-9]{8}$ ]] || ! week="$(date -u -d "$day" +%G%V 2>/dev/null)"; then
+    keep[$archive_name]=1
+    continue
+  fi
+  month="${day:0:6}"
+  (( index >= RETENTION_COUNT )) || keep[$archive_name]=1
+  if [[ -z "${seen_day[$day]:-}" ]]; then
+    seen_day[$day]=1 days=$((days + 1))
+    (( days > RETENTION_DAYS )) || keep[$archive_name]=1
+  fi
+  if [[ -z "${seen_week[$week]:-}" ]]; then
+    seen_week[$week]=1 weeks=$((weeks + 1))
+    (( weeks > RETENTION_WEEKS )) || keep[$archive_name]=1
+  fi
+  if [[ -z "${seen_month[$month]:-}" ]]; then
+    seen_month[$month]=1 months=$((months + 1))
+    (( months > RETENTION_MONTHS )) || keep[$archive_name]=1
+  fi
+done
+for archive_name in "${archives[@]}"; do
+  [[ -n "${keep[$archive_name]:-}" ]] || rm -f -- "$BACKUP_DIR/$archive_name" "$BACKUP_DIR/$archive_name.sha256"
+done
 
 if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
   command -v restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
@@ -328,3 +551,8 @@ if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
 fi
 
 echo "Created $ARCHIVE"
+# Exit 3: an archive exists without the parts listed above.
+if (( ${#failures[@]} > 0 )); then
+  printf 'Incomplete: %s\n' "${failures[@]}" >&2
+  exit 3
+fi

@@ -102,6 +102,24 @@ production `swirl_demo_app_db`. To keep it: migrate ownership to the app role
 `"databaseName": "swirl_demo_app_db"` in the production `settings.json`, and rerun.
 The `--adopt-existing-database` check refuses missing ownership or credentials.
 
+### Data on application volumes
+
+Databases on the shared PostgreSQL and MongoDB are in the nightly archive. Data
+an application keeps on its own volume is archived only when its Deployment
+declares it, with comma-separated absolute paths inside the main container:
+
+```yaml
+metadata:
+  annotations:
+    swirl-cloud.io/backup-sqlite: /data/app.sqlite
+    swirl-cloud.io/backup-files: /data/uploads
+```
+
+The nightly backup copies each SQLite database with `VACUUM INTO` (the image's
+`sqlite3`, else Node's `node:sqlite`) next to the database, so the volume must be
+writable, and each directory with `tar`. A copy that fails fails the backup run
+([coverage](../operations.md#coverage-and-recovery-points)).
+
 ## Single-target compatibility (version 1)
 
 One local Application with a repository-local Kustomize directory or Helm chart
