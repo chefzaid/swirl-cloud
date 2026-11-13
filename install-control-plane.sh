@@ -245,6 +245,19 @@ error() { echo -e "${RED}[ERROR]${NC} $(localize "$*")"; exit 1; }
 fail()  { error "$@"; }
 step()  { echo -e "${BLUE}[STEP]${NC}  $(localize "$*")"; install_record_step "$@"; }
 
+# wait_external_secrets NAMESPACE NAME...: wait until each applied
+# ExternalSecret has synced, skipping those not applied yet: some belong to the
+# platform services, which a first installation applies after the Vault bootstrap.
+wait_external_secrets() {
+    local namespace="$1" es
+    shift
+    for es in "$@"; do
+        kubectl get externalsecret "$es" -n "$namespace" >/dev/null 2>&1 || continue
+        kubectl wait --for=condition=Ready externalsecret/"$es" -n "$namespace" \
+            --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
+    done
+}
+
 ask_with_default() {
     installer_prompt_yes_no "$1" "${2:-N}" "$AUTO_APPROVE"
 }
@@ -1064,14 +1077,10 @@ EOF
                 --node-network-cidr "$K3S_NODE_NETWORK_CIDR" --control-plane-ip "$K3S_PRIVATE_ADDRESS"
         fi
 
-        for es in "${EXTERNAL_SECRET_NAME_ARRAY[@]}"; do
-            kubectl wait --for=condition=Ready externalsecret/"$es" -n infra \
-                --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
-        done
-        for es in "${HOST_AGENTS_EXTERNAL_SECRET_NAME_ARRAY[@]}"; do
-            kubectl wait --for=condition=Ready externalsecret/"$es" -n "$HOST_AGENTS_NAMESPACE" \
-                --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
-        done
+        # Platform-service secrets are applied with those services, further down;
+        # their pods wait for them, and some are filled only by those services' jobs.
+        wait_external_secrets infra "${EXTERNAL_SECRET_NAME_ARRAY[@]}"
+        wait_external_secrets "$HOST_AGENTS_NAMESPACE" "${HOST_AGENTS_EXTERNAL_SECRET_NAME_ARRAY[@]}"
     fi
 
     if [[ "$CONFIGURE_PLATFORM_MAIL" == "true" ]]; then
