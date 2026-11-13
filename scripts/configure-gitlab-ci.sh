@@ -339,5 +339,9 @@ else
   info "GitLab project, package/container registries, three-year retention, and instance-scoped Kubernetes runner are configured; repository sync was not requested"
 fi
 
+# SonarQube's automation token (its SSO bootstrap and discovery use it); a first
+# installation also leaves the default admin password here.
+VAULT_POD="$VAULT_POD" python3 "$SCRIPT_DIR/configure-sonar-admin.py"
+
 # Namespace-driven Sonar provisioning uses a separate group credential.
 "$SCRIPT_DIR/configure-sonar-discovery.sh"

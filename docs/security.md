@@ -445,6 +445,10 @@ Username fields and Vault mappings are in the
 | Website's Odoo lead intake | `apps/<website>/odoo` | `apiKey` (only creates leads; [guide](guides/odoo-website.md)) |
 | Platform mail relay | `infra/smtp` | `password` (the relay login; [guide](guides/platform-mail.md#where-the-password-lives)) |
 
+The first installation replaces SonarQube's default `admin` password with a generated
+`admin_password` and creates `admin_token` ([configure-sonar-admin.py](../scripts/configure-sonar-admin.py));
+reruns keep a token that still signs in.
+
 During an SSO outage, run `kubectl port-forward -n infra service/vault 8200:8200`
 and open `http://127.0.0.1:8200/ui` with the root-only token in
 `/var/lib/swirl-cloud/vault-bootstrap-token`; keep it out of arguments and logs.
