@@ -50,6 +50,29 @@ Filesystem and volume alerts are in the [capacity runbooks](alert-runbooks.md#ca
 The [platform reports](platform-reports.md) keep hourly allocation per namespace
 for 13 months, for long-term trends.
 
+## Sizing profiles
+
+Service sizes come from a profile, chosen with `SIZING_PROFILE` (setup hub:
+Configure → Nodes):
+
+| Profile | For | What it sets |
+| --- | --- | --- |
+| `standard` | The [minimum server](../deployment.md#support-matrix) and up | Every manifest's own requests, limits, volumes and settings. |
+| `large` | One server with 16+ threads and 96+ GiB | GitLab (4 Puma workers, 20 Sidekiq threads, 16 GiB, 150 Gi data), six concurrent CI jobs of up to 4 CPU, 8 GiB and 20 GiB ephemeral storage (instance and project runners, 30 Gi cache), PostgreSQL (20 Gi, `shared_buffers` 2 GB), Elasticsearch (4 GiB heap, 50 Gi, container logs kept 14 days), Prometheus (30 days or 20 GB, 30 Gi), more memory for Logstash, Kibana, Kafka, MongoDB, Keycloak, SonarQube, Grafana, Odoo (4 workers) and Argo CD, and four concurrent Trivy scans. |
+
+Left empty, the installer keeps the installed profile, or suggests `large` from
+the host's threads and memory on a first installation. The root Application
+records the profile, so Argo CD, reruns and `ansible/deploy.yml` keep it. A
+profile is a file in [`k8s/files/sizing/`](../../k8s/files/sizing/large.yaml):
+per manifest and document it replaces exact text, then sets container
+resources, environment values, arguments and volume sizes, and every entry must
+still match its manifest or the render fails. Argo CD's own release adds
+`config/argocd-sizing-<profile>-values.yaml`.
+
+Volumes only grow: the installer refuses a profile that would render a volume
+smaller than it is. A StatefulSet's volume templates cannot change in place, so
+Kafka's volumes keep their size; expand those claims directly when needed.
+
 ## Related Guides
 
 - [Cost showback](cost-showback.md)

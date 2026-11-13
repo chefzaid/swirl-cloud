@@ -15,6 +15,7 @@ from urllib.parse import quote
 import yaml
 
 from onboarding_services import HTTP, HTTPFailure, ServiceError
+import sizing
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "gitlab-runners"
@@ -149,9 +150,15 @@ class ApplicationDelivery:
             # and enables reconciliation. Jobs never receive Application create.
             self.apply(app)
 
+    def sizing_profile(self):
+        return sizing.recorded() or sizing.STANDARD
+
     def runner_resources(self):
         baseline = list(yaml.safe_load_all((ROOT / "k8s/platform/gitlab-runner.yaml").read_text()))
         config = next(item["data"]["config.template.toml"] for item in baseline if item["kind"] == "ConfigMap" and item["metadata"]["name"] == "gitlab-runner-config")
+        # Project runners follow the platform's sizing profile, like the instance runner.
+        config = sizing.apply_replacements(config, "platform/gitlab-runner.yaml", "ConfigMap/gitlab-runner-config",
+                                           self.sizing_profile())
         prefix, body = config.split("[[runners]]", 1)
         # Branch and release jobs never share a writable cache volume. GitLab
         # artifacts carry verified build outputs between jobs instead.

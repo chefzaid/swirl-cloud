@@ -6,10 +6,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts/lib"))
+import sizing  # noqa: E402
 
 
 def identity(resource):
@@ -48,6 +51,9 @@ def main():
         merge(values, yaml.safe_load(args.values.read_text()))
     enabled = os.environ.get("HIGH_AVAILABILITY_ENABLED", "false") == "true"
     values["highAvailabilityEnabled"] = enabled
+    # An explicit profile, else the one the platform records, so reruns never shrink it.
+    values["sizingProfile"] = os.environ.get("SIZING_PROFILE") or sizing.recorded() or sizing.STANDARD
+    sizing.load(values["sizingProfile"])
     with tempfile.TemporaryDirectory(prefix="swirl-cloud-ha-render.") as directory:
         value_file = Path(directory) / "values.json"
 

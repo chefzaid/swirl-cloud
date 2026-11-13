@@ -196,6 +196,9 @@ INPUTS = (
           default="EUR", when=lambda v: bool(v.get("SERVER_MONTHLY_COST"))),
     Input("HIGH_AVAILABILITY_ENABLED", "Nodes", "Activate the opt-in high-availability profile?", kind="bool", default="false",
           help="Refused until three control planes exist; see docs/guides/high-availability.md."),
+    Input("SIZING_PROFILE", "Nodes", "Service sizing profile", kind="choice", choices=("standard", "large"),
+          help="Empty keeps the installed profile, or suggests large for 16+ threads and 96+ GiB; "
+               "volumes only grow. See docs/guides/capacity-planning.md."),
     # Components
     Input("INSTALL_PREREQS", "Components", "Install/upgrade system prerequisites?", kind="bool", default="true"),
     Input("INSTALL_DEVELOPER_TOOLS", "Components", "Also install developer tools (Java 21, Maven, Docker)?", kind="bool",

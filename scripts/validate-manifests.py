@@ -143,6 +143,8 @@ def render_profiles(output):
         profile_env = dict(env, HIGH_AVAILABILITY_ENABLED=flag(ha))
         if shared_data and not ha:
             profile_env["PORTAL_LANGUAGE"] = "fr"  # One profile proves the French portal renders the same both ways.
+        if shared_data:  # Both topologies prove the large sizing profile renders the same both ways.
+            profile_env["SIZING_PROFILE"] = "large"
         soc_host = "siem.example.net" if ha and not apps and not phase else ""
         if soc_host:  # One profile forwards every source to a SOC with its own CA.
             profile_env.update(SOC_SYSLOG_HOST=soc_host, SOC_SYSLOG_CA_FILE=str(ROOT / "config/cloudflare-origin-ca.pem"),

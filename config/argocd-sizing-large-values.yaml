@@ -1,0 +1,22 @@
+# Argo CD for the "large" sizing profile (k8s/files/sizing/large.yaml), layered
+# after argocd-values.yaml by scripts/reconcile-platform-release.sh. Keep the
+# controller's GOMEMLIMIT below its container limit (docs/deployment.md).
+controller:
+  env:
+    - name: GOMEMLIMIT
+      value: 3GiB
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: '2'
+      memory: 4Gi
+repoServer:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: '2'
+      memory: 2Gi

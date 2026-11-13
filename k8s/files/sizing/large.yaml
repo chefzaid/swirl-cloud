@@ -1,0 +1,141 @@
+# Sizing profile "large" (values.yaml sizingProfile, TODO §26): one server with
+# 16 or more threads and 96 GiB or more, such as 8 cores / 16 threads and
+# 128 GiB. Requests stay modest so six CI jobs fit beside the platform; limits
+# give each service room to burst. "standard" keeps every manifest's own sizes.
+#
+# manifests: per manifest, per document (Kind/name):
+#   replace     exact text; each "from" must occur exactly once in the document
+#   containers  per container: resources (merged), env (existing values), args
+#   storage     PersistentVolumeClaim request; volumes only grow
+# values: Helm values the root Application carries (subcharts).
+values:
+  trivy-operator:
+    operator:
+      scanJobsConcurrentLimit: 4
+manifests:
+  platform/gitlab.yaml:
+    Deployment/gitlab:
+      replace:
+        - from: "puma['worker_processes'] = 2"
+          to: "puma['worker_processes'] = 4"
+        - from: "sidekiq['concurrency'] = 10"
+          to: "sidekiq['concurrency'] = 20"
+      containers:
+        gitlab:
+          resources:
+            requests: {cpu: "1", memory: 8Gi}
+            limits: {cpu: "6", memory: 16Gi}
+    PersistentVolumeClaim/gitlab-data:
+      storage: 150Gi
+  platform/gitlab-runner.yaml:
+    # Project runners from application delivery derive from this ConfigMap too.
+    ConfigMap/gitlab-runner-config:
+      replace:
+        - {from: "concurrent = 1", to: "concurrent = 6"}
+        - {from: 'cpu_limit = "2"', to: 'cpu_limit = "4"'}
+        - {from: 'memory_limit = "3Gi"', to: 'memory_limit = "8Gi"'}
+        - {from: 'ephemeral_storage_request = "512Mi"', to: 'ephemeral_storage_request = "1Gi"'}
+        - {from: 'ephemeral_storage_limit = "4Gi"', to: 'ephemeral_storage_limit = "20Gi"'}
+        - {from: 'service_cpu_limit = "1"', to: 'service_cpu_limit = "2"'}
+        - {from: 'service_memory_limit = "1Gi"', to: 'service_memory_limit = "2Gi"'}
+    PersistentVolumeClaim/gitlab-runner-cache:
+      storage: 30Gi
+  datastores/postgres.yaml:
+    Deployment/postgres:
+      containers:
+        postgres:
+          # The image's command is "postgres"; these are its settings for about 8 GiB.
+          args: [postgres, -c, shared_buffers=2GB, -c, effective_cache_size=6GB, -c, work_mem=16MB,
+                 -c, maintenance_work_mem=256MB]
+          resources:
+            requests: {cpu: 500m, memory: 2Gi}
+            limits: {cpu: "4", memory: 8Gi}
+    PersistentVolumeClaim/postgres-v18-pvc:
+      storage: 20Gi
+  datastores/mongodb.yaml:
+    Deployment/mongodb:
+      containers:
+        mongodb:
+          resources:
+            limits: {cpu: "1", memory: 2Gi}
+    PersistentVolumeClaim/mongodb-pvc:
+      storage: 10Gi
+  datastores/kafka.yaml:
+    StatefulSet/kafka:
+      containers:
+        kafka:
+          resources:
+            limits: {cpu: "2", memory: 4Gi}
+  platform/elk.yaml:
+    Deployment/elasticsearch:
+      containers:
+        elasticsearch:
+          env: {ES_JAVA_OPTS: "-Xms4g -Xmx4g"}
+          resources:
+            requests: {cpu: "1", memory: 6Gi}
+            limits: {cpu: "4", memory: 8Gi}
+    PersistentVolumeClaim/elasticsearch-data:
+      storage: 50Gi
+    Deployment/logstash:
+      containers:
+        logstash:
+          env: {LS_JAVA_OPTS: "-Xms1g -Xmx1g -XX:+ExitOnOutOfMemoryError"}
+          resources:
+            requests: {memory: 1536Mi}
+            limits: {cpu: "2", memory: 3Gi}
+    Deployment/kibana:
+      containers:
+        kibana:
+          env: {NODE_OPTIONS: "--max-old-space-size=3072"}
+          resources:
+            requests: {memory: 2Gi}
+            limits: {cpu: "2", memory: 4Gi}
+  platform/logging-agent.yaml:
+    ConfigMap/fluent-bit-config:
+      replace:
+        # Container logs (swirl-cloud-logs) for 14 days instead of one.
+        - {from: '"min_age": "1d"', to: '"min_age": "14d"'}
+  platform/monitoring.yaml:
+    Deployment/prometheus:
+      replace:
+        - {from: "--storage.tsdb.retention.time=15d", to: "--storage.tsdb.retention.time=30d"}
+        - {from: "--storage.tsdb.retention.size=1500MB", to: "--storage.tsdb.retention.size=20GB"}
+      containers:
+        prometheus:
+          resources:
+            requests: {memory: 2Gi}
+            limits: {cpu: "4", memory: 8Gi}
+    # 20 GB of blocks plus the WAL, which the size limit excludes.
+    PersistentVolumeClaim/prometheus-data:
+      storage: 30Gi
+    Deployment/grafana:
+      containers:
+        grafana:
+          resources:
+            limits: {cpu: "2", memory: 1536Mi}
+  platform/keycloak.yaml:
+    Deployment/keycloak:
+      containers:
+        keycloak:
+          # Keycloak sizes its heap as a share of the container limit.
+          resources:
+            requests: {memory: 768Mi}
+            limits: {cpu: "2", memory: 2Gi}
+  platform/sonarqube.yaml:
+    Deployment/sonarqube:
+      containers:
+        sonarqube:
+          resources:
+            requests: {memory: 3Gi}
+            limits: {cpu: "4", memory: 8Gi}
+  corp/odoo.yaml:
+    Deployment/odoo:
+      replace:
+        - {from: "printf 'workers = 2\\n'", to: "printf 'workers = 4\\n'"}
+        - {from: "printf 'limit_memory_soft = 536870912\\n'", to: "printf 'limit_memory_soft = 1073741824\\n'"}
+        - {from: "printf 'limit_memory_hard = 671088640\\n'", to: "printf 'limit_memory_hard = 1342177280\\n'"}
+      containers:
+        odoo:
+          resources:
+            requests: {memory: 2Gi}
+            limits: {cpu: "4", memory: 8Gi}

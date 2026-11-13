@@ -79,6 +79,11 @@ case "$SERVICE" in
         repository_url=https://argoproj.github.io/argo-helm
         values=(--values "$ARGOCD_VALUES_FILE")
         [[ "$HIGH_AVAILABILITY_ENABLED" != true ]] || values+=(--values "$REPO_ROOT/config/argocd-ha-values.yaml")
+        # The sizing profile (TODO §26): as chosen, else as the platform records it.
+        sizing="${SIZING_PROFILE:-$(python3 "$REPO_ROOT/scripts/lib/sizing.py" recorded)}"
+        if [[ -n "$sizing" && "$sizing" != standard && -r "$REPO_ROOT/config/argocd-sizing-$sizing-values.yaml" ]]; then
+            values+=(--values "$REPO_ROOT/config/argocd-sizing-$sizing-values.yaml")
+        fi
         ;;
 esac
 helm repo add "$repository" "$repository_url" --force-update >/dev/null

@@ -235,6 +235,7 @@ Besides the [identity inputs](#organization-and-installation-identity):
 | `K3S_API_VIP` | vRack or LAN with several control planes: an unused node-network address for the [Kubernetes API endpoint](guides/node-enrollment.md#kubernetes-api-endpoint). Tailscale uses a Tailscale Service. |
 | `CLOUDFLARE_NODE_DNS_LABEL` | Public administration label, independent of the node name; default `node-01`. |
 | `CLOUDFLARE_PUBLISH_APEX` | Default `false`; opt in only if the platform should manage apex DNS. |
+| `SIZING_PROFILE` | `standard` or `large` service sizes ([sizing profiles](guides/capacity-planning.md#sizing-profiles)); empty keeps the installed profile or suggests one from the host. |
 
 A Tailscale example, with identity, credentials and the
 [Tailscale inputs](guides/node-enrollment.md#tailscale) set:

@@ -352,11 +352,14 @@ class CertificateTests(unittest.TestCase):
 
 
 class DeliveryBoundaryTests(unittest.TestCase):
-    def manager(self, targets=None):
+    def manager(self, targets=None, sizing_profile="standard"):
         platform = SimpleNamespace(api=object(), kubectl=lambda *_args, **_kwargs: None)
         env = SimpleNamespace(onboarding=platform, context=CONTEXT, name="swirl-demo-app",
                               targets=targets or {}, contract=CONTRACT)
-        return ApplicationDelivery(env)
+        manager = ApplicationDelivery(env)
+        # The recorded profile comes from the live root Application; keep tests hermetic.
+        manager.sizing_profile = lambda: sizing_profile
+        return manager
 
     def test_empty_inventory_prepares_ci_without_deployment_privileges(self):
         manager = self.manager()
@@ -397,6 +400,13 @@ class DeliveryBoundaryTests(unittest.TestCase):
         release = next(item for item in policies if item["metadata"]["name"].endswith("-release"))
         for env, namespace in (("int", "apps-int"), ("uat", "apps-uat"), ("prod", "apps")):
             self.assertIn('object.spec.destination.namespace == "' + namespace + '"', release["spec"]["validations"][0]["expression"])
+
+    def test_project_runners_follow_the_platform_sizing_profile(self):
+        import tomllib
+        config = tomllib.loads(self.manager(sizing_profile="large").runner_resources()[0]["data"]["config.template.toml"])
+        self.assertEqual(config["concurrent"], 6)
+        for runner in config["runners"]:
+            self.assertEqual((runner["kubernetes"]["cpu_limit"], runner["kubernetes"]["memory_limit"]), ("4", "8Gi"))
 
     def test_runners_have_fixed_accounts_and_no_shared_writable_cache(self):
         import tomllib

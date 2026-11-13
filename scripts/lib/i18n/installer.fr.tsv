@@ -364,3 +364,6 @@ Tailscale could not verify that token and tailnet. No host firewall change was m
 Using manually confirmed OVHcloud vRack attachment; each entered private NIC will still be validated on the host.	Utilisation du rattachement OVHcloud vRack confirmé manuellement ; chaque interface privée saisie sera tout de même validée sur l'hôte.
 Using the existing LAN; the installer will not change host networking.	Utilisation du LAN existant ; l'installateur ne modifiera pas le réseau de l'hôte.
 The installation report was not emailed; ./install.sh --status prints it again.	Le rapport d'installation n'a pas été envoyé par e-mail ; ./install.sh --status l'affiche de nouveau.
+Choose a valid SIZING_PROFILE.	Choisissez un SIZING_PROFILE valide.
+Sizing profile: $SIZING_PROFILE ($sizing_reason).	Profil de dimensionnement : $SIZING_PROFILE ($sizing_reason).
+The sizing profile would shrink volumes; keep the larger profile.	Le profil de dimensionnement réduirait des volumes ; gardez le profil le plus grand.

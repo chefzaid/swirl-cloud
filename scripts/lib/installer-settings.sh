@@ -204,7 +204,16 @@ configure_platform_mail() {
 }
 
 prepare_rendered_configuration() {
+    local sizing sizing_reason
     [[ -x "$RENDER_CONFIG_SCRIPT" ]] || error "Configuration renderer is not executable: $RENDER_CONFIG_SCRIPT"
+    # Sizing (TODO §26): the operator's choice, else the installed profile, else a
+    # suggestion from this host. The renderer and the Argo CD release read it.
+    sizing="$(python3 "$SCRIPT_DIR/scripts/lib/sizing.py" resolve --explicit "${SIZING_PROFILE:-}")" || \
+        error "Choose a valid SIZING_PROFILE."
+    SIZING_PROFILE="${sizing%%$'\t'*}"
+    sizing_reason="${sizing#*$'\t'}"
+    export SIZING_PROFILE
+    info "Sizing profile: $SIZING_PROFILE ($sizing_reason)."
     RENDERED_CONFIG_DIR="$(mktemp -d /tmp/swirl-cloud-rendered.XXXXXX)"
     chmod 700 "$RENDERED_CONFIG_DIR"
     "$RENDER_CONFIG_SCRIPT" \
@@ -217,6 +226,8 @@ prepare_rendered_configuration() {
         --cloudflare-access-team "$CLOUDFLARE_ACCESS_TEAM_NAME" \
         --apps-enabled "$INSTALL_APPS" \
         --descheduler-enabled "$INSTALL_DESCHEDULER" >/dev/null
+    python3 "$SCRIPT_DIR/scripts/lib/sizing.py" check-volumes --root "$RENDERED_CONFIG_DIR" || \
+        error "The sizing profile would shrink volumes; keep the larger profile."
     K8S_DIR="$RENDERED_CONFIG_DIR/k8s"
     ARGOCD_VALUES_FILE="$RENDERED_CONFIG_DIR/config/argocd-values.yaml"
     VAULT_VALUES_FILE="$RENDERED_CONFIG_DIR/config/vault-values.yaml"

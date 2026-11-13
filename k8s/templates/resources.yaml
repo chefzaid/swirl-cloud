@@ -102,8 +102,16 @@
     "redis" (dict "config" (dict "aclfile" $redis.redis.config.aclfile) "extraVolumeMounts" $redis.redis.extraVolumeMounts)
     "extraVolumes" $redis.extraVolumes) -}}
 {{- end -}}
+{{- $profile := $root.Values.sizingProfile | default "standard" -}}
+{{- if ne $profile "standard" -}}
+{{- /* The root Application keeps the profile and the subchart values it sets. */ -}}
+{{- $_ := set $ha "sizingProfile" $profile -}}
+{{- range $key, $value := (include "swirl-cloud.sizing" $root | fromYaml).values | default dict -}}
+{{- $_ := set $ha $key $value -}}
+{{- end -}}
+{{- end -}}
 {{- $content = replace "__HA_VALUES_OBJECT__" (toJson $ha) $content -}}
-{{ $content }}
+{{ include "swirl-cloud.sized" (list $root $path $content) }}
 ---
 {{- end -}}
 

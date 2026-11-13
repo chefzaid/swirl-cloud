@@ -28,6 +28,11 @@ socSyslogCa: ""
 appsEnabled: false
 deschedulerEnabled: true
 highAvailabilityEnabled: false
+# Sizing profile (TODO §26): "standard" keeps every manifest's own sizes and fits
+# the minimum server; "large" (files/sizing/large.yaml) is for one server with
+# 16+ threads and 96+ GiB. The installer suggests one from the host's capacity and
+# keeps the recorded one on reruns; volumes only grow.
+sizingProfile: standard
 nodeFencing:
   enabled: false
   inventorySecret: node-fencing-inventory
