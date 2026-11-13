@@ -627,7 +627,14 @@ curl --fail --location --silent --show-error \
     --connect-timeout 15 --max-time 180 \
     --output "$k3s_installer" https://get.k3s.io
 chmod 700 "$k3s_installer"
-"${install_sudo[@]}" "${install_environment[@]}" sh "$k3s_installer" "${agent_args[@]}"
+# K3s writes its unit for every administrator's systemctl; under this script's
+# umask 077 it became 0600, and reruns keep that mode.
+"${install_sudo[@]}" "${install_environment[@]}" sh -c 'umask 022; exec sh "$@"' sh "$k3s_installer" "${agent_args[@]}"
+for unit in /etc/systemd/system/k3s.service /etc/systemd/system/k3s-agent.service; do
+    if "${install_sudo[@]}" test -f "$unit"; then
+        "${install_sudo[@]}" chmod 0644 "$unit"
+    fi
+done
 JOIN_TOKEN=""
 unset JOIN_TOKEN K3S_TOKEN
 

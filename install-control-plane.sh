@@ -831,8 +831,11 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             --secrets-encryption
             --write-kubeconfig-mode 600
         )
-        sudo env INSTALL_K3S_VERSION="$K3S_INSTALL_VERSION" sh "$k3s_installer" \
+        # K3s writes its unit for every administrator's systemctl (and the setup hub);
+        # under the installer's umask 077 it became 0600, and reruns keep that mode.
+        sudo env INSTALL_K3S_VERSION="$K3S_INSTALL_VERSION" sh -c 'umask 022; exec sh "$@"' sh "$k3s_installer" \
             "${k3s_server_args[@]}"
+        sudo chmod 0644 /etc/systemd/system/k3s.service
     fi
 
     # The installer's umask 077 leaves /etc/rancher root-only, so test as root.
