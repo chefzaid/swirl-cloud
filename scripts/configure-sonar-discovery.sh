@@ -59,7 +59,8 @@ def configure_sonar(gitlab_token):
         except urllib.error.HTTPError as error:
             raise RuntimeError(f'Sonar {method} {path}: HTTP {error.code}') from None
     setting = os.environ['SONAR_ALM_SETTING']
-    existing = sonar('GET', 'api/alm_settings/list').get('gitlab', [])
+    # list_definitions groups settings by ALM; api/alm_settings/list returns one flat almSettings list.
+    existing = sonar('GET', 'api/alm_settings/list_definitions').get('gitlab', [])
     action = 'update_gitlab' if any(item['key'] == setting for item in existing) else 'create_gitlab'
     sonar('POST', 'api/alm_settings/' + action, {
         'key': setting, 'url': 'http://gitlab.' + os.environ['INTERNAL_DNS_ZONE'] + '/api/v4',
