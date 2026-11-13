@@ -3,6 +3,12 @@
 set -euo pipefail
 set +x
 umask 077
+# K3s's kubectl reads /etc/rancher/k3s/k3s.yaml (root-only) unless KUBECONFIG is
+# set; default it to the administrator's copy so runs without a login shell
+# (Ansible, ssh commands, timers) reach the cluster too.
+if [[ -z "${KUBECONFIG:-}" && -r "$HOME/.kube/config" ]]; then
+    export KUBECONFIG="$HOME/.kube/config"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_CONFIG="$SCRIPT_DIR/config/platform.env"

@@ -42,7 +42,7 @@ install_record_start() {
     INSTALL_RECORD_FILE="$INSTALL_RECORD_DIR/$run.jsonl"
     while IFS= read -r old; do
         sudo rm -f -- "$old" || true
-    done < <(find "$INSTALL_RECORD_DIR" -maxdepth 1 -name '*.jsonl' -type f | LC_ALL=C sort -r | tail -n +"$((INSTALL_RECORD_KEEP + 1))")
+    done < <(sudo find "$INSTALL_RECORD_DIR" -maxdepth 1 -name '*.jsonl' -type f | LC_ALL=C sort -r | tail -n +"$((INSTALL_RECORD_KEEP + 1))")
     install_record_event event=start mode="$mode" started="$INSTALL_RECORD_STARTED" \
         revision="$(git -C "$SCRIPT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)" \
         chart="$(awk '$1 == "version:" {print $2; exit}' "$SCRIPT_DIR/k8s/Chart.yaml" 2>/dev/null)" \
