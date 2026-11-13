@@ -29,6 +29,7 @@ REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GITLAB_TOKEN_LIBRARY="$SCRIPT_DIR/lib/gitlab-admin-token.sh"
 
 info() { printf '[INFO] %s\n' "$*"; }
+warn() { printf '[WARN] %s\n' "$*" >&2; }
 fail() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 
 for command_name in curl jq kubectl sudo; do
@@ -321,7 +322,14 @@ if kubectl get externalsecret gitlab-runner-token -n "$RUNNER_NAMESPACE" >/dev/n
   kubectl wait --for=condition=Ready externalsecret/gitlab-runner-token \
     -n "$RUNNER_NAMESPACE" --timeout=3m >/dev/null
   kubectl rollout restart deployment/gitlab-runner -n "$RUNNER_NAMESPACE" >/dev/null
-  kubectl rollout status deployment/gitlab-runner -n "$RUNNER_NAMESPACE" --timeout=5m >/dev/null
+  # The runner is recreated only after the previous one finishes its running CI jobs
+  # (shutdown_timeout, up to two hours), so a drain in progress is not a failure.
+  if ! kubectl rollout status deployment/gitlab-runner -n "$RUNNER_NAMESPACE" --timeout=5m >/dev/null; then
+    kubectl get pods -n "$RUNNER_NAMESPACE" -l app=gitlab-runner \
+      -o jsonpath='{range .items[*]}{.metadata.deletionTimestamp}{"\n"}{end}' | grep -q . || \
+      fail "The GitLab runner did not become ready after its restart"
+    warn "The previous GitLab runner is still finishing its CI jobs; the restarted runner starts when they end"
+  fi
 fi
 
 if kubectl get externalsecret gitlab-registry-retention-token -n "$NAMESPACE" >/dev/null 2>&1; then
