@@ -816,7 +816,8 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
             "${k3s_server_args[@]}"
     fi
 
-    if [[ -f /etc/rancher/k3s/k3s.yaml ]]; then
+    # The installer's umask 077 leaves /etc/rancher root-only, so test as root.
+    if sudo test -f /etc/rancher/k3s/k3s.yaml; then
         umask 077
         mkdir -p ~/.kube
         chmod 700 ~/.kube
