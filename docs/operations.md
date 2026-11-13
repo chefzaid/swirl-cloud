@@ -396,7 +396,7 @@ weekly and 12 monthly. Recovery times are unmeasured (restore drill, TODO §16).
 | Portainer, DBGate settings | Their volumes, with volume backups | None until then | Low value; recreated by the installer. |
 | Kubernetes PVC and Longhorn volume inventories | YAML in the nightly archive | Up to 24 h | Maps restored volumes back to claims. |
 
-As of 2026-10-04, `swirlit-node-01` has no off-node storage and Longhorn's
+As of 2026-11-13, `swirl-node-01` has no off-node storage and Longhorn's
 `default` BackupTarget is unavailable: every copy shares the host's failure
 domain. Configure the S3 target in the setup hub (Configure → Backups).
 
