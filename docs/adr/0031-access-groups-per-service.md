@@ -65,5 +65,5 @@ tool. Groups need no change to tokens.
   when OAuth2 Proxy refreshes its session.
 - Administration hosts behind Cloudflare Access still need the person's email in
   its allowlist until the edge follows these groups (TODO §47).
-- Kafka UI has no role rules yet and admits any signed-in account; Cloudflare
-  Access is its only limit (TODO, Bugs to fix).
+- Kafka UI maps the token's groups to one administrators-only role and has
+  no default role, so it admits `platform-admins` only.

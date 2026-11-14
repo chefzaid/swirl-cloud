@@ -82,10 +82,58 @@ spec:
               value: https://kafka.__PUBLIC_DOMAIN__/login/oauth2/code/keycloak
             - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_AUTHORIZATIONGRANTTYPE
               value: authorization_code
+            # "oauth" makes Kafbat read roles from the token's groups claim; with
+            # any other type it maps no role (OauthAuthorityExtractor).
             - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CUSTOMPARAMS_TYPE
-              value: keycloak
+              value: oauth
             - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CUSTOMPARAMS_ROLESFIELD
               value: groups
+            # Administrators only (ADR 0031): one role for platform-admins and no
+            # default role, so any other signed-in account gets no access at all.
+            - name: RBAC_ROLES_0_NAME
+              value: platform-admins
+            - name: RBAC_ROLES_0_CLUSTERS_0
+              value: swirl-cloud
+            - name: RBAC_ROLES_0_SUBJECTS_0_PROVIDER
+              value: oauth
+            - name: RBAC_ROLES_0_SUBJECTS_0_TYPE
+              value: role
+            - name: RBAC_ROLES_0_SUBJECTS_0_VALUE
+              value: platform-admins
+            - name: RBAC_ROLES_0_PERMISSIONS_0_RESOURCE
+              value: applicationconfig
+            - name: RBAC_ROLES_0_PERMISSIONS_0_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_1_RESOURCE
+              value: clusterconfig
+            - name: RBAC_ROLES_0_PERMISSIONS_1_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_2_RESOURCE
+              value: topic
+            - name: RBAC_ROLES_0_PERMISSIONS_2_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_0_PERMISSIONS_2_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_3_RESOURCE
+              value: consumer
+            - name: RBAC_ROLES_0_PERMISSIONS_3_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_0_PERMISSIONS_3_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_4_RESOURCE
+              value: schema
+            - name: RBAC_ROLES_0_PERMISSIONS_4_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_0_PERMISSIONS_4_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_5_RESOURCE
+              value: acl
+            - name: RBAC_ROLES_0_PERMISSIONS_5_ACTIONS_0
+              value: all
+            - name: RBAC_ROLES_0_PERMISSIONS_6_RESOURCE
+              value: audit
+            - name: RBAC_ROLES_0_PERMISSIONS_6_ACTIONS_0
+              value: all
             - name: SERVER_FORWARD_HEADERS_STRATEGY
               value: framework
           readinessProbe:
