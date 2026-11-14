@@ -418,6 +418,16 @@ components:
     support_source: https://github.com/kiwigrid/k8s-sidecar/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
+  - name: ghcr.io/zammad/zammad
+    licence: AGPL-3.0-only
+    source: https://github.com/zammad/zammad
+    maintainer: Zammad GmbH
+    jurisdiction: Germany
+    end_of_life: latest-only
+    support_source: https://zammad.com/en/pricing
+    customer_use: allowed
+    obligations: Copies, and network access to a modified version, must come with an offer of the corresponding source.
+    notes: Open source with no paid edition; the vendor sells support contracts for self-hosted installations.
   - name: postgres-ha-operator chart image (chart default image)
     licence: Apache-2.0
     source: https://github.com/cloudnative-pg/cloudnative-pg

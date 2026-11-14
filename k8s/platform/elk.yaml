@@ -356,6 +356,12 @@ spec:
                   name: security-detection-credentials
                   key: ELASTICSEARCH_PASSWORD
                   optional: true
+            - name: ZAMMAD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-elasticsearch-credentials
+                  key: ELASTICSEARCH_PASSWORD
+                  optional: true
           command:
             - sh
             - -c
@@ -452,6 +458,14 @@ spec:
                 "${endpoint}/security-detection-state*/_settings?allow_no_indices=true&ignore_unavailable=true" >/dev/null
               if [ -n "${SECURITY_DETECTION_PASSWORD:-}" ]; then
                 put_user security_detection "$SECURITY_DETECTION_PASSWORD" '["security_detection"]' 'Security Detection Reader'
+              fi
+              # The help desk's search index (platform/zammad.yaml): its own indices and attachment pipeline only.
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"cluster":["monitor","manage_ingest_pipelines"],"indices":[{"names":["zammad*"],"privileges":["all"]}]}' \
+                "${endpoint}/_security/role/zammad" >/dev/null
+              if [ -n "${ZAMMAD_PASSWORD:-}" ]; then
+                put_user zammad "$ZAMMAD_PASSWORD" '["zammad"]' 'Zammad Search'
               fi
           securityContext:
             allowPrivilegeEscalation: false

@@ -4,7 +4,7 @@
     "Applications - UAT": "access-environments",
     "Applications - INT": "access-environments"
   },
-  "open": ["GitLab", "Odoo"],
+  "open": ["GitLab", "IT Support", "Odoo"],
   "groups": {
     "Grafana": "access-grafana",
     "Argo CD": "access-argocd",

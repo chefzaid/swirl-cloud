@@ -161,6 +161,12 @@ data:
     - Applications - INT: []
 
     - Corporate:
+        - IT Support:
+            icon: mdi-lifebuoy
+            href: https://support.__PUBLIC_DOMAIN__
+            description: Ask IT for help or for access to a service
+            namespace: infra
+            podSelector: app=zammad
         - Odoo:
             icon: odoo.png
             href: https://odoo.__PUBLIC_DOMAIN__

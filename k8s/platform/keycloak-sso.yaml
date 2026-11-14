@@ -446,6 +446,10 @@ data:
     ensure_client odoo true '' \
       '["https://odoo.__PUBLIC_DOMAIN__/auth_oauth/signin"]' \
       '["https://odoo.__PUBLIC_DOMAIN__"]' 'https://odoo.__PUBLIC_DOMAIN__' true
+    # Zammad signs in as a public client with PKCE.
+    ensure_client zammad true '' \
+      '["https://support.__PUBLIC_DOMAIN__/auth/openid_connect/callback"]' \
+      '["https://support.__PUBLIC_DOMAIN__"]' 'https://support.__PUBLIC_DOMAIN__'
     ensure_client argocd true '' \
       '["https://argocd.__PUBLIC_DOMAIN__/auth/callback","https://argocd.__PUBLIC_DOMAIN__/pkce/verify","http://localhost:8085/auth/callback"]' \
       '["https://argocd.__PUBLIC_DOMAIN__"]' 'https://argocd.__PUBLIC_DOMAIN__'

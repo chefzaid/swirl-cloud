@@ -1,0 +1,394 @@
+# Zammad: tickets for IT support and access requests (TODO §47, ADR 0031).
+# One pod runs Zammad's Rails server, websocket server, background worker and
+# nginx front; init containers create its database on the platform PostgreSQL,
+# migrate it, and set sign-in through Keycloak and search through the platform
+# Elasticsearch. Attachments stay in the database, so the nightly pg_dumpall
+# holds everything; the search index is rebuilt from it.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: zammad-password
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  length: 40
+  digits: 8
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+
+---
+# Generated once: the database role and the Elasticsearch user take these on
+# every sync, so a lost Secret only changes them.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zammad-database-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: "0"
+  target:
+    name: zammad-database-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        POSTGRESQL_PASS: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: zammad-password
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zammad-elasticsearch-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: "0"
+  target:
+    name: zammad-elasticsearch-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        ELASTICSEARCH_USER: zammad
+        ELASTICSEARCH_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: zammad-password
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zammad-bootstrap
+  namespace: infra
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: zammad-bootstrap
+    creationPolicy: Owner
+  data:
+    - secretKey: POSTGRES_ADMIN_USER
+      remoteRef: {key: infra/postgres, property: username}
+    - secretKey: POSTGRES_ADMIN_PASSWORD
+      remoteRef: {key: infra/postgres, property: password}
+    - secretKey: SSO_PRIMARY_EMAIL
+      remoteRef: {key: infra/keycloak, property: sso_primary_email}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zammad
+  namespace: infra
+  labels:
+    app: zammad
+data:
+  # Zammad's own nginx, in front of the Rails and websocket servers in the same pod.
+  default: |
+    # swirl-cloud:file zammad/nginx-site.conf
+  nginx.conf: |
+    # swirl-cloud:file zammad/nginx.conf
+  # The Redis URL holds the shared credential when the platform Redis enforces one.
+  run.sh: |
+    # swirl-cloud:file zammad/run.sh
+  # Database role and database on the platform PostgreSQL, idempotent.
+  database.sh: |
+    # swirl-cloud:file zammad/database.sh
+  # As the Zammad chart does: seed a new database, migrate an existing one.
+  migrate.sh: |
+    # swirl-cloud:file zammad/migrate.sh
+  # Reapplied on every start: the address, sign-in through Keycloak only, the
+  # first administrator, and search through the platform Elasticsearch.
+  settings.rb: |
+    # swirl-cloud:file zammad/settings.rb
+  settings.sh: |
+    # swirl-cloud:file zammad/settings.sh
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zammad
+  namespace: infra
+  labels:
+    app: zammad
+spec:
+  selector:
+    app: zammad
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zammad
+  namespace: infra
+  labels:
+    app: zammad
+spec:
+  replicas: 1
+  # Migrations run in the pod's init containers: one pod at a time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zammad
+  template:
+    metadata:
+      labels:
+        app: zammad
+      annotations:
+        # Restart when a script or the nginx configuration changes.
+        swirl-cloud.io/zammad: pending
+    spec:
+      priorityClassName: platform-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: database
+          image: docker.io/library/postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+          command: ["sh", "/zammad-config/database.sh"]
+          env:
+            - name: POSTGRESQL_HOST
+              value: postgres.__INTERNAL_DNS_ZONE__
+          envFrom:
+            - secretRef: {name: zammad-bootstrap}
+            - secretRef: {name: zammad-database-credentials}
+          securityContext: &container
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: config, mountPath: /zammad-config, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+        - name: migrate
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["sh", "/zammad-config/run.sh", "bash", "/zammad-config/migrate.sh"]
+          env:
+            - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
+            - {name: POSTGRESQL_PORT, value: "5432"}
+            - {name: POSTGRESQL_USER, value: zammad}
+            - {name: POSTGRESQL_DB, value: zammad}
+            - {name: POSTGRESQL_OPTIONS, value: "pool=50"}
+            - name: POSTGRESQL_PASS
+              valueFrom:
+                secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
+            - {name: RAILS_TRUSTED_PROXIES, value: "['127.0.0.1', '::1']"}
+            - {name: TMP, value: /opt/zammad/tmp}
+          securityContext: *container
+          resources: &migrations
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          volumeMounts: &mounts
+            - {name: config, mountPath: /zammad-config, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: tmp, mountPath: /opt/zammad/tmp}
+        - name: settings
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["sh", "/zammad-config/run.sh", "bash", "/zammad-config/settings.sh"]
+          env:
+            - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
+            - {name: POSTGRESQL_PORT, value: "5432"}
+            - {name: POSTGRESQL_USER, value: zammad}
+            - {name: POSTGRESQL_DB, value: zammad}
+            - {name: POSTGRESQL_OPTIONS, value: "pool=50"}
+            - name: POSTGRESQL_PASS
+              valueFrom:
+                secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
+            - {name: TMP, value: /opt/zammad/tmp}
+            - {name: ZAMMAD_FQDN, value: support.__PUBLIC_DOMAIN__}
+            - {name: ZAMMAD_TITLE, value: __PLATFORM_TITLE_JSON__}
+            - {name: ZAMMAD_ISSUER, value: "https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__"}
+            - {name: ZAMMAD_ES_URL, value: "http://elasticsearch.__INTERNAL_DNS_ZONE__:9200"}
+            - name: SSO_PRIMARY_EMAIL
+              valueFrom:
+                secretKeyRef: {name: zammad-bootstrap, key: SSO_PRIMARY_EMAIL}
+            - name: ELASTICSEARCH_USER
+              valueFrom:
+                secretKeyRef: {name: zammad-elasticsearch-credentials, key: ELASTICSEARCH_USER}
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: zammad-elasticsearch-credentials, key: ELASTICSEARCH_PASSWORD}
+          securityContext: *container
+          resources: *migrations
+          volumeMounts: *mounts
+      containers:
+        - name: railsserver
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "puma", "-b", "tcp://[::]:3000", "-w", "0", "-e", "production"]
+          env: &running
+            - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
+            - {name: POSTGRESQL_PORT, value: "5432"}
+            - {name: POSTGRESQL_USER, value: zammad}
+            - {name: POSTGRESQL_DB, value: zammad}
+            - {name: POSTGRESQL_OPTIONS, value: "pool=50"}
+            - name: POSTGRESQL_PASS
+              valueFrom:
+                secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
+            - {name: RAILS_TRUSTED_PROXIES, value: "['127.0.0.1', '::1']"}
+            - {name: TMP, value: /opt/zammad/tmp}
+            - {name: RAILS_CHECK_PENDING_MIGRATIONS, value: "true"}
+          ports:
+            - {name: rails, containerPort: 3000}
+          startupProbe:
+            tcpSocket: {port: rails}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: {port: rails}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: rails}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext: *container
+          resources:
+            requests: {cpu: 150m, memory: 768Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          volumeMounts: *mounts
+        - name: websocket
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "script/websocket-server.rb", "-b", "::", "-p", "6042", "start"]
+          env: *running
+          ports:
+            - {name: websocket, containerPort: 6042}
+          readinessProbe:
+            tcpSocket: {port: websocket}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: websocket}
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext: *container
+          resources:
+            requests: {cpu: 20m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 768Mi}
+          volumeMounts: *mounts
+        - name: scheduler
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "script/background-worker.rb", "start"]
+          env: *running
+          securityContext: *container
+          resources:
+            requests: {cpu: 50m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1536Mi}
+          volumeMounts: *mounts
+        - name: nginx
+          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          command: ["/usr/sbin/nginx", "-g", "daemon off;"]
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext: *container
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: config, mountPath: /etc/nginx/sites-enabled/default, subPath: default, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: tmp, mountPath: /var/log/nginx}
+      volumes:
+        - name: config
+          configMap:
+            name: zammad
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+
+---
+# Every member of staff (access-portal) may open the help desk; Zammad then
+# signs them in through Keycloak itself.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zammad
+  namespace: infra
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-access-portal@kubernetescrd,infra-zammad-body-limit@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [support.__PUBLIC_DOMAIN__]
+      secretName: __TLS_SECRET_NAME__
+  rules:
+    - host: support.__PUBLIC_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zammad
+                port:
+                  number: 8080
+
+---
+# Ticket attachments up to Zammad's own 50 MB limit.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: zammad-body-limit
+  namespace: infra
+spec:
+  buffering:
+    maxRequestBodyBytes: 52428800

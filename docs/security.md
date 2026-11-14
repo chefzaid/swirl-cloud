@@ -427,8 +427,14 @@ tools behind the sign-in proxy.
 | `access-argocd` | Argo CD | Read-only on every Application, once Argo CD's release is next reconciled (`scripts/reconcile-platform-release.sh argocd`) |
 | `access-mailpit` | The [non-production mail catcher](guides/platform-mail.md#non-production-mail) | Read and delete caught messages |
 
+Staff ask for help and for access in the IT help desk, Zammad, at
+`https://support.<your-domain>`: every member of `access-portal` may open it,
+signs in through Keycloak, and gets a customer account the first time; the
+first administrator signs in as Zammad's administrator. Make other people
+agents in Zammad's settings.
+
 On the portal, a person who is not an administrator sees the production
-applications, GitLab and Odoo (which decide access themselves), the services
+applications, GitLab, Odoo and the help desk (which decide access themselves), the services
 their groups open, and the services they could ask for, greyed, with a link that
 writes the request to the platform's first administrator. The infrastructure
 entries, cluster usage and pod status reach only administrators' browsers: the
