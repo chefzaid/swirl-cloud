@@ -30,6 +30,14 @@ recovery archives off the host (keep the pinned recovery images), run
 Under 10 % free: evictions and failed writes are imminent. Act now as for
 [NodeFilesystemSpaceLow](#nodefilesystemspacelow); postpone backups and upgrades.
 
+### NodeFilesystemInodesLow
+
+A host filesystem has under 10 % of its inodes free: it refuses new files even
+with space left, and pods fail to start or write. Find the directories holding
+the most files (`sudo find /var -xdev -type f | cut -d/ -f1-5 | sort | uniq -c | sort -n | tail`);
+the usual causes are unpacked image layers (`sudo k3s crictl rmi --prune`), a
+runaway cache or session directory, and leftover build workspaces.
+
 ### NodeMaintenanceHeadroomLow
 
 Under 30 GiB free on the K3s filesystem, the headroom backups, image pulls and
@@ -128,6 +136,37 @@ unavailable. Run `kubectl describe node <node>`, then on the host
 `sudo journalctl -u k3s -u k3s-agent -n 100`. Check disk, memory and the private
 transport (Tailscale or vRack). If the host is gone, follow
 [node fencing](node-fencing.md) before recovering its storage.
+
+### NodeClockNotSynchronized
+
+The node's kernel reports its clock unsynchronized for 15 minutes. Embedded
+etcd, Vault's Raft storage and Kafka misbehave on diverging clocks, and tokens
+and one-time codes are refused. On the host, run `timedatectl status` and
+`chronyc tracking` (or `systemctl status systemd-timesyncd`), restart the time
+service, and check that the firewall lets it reach its time servers (UDP 123).
+
+### NodeClockSkewed
+
+The node's clock is more than 50 ms from its time source although it reports
+itself synchronized: the source is far away, unreachable part of the time, or
+the host's clock drifts fast. Check `chronyc sources -v` for the selected
+source and its offset, and prefer the provider's or a nearby time server.
+
+### ClusterDNSErrorsHigh
+
+More than 5 % of CoreDNS answers are SERVFAIL for ten minutes: names inside the
+cluster or outside it do not resolve, so pulls, sign-in and calls between
+services fail. Read `kubectl -n kube-system logs deploy/coredns --tail=100`;
+check the host's resolvers (`resolvectl status`), which CoreDNS forwards to, and
+the `coredns-custom` ConfigMap for a broken private zone.
+
+### KubernetesApiErrorsHigh
+
+The API server answers more than one request in two seconds with a server error
+for ten minutes. Controllers, deployments and `kubectl` then fail or stall. On
+the control plane, read `sudo journalctl -u k3s -n 200`, check the datastore
+(`sudo k3s etcd-snapshot ls` on embedded etcd, disk latency and free space on
+SQLite) and the node's memory ([node memory](../operations.md#node-memory-and-eviction)).
 
 ### VaultSealed
 

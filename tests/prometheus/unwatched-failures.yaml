@@ -1,0 +1,61 @@
+# promtool unit test for the inode, clock, DNS and API server alerts, run by
+# validate-manifests.py against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # /var has 5 % of its inodes free; / has plenty; a filesystem that reports no inodes is skipped.
+      - series: 'node_filesystem_files{node="n1",instance="n1",mountpoint="/var",fstype="ext4"}'
+        values: '1000000x30'
+      - series: 'node_filesystem_files_free{node="n1",instance="n1",mountpoint="/var",fstype="ext4"}'
+        values: '50000x30'
+      - series: 'node_filesystem_files{node="n1",instance="n1",mountpoint="/",fstype="ext4"}'
+        values: '1000000x30'
+      - series: 'node_filesystem_files_free{node="n1",instance="n1",mountpoint="/",fstype="ext4"}'
+        values: '900000x30'
+      - series: 'node_filesystem_files{node="n1",instance="n1",mountpoint="/data",fstype="btrfs"}'
+        values: '0x30'
+      - series: 'node_filesystem_files_free{node="n1",instance="n1",mountpoint="/data",fstype="btrfs"}'
+        values: '0x30'
+      # n1 lost synchronization; n2 is synchronized but 200 ms off; n3 is healthy.
+      - series: 'node_timex_sync_status{node="n1"}'
+        values: '0x30'
+      - series: 'node_timex_maxerror_seconds{node="n1"}'
+        values: '16x30'
+      - series: 'node_timex_offset_seconds{node="n1"}'
+        values: '0.001x30'
+      - series: 'node_timex_sync_status{node="n2"}'
+        values: '1x30'
+      - series: 'node_timex_maxerror_seconds{node="n2"}'
+        values: '0.5x30'
+      - series: 'node_timex_offset_seconds{node="n2"}'
+        values: '-0.2x30'
+      - series: 'node_timex_sync_status{node="n3"}'
+        values: '1x30'
+      - series: 'node_timex_maxerror_seconds{node="n3"}'
+        values: '0.5x30'
+      - series: 'node_timex_offset_seconds{node="n3"}'
+        values: '0.002x30'
+      # One answer in five is SERVFAIL.
+      - series: 'coredns_dns_responses_total{rcode="SERVFAIL"}'
+        values: '0+60x30'
+      - series: 'coredns_dns_responses_total{rcode="NOERROR"}'
+        values: '0+240x30'
+      # Two failed API requests a second.
+      - series: 'apiserver_request_total{code="500",verb="GET",resource="pods"}'
+        values: '0+120x30'
+    promql_expr_test:
+      - expr: ALERTS{alertstate="firing", alertname=~"NodeFilesystemInodesLow|NodeClock.*|ClusterDNSErrorsHigh|KubernetesApiErrorsHigh"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="NodeFilesystemInodesLow",alertstate="firing",severity="warning",owner="platform",node="n1",instance="n1",mountpoint="/var",fstype="ext4"}'
+            value: 1
+          - labels: 'ALERTS{alertname="NodeClockNotSynchronized",alertstate="firing",severity="warning",owner="platform",node="n1"}'
+            value: 1
+          - labels: 'ALERTS{alertname="NodeClockSkewed",alertstate="firing",severity="warning",owner="platform",node="n2"}'
+            value: 1
+          - labels: 'ALERTS{alertname="ClusterDNSErrorsHigh",alertstate="firing",severity="warning",owner="platform"}'
+            value: 1
+          - labels: 'ALERTS{alertname="KubernetesApiErrorsHigh",alertstate="firing",severity="warning",owner="platform"}'
+            value: 1

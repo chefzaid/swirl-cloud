@@ -46,11 +46,28 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_node_name]
         target_label: node
     # K3s serves its embedded API server, etcd/kine and controllers here too:
-    # about 57,000 series that no dashboard or rule reads.
+    # about 57,000 series that no dashboard or rule reads. Only the API server's
+    # failed requests are kept, for KubernetesApiErrorsHigh.
     metric_relabel_configs:
-      - source_labels: [__name__]
+      - source_labels: [__name__, code]
+        regex: apiserver_request_total;5..
+        target_label: __tmp_keep
+        replacement: "1"
+      - source_labels: [__tmp_keep, __name__]
         action: drop
-        regex: (apiserver|apiextensions|aggregator|authentication|authorization|etcd|kine|scheduler|workqueue|rest_client|watch_cache)_.+
+        regex: ;(apiserver|apiextensions|aggregator|authentication|authorization|etcd|kine|scheduler|workqueue|rest_client|watch_cache)_.+
+      - action: labeldrop
+        regex: __tmp_keep
+
+  - job_name: coredns
+    kubernetes_sd_configs:
+      - role: endpoints
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: kube-system;kube-dns;metrics
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
 
   - job_name: kubernetes-cadvisor
     scheme: https

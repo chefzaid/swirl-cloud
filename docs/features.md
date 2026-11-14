@@ -84,6 +84,7 @@ pieces fit together.
 - Prometheus, Alertmanager to GitLab alerts (notifications paused since 2026-10-11), and Grafana dashboards for Kubernetes, delivery and security
 - [platform mail](guides/platform-mail.md) through one SMTP relay: critical and warning alerts, Keycloak password resets, GitLab notifications and Odoo mail
 - every alert has an owner and a runbook section
+- alerts on node clock drift, inode exhaustion, cluster DNS errors and Kubernetes API server errors
 - availability probes for every Ingress host, a 99.5 % objective, multi-window burn-rate alerts and a Service Levels dashboard
 - an [outage watch](guides/service-levels.md#outage-watch) on Cloudflare that checks public endpoints from outside the cluster and emails on down and recovery (removed from the live installation on 2026-10-26)
 - Registry API probes on the public and internal endpoints

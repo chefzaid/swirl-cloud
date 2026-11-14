@@ -31,6 +31,22 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodefilesystemspacecritical
           summary: Filesystem free space is below 10%
           description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} is critically low on space.'
+      # A filesystem with free space but no free inodes refuses new files all the same.
+      - alert: NodeFilesystemInodesLow
+        expr: |
+          (
+            node_filesystem_files_free{fstype!~"tmpfs|overlay|squashfs"}
+            /
+            (node_filesystem_files{fstype!~"tmpfs|overlay|squashfs"} > 0)
+          ) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodefilesysteminodeslow
+          summary: Filesystem inodes are below 10%
+          description: '{{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanizePercentage }} of its inodes free.'
       # Backups, image pulls and upgrades need about 30 GiB on the K3s host
       # filesystem; kubelet image GC starts at 85 % used, before evictions.
       - alert: NodeMaintenanceHeadroomLow
@@ -180,6 +196,53 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesnodenotready
           summary: Kubernetes node is not Ready
           description: 'Node {{ $labels.node }} has not reported Ready for five minutes.'
+      # etcd, Vault's Raft, Kafka, token lifetimes and one-time codes all assume
+      # synchronized clocks.
+      - alert: NodeClockNotSynchronized
+        expr: min_over_time(node_timex_sync_status[10m]) == 0 and node_timex_maxerror_seconds >= 16
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodeclocknotsynchronized
+          summary: A node's clock is not synchronized
+          description: 'The kernel on {{ $labels.node }} reports an unsynchronized clock.'
+      - alert: NodeClockSkewed
+        expr: abs(node_timex_offset_seconds) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#nodeclockskewed
+          summary: A node's clock is off by more than 50 ms
+          description: 'The clock on {{ $labels.node }} is {{ $value | humanizeDuration }} from its time source.'
+      - alert: ClusterDNSErrorsHigh
+        expr: |
+          sum(rate(coredns_dns_responses_total{rcode="SERVFAIL"}[10m]))
+          /
+          sum(rate(coredns_dns_responses_total[10m]))
+          > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clusterdnserrorshigh
+          summary: Cluster DNS answers with errors
+          description: '{{ $value | humanizePercentage }} of CoreDNS answers are SERVFAIL.'
+      # Only the API server's failed requests are kept (prometheus.yml).
+      - alert: KubernetesApiErrorsHigh
+        expr: sum(rate(apiserver_request_total{code=~"5.."}[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kubernetesapierrorshigh
+          summary: The Kubernetes API is failing requests
+          description: 'The API server answers {{ $value | humanize }} requests per second with a server error.'
       - alert: VaultSealed
         expr: vault_core_unsealed == 0
         for: 2m
