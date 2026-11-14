@@ -114,6 +114,7 @@ def resource_wiring(resources):
         ("Service", "infra", "vault"): {"spec": {"ports": [{"port": 8200}]}},
         ("Service", "infra", "argocd-server"): {"spec": {"ports": [{"port": 80}]}},
         ("ClusterRole", "", "cluster-admin"): {},
+        ("ClusterRole", "", "view"): {},
         ("ClusterRole", "", "system:auth-delegator"): {},
         ("Secret", "infra", "fixture-inventory"): {},
         # configure-application-data.py owns this persistent Secret; its guarded
