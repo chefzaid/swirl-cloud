@@ -13,18 +13,43 @@ controller to complete. Read-only; Secret values are never read.
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 import re
 import subprocess
 import sys
 
 # Retention configured by the platform (docs/security.md, backup scripts).
+# Container logs and local archives depend on the installation (sizing profile,
+# backup disk), so retention() reads them from the running platform.
 RETENTION = [
-    ("Container logs (Elasticsearch kubernetes-logs-*)", "about 1 day"),
-    ("Kubernetes API audit log", "30 days"),
+    ("Kubernetes API audit log and Kubernetes events", "30 days"),
     ("Identity events (Keycloak database / identity-audit-*)", "90 days / at least 1 year"),
-    ("Local recovery archives on the control plane", "the last 7 nightly archives"),
     ("Off-site recovery archives (restic), when configured", "7 daily, 5 weekly, 12 monthly"),
 ]
+# scripts/backup-k3s.sh: the newest RETENTION_COUNT archives, and on a backup
+# filesystem of RETENTION_TIERS_MIN_GIB or more also daily, weekly and monthly tiers.
+BACKUP_DIR = "/var/backups/swirl-cloud"
+TIERS_MIN_GIB = 400
+
+
+def retention():
+    """The platform's retention, with the container log and local archive periods this installation uses."""
+    config = kubectl_json("get", "configmap", "fluent-bit-config", "-n", "host-agents").get("data", {})
+    try:
+        phases = json.loads(config["ilm-policy.json"])["policy"]["phases"]
+        logs = f"{phases['delete']['min_age']} after each daily index starts (ILM policy swirl-cloud-logs)"
+    except (KeyError, ValueError):
+        logs = "unknown: the swirl-cloud-logs policy could not be read"
+    archives = "the newest 7 nightly archives"
+    try:
+        stats = os.statvfs(BACKUP_DIR)
+        if stats.f_blocks * stats.f_frsize >= TIERS_MIN_GIB * 1024 ** 3:
+            archives += ", plus the newest of each of the last 14 days, 8 weeks and 12 months"
+    except OSError:
+        archives += (f"; on a backup filesystem of {TIERS_MIN_GIB} GiB or more also the newest of each of the last"
+                     " 14 days, 8 weeks and 12 months")
+    return [("Container logs (Elasticsearch kubernetes-logs-*)", logs),
+            ("Local recovery archives on the control plane", archives)] + RETENTION
 
 
 SERVICES = [
@@ -84,14 +109,14 @@ def application(app):
             "volumes": volumes, "services": sorted(services), "processors": sorted(processors)}
 
 
-def render(organization, nodes, apps):
+def render(organization, nodes, apps, kept):
     now = datetime.now(timezone.utc)
     lines = ["# Records of processing activities (GDPR Article 30): draft", "",
              f"Generated {now:%Y-%m-%d} from the running platform for {organization}. Items in [brackets] must be"
              " completed by the controller; the technical facts below come from the cluster.", "",
              f"Processing runs on: {', '.join(nodes)} [hosting provider and country].", "",
              "## Retention configured by the platform", "", "| Data | Kept |", "|---|---|"]
-    lines += [f"| {data} | {kept} |" for data, kept in RETENTION]
+    lines += [f"| {data} | {period} |" for data, period in kept]
     lines += ["", "External processors and data flows: see docs/guides/external-services.md (Cloudflare receives all"
               " public web traffic when the edge is enabled; the off-site backup target receives encrypted archives;"
               " the SMTP relay, when platform mail is on, receives alerts, account emails and Odoo messages).", ""]
@@ -130,10 +155,11 @@ def main():
     nodes = [n["metadata"]["name"] for n in kubectl_json("get", "nodes")["items"]]
     apps = [application(app) for app in kubectl_json("get", "applications.argoproj.io", "-n", "infra")["items"]
             if app["metadata"]["name"] != "swirl-cloud"]
+    kept = retention()
     if args.format == "json":
-        print(json.dumps({"organization": organization, "nodes": nodes, "retention": RETENTION, "applications": apps}, indent=2))
+        print(json.dumps({"organization": organization, "nodes": nodes, "retention": kept, "applications": apps}, indent=2))
     else:
-        print(render(organization, nodes, apps))
+        print(render(organization, nodes, apps, kept))
     return 0
 
 
