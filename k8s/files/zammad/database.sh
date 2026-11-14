@@ -11,7 +11,9 @@ psql --host="$POSTGRESQL_HOST" --username="$POSTGRES_ADMIN_USER" --dbname=postgr
 SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'db_user')
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user')
 \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'db_user', :'db_password')
+-- The shared server allows 100 connections; Zammad's three processes keep to 12 each
+-- (POSTGRESQL_OPTIONS) and the role can never take more than 40.
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 40', :'db_user', :'db_password')
 \gexec
 SELECT format('CREATE DATABASE %I OWNER %I', 'zammad', :'db_user')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'zammad')

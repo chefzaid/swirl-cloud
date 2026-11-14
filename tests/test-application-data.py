@@ -72,7 +72,10 @@ class DataContract(unittest.TestCase):
         self.assertIn("CREATE DATABASE swirl_demo_app_int OWNER swirl_demo_app_int", sql)
         repeat = data.database_sql(identity, "x" * 40, existing_role=True, existing_database=True)
         self.assertNotIn("CREATE DATABASE", repeat)
-        self.assertNotIn("ALTER", repeat)
+        self.assertNotIn("PASSWORD", repeat)
+        # Reruns bring existing roles to the current guard rails.
+        self.assertIn("ALTER ROLE swirl_demo_app_int CONNECTION LIMIT 30;", repeat)
+        self.assertIn("idle_in_transaction_session_timeout = '10min'", repeat)
         self.assertIn("REVOKE CONNECT ON DATABASE swirl_demo_app_int FROM PUBLIC", repeat)
         with self.assertRaises(data.ServiceError):
             data.database_sql(identity, "';bad")

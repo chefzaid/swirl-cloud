@@ -168,6 +168,10 @@ def postgres(sql, target, admin, database="postgres"):
                 "psql", username, database], password + "\n" + sql)
 
 
+CONNECTION_LIMIT = 30
+IDLE_IN_TRANSACTION = "10min"
+
+
 def database_sql(spec, password, *, existing_role=False, existing_database=False):
     # Identifiers and generated passwords are validated before interpolation.
     role, database = spec["username"], spec["database"]
@@ -178,6 +182,10 @@ def database_sql(spec, password, *, existing_role=False, existing_database=False
         statements.append(f"CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{password}';")
     if not existing_database:
         statements += [f"CREATE DATABASE {database} OWNER {role};"]
+    # Guard rails on the shared server (100 connections): one environment cannot take
+    # every connection, and a transaction left open cannot hold locks for long.
+    statements += [f"ALTER ROLE {role} CONNECTION LIMIT {CONNECTION_LIMIT};",
+                   f"ALTER ROLE {role} SET idle_in_transaction_session_timeout = '{IDLE_IN_TRANSACTION}';"]
     statements += [f"REVOKE CONNECT ON DATABASE {database} FROM PUBLIC;", f"GRANT CONNECT ON DATABASE {database} TO {role};", f"\\connect {database}",
                    "REVOKE CREATE ON SCHEMA public FROM PUBLIC;", f"GRANT USAGE, CREATE ON SCHEMA public TO {role};"]
     return "\n".join(statements) + "\n"

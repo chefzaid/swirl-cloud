@@ -27,6 +27,11 @@ registered cluster. Version 2 uses the common [fields](#fields) plus exactly:
 ```
 
 It rejects `bootstrap`, `vault` and a `DEPLOYMENT_ENVIRONMENT` pipeline variable.
+Each environment's PostgreSQL role may hold at most 30 connections, and a
+transaction left idle for 10 minutes is ended; size connection pools within that
+(for example 10 per replica with up to three replicas). The shared server allows
+100 connections in all.
+
 In `int` and `uat`, an application that sends email points its SMTP settings at
 the [mail catcher](platform-mail.md#non-production-mail), never at a real relay.
 An application sets `priorityClassName` on its pods per environment: `production`
