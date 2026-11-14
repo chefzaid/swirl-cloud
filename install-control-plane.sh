@@ -819,6 +819,9 @@ if [[ "$RUN_K8S_FEATURES" == "true" ]]; then
     step "Configuring Kubernetes API audit logging..."
     "$SCRIPT_DIR/scripts/configure-k3s-audit.sh"
 
+    step "Letting administrators sign in to kubectl through Keycloak..."
+    PLATFORM_DOMAIN="$PLATFORM_DOMAIN" KEYCLOAK_REALM="$KEYCLOAK_REALM" "$SCRIPT_DIR/scripts/configure-k3s-oidc.sh"
+
     step "Reserving node memory for the host and K3s..."
     "$SCRIPT_DIR/scripts/configure-k3s-kubelet-memory.sh"
 

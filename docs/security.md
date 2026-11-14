@@ -410,6 +410,27 @@ GitLab links SSO to its existing root account, keeping project ownership and
 locally edited names. Kibana keeps individual profiles and disables managed
 identities that leave `platform-admins`.
 
+## kubectl as yourself
+
+The K3s API server accepts Keycloak tokens
+([`configure-k3s-oidc.sh`](../scripts/configure-k3s-oidc.sh), applied by the
+installer; it takes effect at the next K3s restart, or now with `--restart` in a
+maintenance window). Users and groups arrive as `oidc:<name>`: `platform-admins`
+administer the cluster and `access-kubernetes-read` may read everything but
+Secrets. The API audit log then names the person, not `system:admin`. On an
+administrator's device, with the [kubelogin](https://github.com/int128/kubelogin)
+plugin and a route to the API endpoint:
+
+```bash
+kubectl config set-credentials keycloak --exec-api-version=client.authentication.k8s.io/v1 \
+  --exec-command=kubectl --exec-arg=oidc-login --exec-arg=get-token \
+  --exec-arg=--oidc-issuer-url=https://keycloak.<your-domain>/auth/realms/<realm> \
+  --exec-arg=--oidc-client-id=kubernetes --exec-arg=--oidc-extra-scope=groups
+kubectl config set-context --current --user=keycloak
+```
+
+Root's kubeconfig on the control plane keeps working for emergencies.
+
 ## Access groups
 
 A person who is not an administrator opens a service only as a member of its
@@ -425,6 +446,7 @@ tools behind the sign-in proxy.
 | `access-environments` | The `int` and `uat` applications on the portal | The links only; each application decides who signs in |
 | `access-grafana` | Grafana | Viewer on every dashboard |
 | `access-argocd` | Argo CD | Read-only on every Application, once Argo CD's release is next reconciled (`scripts/reconcile-platform-release.sh argocd`) |
+| `access-kubernetes-read` | The Kubernetes API through `kubectl` ([kubectl as yourself](#kubectl-as-yourself)) | Read everything but Secrets |
 | `access-mailpit` | The [non-production mail catcher](guides/platform-mail.md#non-production-mail) | Read and delete caught messages |
 
 Staff ask for help and for access in the IT help desk, Zammad, at
