@@ -112,6 +112,10 @@ Prometheus alerts cover capacity, workloads, jobs, storage, scrapes, platform
 services, host maintenance and ingress. Thresholds and fixes are in the
 [alert runbooks](guides/alert-runbooks.md).
 
+Alertmanager notifies once per cause: a node that is not Ready silences the
+alerts carrying its name, and a critical alert silences its warning counterpart
+(a full filesystem silences "space low", an expired certificate "expiring soon").
+
 Notifications are paused since 2026-10-11: every alert goes to a receiver that
 sends nothing, so alerts show only in Alertmanager, Prometheus and Grafana. Once
 restored with the owner's approval ([TODO](../TODO.md)), Alertmanager posts to

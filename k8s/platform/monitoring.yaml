@@ -623,6 +623,29 @@ spec:
             group_wait: 30s
             group_interval: 5m
             repeat_interval: 4h
+          # One cause, one notification: a node that is down silences the alerts of
+          # what runs on it, and a critical alert silences its own warning.
+          inhibit_rules:
+            - source_matchers: ['alertname="KubernetesNodeNotReady"']
+              target_matchers: ['alertname!="KubernetesNodeNotReady"']
+              equal: [node]
+            - source_matchers: ['alertname="NodeFilesystemSpaceCritical"']
+              target_matchers: ['alertname=~"NodeFilesystemSpaceLow|NodeFilesystemFillingWithinDay|NodeMaintenanceHeadroomLow"']
+              equal: [instance, mountpoint]
+            - source_matchers: ['alertname="PersistentVolumeSpaceCritical"']
+              target_matchers: ['alertname=~"PersistentVolumeSpaceLow|PersistentVolumeFillingWithinDay"']
+              equal: [namespace, persistentvolumeclaim]
+            - source_matchers: ['alertname="TLSCertificateExpiryCritical"']
+              target_matchers: ['alertname="TLSCertificateExpiringSoon"']
+              equal: [cn, sans]
+            - source_matchers: ['alertname="SLOAvailabilityBudgetBurnFast"']
+              target_matchers: ['alertname="SLOAvailabilityBudgetBurnSlow"']
+              equal: [instance, namespace]
+            - source_matchers: ['alertname="HostBmcSensorCritical"']
+              target_matchers: ['alertname="HostBmcSensorWarning"']
+              equal: [node, sensor]
+            - source_matchers: ['alertname=~"ElasticsearchUnreachable|ElasticsearchClusterRed"']
+              target_matchers: ['alertname="ElasticsearchClusterYellow"']
           receivers:
             - name: paused
             - name: gitlab
