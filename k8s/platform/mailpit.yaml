@@ -126,7 +126,7 @@ metadata:
   name: mailpit
   namespace: infra
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd,infra-platform-body-limit@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-access-mailpit@kubernetescrd,infra-platform-body-limit@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

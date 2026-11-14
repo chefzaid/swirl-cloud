@@ -146,7 +146,8 @@ catcher instead of the relay:
 | Login | Any; use the environment's name (`int`, `uat`) as the user so messages are tagged with it |
 
 Mailpit accepts every message for any recipient and forwards nothing. Read them at
-`https://cloud.<your-domain>/mailpit/`, behind the platform's sign-in; the newest
+`https://cloud.<your-domain>/mailpit/`, as an administrator or a member of
+`access-mailpit` ([access groups](../security.md#access-groups)); the newest
 5 000 are kept, for seven days at most, and are lost when the pod restarts.
 Production keeps the relay. It makes no outside calls: its version check is off
 and it blocks remote styles and fonts in messages.

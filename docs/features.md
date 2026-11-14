@@ -62,6 +62,7 @@ pieces fit together.
 - OAuth2 Proxy for DBGate, Kibana, Longhorn, SonarQube and the portal
 - Cloudflare Access backed by Keycloak
 - `platform-admins` mapped to administrator roles in every service
+- an [access group](security.md#access-groups) per opened service (Grafana, Argo CD, the mail catcher): a person who is not an administrator opens a service only as a member of its group, and a new account opens nothing
 
 ## Data Services
 

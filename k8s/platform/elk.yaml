@@ -1071,7 +1071,8 @@ data:
 
         location = /_keycloak_auth {
           internal;
-          proxy_pass http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/oauth2/auth;
+          # Administrators only (ADR 0031): the proxy itself admits any signed-in account.
+          proxy_pass http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/oauth2/auth?allowed_groups=platform-admins;
           proxy_pass_request_body off;
           proxy_set_header Content-Length "";
           proxy_set_header Cookie $http_cookie;
@@ -1152,7 +1153,7 @@ spec:
       labels:
         app: kibana
       annotations:
-        swirl-cloud.__PUBLIC_DOMAIN__/auth-version: "4"
+        swirl-cloud.__PUBLIC_DOMAIN__/auth-version: "5"
     spec:
       priorityClassName: platform-standard
       automountServiceAccountToken: false

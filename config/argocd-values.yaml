@@ -59,9 +59,11 @@ configs:
         - groups
         - offline_access
   rbac:
-    policy.default: role:readonly
+    # No default role: a signed-in account outside both groups sees nothing (ADR 0031).
+    policy.default: ''
     policy.csv: |
       g, platform-admins, role:admin
+      g, access-argocd, role:readonly
     scopes: '[groups]'
 global:
   priorityClassName: platform-standard

@@ -458,6 +458,16 @@ data:
       group_id="$(extract_id)"
     fi
 
+    # Access groups (ADR 0031): a person opens a service only as a member of its
+    # group; platform-admins opens every service. Members are never removed here.
+    for access_group in access-argocd access-grafana access-mailpit; do
+      expect_success "$(request GET "realms/$realm/groups?search=$access_group&exact=true")"
+      if [ -z "$(extract_id)" ]; then
+        expect_success "$(request POST "realms/$realm/groups" "{\"name\":\"$access_group\"}")"
+        echo "Created the Keycloak access group '$access_group'"
+      fi
+    done
+
     expect_success "$(request GET "realms/$realm/roles/platform-admin")"
     platform_admin_role="$(tr -d '\n' < "$response_file")"
     expect_success "$(request GET "realms/$realm/roles/platform-user")"
@@ -748,7 +758,8 @@ spec:
             - --http-address=0.0.0.0:4180
             - --upstream=static://202
             - --email-domain=*
-            - --allowed-group=platform-admins
+            # No global group: every ForwardAuth address names the groups it
+            # admits (ADR 0031), so one proxy serves hosts with different access.
             - --scope=openid profile email
             - --code-challenge-method=S256
             - --cookie-domain=.__PUBLIC_DOMAIN__

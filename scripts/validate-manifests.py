@@ -20,6 +20,7 @@ from manifest_checks import (  # noqa: E402
     alert_policy, argocd_probe_policy, documents, embedded_syntax, events_collector, identity, images, index,
     ingress_policy, lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run,
     runner_priority, soc_forwarding, vulnerability_exceptions, workload_policy, workload_priority)
+from access_checks import access_groups  # noqa: E402
 
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
@@ -108,6 +109,7 @@ def source_inputs():
     index(resources)
     alert_policy(resources)
     runner_priority(resources)
+    access_groups(resources)
     hosts = {rule["host"].removesuffix(".__PUBLIC_DOMAIN__") for doc in resources if doc["kind"] == "Ingress"
              for rule in doc["spec"].get("rules", []) if rule.get("host", "").endswith(".__PUBLIC_DOMAIN__")}
     require(hosts == set(contract["DEFAULT_CLOUDFLARE_HOST_LABELS"].split(",")), "Ingress and public DNS inventories differ")

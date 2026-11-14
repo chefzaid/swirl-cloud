@@ -410,6 +410,35 @@ GitLab links SSO to its existing root account, keeping project ownership and
 locally edited names. Kibana keeps individual profiles and disables managed
 identities that leave `platform-admins`.
 
+## Access groups
+
+A person who is not an administrator opens a service only as a member of its
+access group in Keycloak
+([ADR 0031](adr/0031-access-groups-per-service.md)). A new account opens
+nothing. Add the person to the group under **Groups** in the realm's
+administration console; it applies at their next sign-in, or within an hour for
+tools behind the sign-in proxy.
+
+| Group | Opens | With |
+| --- | --- | --- |
+| `access-grafana` | Grafana | Viewer on every dashboard |
+| `access-argocd` | Argo CD | Read-only on every Application, once Argo CD's release is next reconciled (`scripts/reconcile-platform-release.sh argocd`) |
+| `access-mailpit` | The [non-production mail catcher](guides/platform-mail.md#non-production-mail) | Read and delete caught messages |
+
+Every other tool admits `platform-admins` only. GitLab creates a blocked account
+at a person's first sign-in: approve it under **Admin, Users**. Portainer
+creates none. Hosts behind Cloudflare Access also need the person's email in
+`CLOUDFLARE_ACCESS_ALLOWED_EMAILS` ([DNS](dns.md#cloudflare)) until the edge
+follows these groups.
+
+Tools behind OAuth2 Proxy are refused by default: each Traefik ForwardAuth
+address names the groups it admits, `platform-sso` admits administrators only,
+and a service opened to more people has its own `platform-access-<service>`
+middleware ([ingress.yaml](../k8s/platform/ingress.yaml)). To open another
+service, create its group in the reconcile job's list, add its middleware and
+use it on the service's Ingress; `validate-manifests.py` rejects an address
+without `platform-admins` or with a group nobody creates.
+
 ## Recovery credentials
 
 Read credentials only in a private terminal; they serve recovery and automation,
