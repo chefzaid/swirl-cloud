@@ -137,6 +137,13 @@ latency per backend. Traefik's JSON access logs (`RequestHost` in
 `kubernetes-logs-v2-*`) keep only the user agent and Cloudflare's client IP and
 Ray headers; cookies, other headers and query strings are never logged.
 
+The API server deletes Kubernetes events (evictions, out-of-memory kills, failed
+mounts, scheduling and probe failures) after an hour. The `kubernetes-events`
+collector in `host-agents` ships them to `kubernetes-logs-events-*` with
+`log_source=kubernetes-events`, kept 30 days. Kibana's **Kubernetes Events**
+search lists them, and the [incident report](guides/incident-response.md) adds
+the window's Warning events to its timeline.
+
 On the hosts:
 
 - Fluent Bit tags logs from managed application namespaces
@@ -310,6 +317,7 @@ keep a verified recovery copy first.
 | Data | Retention configuration |
 |---|---|
 | Container and application logs | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), Elasticsearch ILM policy `swirl-cloud-logs` |
+| Kubernetes API audit records and Kubernetes events | [logging-agent.yaml](../k8s/platform/logging-agent.yaml), ILM policy `swirl-cloud-audit-30d` |
 | Lynis audit indices | [elk.yaml](../k8s/platform/elk.yaml), separate ILM policy |
 | Shared Prometheus metrics | [monitoring.yaml](../k8s/platform/monitoring.yaml) (Prometheus arguments), time and size limits |
 | Images and packages | [GitLab retention job](../k8s/platform/gitlab-registry-retention.yaml) |

@@ -91,6 +91,7 @@ pieces fit together.
 - hourly availability, cost and compliance snapshots kept 13 months for the monthly Platform Report
 - capacity planning: requests and usage, headroom after losing the largest server, capacity to add and days until storage fills
 - Elasticsearch, Kibana, Logstash, Fluent Bit and Filebeat with retention policies
+- Kubernetes events kept 30 days, in Kibana and on the incident report's timeline (the API server drops them after an hour)
 - per-application Grafana and Kibana dashboards generated from namespace labels
 - Trivy Operator vulnerability, configuration, RBAC, secret and compliance reports
 - SonarQube with automatic project provisioning and freshness-driven analysis

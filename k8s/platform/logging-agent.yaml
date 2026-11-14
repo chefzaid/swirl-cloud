@@ -29,6 +29,39 @@ subjects:
     namespace: host-agents
 
 ---
+# Kubernetes events: the API server deletes them after an hour. One collector for
+# the cluster ships them to Elasticsearch (kubernetes-logs-events-*, 30 days).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-events
+  namespace: host-agents
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-events
+rules:
+  - apiGroups: ["", "events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-events
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-events
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-events
+    namespace: host-agents
+
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -340,6 +373,76 @@ data:
 
       return 2, timestamp, record
     end
+  # The events collector's pipeline. Generate_ID makes a resent event overwrite
+  # itself, so a restart (which rereads the API server's last hour) adds nothing.
+  events.conf: |
+    [SERVICE]
+        Flush                     5
+        Daemon                    Off
+        Log_Level                 info
+        HTTP_Server               On
+        HTTP_Listen               0.0.0.0
+        HTTP_Port                 2020
+        Health_Check              On
+
+    [INPUT]
+        Name                      kubernetes_events
+        Tag                       k8s.events
+        Kube_URL                  https://kubernetes.default.svc
+        DB                        /var/lib/fluent-bit/events.db
+        Interval_Sec              5
+
+    [FILTER]
+        Name                      modify
+        Match                     k8s.events
+        Add                       log_source kubernetes-events
+
+    [OUTPUT]
+        Name                      es
+        Match                     k8s.events
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           kubernetes-logs-events
+        Logstash_DateFormat       %Y.%m.%d
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+  events-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["kubernetes-logs-events-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "10s",
+        "index.lifecycle.name": "swirl-cloud-audit-30d"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "type": {"type": "keyword"},
+          "reason": {"type": "keyword"},
+          "message": {"type": "text"},
+          "count": {"type": "integer"},
+          "firstTimestamp": {"type": "date"},
+          "lastTimestamp": {"type": "date"},
+          "reportingComponent": {"type": "keyword"},
+          "source": {"properties": {"component": {"type": "keyword"}, "host": {"type": "keyword"}}},
+          "metadata": {"properties": {"namespace": {"type": "keyword"}, "name": {"type": "keyword"}}},
+          "involvedObject": {"properties": {
+            "kind": {"type": "keyword"}, "namespace": {"type": "keyword"}, "name": {"type": "keyword"}}}
+        }
+      }
+    }
   audit-template.json: |
     {
       "order": 100,
@@ -624,6 +727,132 @@ spec:
           hostPath:
             path: /var/lib/fluent-bit
             type: DirectoryOrCreate
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-events
+  namespace: host-agents
+  labels:
+    app: kubernetes-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 1
+  # One collector for the cluster: a second would read every event again.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kubernetes-events
+  template:
+    metadata:
+      labels:
+        app: kubernetes-events
+      annotations:
+        swirl-cloud.io/logging-agent: pending
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /api/v2/metrics/prometheus
+        prometheus.io/port: "2020"
+    spec:
+      serviceAccountName: kubernetes-events
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: configure-index-template
+          image: docker.io/curlimages/curl:8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac
+          envFrom:
+            - secretRef:
+                name: fluent-bit-elasticsearch-credentials
+          command:
+            - sh
+            - -c
+            - |
+              until curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200 >/dev/null; do sleep 5; done
+              # The template names this policy; the log agent stores the same file.
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/audit-ilm-policy.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_ilm/policy/swirl-cloud-audit-30d >/dev/null || exit 1
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/events-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/kubernetes-logs-events >/dev/null
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      containers:
+        - name: fluent-bit
+          image: cr.fluentbit.io/fluent/fluent-bit:5.1.2@sha256:d792375ca8e53be72fc25716c28f291f32c6fc6f4f31d12d0d14bc78cefe9226
+          envFrom:
+            - secretRef:
+                name: fluent-bit-elasticsearch-credentials
+          ports:
+            - name: metrics
+              containerPort: 2020
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: metrics
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/fluent-bit.conf
+              subPath: events.conf
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/fluent-bit
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: fluent-bit-config
+        # Lost state only makes the collector resend the last hour, which overwrites itself.
+        - name: state
+          emptyDir:
+            sizeLimit: 64Mi
 
 ---
 apiVersion: v1

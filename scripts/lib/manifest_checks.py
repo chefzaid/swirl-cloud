@@ -426,6 +426,26 @@ def fluent_bit_sections(text):
     return sections
 
 
+def events_collector(runtime, label):
+    """One collector ships Kubernetes events: its pipeline parses, and a resent event overwrites itself."""
+    found = {(doc["kind"], doc["metadata"].get("name")): doc for doc in runtime.values()}
+    sections = fluent_bit_sections(found[("ConfigMap", "fluent-bit-config")]["data"]["events.conf"])
+    inputs = [keys["name"] for kind, keys in sections if kind == "INPUT"]
+    outputs = [keys for kind, keys in sections if kind == "OUTPUT"]
+    require(inputs == ["kubernetes_events"], f"{label}: the events collector reads only Kubernetes events")
+    require(len(outputs) == 1 and outputs[0]["name"] == "es" and outputs[0].get("generate_id") == "On",
+            f"{label}: the events collector needs one Elasticsearch output with Generate_ID On")
+    deployment = found[("Deployment", "kubernetes-events")]["spec"]
+    require(deployment["replicas"] == 1 and deployment["strategy"]["type"] == "Recreate",
+            f"{label}: run exactly one events collector")
+    mounts = {mount["mountPath"]: mount.get("subPath") for container in deployment["template"]["spec"]["containers"]
+              for mount in container.get("volumeMounts", [])}
+    require(mounts.get("/fluent-bit/etc/fluent-bit.conf") == "events.conf", f"{label}: the events collector does not run events.conf")
+    rules = found[("ClusterRole", "kubernetes-events")]["rules"]
+    require(any("events" in rule["resources"] and "watch" in rule["verbs"] for rule in rules),
+            f"{label}: the events collector may not watch events")
+
+
 def soc_forwarding(runtime, label, host):
     """The SOC syslog output exists only when configured, verifies its peer, and every file it names is mounted."""
     found = {(doc["kind"], doc["metadata"].get("name")): doc for doc in runtime.values()

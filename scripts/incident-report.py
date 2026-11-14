@@ -147,6 +147,23 @@ def findings(start, end):
             for hit in response["hits"]["hits"]]
 
 
+def kubernetes_events(start, end):
+    """Warning events (evictions, out-of-memory kills, failed mounts and probes), one line per reason and object."""
+    response = elasticsearch("kubernetes-logs-events-*", {"size": 500, "sort": [{"@timestamp": "asc"}],
+                                                          "query": {"bool": {"filter": [{"term": {"type": "Warning"}},
+                                                                                        window_filter(start, end)]}}})
+    seen = {}
+    for hit in response["hits"]["hits"]:
+        source = hit["_source"]
+        target = source.get("involvedObject") or {}
+        name = "/".join(filter(None, (target.get("namespace"), target.get("kind"), target.get("name"))))
+        entry = seen.setdefault((source.get("reason"), name), {
+            "time": parse_time(source["@timestamp"]), "reason": source.get("reason", ""), "object": name,
+            "message": " ".join(str(source.get("message", "")).split())[:200].replace("|", "/"), "count": 0})
+        entry["count"] += 1
+    return list(seen.values())
+
+
 def collect(start, end):
     evidence, errors = {}, []
     retained = True
@@ -161,7 +178,7 @@ def collect(start, end):
                ("availability", lambda: availability_prometheus(start, end) if retained else availability_reports(start, end)),
                ("restarts_syncs", lambda: restarts_and_syncs(start, end)) if retained else None,
                ("identity", lambda: identity(start, end)), ("kubernetes", lambda: kubernetes_audit(start, end)),
-               ("findings", lambda: findings(start, end))]
+               ("findings", lambda: findings(start, end)), ("events", lambda: kubernetes_events(start, end))]
     for source in filter(None, sources):
         name, function = source
         try:
@@ -200,6 +217,9 @@ def render(title, start, end, aware, evidence):
             events.append((alert["last"], f"{alert['alert']} last firing", "Prometheus"))
     for finding in evidence.get("findings", []):
         events.append((finding["time"], f"{finding['alert']} ({finding['severity']}): {finding['description']}", "Security detection"))
+    for event in evidence.get("events", []):
+        repeats = f", {event['count']} times" if event["count"] > 1 else ""
+        events.append((event["time"], f"{event['reason']} on {event['object'] or 'the cluster'}{repeats}: {event['message']}", "Kubernetes events"))
     lines += [f"| {fmt(t)} | {text} | {source} |" for t, text, source in sorted(events, key=lambda e: e[0])] or ["| | No alerts fired in the window. | |"]
     if not evidence.get("prometheus_covers_window"):
         lines += ["", "Prometheus no longer holds this window; alerts, restarts and syncs are missing and availability comes"

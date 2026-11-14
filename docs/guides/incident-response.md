@@ -26,8 +26,9 @@ UTC. The Markdown report, ready to paste into the incident, contains:
 - NIS2 and GDPR due times, counted from `--aware` (see [Reporting](#reporting));
 - endpoints whose availability dropped, from the probes or, when Prometheus no
   longer holds the window, the hourly [platform reports](platform-reports.md);
-- a timeline of fired alerts and [security detection](security-detection.md)
-  findings, Argo CD syncs and pod restarts;
+- a timeline of fired alerts, [security detection](security-detection.md)
+  findings and Kubernetes Warning events (evictions, out-of-memory kills, failed
+  mounts), then Argo CD syncs and pod restarts;
 - Kubernetes writes, RBAC changes and Secret reads by people (dry-runs and system
   components excluded), logins with source addresses and Keycloak admin changes;
 - drafts of the three NIS2 reports with known facts filled in.

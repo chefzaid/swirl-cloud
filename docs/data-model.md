@@ -110,7 +110,7 @@ Sizes are requests, not usage.
 ## Privacy And Retention
 
 Container logs are deleted one day after their daily index starts, Kubernetes
-API audit records after 30 days, Lynis audits after 365 days, Prometheus metrics
+API audit records and Kubernetes events after 30 days, Lynis audits after 365 days, Prometheus metrics
 after 15 days and GitLab's embedded metrics after one day. Registry images and
 packages expire after the configured retention (default 1 095 days).
 Secret-scanner reports hold metadata, not secret values. See
