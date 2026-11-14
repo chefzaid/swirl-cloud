@@ -178,6 +178,7 @@ spec:
           labels:
             app: gitlab-registry-retention
         spec:
+          priorityClassName: platform-background
           automountServiceAccountToken: false
           restartPolicy: Never
           securityContext:

@@ -64,6 +64,7 @@ configs:
       g, platform-admins, role:admin
     scopes: '[groups]'
 global:
+  priorityClassName: platform-standard
   securityContext: &id001
     runAsNonRoot: true
     runAsUser: 10001

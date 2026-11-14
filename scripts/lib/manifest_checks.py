@@ -410,6 +410,21 @@ def runner_priority(resources):
                         f"ConfigMap {doc['metadata']['name']}: runners need priority_class_name of a rendered PriorityClass")
 
 
+def workload_priority(resources):
+    """Every workload names a rendered PriorityClass, so eviction and preemption follow a stated order."""
+    classes = {doc["metadata"]["name"] for doc in resources if doc["kind"] == "PriorityClass"}
+    for doc in resources:
+        if doc["kind"] in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}:
+            spec = doc["spec"]["jobTemplate"]["spec"] if doc["kind"] == "CronJob" else doc["spec"]
+            named = spec["template"]["spec"].get("priorityClassName")
+        elif doc["kind"] == "Cluster":
+            named = doc["spec"].get("priorityClassName")
+        else:
+            continue
+        label = doc["metadata"].get("name") or doc["metadata"].get("generateName")
+        require(named in classes, f"{doc['kind']}/{label}: name a rendered PriorityClass (base/security-baseline.yaml)")
+
+
 def fluent_bit_sections(text):
     """Classic Fluent Bit configuration as [(section, {key: value})], rejecting lines it would not parse."""
     sections = []

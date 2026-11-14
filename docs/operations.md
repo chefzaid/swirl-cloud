@@ -513,7 +513,21 @@ every node. Pods cannot use the reserved memory.
 | Hard eviction | Under 500 MiB available, at once |
 
 Pods above their memory request go first, lowest priority first, then the one
-furthest above its request. CI jobs run at the `ci-jobs` priority (-100), below
+furthest above its request. Every platform workload names a priority class
+([security-baseline.yaml](../k8s/base/security-baseline.yaml)); the scheduler may
+also preempt a lower class to place a higher one:
+
+| Class | Priority | Workloads |
+|---|---|---|
+| `platform-critical` | 1 000 000 | PostgreSQL, MongoDB, Redis, Kafka, Keycloak and the sign-in proxy; Traefik, Vault and External Secrets once their releases are next reconciled |
+| `production` | 500 000 | Odoo, and production applications that name it |
+| `platform-standard` | 0 | GitLab, Argo CD, monitoring, logs and the host agents; also any pod that names no class |
+| `preproduction` | -20 | Applications in `uat` that name it |
+| `integration` | -30 | Applications in `int` that name it |
+| `platform-background` | -50 | SonarQube, Trivy and its scans, DBGate, Kafka UI, Portainer, registry retention |
+| `ci-jobs` | -100 | CI job pods |
+
+CI jobs run at the `ci-jobs` priority (-100), below
 every platform and application pod, so they are evicted first and the scheduler
 may preempt them to place a platform pod; they never preempt anything. They
 request 2 GiB, about what a test job uses

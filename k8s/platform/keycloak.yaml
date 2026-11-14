@@ -59,6 +59,7 @@ spec:
         prometheus.io/port: "9000"
         swirl-cloud.io/keycloak-theme: pending
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

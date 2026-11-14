@@ -18,6 +18,7 @@ spec:
       labels:
         app: portainer-bootstrap
     spec:
+      priorityClassName: platform-background
       restartPolicy: OnFailure
       automountServiceAccountToken: false
       securityContext:

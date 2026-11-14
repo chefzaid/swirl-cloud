@@ -646,6 +646,7 @@ spec:
       labels:
         app: keycloak-sso-reconcile
     spec:
+      priorityClassName: platform-standard
       restartPolicy: Never
       automountServiceAccountToken: false
       securityContext:
@@ -727,6 +728,7 @@ spec:
       labels:
         app: oauth2-proxy
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

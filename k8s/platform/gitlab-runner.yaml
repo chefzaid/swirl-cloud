@@ -287,6 +287,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "9252"
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: gitlab-runner-manager
       automountServiceAccountToken: true
       # Jobs run up to two hours; let SIGQUIT draining report them before a rollout.

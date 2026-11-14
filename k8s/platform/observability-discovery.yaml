@@ -40,6 +40,7 @@ spec:
       labels:
         app: kibana-applications-namespace-bootstrap
     spec:
+      priorityClassName: platform-standard
       restartPolicy: OnFailure
       automountServiceAccountToken: false
       securityContext:
@@ -117,6 +118,7 @@ spec:
       labels:
         app: kibana-lynis-bootstrap
     spec:
+      priorityClassName: platform-standard
       restartPolicy: OnFailure
       automountServiceAccountToken: false
       securityContext:

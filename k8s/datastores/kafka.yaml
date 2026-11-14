@@ -34,6 +34,7 @@ spec:
       annotations:
         swirl-cloud.io/application-data: disabled
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
@@ -162,6 +163,7 @@ spec:
       annotations:
         swirl-cloud.io/application-data: disabled
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000

@@ -43,6 +43,7 @@ nodeFencing:
 # voters and min-replicas-to-write stop an isolated primary from carrying on.
 redis-ha:
   fullnameOverride: shared-redis-ha
+  priorityClassName: platform-critical
   image:
     repository: docker.io/library/redis
     tag: 8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
@@ -119,6 +120,7 @@ redis-ha:
         limits: {cpu: 100m, memory: 64Mi}
   haproxy:
     enabled: true
+    priorityClassName: platform-critical
     image:
       repository: public.ecr.aws/docker/library/haproxy
       tag: "3.3.10-alpine@sha256:29c775f541ba6364ac95de998a8d3d16eb4882470c4fd7bbe8de8315edfdd883"
@@ -145,6 +147,8 @@ redis-ha:
 trivy-operator:
   enabled: true
   fullnameOverride: trivy-operator
+  # The operator, its Trivy server and its scan jobs can all wait.
+  priorityClassName: platform-background
   # "pod" covers standalone pods such as Longhorn's; pods owned by the other
   # kinds are not scanned twice.
   targetWorkloads: "replicaset,statefulset,daemonset,cronjob,pod"
@@ -198,6 +202,7 @@ trivy-operator:
       cpu: "1"
       memory: 1Gi
   trivyOperator:
+    scanJobPodPriorityClassName: platform-background
     scanJobPodTemplatePodSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534
@@ -214,6 +219,7 @@ trivy-operator:
     reportRecordFailedChecksOnly: true
     reportResourceLabels: app
   trivy:
+    priorityClassName: platform-background
     image:
       registry: docker.io
       repository: aquasec/trivy

@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "scripts/lib"))
 from manifest_checks import (  # noqa: E402
     alert_policy, argocd_probe_policy, documents, embedded_syntax, events_collector, identity, images, index,
     ingress_policy, lifecycle_policies, portal_translation, prometheus_config, require, resource_wiring, run,
-    runner_priority, soc_forwarding, vulnerability_exceptions, workload_policy)
+    runner_priority, soc_forwarding, vulnerability_exceptions, workload_policy, workload_priority)
 
 GROUPS = ("base", "datastores", "platform", "corp", "addons")
 TOKEN = re.compile(r"__[A-Z][A-Z0-9_]+__")
@@ -200,6 +200,7 @@ def render_profiles(output):
         prometheus_config(runtime, stage)
         soc_forwarding(runtime, label, soc_host)
         events_collector(runtime, label)
+        workload_priority(list(runtime.values()))
         owned = {identity(doc) for block in rendered.split("\n---")
                  if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
         require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")

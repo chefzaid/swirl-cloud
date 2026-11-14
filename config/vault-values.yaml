@@ -1,6 +1,7 @@
 # Audit logs use a dedicated volume and an in-pod rotator. The process namespace
 # is shared only so the unprivileged sidecar can send Vault SIGHUP after rotating.
 server:
+  priorityClassName: platform-critical
   image:
     repository: docker.io/hashicorp/vault
     tag: 2.1.1@sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2

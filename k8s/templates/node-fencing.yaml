@@ -93,6 +93,8 @@ spec:
           labels:
             app: node-fencing
         spec:
+          # Fencing recovers the services of a failed host: it must always find room.
+          priorityClassName: platform-critical
           serviceAccountName: node-fencing
           automountServiceAccountToken: true
           restartPolicy: Never

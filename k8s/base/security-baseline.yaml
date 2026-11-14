@@ -1,3 +1,73 @@
+# Workload priorities. Under memory pressure the kubelet evicts lower classes
+# first, and the scheduler may preempt them to place a higher one. A pod with
+# no class has priority 0, the same as platform-standard, so nothing unclassified
+# drops below where it was. CI jobs sit lowest (ci-jobs, platform/gitlab-runner.yaml).
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-critical
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: 1000000
+globalDefault: false
+description: "What everything else needs to run: data stores, sign-in, secrets and ingress."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: 500000
+globalDefault: false
+description: "Production applications and the company's business applications."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-standard
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: 0
+globalDefault: false
+description: "Platform services: delivery, monitoring, logs and their agents."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: preproduction
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: -20
+globalDefault: false
+description: "Applications in uat."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: integration
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: -30
+globalDefault: false
+description: "Applications in int and other test environments."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-background
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+value: -50
+globalDefault: false
+description: "Analysis and administration tools that can wait: code analysis, vulnerability scans, database and cluster consoles."
+
+---
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -43,6 +43,7 @@ spec:
       labels:
         app: dbgate
     spec:
+      priorityClassName: platform-background
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

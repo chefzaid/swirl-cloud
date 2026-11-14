@@ -572,6 +572,7 @@ spec:
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: fluent-bit
       automountServiceAccountToken: true
       securityContext:
@@ -756,6 +757,7 @@ spec:
         prometheus.io/path: /api/v2/metrics/prometheus
         prometheus.io/port: "2020"
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: kubernetes-events
       automountServiceAccountToken: true
       securityContext:
@@ -928,6 +930,7 @@ spec:
       annotations:
         swirl-cloud.__PUBLIC_DOMAIN__/config-version: "1"
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       nodeSelector:
         node-role.kubernetes.io/control-plane: "true"

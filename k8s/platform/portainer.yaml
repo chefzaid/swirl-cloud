@@ -78,6 +78,7 @@ spec:
       labels:
         app: portainer
     spec:
+      priorityClassName: platform-background
       serviceAccountName: portainer
       automountServiceAccountToken: true
       securityContext:

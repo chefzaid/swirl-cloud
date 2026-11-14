@@ -34,6 +34,8 @@ See [testing](testing.md#test-layers) for the full layer map.
 - every platform image is pinned by an `@sha256` digest
 - every Deployment, StatefulSet, DaemonSet, Job and CronJob declares
   `automountServiceAccountToken` and CPU/memory requests and limits for every container
+- every rendered workload, the subcharts' included, names a rendered PriorityClass
+  ([workload priorities](operations.md#node-memory-and-eviction))
 - every liveness probe has a timeout of 5 seconds or more and restarts only after
   a minute of failures (`periodSeconds` × `failureThreshold` ≥ 60); every readiness
   probe has a timeout of 3 seconds or more, in the manifests and in the Traefik,

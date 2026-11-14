@@ -38,6 +38,7 @@ spec:
       labels:
         app: sonarqube-sso-admin-bootstrap
     spec:
+      priorityClassName: platform-background
       automountServiceAccountToken: false
       restartPolicy: OnFailure
       securityContext:
@@ -247,6 +248,7 @@ spec:
       annotations:
         theme.__PUBLIC_DOMAIN__/config-revision: "1"
     spec:
+      priorityClassName: platform-background
       automountServiceAccountToken: false
       # Exec probes killed at their timeout orphan curl and grep; a shared process
       # namespace lets the pause container reap them (the JVM never does).

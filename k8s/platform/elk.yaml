@@ -242,6 +242,7 @@ spec:
       labels:
         app: elasticsearch
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
@@ -331,6 +332,7 @@ spec:
       labels:
         app: elasticsearch-security-bootstrap
     spec:
+      priorityClassName: platform-standard
       restartPolicy: OnFailure
       automountServiceAccountToken: false
       securityContext:
@@ -696,6 +698,7 @@ spec:
       labels:
         app: kibana-keycloak-user-sync
     spec:
+      priorityClassName: platform-standard
       restartPolicy: OnFailure
       automountServiceAccountToken: false
       securityContext:
@@ -768,6 +771,7 @@ spec:
           labels:
             app: kibana-keycloak-user-sync
         spec:
+          priorityClassName: platform-standard
           restartPolicy: OnFailure
           automountServiceAccountToken: false
           securityContext:
@@ -855,6 +859,7 @@ spec:
       annotations:
         swirl-cloud.__PUBLIC_DOMAIN__/config-version: "3"
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
@@ -1149,6 +1154,7 @@ spec:
       annotations:
         swirl-cloud.__PUBLIC_DOMAIN__/auth-version: "4"
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000

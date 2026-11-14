@@ -27,6 +27,10 @@ registered cluster. Version 2 uses the common [fields](#fields) plus exactly:
 ```
 
 It rejects `bootstrap`, `vault` and a `DEPLOYMENT_ENVIRONMENT` pipeline variable.
+An application sets `priorityClassName` on its pods per environment: `production`
+in `prod`, `preproduction` in `uat` and `integration` in `int`
+([workload priorities](../operations.md#node-memory-and-eviction)). Without one,
+its pods rank with the platform's standard services in every environment.
 The template selects `infra/k8s` or `infra/overlays/ha` (initial replica profile).
 Other apps stay on version 1 until migrated; onboarding changes no source code.
 

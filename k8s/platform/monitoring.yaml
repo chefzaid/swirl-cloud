@@ -181,6 +181,7 @@ spec:
       labels:
         app: kube-state-metrics
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: kube-state-metrics
       automountServiceAccountToken: true
       securityContext:
@@ -260,6 +261,7 @@ spec:
       labels:
         app: node-exporter
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       hostNetwork: true
       hostPID: true
@@ -370,6 +372,7 @@ spec:
       annotations:
         swirl-cloud.io/config-version: "1"
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -447,6 +450,7 @@ spec:
       labels:
         app: elasticsearch-exporter
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -504,6 +508,7 @@ spec:
       labels:
         app: kafka-exporter
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -673,6 +678,7 @@ spec:
         prometheus.io/port: "9093"
         prometheus.io/path: /metrics
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -791,6 +797,7 @@ spec:
         # subPath mounts never refresh; roll Prometheus when its config changes.
         swirl-cloud.io/prometheus-config: pending
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: prometheus
       automountServiceAccountToken: true
       securityContext:
@@ -1050,6 +1057,7 @@ spec:
         # Bump when grafana-datasources changes; Grafana reads them at startup.
         swirl-cloud.io/datasources-version: "2"
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: grafana
       automountServiceAccountToken: true
       securityContext:

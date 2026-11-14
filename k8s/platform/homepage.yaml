@@ -483,6 +483,7 @@ spec:
         # Homepage finds local icons only at start; roll it when an icon is added or changed.
         swirl-cloud.io/homepage-icons: pending
     spec:
+      priorityClassName: platform-standard
       serviceAccountName: homepage
       automountServiceAccountToken: true
       terminationGracePeriodSeconds: 30

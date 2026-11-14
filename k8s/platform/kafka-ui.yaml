@@ -32,6 +32,7 @@ spec:
       labels:
         app: kafka-ui
     spec:
+      priorityClassName: platform-background
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

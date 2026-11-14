@@ -14,6 +14,7 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   instances: 3
+  priorityClassName: platform-critical
   imageName: {{ required "postgresHa.image is required" $pg.image | quote }}
   enableSuperuserAccess: false
   certificates:

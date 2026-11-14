@@ -13,6 +13,7 @@ spec:
       labels:
         app: descheduler
     spec:
+      priorityClassName: platform-background
       serviceAccountName: descheduler
       automountServiceAccountToken: true
       restartPolicy: Never

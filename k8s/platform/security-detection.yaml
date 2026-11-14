@@ -338,6 +338,7 @@ spec:
           labels:
             app: security-detection
         spec:
+          priorityClassName: platform-standard
           restartPolicy: Never
           automountServiceAccountToken: false
           securityContext:

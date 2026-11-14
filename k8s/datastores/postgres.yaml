@@ -73,6 +73,7 @@ spec:
       labels:
         app: postgres
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

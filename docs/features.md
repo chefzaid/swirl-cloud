@@ -26,6 +26,7 @@ pieces fit together.
 - schedulable or controller-only control planes; Longhorn replicas follow topology
 - private SSH allowlists from registered control planes
 - CoreDNS private service zone and an internal Registry mirror for containerd
+- workload priorities: under memory pressure data stores and sign-in outlive delivery and monitoring, which outlive analysis tools and CI jobs
 
 ## Storage And Recovery
 

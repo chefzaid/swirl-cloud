@@ -15,6 +15,7 @@ spec:
       annotations:
         theme.__PUBLIC_DOMAIN__/config-revision: "1"
     spec:
+      priorityClassName: platform-standard
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

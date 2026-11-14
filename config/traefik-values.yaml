@@ -1,5 +1,6 @@
 # Native Kubernetes Ingress keeps routing and discovery owned by each repository.
 fullnameOverride: traefik
+priorityClassName: platform-critical
 # No version checks or usage statistics leave the installation.
 global:
   checkNewVersion: false

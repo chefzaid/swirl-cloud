@@ -138,6 +138,7 @@ spec:
       annotations:
         swirl-cloud.io/odoo-addons: pending
     spec:
+      priorityClassName: production
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

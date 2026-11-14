@@ -58,6 +58,7 @@ spec:
       labels:
         app: mongodb
     spec:
+      priorityClassName: platform-critical
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

@@ -159,6 +159,7 @@ spec:
         prometheus.io/path: /-/metrics
         prometheus.io/port: "80"
     spec:
+      priorityClassName: platform-standard
       nodeSelector:
         kubernetes.io/os: linux
         kubernetes.io/arch: amd64

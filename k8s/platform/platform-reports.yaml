@@ -242,6 +242,7 @@ spec:
           labels:
             app: platform-reports-snapshot
         spec:
+          priorityClassName: platform-standard
           restartPolicy: OnFailure
           automountServiceAccountToken: false
           securityContext:
