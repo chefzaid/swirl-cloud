@@ -78,3 +78,11 @@ sudo ufw status verbose; rerun scripts/configure-node-security.sh --apply (it ve
 sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now	sudo journalctl -u swirl-cloud-k3s-backup.service -n 50 ; ./install.sh > Maintenance > Lancer la sauvegarde de reprise maintenant
 set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md	configurez le relais avec scripts/configure-platform-mail.py ; voir docs/guides/platform-mail.md
 ./install.sh > Maintenance > Earlier run logs, then rerun ./install.sh (reruns converge)	./install.sh > Maintenance > Journaux des exécutions précédentes, puis relancez ./install.sh (les relances convergent)
+First steps	Premières étapes
+$pending of $total safety steps still to do	$pending étape(s) de sécurité sur $total encore à faire
+could not check every safety step	certaines étapes de sécurité n'ont pas pu être vérifiées
+recovery kit exported, off-site backups and alert notifications on	kit de reprise exporté, sauvegardes hors site et notifications d'alerte actives
+Export the recovery kit and store it off this host - $command	Exporter le kit de reprise et le conserver hors de ce serveur - $command
+Copy the nightly archives off site - $command	Copier les archives nocturnes hors site - $command
+Turn alert notifications on - $command	Activer les notifications d'alerte - $command
+$step - unknown (needs passwordless sudo or the Alertmanager API)	$step - inconnu (sudo sans mot de passe ou API Alertmanager requis)

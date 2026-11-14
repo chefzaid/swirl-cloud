@@ -351,6 +351,40 @@ def check_backup(report, max_age_hours):
                    (values.get("LastTriggerUSec") or "never") + ". Check again after the next scheduled run.")
 
 
+def first_steps():
+    """Safety steps a new installation still owes, as (done, step, command); done is None when unknown."""
+    def root_test(*command):
+        result = subprocess.run(["sudo", "-n", *command], capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+        return None if "password" in result.stderr else result.returncode == 0
+    steps = [(root_test("test", "-s", "/var/lib/swirl-cloud/recovery-kit.json"),
+              "Export the recovery kit and store it off this host",
+              "scripts/export-recovery-kit.sh --separate-archives"),
+             (root_test("grep", "-qs", "^RESTIC_REPOSITORY=.", "/etc/swirl-cloud/backup.env"),
+              "Copy the nightly archives off site",
+              "./install.sh > Configure > Backups, then scripts/configure-k3s-backups.sh")]
+    try:
+        status = kubectl("get", "--raw", "/api/v1/namespaces/infra/services/alertmanager:9093/proxy/api/v2/status")
+        route = re.search(r"^route:\n(?:\s+.*\n)*?\s+receiver: (\S+)", status["config"]["original"], re.M)
+        notifying = bool(route) and route[1].strip("'\"") != "paused"
+    except (RuntimeError, KeyError, TypeError, subprocess.SubprocessError):
+        notifying = None
+    steps.append((notifying, "Turn alert notifications on", "docs/guides/platform-mail.md#alert-email"))
+    return steps
+
+
+def check_first_steps(report):
+    steps = first_steps()
+    pending = [f"{step} - {command}" for done, step, command in steps if done is False]
+    unknown = [step for done, step, _ in steps if done is None]
+    details = pending + [f"{step} - unknown (needs passwordless sudo or the Alertmanager API)" for step in unknown]
+    if pending:
+        report.add(WARN, "First steps", f"{len(pending)} of {len(steps)} safety steps still to do", details)
+    elif unknown:
+        report.add(WARN, "First steps", "could not check every safety step", details)
+    else:
+        report.add(PASS, "First steps", "recovery kit exported, off-site backups and alert notifications on")
+
+
 def read_install_record(path):
     events = []
     for line in path.read_text(errors="replace").splitlines():
@@ -415,6 +449,7 @@ def main():
     check_kubelet_memory(report)
     check_backup(report, args.backup_max_age_hours)
     check_install_record(report)
+    check_first_steps(report)
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,
                                 capture_output=True, text=True, stdin=subprocess.DEVNULL)

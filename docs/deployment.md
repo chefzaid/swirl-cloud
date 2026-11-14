@@ -676,6 +676,7 @@ limit (default 26).
 | Kubelet memory reservation | | the reservation is missing or waits for a K3s restart |
 | Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric yet, or the timer is not installed |
 | Last installation | | the latest installer or playbook run failed, was interrupted or recorded no finish (shown with its last step) |
+| First steps | | the recovery kit was never exported, the nightly archives have no off-site copy, or alert notifications are paused; each pending step is listed with its command |
 
 Each warning or failure ends with a `Next:` line naming the first command to run.
 Every installer run that reaches the pre-flight checks writes a record to
