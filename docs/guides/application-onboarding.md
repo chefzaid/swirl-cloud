@@ -27,6 +27,8 @@ registered cluster. Version 2 uses the common [fields](#fields) plus exactly:
 ```
 
 It rejects `bootstrap`, `vault` and a `DEPLOYMENT_ENVIRONMENT` pipeline variable.
+In `int` and `uat`, an application that sends email points its SMTP settings at
+the [mail catcher](platform-mail.md#non-production-mail), never at a real relay.
 An application sets `priorityClassName` on its pods per environment: `production`
 in `prod`, `preproduction` in `uat` and `integration` in `int`
 ([workload priorities](../operations.md#node-memory-and-eviction)). Without one,

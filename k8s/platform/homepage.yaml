@@ -187,6 +187,12 @@ data:
             description: Code quality and security analysis
             namespace: infra
             podSelector: app=sonarqube
+        - Mailpit:
+            icon: mdi-email-search-outline
+            href: https://cloud.__PUBLIC_DOMAIN__/mailpit/
+            description: Email sent by int and uat, caught instead of delivered
+            namespace: infra
+            podSelector: app=mailpit
 
     - Cluster Management:
         - Cloud Dashboard:

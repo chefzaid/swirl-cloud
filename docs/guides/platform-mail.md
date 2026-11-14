@@ -134,6 +134,23 @@ Alertmanager without an email target. GitLab stops sending and Odoo archives its
 "Platform mail" server at their next restart. Revoke the password or key at the
 provider too.
 
+## Non-production mail
+
+Applications in `int` and `uat` must not send to real people. They use the mail
+catcher instead of the relay:
+
+| Setting | Value |
+| --- | --- |
+| SMTP host | `mailpit.<internal zone>` (for example `mailpit.example.internal`) |
+| Port | `1025`, no TLS |
+| Login | Any; use the environment's name (`int`, `uat`) as the user so messages are tagged with it |
+
+Mailpit accepts every message for any recipient and forwards nothing. Read them at
+`https://cloud.<your-domain>/mailpit/`, behind the platform's sign-in; the newest
+5 000 are kept, for seven days at most, and are lost when the pod restarts.
+Production keeps the relay. It makes no outside calls: its version check is off
+and it blocks remote styles and fonts in messages.
+
 ## Where the password lives
 
 Vault `infra/smtp` is the source. External Secrets copies it into the

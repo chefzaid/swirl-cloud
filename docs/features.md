@@ -79,6 +79,7 @@ pieces fit together.
 - two-way GitHub/GitLab sync with token rotation
 - declarative application onboarding with a verified first deployment
 - `int`, `uat` and `prod` targets on the platform cluster or separate clusters
+- a [mail catcher](guides/platform-mail.md#non-production-mail) for `int` and `uat`: test email is read on the portal and never reaches a real person
 
 ## Observability And Quality
 

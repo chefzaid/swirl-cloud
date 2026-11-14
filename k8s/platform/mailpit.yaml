@@ -1,0 +1,145 @@
+# Mail catcher for non-production (TODO §48). Applications in int and uat send
+# to mailpit.__INTERNAL_DNS_ZONE__:1025 in place of the mail relay, so a test
+# never emails a real person. It accepts any SMTP login and tags each message
+# with it, so an application that signs in as its environment ("int", "uat")
+# can be filtered. Nothing is forwarded; messages are read on the portal host
+# under /mailpit behind the platform's sign-in, and deleted after seven days.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: infra
+  labels:
+    app: mailpit
+spec:
+  replicas: 1
+  # Messages live in the pod; two pods would each hold a part of them.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      priorityClassName: platform-background
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mailpit
+          image: docker.io/axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+          env:
+            - name: MP_DATABASE
+              value: /data/mailpit.db
+            - name: MP_MAX_MESSAGES
+              value: "5000"
+            - name: MP_MAX_AGE
+              value: 7d
+            - name: MP_WEBROOT
+              value: /mailpit
+            # Applications keep whatever SMTP login they have; none is checked.
+            - name: MP_SMTP_AUTH_ACCEPT_ANY
+              value: "true"
+            - name: MP_SMTP_AUTH_ALLOW_INSECURE
+              value: "true"
+            - name: MP_TAGS_USERNAME
+              value: "true"
+            # No outside calls: no version check, no remote styles or fonts in messages.
+            - name: MP_DISABLE_VERSION_CHECK
+              value: "true"
+            - name: MP_BLOCK_REMOTE_CSS_AND_FONTS
+              value: "true"
+          ports:
+            - name: smtp
+              containerPort: 1025
+            - name: http
+              containerPort: 8025
+          readinessProbe:
+            httpGet:
+              path: /mailpit/readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /mailpit/livez
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: infra
+  labels:
+    app: mailpit
+spec:
+  selector:
+    app: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: smtp
+    - name: http
+      port: 8025
+      targetPort: http
+
+---
+# Read on the portal's host, so it needs no DNS record or Access entry of its own.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mailpit
+  namespace: infra
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd,infra-platform-body-limit@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [cloud.__PUBLIC_DOMAIN__]
+      secretName: __TLS_SECRET_NAME__
+  rules:
+    - host: cloud.__PUBLIC_DOMAIN__
+      http:
+        paths:
+          - path: /mailpit
+            pathType: Prefix
+            backend:
+              service:
+                name: mailpit
+                port:
+                  number: 8025

@@ -6,6 +6,7 @@ ERP and CRM application: Application ERP et CRM
 Source control, CI, artifacts, and collaboration: Gestion du code source, CI, artefacts et collaboration
 GitOps continuous delivery: Livraison continue GitOps
 Code quality and security analysis: Analyse de la qualité et de la sécurité du code
+Email sent by int and uat, caught instead of delivered: E-mails envoyés par int et uat, interceptés au lieu d'être distribués
 Private cloud service catalog: Catalogue des services du cloud privé
 Kubernetes workload management: Gestion des charges de travail Kubernetes
 Distributed persistent storage: Stockage persistant distribué

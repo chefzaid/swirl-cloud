@@ -115,6 +115,15 @@ components:
     obligations: Keep the licence text and any NOTICE file in copies.
     notes: Confluent's packaging of Apache Kafka; the terms of its base layer were not reviewed. The alternative
       is the ASF's apache/kafka image (Apache-2.0).
+  - name: docker.io/axllent/mailpit
+    licence: MIT
+    source: https://github.com/axllent/mailpit
+    maintainer: Ralph Slooten (axllent)
+    jurisdiction: Unknown (individual maintainer)
+    end_of_life: latest-only
+    support_source: https://github.com/axllent/mailpit/releases
+    customer_use: allowed
+    obligations: Keep the copyright and permission notice in copies.
   - name: docker.io/curlimages/curl
     licence: curl AND MIT
     source: https://github.com/curl/curl-container
