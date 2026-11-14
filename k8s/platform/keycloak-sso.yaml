@@ -460,7 +460,7 @@ data:
 
     # Access groups (ADR 0031): a person opens a service only as a member of its
     # group; platform-admins opens every service. Members are never removed here.
-    for access_group in access-argocd access-grafana access-mailpit; do
+    for access_group in access-argocd access-environments access-grafana access-mailpit access-portal; do
       expect_success "$(request GET "realms/$realm/groups?search=$access_group&exact=true")"
       if [ -z "$(extract_id)" ]; then
         expect_success "$(request POST "realms/$realm/groups" "{\"name\":\"$access_group\"}")"

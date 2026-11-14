@@ -413,6 +413,26 @@ data:
     # swirl-cloud:file homepage-custom.js
 
 ---
+# The portal gate (ADR 0031) answers for the portal: administrators get
+# Homepage unchanged; everyone else gets a page with only the services their
+# access groups open, and the ones they can ask for, greyed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portal-gate
+  namespace: infra
+  labels:
+    app: homepage
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: swirl-cloud
+data:
+  gate.mjs: |
+    # swirl-cloud:file portal-gate.mjs
+  # Who sees which portal entry without being an administrator.
+  access.json: |
+    # swirl-cloud:file portal-access.json
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -434,7 +454,7 @@ spec:
   ports:
   - name: http
     port: 3000
-    targetPort: http
+    targetPort: gate
     protocol: TCP
 
 ---
@@ -483,7 +503,7 @@ spec:
         app.kubernetes.io/name: homepage
         app.kubernetes.io/part-of: swirl-cloud
       annotations:
-        swirl-cloud/config-revision: "12"
+        swirl-cloud/config-revision: "13"
         # settings.yaml uses subPath; replace pods when the organization title changes.
         swirl-cloud/organization-name: __ORGANIZATION_NAME_JSON__
         # Homepage finds local icons only at start; roll it when an icon is added or changed.
@@ -608,7 +628,61 @@ spec:
         - name: homepage-icons
           mountPath: /app/public/icons
           readOnly: true
+      - name: portal-gate
+        image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+        command: ["node", "/gate/gate.mjs"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+        env:
+        - name: GATE_PORT
+          value: "3001"
+        - name: PORTAL_TITLE
+          value: __PLATFORM_TITLE_JSON__
+        # Requests for access go to the platform's first administrator until
+        # tickets exist (TODO §47).
+        - name: ACCESS_CONTACT
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-sso-credentials
+              key: SSO_PRIMARY_EMAIL
+        - name: ACCOUNT_URL
+          value: https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__/account/
+        - name: SIGN_OUT_URL
+          value: https://keycloak.__PUBLIC_DOMAIN__/oauth2/sign_out?rd=https%3A%2F%2Fkeycloak.__PUBLIC_DOMAIN__%2Fauth%2Frealms%2F__KEYCLOAK_REALM__%2Fprotocol%2Fopenid-connect%2Flogout
+        ports:
+        - name: gate
+          containerPort: 3001
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /gate/healthz
+            port: gate
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /gate/healthz
+            port: gate
+          periodSeconds: 30
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 10m
+            memory: 48Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        volumeMounts:
+        - name: portal-gate
+          mountPath: /gate
+          readOnly: true
       volumes:
+      - name: portal-gate
+        configMap:
+          name: portal-gate
       - name: homepage-config
         configMap:
           name: homepage-config
@@ -635,7 +709,7 @@ metadata:
     app.kubernetes.io/name: homepage
     app.kubernetes.io/part-of: swirl-cloud
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-sso@kubernetescrd,infra-platform-body-limit@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-access-portal@kubernetescrd,infra-platform-body-limit@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

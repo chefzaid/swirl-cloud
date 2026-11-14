@@ -28,6 +28,11 @@ platform administrator.
   `platform-access-<service>` middleware. `validate-manifests.py` rejects a
   ForwardAuth address without `platform-admins` or with a group the reconciler
   does not create.
+- The portal admits `access-portal`, given to every member of staff. A gate in
+  front of Homepage gives administrators Homepage unchanged and builds
+  everyone else a page from Homepage's own service list: the services their
+  groups open, and those they could ask for, greyed. Nothing else of the
+  platform reaches their browser.
 - Tools that sign in themselves map the group to their lowest useful role and
   refuse an account without one: Grafana (`access-grafana`, Viewer, strict role
   mapping) and Argo CD (`access-argocd`, read-only, no default role).
@@ -52,6 +57,10 @@ tool. Groups need no change to tokens.
 ## Consequences
 
 - A new account opens nothing until someone adds it to a group.
+- The gate trusts the identity headers Traefik sets from OAuth2 Proxy's answer,
+  as the tools behind the proxy do. A pod inside the cluster that calls the
+  portal's Service directly can still claim any group; it could already read
+  Homepage without signing in.
 - Group changes reach a tool at the person's next sign-in, or within an hour
   when OAuth2 Proxy refreshes its session.
 - Administration hosts behind Cloudflare Access still need the person's email in

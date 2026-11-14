@@ -18,6 +18,24 @@ spec:
     addAuthCookiesToResponse: [_oauth2_proxy]
     authResponseHeaders: [X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups]
 ---
+# The portal: every member of staff holds access-portal. The portal gate then
+# decides what each person sees (platform/homepage.yaml).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: platform-access-portal
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/?allowed_groups=access-portal,platform-admins
+    trustForwardHeader: true
+    preserveLocationHeader: true
+    forwardBody: false
+    addAuthCookiesToResponse: [_oauth2_proxy]
+    authResponseHeaders: [X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups]
+---
 # A service opened to more people than administrators has its own middleware,
 # naming its access group.
 apiVersion: traefik.io/v1alpha1

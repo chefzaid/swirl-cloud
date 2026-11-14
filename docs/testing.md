@@ -71,6 +71,7 @@ The validator runs only these safety suites:
 | `test-hardware-health.py` | A disk smartctl cannot read reported as healthy, Longhorn's iSCSI disks reported as hardware, an invalid metrics file, and SMART collection installed on a virtual machine or left behind there. |
 | `test-security-detection.py` | An SSH login after repeated failures from one address that does not alert, or one after fewer failures that does, and sudo by a new user that is missed or a first run that alerts instead of learning. |
 | `test-soc-forwarding.py` | A SOC message that is not valid JSON, keeps collection metadata, loses its node, type or severity, or is sent for a Vault line or job line that is not an audit entry or finding; invalid settings accepted by Helm or the installer; settings recorded before a verified TLS connection. |
+| `test-portal-gate.py` | A person who is not an administrator seeing a service their groups do not open, its address, or the name of one they cannot ask for; an administrator not getting Homepage unchanged; any other Homepage path reachable; unescaped service text |
 | `test-postgres-ha.py` | Data or role loss, unverified cutover and restarting an obsolete writer; `--docker` adds an isolated SQL restore drill. |
 | `test-kafka-ha.py` | Migration before preparation, incomplete replication and unsafe quorum changes; a new Kafka cluster ID on a cluster that already has Kafka storage, or a malformed one. |
 | `test-vault-unseal.py` | Recovery keys in process arguments, false unseal success, and a recovery kit that is unreadable, incomplete or stale. |

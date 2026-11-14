@@ -1,0 +1,13 @@
+{
+  "applicationGroups": ["Applications - PROD"],
+  "groupAccess": {
+    "Applications - UAT": "access-environments",
+    "Applications - INT": "access-environments"
+  },
+  "open": ["GitLab", "Odoo"],
+  "groups": {
+    "Grafana": "access-grafana",
+    "Argo CD": "access-argocd",
+    "Mailpit": "access-mailpit"
+  }
+}

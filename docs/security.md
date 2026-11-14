@@ -421,9 +421,19 @@ tools behind the sign-in proxy.
 
 | Group | Opens | With |
 | --- | --- | --- |
+| `access-portal` | The portal at `https://cloud.<your-domain>` | Their own services; give it to every member of staff |
+| `access-environments` | The `int` and `uat` applications on the portal | The links only; each application decides who signs in |
 | `access-grafana` | Grafana | Viewer on every dashboard |
 | `access-argocd` | Argo CD | Read-only on every Application, once Argo CD's release is next reconciled (`scripts/reconcile-platform-release.sh argocd`) |
 | `access-mailpit` | The [non-production mail catcher](guides/platform-mail.md#non-production-mail) | Read and delete caught messages |
+
+On the portal, a person who is not an administrator sees the production
+applications, GitLab and Odoo (which decide access themselves), the services
+their groups open, and the services they could ask for, greyed, with a link that
+writes the request to the platform's first administrator. The infrastructure
+entries, cluster usage and pod status reach only administrators' browsers: the
+[portal gate](../k8s/files/portal-gate.mjs) in front of Homepage builds that
+page, from the rules in [`portal-access.json`](../k8s/files/portal-access.json).
 
 Every other tool admits `platform-admins` only. GitLab creates a blocked account
 at a person's first sign-in: approve it under **Admin, Users**. Portainer

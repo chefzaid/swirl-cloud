@@ -1,7 +1,10 @@
 """Access policy checks for validate-manifests.py (ADR 0031): tools behind OAuth2
 Proxy are refused by default, and every access group a manifest names exists."""
+import json
 import re
 from urllib.parse import parse_qs, urlparse
+
+import yaml
 
 from manifest_checks import require
 
@@ -38,6 +41,7 @@ def access_groups(resources):
                 for address in re.findall(r"http://oauth2-proxy[^\s;\"']*/oauth2/auth[^\s;\"']*", str(content)):
                     admitted(address, f"ConfigMap/{name}/{key}")
     require(middlewares, "no OAuth2 Proxy middleware found; update the access check")
+    portal_rules(resources, known)
     for doc in resources:
         if doc["kind"] != "Ingress":
             continue
@@ -45,3 +49,19 @@ def access_groups(resources):
         used = [name for name in chain.split(",") if re.match(r"infra-platform-(sso|access-)", name)]
         require(set(used) <= middlewares, f"Ingress/{doc['metadata']['name']}: unknown sign-in middleware {used}")
         require(len(used) <= 1, f"Ingress/{doc['metadata']['name']}: one sign-in middleware decides access, not {used}")
+
+
+def portal_rules(resources, known):
+    """The portal gate's rules name portal entries that exist and groups the reconciler creates."""
+    found = {doc["metadata"]["name"]: doc.get("data") or {} for doc in resources if doc["kind"] == "ConfigMap"}
+    rules = json.loads(found["portal-gate"]["access.json"])
+    catalog = {name: [next(iter(service)) for service in services or []]
+               for group in yaml.safe_load(found["homepage-config"]["services.yaml"]) for name, services in group.items()}
+    services = {name for names in catalog.values() for name in names}
+    groups = set(rules["groups"].values()) | set(rules["groupAccess"].values())
+    require(groups <= known, f"portal-gate: groups the reconciler does not create: {', '.join(sorted(groups - known))}")
+    named = set(rules["open"]) | set(rules["groups"])
+    require(named <= services, f"portal-gate: entries missing from the portal: {', '.join(sorted(named - services))}")
+    sections = set(rules["applicationGroups"]) | set(rules["groupAccess"])
+    require(sections <= set(catalog), f"portal-gate: groups missing from the portal: {', '.join(sorted(sections - set(catalog)))}")
+    require(not set(rules["open"]) & set(rules["groups"]), "portal-gate: an entry is either open to everyone or needs a group")
