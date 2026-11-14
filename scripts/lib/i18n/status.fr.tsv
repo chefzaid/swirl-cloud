@@ -86,3 +86,9 @@ Export the recovery kit and store it off this host - $command	Exporter le kit de
 Copy the nightly archives off site - $command	Copier les archives nocturnes hors site - $command
 Turn alert notifications on - $command	Activer les notifications d'alerte - $command
 $step - unknown (needs passwordless sudo or the Alertmanager API)	$step - inconnu (sudo sans mot de passe ou API Alertmanager requis)
+K3s certificates	Certificats K3s
+unknown (needs passwordless sudo to read them)	inconnu (sudo sans mot de passe requis pour les lire)
+no certificate found in $path	aucun certificat trouvé dans $path
+$count certificates, the first ends in $days days ($name)	$count certificats, le premier expire dans $days jours ($name)
+$name: $days days left	$name : $days jours restants
+restart K3s in a maintenance window to renew them: sudo systemctl restart k3s (the API pauses about 15 seconds)	redémarrer K3s pendant une fenêtre de maintenance pour les renouveler : sudo systemctl restart k3s (l'API s'interrompt environ 15 secondes)

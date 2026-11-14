@@ -674,6 +674,7 @@ limit (default 26).
 | Host firewall | UFW is inactive or IPv4/IPv6 INPUT is not default-deny | UFW cannot be read without passwordless sudo |
 | API audit log | | auditing is configured but not yet active, or not configured |
 | Kubelet memory reservation | | the reservation is missing or waits for a K3s restart |
+| K3s certificates | one of K3s's own certificates has expired | one ends within 90 days: K3s renews them only when it restarts within 120 days of their end, so restart it in a maintenance window |
 | Nightly backup | the last success is older than 26 hours, or the last run failed | no success metric yet, or the timer is not installed |
 | Last installation | | the latest installer or playbook run failed, was interrupted or recorded no finish (shown with its last step) |
 | First steps | | the recovery kit was never exported, the nightly archives have no off-site copy, or alert notifications are paused; each pending step is listed with its command |

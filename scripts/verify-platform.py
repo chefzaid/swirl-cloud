@@ -62,6 +62,7 @@ HINTS = {
     "API audit log": lambda d: "./install.sh > Maintenance > Apply Kubernetes API audit logging (restarts K3s)",
     "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
     "Platform mail": lambda d: "set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md",
+    "K3s certificates": lambda d: "restart K3s in a maintenance window to renew them: sudo systemctl restart k3s (the API pauses about 15 seconds)",
     "Last installation": lambda d: "./install.sh > Maintenance > Earlier run logs, then rerun ./install.sh (reruns converge)",
 }
 
@@ -228,6 +229,35 @@ def check_tls_secrets(report):
     status = FAIL if expired else WARN if expiring else PASS
     report.add(status, "TLS secrets", f"{checked} certificates, {len(expiring)} expiring within 30 days, {len(expired)} expired",
                expired + expiring)
+
+
+K3S_TLS = "/var/lib/rancher/k3s/server/tls"
+
+
+def check_k3s_certificates(report):
+    """K3s renews its own certificates only when it starts within 120 days of their end (one-year lifetime)."""
+    if subprocess.run(["systemctl", "cat", "k3s.service"], capture_output=True).returncode:
+        return
+    listing = subprocess.run(["sudo", "-n", "find", K3S_TLS, "-maxdepth", "1", "-name", "*.crt", "!", "-name", "*-ca.crt"],
+                             capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+    if listing.returncode:
+        report.add(WARN, "K3s certificates", "unknown (needs passwordless sudo to read them)")
+        return
+    remaining = []
+    for path in sorted(listing.stdout.split()):
+        result = subprocess.run(["sudo", "-n", "openssl", "x509", "-noout", "-enddate", "-in", path],
+                                capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
+        match = re.search(r"notAfter=(.+)", result.stdout)
+        if match:
+            ends = datetime.strptime(match[1].strip(), "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            remaining.append(((ends - datetime.now(timezone.utc)).days, Path(path).name))
+    if not remaining:
+        report.add(WARN, "K3s certificates", f"no certificate found in {K3S_TLS}")
+        return
+    days, first = min(remaining)
+    soon = [f"{name}: {left} days left" for left, name in sorted(remaining) if left < 90]
+    status = FAIL if days < 0 else WARN if days < 90 else PASS
+    report.add(status, "K3s certificates", f"{len(remaining)} certificates, the first ends in {days} days ({first})", soon)
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -447,6 +477,7 @@ def main():
     check_firewall(report)
     check_audit(report)
     check_kubelet_memory(report)
+    check_k3s_certificates(report)
     check_backup(report, args.backup_max_age_hours)
     check_install_record(report)
     check_first_steps(report)
