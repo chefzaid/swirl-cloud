@@ -42,6 +42,15 @@ MOCK = textwrap.dedent("""\
             && Date.parse(line["@timestamp"]) >= floor);
           return reply(200, { hits: { hits: hits.map((line) => ({ _source: line })) } });
         }
+        if (index === "identity-audit-*" && body.size) {
+          // Term filters and must_not terms on the fixture's identity events.
+          const value = (event, path) => path.split(".").reduce((node, key) => node?.[key], event);
+          const terms = (clauses) => (clauses || []).filter((clause) => clause.term).map((clause) => Object.entries(clause.term)[0]);
+          const hits = (fixture.identity || []).filter((event) =>
+            terms(body.query.bool.filter).every(([path, wanted]) => value(event, path) === wanted)
+            && !terms(body.query.bool.must_not).some(([path, wanted]) => value(event, path) === wanted));
+          return reply(200, { hits: { hits: hits.map((event) => ({ _source: event })), total: { value: hits.length } } });
+        }
         return reply(200, { hits: { hits: [], total: { value: 0 } }, aggregations: {} });
       }
       if (url.includes("/protocol/openid-connect/token")) return reply(200, { access_token: "token" });
@@ -71,17 +80,19 @@ def sudo(timestamp, user, host="node-1"):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class SecurityDetectionTest(unittest.TestCase):
-    def run_detection(self, journal, state=None, stored=()):
+    def run_detection(self, journal, state=None, stored=(), identity=()):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         documents = yaml.safe_load_all((ROOT / "k8s/platform/security-detection.yaml").read_text())
         script = next(d for d in documents if d and d["kind"] == "ConfigMap")["data"]["detect.mjs"]
         (directory / "detect.mjs").write_text(script)
         (directory / "mock.mjs").write_text(MOCK)
-        (directory / "fixture.json").write_text(json.dumps({"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored)}))
+        (directory / "fixture.json").write_text(json.dumps({"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored),
+                                                                 "identity": list(identity)}))
         env = {"PATH": "/usr/bin:/bin", "FIXTURE": str(directory / "fixture.json"), "RESULT": str(directory / "result.json"),
                "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "KEYCLOAK_URL": "http://kc",
                "KEYCLOAK_REALM": "example", "RUNBOOK_BASE_URL": "https://runbooks", "ELASTICSEARCH_USERNAME": "u",
-               "ELASTICSEARCH_PASSWORD": "p", "KEYCLOAK_ADMIN": "admin", "KEYCLOAK_ADMIN_PASSWORD": "x"}
+               "ELASTICSEARCH_PASSWORD": "p", "KEYCLOAK_ADMIN": "admin", "KEYCLOAK_ADMIN_PASSWORD": "x",
+               "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "x"}
         result = subprocess.run([shutil.which("node"), "--import", str(directory / "mock.mjs"), str(directory / "detect.mjs")],
                                 capture_output=True, text=True, env=env, timeout=60)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -114,6 +125,17 @@ class SecurityDetectionTest(unittest.TestCase):
         alerts, state = self.run_detection(history + [sudo("2026-10-27T11:58:00.000Z", "mallory")], state)
         self.assertEqual({("HostSudoByNewUser", "mallory")}, {alert for alert in alerts if alert[0] == "HostSudoByNewUser"})
         self.assertIn("mallory", state["sudo-users"]["pending"])
+
+    def test_emergency_account_used_by_a_person(self):
+        def login(client, user="admin", realm="master"):
+            return {"@timestamp": "2026-10-27T11:55:00.000Z",
+                    "keycloak": {"type": "LOGIN", "realmName": realm, "username": user, "clientId": client, "ipAddress": "192.0.2.7"}}
+        # Automation through admin-cli, and other people, raise nothing.
+        quiet = [login("admin-cli"), login("security-admin-console", user="zaid"), login("account-console", realm="example")]
+        alerts, _ = self.run_detection([], identity=quiet)
+        self.assertFalse([alert for alert in alerts if alert[0] == "EmergencyAccountUsed"])
+        alerts, _ = self.run_detection([], identity=quiet + [login("security-admin-console")])
+        self.assertEqual({("EmergencyAccountUsed", "admin")}, {alert for alert in alerts if alert[0] == "EmergencyAccountUsed"})
 
 
 if __name__ == "__main__":

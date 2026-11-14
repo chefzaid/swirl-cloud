@@ -14,6 +14,7 @@ Alertmanager with `owner: security`, `source: security-detection` and a
 | `IdentityBruteForceThenSuccess` (critical) | Five or more failed logins for one username followed by a successful login | 15 minutes |
 | `KubernetesRBACChangedOutsideGitOps` | Roles, ClusterRoles or bindings created, changed or deleted by anyone except Argo CD, K3s and Kubernetes controllers; dry-runs and rejected requests are ignored | 15 minutes |
 | `KubernetesSecretReadByNewIdentity` | An identity reading Secrets that it did not read during the previous seven days; starts after seven days of audit history | 15 minutes |
+| `EmergencyAccountUsed` (critical) | A sign-in with Keycloak's bootstrap administrator through any client but `admin-cli`, which only the platform's automation uses (the administration console, for example) | 15 minutes |
 | `NewPlatformAdministrator` | A user added to `platform-admins` in the platform realm, or given the `admin` role in the master realm, compared with the previous run | reported for a day |
 | `HostSSHBruteForceThenSuccess` (critical) | A successful SSH login from an address that failed five or more times on the same host; Fail2ban and CrowdSec bans are not in the journal, so the failures stand in for them | 15 minutes |
 | `HostSudoByNewUser` | A user running a command with sudo who is not in the learned history; the first run learns the last seven days | reported for a day |

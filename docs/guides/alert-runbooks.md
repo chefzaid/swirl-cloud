@@ -486,6 +486,14 @@ An identity read Secrets it had not read in the previous week. Check its reads i
 onboarding. If unexpected, revoke the identity (ServiceAccount token or binding)
 and rotate the Secrets it read.
 
+### EmergencyAccountUsed
+
+Someone signed in with Keycloak's bootstrap administrator through a browser or
+another client than `admin-cli`. It bypasses single sign-on and just-in-time
+grants. Find who used it and why (Keycloak's master realm events show the
+address); if nobody can explain it, treat it as an incident, rotate the password
+(`scripts/rotate-local-admin-passwords.sh`) and review the admin events since.
+
 ### NewPlatformAdministrator
 
 A user joined `platform-admins` in the platform realm or got `admin` in the master

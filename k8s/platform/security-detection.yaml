@@ -94,6 +94,28 @@ data:
       return findings;
     }
 
+    // Keycloak's bootstrap administrator bypasses single sign-on and just-in-time
+    // grants. Automation signs in with it through admin-cli only, so a sign-in through
+    // any other client (the administration console) is a person using it.
+    async function emergencyAccountUsed() {
+      const account = process.env.KC_BOOTSTRAP_ADMIN_USERNAME;
+      if (!account) return [];
+      const result = await search("identity-audit-*", { size: 20, sort: [{ "@timestamp": "asc" }],
+        query: { bool: {
+          filter: [{ term: { "keycloak.type": "LOGIN" } }, { term: { "keycloak.realmName": "master" } },
+                   { term: { "keycloak.username": account } }, { range: { "@timestamp": { gte: minutes(15) } } }],
+          must_not: [{ term: { "keycloak.clientId": "admin-cli" } }] } } });
+      const hits = result.hits?.hits || [];
+      if (!hits.length) return [];
+      const clients = [...new Set(hits.map((hit) => hit._source.keycloak?.clientId).filter(Boolean))];
+      const sources = [...new Set(hits.map((hit) => hit._source.keycloak?.ipAddress).filter(Boolean))];
+      return [{ alertname: "EmergencyAccountUsed", severity: "critical", user: account,
+        summary: "Someone signed in with Keycloak's emergency administrator",
+        description: `${account} signed in ${hits.length} time(s) through ${clients.join(", ") || "an unknown client"} `
+          + `from ${sources.join(", ") || "an unknown address"}; it bypasses single sign-on and just-in-time grants. `
+          + "Confirm who used it and why, then change its password." }];
+    }
+
     async function rbacChangedOutsideGitOps() {
       const result = await search("kubernetes-audit-*", { size: 0,
         query: { bool: {
@@ -273,7 +295,7 @@ data:
 
     const findings = [];
     const failures = [];
-    for (const rule of [bruteForceThenSuccess, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
+    for (const rule of [bruteForceThenSuccess, emergencyAccountUsed, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
                         expireTemporaryAdministrators, sshBruteForceThenSuccess, sudoByNewUser]) {
       try {
         findings.push(...await rule());
