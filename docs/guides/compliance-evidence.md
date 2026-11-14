@@ -127,6 +127,19 @@ duties are recorded with `--duty done`. Completions are kept in the ConfigMap
 `infra/swirl-cloud-duties` (date, who, note), and `./install.sh --status` warns
 under **Periodic duties** for each duty never done or past its period.
 
+## Change records
+
+`./install.sh --change-log [--since 2026-11-01] [--format json]` lists every change
+to the platform and production since a date (30 days by default), from what
+already records them: commits to the deployed configuration (`k8s/`, `config/`),
+Argo CD's sync history of the root Application and of each production
+Application, installer and Ansible runs, and just-in-time administrator grants.
+Each entry names who, the approver where one is recorded, the revision, the
+result and the way back (a revert, an Argo CD rollback, a revocation). Entries
+without an approver are counted and marked for review, as ISO/IEC 27001 A.8.32
+asks of emergency changes. A source that cannot be read is listed under **Not
+collected**.
+
 ## Asset inventory
 
 `./install.sh --asset-inventory` lists the assets NIS2 Art. 21(2)(i) asks to

@@ -25,6 +25,7 @@
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)
+#   ./install.sh --change-log [--since DATE]  changes to the platform and production, with approvers
 set -Eeuo pipefail
 umask 077
 # K3s's kubectl reads /etc/rancher/k3s/k3s.yaml (root-only) unless KUBECONFIG is
@@ -154,6 +155,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/duty.py" "$@"
+        ;;
+    --change-log)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/change-log.py" "$@"
         ;;
     -h|--help)
         usage

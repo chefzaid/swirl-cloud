@@ -46,7 +46,8 @@ install_record_start() {
     install_record_event event=start mode="$mode" started="$INSTALL_RECORD_STARTED" \
         revision="$(git -C "$SCRIPT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)" \
         chart="$(awk '$1 == "version:" {print $2; exit}' "$SCRIPT_DIR/k8s/Chart.yaml" 2>/dev/null)" \
-        k3s="$K3S_INSTALL_VERSION" os="$( (. /etc/os-release && echo "$PRETTY_NAME") 2>/dev/null)" host="$(hostname)"
+        k3s="$K3S_INSTALL_VERSION" os="$( (. /etc/os-release && echo "$PRETTY_NAME") 2>/dev/null)" host="$(hostname)" \
+        user="${SUDO_USER:-${USER:-$(id -un)}}"
 }
 
 install_record_step() {
