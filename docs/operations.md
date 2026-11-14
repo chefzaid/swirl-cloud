@@ -539,7 +539,15 @@ the runner's 10-minute `poll_timeout` fails and needs a retry. GitLab requests t
 5 GiB it uses. Frequent `Evicted` events in `kubectl get events -A` mean the node needs
 more memory or lower requests.
 
-The installer, node enrollment and Ansible write the drop-in before K3s starts.
+When the host shuts down or reboots, the kubelet stops pods in priority order
+instead of all at once, from a second drop-in
+(`/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/50-swirl-cloud-shutdown.conf`):
+CI jobs get 10 seconds, analysis tools and `int`/`uat` 20, platform services 30,
+production 30, then data stores, sign-in and system pods 60, so PostgreSQL and
+Vault stop cleanly after everything that writes to them. The kubelet holds the
+shutdown for up to 150 seconds through a systemd inhibitor lock.
+
+The installer, node enrollment and Ansible write the drop-ins before K3s starts.
 On a running node it applies at the next K3s restart, or now with
 `scripts/configure-k3s-kubelet-memory.sh --restart` (run it when no CI job is
 running; the kubelet and on a server the API restart for about 15 seconds; pods

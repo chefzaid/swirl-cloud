@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Reserve memory for the host and K3s on this node and let the kubelet evict pods
-# before the node swaps, through a managed config.yaml.d drop-in. K3s reads it at
-# start: --restart applies it now (the kubelet, and on a server the API, restart
-# briefly; workloads keep running), otherwise the next K3s restart does.
+# before the node swaps, through a managed config.yaml.d drop-in. Also stop pods in
+# priority order when the host shuts down, through a kubelet configuration drop-in.
+# K3s reads both at start: --restart applies them now (the kubelet, and on a server
+# the API, restart briefly; workloads keep running), otherwise the next K3s restart does.
 set -Eeuo pipefail
 set +x
 CONFIG_ROOT=/etc/rancher/k3s
 DROPIN_PATH="$CONFIG_ROOT/config.yaml.d/30-swirl-cloud-kubelet-memory.yaml"
+# K3s 1.32+ reads kubelet configuration drop-ins here, after its own defaults.
+KUBELET_CONFIG_PATH="${KUBELET_CONFIG_DIR:-/var/lib/rancher/k3s/agent/etc/kubelet.conf.d}/50-swirl-cloud-shutdown.conf"
 MEMINFO=/proc/meminfo
 error() { echo "[ERROR] $*" >&2; exit 1; }
 info() { echo "[INFO]  $*"; }
@@ -53,6 +56,29 @@ dropin() {
         "eviction-max-pod-grace-period=60"
 }
 
+# On a host shutdown the kubelet stops pods from the lowest priority class up, each
+# group within its time, so data stores and sign-in stop last and cleanly. The
+# classes are in k8s/base/security-baseline.yaml; the kubelet holds the shutdown
+# with a systemd inhibitor lock for the sum (150 seconds).
+shutdown_config() {
+    cat <<'CONFIG'
+# Managed by scripts/configure-k3s-kubelet-memory.sh
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+shutdownGracePeriodByPodPriority:
+  - priority: -100       # CI jobs
+    shutdownGracePeriodSeconds: 10
+  - priority: -50        # analysis tools, int and uat
+    shutdownGracePeriodSeconds: 20
+  - priority: 0          # platform services and unclassified pods
+    shutdownGracePeriodSeconds: 30
+  - priority: 500000     # production
+    shutdownGracePeriodSeconds: 30
+  - priority: 1000000    # data stores, sign-in, ingress and system pods
+    shutdownGracePeriodSeconds: 60
+CONFIG
+}
+
 unit() {
     if systemctl cat k3s.service >/dev/null 2>&1; then echo k3s
     elif systemctl cat k3s-agent.service >/dev/null 2>&1; then echo k3s-agent
@@ -63,7 +89,8 @@ pending() {
     local service="$1" started
     systemctl is-active --quiet "$service" || return 1
     started="$(date -d "$(systemctl show "$service.service" -p ExecMainStartTimestamp --value)" +%s)"
-    [[ "$("${SUDO[@]}" stat -c %Y "$DROPIN_PATH")" -ge "$started" ]]
+    [[ "$("${SUDO[@]}" stat -c %Y "$DROPIN_PATH")" -ge "$started" ]] ||
+        [[ "$("${SUDO[@]}" stat -c %Y "$KUBELET_CONFIG_PATH" 2>/dev/null || echo 0)" -ge "$started" ]]
 }
 
 kubelet_healthy() {
@@ -84,7 +111,10 @@ main() {
     service="$(unit)"
 
     if [[ "$mode" == --check ]]; then
-        "${SUDO[@]}" test -f "$DROPIN_PATH" 2>/dev/null || { echo "missing"; exit 1; }
+        if ! "${SUDO[@]}" test -f "$DROPIN_PATH" 2>/dev/null || ! "${SUDO[@]}" test -f "$KUBELET_CONFIG_PATH" 2>/dev/null; then
+            echo "missing"
+            exit 1
+        fi
         if [[ -z "$service" ]] || ! systemctl is-active --quiet "$service"; then echo "configured"
         elif pending "$service"; then echo "pending-restart"
         else echo "active"
@@ -107,6 +137,11 @@ main() {
     dropin > "$temporary"
     if ! sudo cmp -s "$temporary" "$DROPIN_PATH" 2>/dev/null; then
         sudo install -D -o root -g root -m 0644 "$temporary" "$DROPIN_PATH"
+        changed=true
+    fi
+    shutdown_config > "$temporary"
+    if ! sudo cmp -s "$temporary" "$KUBELET_CONFIG_PATH" 2>/dev/null; then
+        sudo install -D -o root -g root -m 0644 "$temporary" "$KUBELET_CONFIG_PATH"
         changed=true
     fi
 

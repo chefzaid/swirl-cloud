@@ -26,4 +26,22 @@ grep -Fq 'eviction-soft-grace-period=memory.available=' <<< "$config" || fail 'T
 config="$(KUBE_RESERVED_MEMORY=4Gi dropin)"
 grep -Fqx '  - "kube-reserved=memory=4Gi"' <<< "$config" || fail 'KUBE_RESERVED_MEMORY is ignored'
 
-printf '[PASS] Kubelet memory reservation\n'
+# Shutdown by priority: every platform class falls in a group, data stores last and longest.
+python3 - "$(shutdown_config)" "$SCRIPT_DIR/../k8s/base/security-baseline.yaml" <<'PYTHON' || fail 'The shutdown order does not match the priority classes'
+import sys, yaml
+config = yaml.safe_load(sys.argv[1])
+assert config["kind"] == "KubeletConfiguration" and "shutdownGracePeriod" not in config
+groups = config["shutdownGracePeriodByPodPriority"]
+floors = [group["priority"] for group in groups]
+assert floors == sorted(floors), "groups must rise in priority"
+classes = {doc["metadata"]["name"]: doc["value"] for doc in yaml.safe_load_all(open(sys.argv[2]))
+           if doc and doc["kind"] == "PriorityClass"}
+classes["ci-jobs"] = -100
+for name, value in classes.items():
+    assert value >= floors[0], f"{name} below every group"
+critical = max((g for g in groups if g["priority"] <= classes["platform-critical"]), key=lambda g: g["priority"])
+assert critical["shutdownGracePeriodSeconds"] == max(g["shutdownGracePeriodSeconds"] for g in groups)
+assert sum(g["shutdownGracePeriodSeconds"] for g in groups) <= 180, "the host would wait too long to shut down"
+PYTHON
+
+printf '[PASS] Kubelet memory reservation and shutdown order\n'
