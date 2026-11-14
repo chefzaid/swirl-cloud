@@ -1,0 +1,45 @@
+# Periodic duties (TODO §46, control calendar): what an installation owes on a
+# schedule, beside the controls evaluated continuously. Each duty names how it is
+# done; commands that perform one record it, the rest are recorded with
+# ./install.sh --duty done <id>. ./install.sh --status warns when one is overdue.
+duties:
+  - id: access-review
+    name: Access review signed by the service owners
+    every_days: 92
+    done_by: ./install.sh --access-review (recorded when it runs)
+    evidence: ISO/IEC 27001 A.5.18, NIS2 Art. 21(2)(i)
+  - id: game-day
+    name: Failure drill outside production
+    every_days: 31
+    done_by: ./install.sh --game-day --record (recorded when it passes)
+    evidence: DORA Art. 24, ISO/IEC 27001 A.5.30
+  - id: restore-drill
+    name: Restore of the nightly archive on a disposable host
+    every_days: 183
+    done_by: docs/operations.md#restore-after-losing-the-host, then ./install.sh --duty done restore-drill
+    evidence: ISO/IEC 27001 A.8.13, DORA Art. 12
+  - id: recovery-kit
+    name: Recovery kit exported and checked off the host
+    every_days: 365
+    done_by: scripts/export-recovery-kit.sh --verify FILE, then ./install.sh --duty done recovery-kit
+    evidence: ISO/IEC 27001 A.8.13
+  - id: credential-rotation
+    name: Local administrator passwords rotated
+    every_days: 365
+    done_by: scripts/rotate-local-admin-passwords.sh, then ./install.sh --duty done credential-rotation
+    evidence: ISO/IEC 27001 A.5.17
+  - id: risk-review
+    name: Risk register, accepted risks and vulnerability exceptions reviewed
+    every_days: 365
+    done_by: ./install.sh --isms-kit, reviewed and signed, then ./install.sh --duty done risk-review
+    evidence: ISO/IEC 27001 6.1.3 and 8.2, NIS2 Art. 21(1)
+  - id: policy-review
+    name: Information security policy reviewed by management
+    every_days: 365
+    done_by: ./install.sh --isms-kit, approved, then ./install.sh --duty done policy-review
+    evidence: ISO/IEC 27001 A.5.1, NIS2 Art. 20
+  - id: incident-exercise
+    name: Incident response tabletop exercise
+    every_days: 365
+    done_by: docs/guides/incident-response.md, then ./install.sh --duty done incident-exercise
+    evidence: NIS2 Art. 21(2)(b), DORA Art. 13

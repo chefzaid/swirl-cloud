@@ -322,7 +322,19 @@ def main():
             with os.fdopen(descriptor, "w") as handle:
                 handle.write(content)
         print(f"Review sheets: {args.output_dir}/access-review-{stamp}.{{md,csv,json}}", file=sys.stderr)
+        # Complete sheets written for signing count as the quarter's review (control calendar).
+        if not review["errors"]:
+            record_duty("access-review", f"sheets access-review-{stamp}")
     return 0
+
+
+def record_duty(duty, note):
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+    import duties
+    try:
+        duties.record(duty, note)
+    except (RuntimeError, ValueError) as error:
+        print(f"[WARN] Not recorded in the control calendar: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":

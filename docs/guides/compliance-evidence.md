@@ -107,6 +107,26 @@ quarterly and when people leave. Inactivity uses Keycloak's stored login events
 (90 days), so it is reliable only 90 days after event storage started. Vault
 policies and Grafana roles follow the Keycloak groups in the sheet.
 
+## Control calendar
+
+Audits fail on a missed periodic review more often than on a missing tool. The
+duties an installation owes on a schedule (access reviews, failure and restore
+drills, the recovery kit, credential rotation, risk and policy reviews, an
+incident exercise) are listed with their period, how they are done and the
+requirement they evidence in
+[`config/control-calendar.yaml`](../../config/control-calendar.yaml).
+
+```bash
+./install.sh --duty list                       # every duty, last done, overdue or not
+./install.sh --duty done restore-drill --note "restored on a disposable host"
+```
+
+`--access-review --output-dir DIR` records the access review when its sheets are
+complete, and `--game-day --record` records the drill when it passes; the other
+duties are recorded with `--duty done`. Completions are kept in the ConfigMap
+`infra/swirl-cloud-duties` (date, who, note), and `./install.sh --status` warns
+under **Periodic duties** for each duty never done or past its period.
+
 ## Asset inventory
 
 `./install.sh --asset-inventory` lists the assets NIS2 Art. 21(2)(i) asks to

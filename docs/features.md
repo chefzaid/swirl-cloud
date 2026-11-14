@@ -12,7 +12,7 @@ pieces fit together.
 - scopes: `infra` (shared platform) or `apps` (adds Odoo in `corp`)
 - local administrator password alignment across infrastructure services
 - rerunnable steps that keep installed identity, exposure, topology and HA state
-- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`
+- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`, `--duty`
 - semantic [releases](guides/releases.md) with a changelog, a CycloneDX SBOM, OpenVEX statements, third-party notices and SSH-signed bundles; a bundle refuses a component past its end of life
 - a record of every installer and Ansible run shown by `--status`, and the installation report emailed when platform mail is configured
 
@@ -129,6 +129,7 @@ pieces fit together.
 - control catalog mapped to NIS2, ISO/IEC 27001:2022 Annex A, DORA, GDPR and CIS, evaluated continuously in Prometheus
 - Compliance Evidence dashboard and a drift alert when a control fails or loses its evidence
 - `./install.sh --compliance` report and a hashed, optionally SSH-signed evidence pack that auditors verify offline
+- [control calendar](guides/compliance-evidence.md#control-calendar): periodic duties (access reviews, drills, reviews) with their period and evidence, recorded by the commands that perform them or `./install.sh --duty done`, and overdue ones in `--status`
 - licence register with each component's maintainer, jurisdiction and end of life; security questionnaire, contract annex, ISMS document kit and [exit plan](guides/exit-plan.md)
 
 ## Cost Showback

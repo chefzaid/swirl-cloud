@@ -92,3 +92,7 @@ no certificate found in $path	aucun certificat trouvé dans $path
 $count certificates, the first ends in $days days ($name)	$count certificats, le premier expire dans $days jours ($name)
 $name: $days days left	$name : $days jours restants
 restart K3s in a maintenance window to renew them: sudo systemctl restart k3s (the API pauses about 15 seconds)	redémarrer K3s pendant une fenêtre de maintenance pour les renouveler : sudo systemctl restart k3s (l'API s'interrompt environ 15 secondes)
+Periodic duties	Obligations périodiques
+$late of $total duties due	$late obligation(s) sur $total à faire
+all $total duties done within their period	toutes les obligations ($total) faites dans leur délai
+./install.sh --duty list; record a duty done with ./install.sh --duty done <id>	./install.sh --duty list ; enregistrer une obligation faite avec ./install.sh --duty done <id>

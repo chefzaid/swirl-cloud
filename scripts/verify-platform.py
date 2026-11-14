@@ -63,6 +63,7 @@ HINTS = {
     "Nightly backup": lambda d: "sudo journalctl -u swirl-cloud-k3s-backup.service -n 50; ./install.sh > Maintenance > Run the recovery backup now",
     "Platform mail": lambda d: "set up the relay with scripts/configure-platform-mail.py; see docs/guides/platform-mail.md",
     "K3s certificates": lambda d: "restart K3s in a maintenance window to renew them: sudo systemctl restart k3s (the API pauses about 15 seconds)",
+    "Periodic duties": lambda d: "./install.sh --duty list; record a duty done with ./install.sh --duty done <id>",
     "Last installation": lambda d: "./install.sh > Maintenance > Earlier run logs, then rerun ./install.sh (reruns converge)",
 }
 
@@ -415,6 +416,18 @@ def check_first_steps(report):
         report.add(PASS, "First steps", "recovery kit exported, off-site backups and alert notifications on")
 
 
+def check_duties(report):
+    """Periodic duties of the control calendar that are overdue or were never done."""
+    import duties
+    rows = duties.status(duties.catalog(), duties.recorded())
+    late = [f"{duty['id']} - " + ("never done" if last is None else f"{days} days overdue") + f" - {duty['done_by']}"
+            for duty, last, days in rows if days is not None]
+    if late:
+        report.add(WARN, "Periodic duties", f"{len(late)} of {len(rows)} duties due", late)
+    else:
+        report.add(PASS, "Periodic duties", f"all {len(rows)} duties done within their period")
+
+
 def read_install_record(path):
     events = []
     for line in path.read_text(errors="replace").splitlines():
@@ -481,6 +494,10 @@ def main():
     check_backup(report, args.backup_max_age_hours)
     check_install_record(report)
     check_first_steps(report)
+    try:
+        check_duties(report)
+    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as error:
+        report.add(WARN, "Periodic duties", f"check failed: {error}")
     if args.api_dry_run:
         result = subprocess.run([str(ROOT / "scripts/validate-repository.sh"), "--live"], cwd=ROOT,
                                 capture_output=True, text=True, stdin=subprocess.DEVNULL)

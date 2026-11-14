@@ -13,6 +13,7 @@ index (kind: game_day) so the drill history appears in the reports.
 import argparse
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 import subprocess
 import sys
 import threading
@@ -105,6 +106,13 @@ def main():
         stored = subprocess.run(["kubectl", "-n", "infra", "exec", "-i", "deploy/elasticsearch", "--", "sh", "-c", script],
                                 input=json.dumps(document), capture_output=True, text=True)
         print("Recorded in the platform reports." if '"result":"created"' in stored.stdout else f"Not recorded: {stored.stdout[:200]}")
+        if summary["passed"]:
+            sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+            import duties
+            try:
+                duties.record("game-day", f"pod-loss drill in {args.namespace}")
+            except (RuntimeError, ValueError) as error:
+                print(f"[WARN] Not recorded in the control calendar: {error}", file=sys.stderr)
     return 0 if summary["passed"] else 1
 
 
