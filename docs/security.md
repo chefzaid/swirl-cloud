@@ -226,7 +226,12 @@ namespaces:
 | An `app` pod label | Cost showback, discovery and dashboards group by it. |
 | `swirl-cloud.io/owner` and `swirl-cloud.io/data-classification` (`public`, `internal`, `confidential`, `restricted`) workload labels | Accountability and the records of processing. |
 
-It runs in **Warn and Audit** mode: changes are admitted with a warning and an
+In `prod` namespaces, Deployments and StatefulSets are also checked for
+availability: at least two replicas, replicas spread across servers
+(`topologySpreadConstraints` or pod anti-affinity) and the `production` priority
+class ([workload priorities](operations.md#node-memory-and-eviction)).
+
+Both run in **Warn and Audit** mode: changes are admitted with a warning and an
 audit-log entry. `./install.sh --policy-report` dry-runs existing workloads and
 lists violations. Once an environment has none, move its binding to `Deny`,
 starting with `prod`.

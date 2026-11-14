@@ -66,3 +66,44 @@ spec:
     namespaceSelector:
       matchLabels:
         swirl-cloud.io/application-workloads: "true"
+
+---
+# Availability rules for production (TODO §49), Warn and Audit like the pack
+# above: a prod workload should survive one server being drained. The policy
+# report (./install.sh --policy-report) lists existing workloads against them.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: swirl-cloud-production-availability
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets"]
+  validations:
+    - expression: "!has(object.spec.replicas) || object.spec.replicas >= 2"
+      message: "prod workloads run at least two replicas, so a drained server does not stop them"
+      reason: Invalid
+    - expression: >-
+        (has(object.spec.template.spec.topologySpreadConstraints) && size(object.spec.template.spec.topologySpreadConstraints) > 0) ||
+        (has(object.spec.template.spec.affinity) && has(object.spec.template.spec.affinity.podAntiAffinity))
+      message: "prod workloads spread their replicas across servers (topologySpreadConstraints or podAntiAffinity)"
+      reason: Invalid
+    - expression: "has(object.spec.template.spec.priorityClassName) && object.spec.template.spec.priorityClassName == 'production'"
+      message: "prod workloads use the production priority class, so they outlive int, uat and analysis tools"
+      reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: swirl-cloud-production-availability
+spec:
+  policyName: swirl-cloud-production-availability
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        swirl-cloud.io/application-environment: prod
