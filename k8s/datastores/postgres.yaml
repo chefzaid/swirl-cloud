@@ -191,3 +191,90 @@ spec:
       - name: postgres-run
         emptyDir:
           sizeLimit: 256Mi
+
+
+---
+# Database audit trail: sign-ins, sign-outs and every schema and role change
+# (CREATE, ALTER, DROP, GRANT, REVOKE), with who, from where and with which tool.
+# The logging agent moves these lines to the database-audit-* indices. Every
+# setting here applies on a reload, so the shared database never restarts for
+# it; ALTER SYSTEM keeps them in postgresql.auto.conf across restarts. Scripts
+# that set a role's password turn statement logging off for their own session
+# first, or the password would be logged with the statement.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-audit-settings
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: postgres-audit-settings
+    spec:
+      restartPolicy: OnFailure
+      priorityClassName: platform-background
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: settings
+        image: docker.io/library/postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+        env:
+        - name: PGHOST
+          value: postgres.__INTERNAL_DNS_ZONE__
+        - name: PGDATABASE
+          value: postgres
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        command:
+        - sh
+        - -ec
+        - |
+          until pg_isready -q; do
+            echo "Waiting for PostgreSQL..."
+            sleep 3
+          done
+          # CloudNativePG (the HA profile) turns ALTER SYSTEM off and sets these
+          # through the cluster's parameters instead.
+          if [ "$(psql -X -qAt -c 'SHOW allow_alter_system')" = off ]; then
+            echo "ALTER SYSTEM is off: the cluster's parameters set audit logging."
+            exit 0
+          fi
+          psql -X -q --set=ON_ERROR_STOP=1 <<'SQL'
+          ALTER SYSTEM SET log_connections = 'authorization';
+          ALTER SYSTEM SET log_disconnections = on;
+          ALTER SYSTEM SET log_statement = 'ddl';
+          ALTER SYSTEM SET log_line_prefix = '%m [%p] %q[user=%u db=%d client=%h app=%a] ';
+          SELECT pg_reload_conf();
+          SQL
+          psql -X -qAt -c "SELECT name || '=' || setting FROM pg_settings WHERE name IN ('log_connections', 'log_disconnections', 'log_statement') ORDER BY name"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

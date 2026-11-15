@@ -191,6 +191,7 @@ rotate_postgres() {
       IFS= read -r current_password
       IFS= read -r desired_password
       printf "%s\n" "\\getenv desired_password PG_NEW_ADMIN_PASSWORD" \
+        "SET log_statement = '\''none'\'';" \
         "ALTER ROLE :\"admin_user\" WITH LOGIN PASSWORD :'\''desired_password'\'';" | \
         PGPASSWORD="$current_password" PG_NEW_ADMIN_PASSWORD="$desired_password" psql \
           --host=127.0.0.1 --username="$postgres_username" \

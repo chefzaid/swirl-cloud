@@ -8,6 +8,8 @@ until psql --host="$POSTGRESQL_HOST" --username="$POSTGRES_ADMIN_USER" --dbname=
 done
 psql --host="$POSTGRESQL_HOST" --username="$POSTGRES_ADMIN_USER" --dbname=postgres --set=ON_ERROR_STOP=1 \
   --set=db_user=zammad --set=db_password="$POSTGRESQL_PASS" <<'SQL'
+-- Keep the password out of the database audit log.
+SET log_statement = 'none';
 SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'db_user')
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user')
 \gexec

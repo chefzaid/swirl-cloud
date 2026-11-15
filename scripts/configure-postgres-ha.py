@@ -408,7 +408,8 @@ SELECT extname,extversion,nspname AS schema FROM pg_extension JOIN pg_namespace 
         self.record(phase="restoring")
         bootstrap = self.state["bootstrapDatabase"]
         self.sql(target, "postgres", "DROP DATABASE " + ident(bootstrap) + " WITH (FORCE);\nDROP ROLE " + ident(self.state["bootstrapOwner"]) + ";")
-        self.sql(target, "postgres", restore_grantors(globals_sql.decode(), source_bootstrap))
+        # The roles carry their password hashes; keep them out of the database audit log.
+        self.sql(target, "postgres", "SET log_statement = 'none';\n" + restore_grantors(globals_sql.decode(), source_bootstrap))
         for entry in dumps:
             # FORCE keeps a reconnecting operator session from blocking the drop.
             database = entry["database"]

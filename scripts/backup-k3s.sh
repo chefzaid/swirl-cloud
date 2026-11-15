@@ -257,7 +257,7 @@ api -X PUT "$base" -d '{"type":"fs","settings":{"location":"swirl-cloud-evidence
 for old in $(api "$base/_all" | grep -o '"snapshot":"[^"]*"' | cut -d'"' -f4); do
   api -X DELETE "$base/$old" >/dev/null
 done
-api -X PUT "$base/nightly-$1?wait_for_completion=true" -d '{"indices":"identity-audit-*,platform-reports*,lynis-audits-*,security-findings-*,access-grants,security-detection-state,swirl-cloud-kibana-identity-ownership-*","ignore_unavailable":true,"include_global_state":false}' |
+api -X PUT "$base/nightly-$1?wait_for_completion=true" -d '{"indices":"identity-audit-*,database-audit-*,platform-reports*,lynis-audits-*,security-findings-*,access-grants,security-detection-state,swirl-cloud-kibana-identity-ownership-*","ignore_unavailable":true,"include_global_state":false}' |
   grep -q '"state":"SUCCESS"'
 cd /usr/share/elasticsearch/snapshots
 exec tar -cf - swirl-cloud-evidence

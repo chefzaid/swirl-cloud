@@ -83,8 +83,13 @@ controls:
         description: Keycloak login and admin events reach the identity-audit indices.
         present: fluentbit_input_records_total{name="identity_audit_emitter"}
         failing: increase(fluentbit_output_retries_failed_total{name="identity_audit"}[1h]) > 0
+      - id: database-events
+        description: PostgreSQL sign-ins and schema and role changes reach the database-audit indices.
+        present: fluentbit_input_records_total{name="database_audit_emitter"}
+        failing: increase(fluentbit_output_retries_failed_total{name="database_audit"}[1h]) > 0
     manual:
       - Retention decision per data set and framework (currently 30 days API audit, at least one year identity events).
+      - MongoDB Community Edition has no audit log, so changes made directly in MongoDB are not recorded (only the Kubernetes API calls that reach it).
 
   - id: security-monitoring
     title: Security monitoring and alerting

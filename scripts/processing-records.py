@@ -24,6 +24,7 @@ import sys
 RETENTION = [
     ("Kubernetes API audit log and Kubernetes events", "30 days"),
     ("Identity events (Keycloak database / identity-audit-*)", "90 days / at least 1 year"),
+    ("Database sign-ins and schema and role changes (database-audit-*)", "at least 1 year"),
     ("Off-site recovery archives (restic), when configured", "7 daily, 5 weekly, 12 monthly"),
 ]
 # scripts/backup-k3s.sh: the newest RETENTION_COUNT archives, and on a backup

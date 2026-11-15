@@ -51,6 +51,10 @@ spec:
     parameters:
       synchronous_commit: "on"
       max_connections: "100"
+      # Database audit trail, as the single PostgreSQL's postgres-audit-settings Job.
+      log_connections: authorization
+      log_disconnections: "on"
+      log_statement: ddl
     # Operator replication and certificate rules come first. Staging rejects
     # application TCP access; replicas and local exec restores still work.
     pg_hba:

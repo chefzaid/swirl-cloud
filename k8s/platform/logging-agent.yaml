@@ -176,6 +176,16 @@ data:
         Emitter_Storage.type      filesystem
         Emitter_Mem_Buf_Limit     10MB
 
+    # PostgreSQL sign-ins and schema and role changes (marked by the Lua filter)
+    # move to the database-audit-* indices, kept as long as the identity events.
+    [FILTER]
+        Name                      rewrite_tag
+        Match                     kube.*
+        Rule                      $log_source ^database-audit$ database.postgres false
+        Emitter_Name              database_audit_emitter
+        Emitter_Storage.type      filesystem
+        Emitter_Mem_Buf_Limit     10MB
+
     # swirl-cloud:soc-forwarding-pipeline
 
     [OUTPUT]
@@ -242,6 +252,25 @@ data:
         HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
         Logstash_Format           On
         Logstash_Prefix           identity-audit
+        Logstash_DateFormat       %Y.%m
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+
+    [OUTPUT]
+        Name                      es
+        Alias                     database_audit
+        Match                     database.*
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           database-audit
         Logstash_DateFormat       %Y.%m
         Suppress_Type_Name        On
         Generate_ID               On
@@ -330,6 +359,53 @@ data:
       }
     }
   enrich-kubernetes.lua: |
+    -- What a PostgreSQL log entry records for the database audit, or nil.
+    local function database_event(severity, message)
+      if severity == "LOG" then
+        if string.find(message, "^connection authorized: ") then return "connection" end
+        if string.find(message, "^disconnection: ") then return "disconnection" end
+        if string.find(message, "^statement: ") then return "statement" end
+      elseif severity == "FATAL" then
+        if string.find(message, "^password authentication failed ") or
+            string.find(message, "^no pg_hba%.conf entry ") or
+            string.find(message, '^role ".*" does not exist') then
+          return "authentication_failure"
+        end
+      end
+      return nil
+    end
+
+    -- The single PostgreSQL logs with the prefix the postgres-audit-settings Job
+    -- sets; CloudNativePG (the HA profile) logs JSON, merged into the record.
+    local function database_audit(record)
+      local fields
+      local entry = record["record"]
+      local line = record["log"]
+      if record["logger"] == "postgres" and type(entry) == "table" then
+        fields = {user = entry["user_name"], database = entry["database_name"],
+          client = entry["remote_host"], application = entry["application_name"],
+          severity = entry["error_severity"], message = entry["message"]}
+      elseif type(line) == "string" then
+        local user, database, client, application, severity, message = string.match(line,
+          "^%S+ %S+ %S+ %[%d+%] %[user=(%S*) db=(%S*) client=(%S*) app=(.-)%] (%u+):  (.*)$")
+        if severity == nil then
+          return nil
+        end
+        fields = {user = user, database = database, client = client, application = application,
+          severity = severity, message = message}
+      else
+        return nil
+      end
+      if type(fields.severity) ~= "string" or type(fields.message) ~= "string" then
+        return nil
+      end
+      fields.event = database_event(fields.severity, fields.message)
+      if fields.event == nil then
+        return nil
+      end
+      return fields
+    end
+
     function enrich_kubernetes(tag, timestamp, record)
       local kubernetes = record["kubernetes"]
       if kubernetes == nil then
@@ -368,6 +444,17 @@ data:
           record["level"] = level
           record["event_category"] = event["operationType"] ~= nil and "admin" or "user"
           record["keycloak"] = event
+        end
+      end
+
+      -- PostgreSQL sign-ins, sign-outs, refused sign-ins and schema and role
+      -- changes go to the database-audit-* indices. Only the platform database
+      -- (single or HA) may produce database audit records.
+      if kubernetes["namespace_name"] == "infra" and kubernetes["container_name"] == "postgres" then
+        local audit = database_audit(record)
+        if audit ~= nil then
+          record["log_source"] = "database-audit"
+          record["database_audit"] = audit
         end
       end
 
@@ -517,6 +604,30 @@ data:
         }
       }
     }
+  database-audit-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["database-audit-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "10s",
+        "index.lifecycle.name": "swirl-cloud-identity-audit"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "database_audit": {"properties": {
+            "event": {"type": "keyword"}, "severity": {"type": "keyword"},
+            "user": {"type": "keyword"}, "database": {"type": "keyword"},
+            "client": {"type": "keyword"}, "application": {"type": "keyword", "ignore_above": 256},
+            "message": {"type": "text"}}},
+          "kubernetes": {"properties": {"pod_name": {"type": "keyword"}, "host": {"type": "keyword"}}}
+        }
+      }
+    }
   identity-audit-ilm-policy.json: |
     {
       "policy": {
@@ -621,6 +732,10 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/identity-audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/identity-audit >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/database-audit-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/database-audit >/dev/null
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

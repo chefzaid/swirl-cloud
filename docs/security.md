@@ -436,6 +436,28 @@ kubectl config set-context --current --user=keycloak
 
 Root's kubeconfig on the control plane keeps working for emergencies.
 
+## Database audit trail
+
+The platform PostgreSQL logs every sign-in, sign-out and refused sign-in, and
+every schema and role change (`CREATE`, `ALTER`, `DROP`, `GRANT`, `REVOKE`),
+with the account, database, client address and tool. The `postgres-audit-settings`
+Job sets this on each sync with `ALTER SYSTEM` and a reload, so the database
+never restarts for it; the HA profile sets the same through the cluster's
+parameters. The logging agent moves these lines to the `database-audit-*`
+indices, kept as long as the identity events (396 days) and copied in the
+nightly evidence snapshot. In Kibana, filter on `database_audit.event`
+(`connection`, `disconnection`, `authentication_failure`, `statement`) and
+`database_audit.user`.
+
+Statements are logged as sent, so a password in `ALTER ROLE ... PASSWORD '...'`
+would be logged with them. The platform's own scripts turn statement logging off
+for their session before they set a password (`SET log_statement = 'none'`);
+an administrator changing a password by hand does the same, or uses psql's
+`\password`, which sends only the hash. Limits: administrators still share the
+platform login, so the trail names the tool (DBGate, psql) but not the person
+until personal database logins exist; a statement written over several lines is
+recorded by its first line; MongoDB Community Edition has no audit log.
+
 ## IT charter
 
 A new account accepts the IT charter at its first sign-in (Keycloak's terms

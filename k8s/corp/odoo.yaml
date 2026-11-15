@@ -240,6 +240,8 @@ spec:
                 --no-password \
                 --set=db_user="$ODOO_DB_USER" \
                 --set=db_password="$ODOO_DB_PASSWORD" <<'SQL'
+              -- Keep the password out of the database audit log.
+              SET log_statement = 'none';
               SELECT format(
                 'CREATE ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
                 :'db_user', :'db_password'

@@ -177,7 +177,8 @@ def database_sql(spec, password, *, existing_role=False, existing_database=False
     role, database = spec["username"], spec["database"]
     if not IDENTIFIER.fullmatch(role) or not IDENTIFIER.fullmatch(database) or not re.fullmatch(r"[A-Za-z0-9_-]{32,}", password):
         raise ServiceError("Invalid database identity or credential")
-    statements = []
+    # Keep the password out of the database audit log (log_statement = ddl).
+    statements = ["SET log_statement = 'none';"]
     if not existing_role:
         statements.append(f"CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{password}';")
     if not existing_database:

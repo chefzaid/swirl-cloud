@@ -337,6 +337,8 @@ spec:
             --dbname=postgres \
             --set=ON_ERROR_STOP=1 \
             --set=sonar_password="$SONAR_DB_PASSWORD" <<'SQL'
+          -- Keep the password out of the database audit log.
+          SET log_statement = 'none';
           SELECT 'CREATE ROLE sonar LOGIN'
           WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sonar') \gexec
           ALTER ROLE sonar WITH LOGIN PASSWORD :'sonar_password';

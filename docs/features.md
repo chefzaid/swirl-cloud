@@ -58,6 +58,7 @@ pieces fit together.
 - Swirl-branded sign-in pages in both realms: Keycloak's own theme in swirlit.dev's plum colours, light or dark following the system, headed by the Swirl mark and name, which is also the tab icon ([`k8s/files/keycloak-theme`](../k8s/files/keycloak-theme/))
 - just-in-time administration: approved, recorded grants of 1-24 hours that end automatically
 - login and admin events kept 90 days in Keycloak and a year in `identity-audit-*` indices
+- PostgreSQL sign-ins and schema and role changes kept a year in `database-audit-*` indices ([database audit trail](security.md#database-audit-trail))
 - native OIDC for GitLab, Grafana, Argo CD, Vault, Kafka UI, Portainer and Odoo
 - OAuth2 Proxy for DBGate, Kibana, Longhorn, SonarQube and the portal
 - Cloudflare Access backed by Keycloak
