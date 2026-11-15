@@ -269,6 +269,27 @@ def kafka_acls(spec):
             base + ["--cluster", "--operation", "IdempotentWrite"]]
 
 
+# Guard rails on the shared brokers, per broker and per environment user: one
+# environment's runaway producer or consumer is throttled before it fills the
+# disk or the network, and topic and partition creation is rate limited.
+MIB = 1024 * 1024
+KAFKA_QUOTAS = {"prod": {"producer_byte_rate": 16 * MIB, "consumer_byte_rate": 32 * MIB, "controller_mutation_rate": 10},
+                "uat": {"producer_byte_rate": 4 * MIB, "consumer_byte_rate": 8 * MIB, "controller_mutation_rate": 5},
+                "int": {"producer_byte_rate": 4 * MIB, "consumer_byte_rate": 8 * MIB, "controller_mutation_rate": 5}}
+
+
+def kafka_quotas(spec):
+    quotas = KAFKA_QUOTAS[spec["environment"]]
+    return ["kafka-configs", "--bootstrap-server", "localhost:9092", "--alter", "--entity-type", "users",
+            "--entity-name", spec["username"], "--add-config", ",".join(f"{key}={value}" for key, value in quotas.items())]
+
+
+def validate_kafka_quotas(output, spec):
+    found = dict(re.findall(r"\b(producer_byte_rate|consumer_byte_rate|controller_mutation_rate)=([0-9.]+)", output))
+    if {key: float(value) for key, value in found.items()} != {key: float(value) for key, value in KAFKA_QUOTAS[spec["environment"]].items()}:
+        raise ServiceError("Kafka did not keep the environment's quotas")
+
+
 def validate_kafka_acls(output, spec, *, complete=False, wildcard=False):
     expected = {("TOPIC", spec["prefix"], "PREFIXED", operation) for operation in ("READ", "WRITE", "DESCRIBE", "CREATE")}
     expected |= {("GROUP", spec["prefix"], "PREFIXED", operation) for operation in ("READ", "DESCRIBE")}
@@ -315,6 +336,9 @@ def provision_kafka(api, spec):
         kafka(*args)
     listing = kafka("kafka-acls", "--bootstrap-server", "localhost:9092", "--list", "--principal", "User:" + spec["username"])
     validate_kafka_acls(listing, spec, complete=True)
+    kafka(*kafka_quotas(spec))
+    validate_kafka_quotas(kafka("kafka-configs", "--bootstrap-server", "localhost:9092", "--describe", "--entity-type", "users",
+                                "--entity-name", spec["username"]), spec)
 
 
 def main():

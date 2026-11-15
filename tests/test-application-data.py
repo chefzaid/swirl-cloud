@@ -140,6 +140,23 @@ class DataContract(unittest.TestCase):
         self.assertNotIn("All", str(commands))
         self.assertNotIn("*", str(commands))
 
+    def test_kafka_quotas_throttle_each_environment(self):
+        for environment in ("int", "uat", "prod"):
+            identity = data.identity("swirl-demo-app", environment)
+            command = data.kafka_quotas(identity)
+            self.assertEqual(command[command.index("--entity-name") + 1], "swirl_demo_app_" + environment)
+            self.assertIn("producer_byte_rate=", command[-1])
+            self.assertIn("controller_mutation_rate=", command[-1])
+        self.assertLess(data.KAFKA_QUOTAS["int"]["producer_byte_rate"], data.KAFKA_QUOTAS["prod"]["producer_byte_rate"])
+        identity = data.identity("swirl-demo-app", "int")
+        described = ("Quota configs for user-principal 'swirl_demo_app_int' are producer_byte_rate=4194304.0, "
+                     "consumer_byte_rate=8388608.0, controller_mutation_rate=5.0")
+        data.validate_kafka_quotas(described, identity)
+        with self.assertRaisesRegex(data.ServiceError, "quotas"):
+            data.validate_kafka_quotas(described.replace("4194304.0", "1048576000.0"), identity)
+        with self.assertRaisesRegex(data.ServiceError, "quotas"):
+            data.validate_kafka_quotas("", identity)
+
     def test_existing_broad_kafka_permissions_stop_reconciliation(self):
         identity = data.identity("swirl-demo-app", "int")
         granted = "Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=*, patternType=LITERAL)`:\n    (principal=User:swirl_demo_app_int, host=*, operation=ALL, permissionType=ALLOW)\n"

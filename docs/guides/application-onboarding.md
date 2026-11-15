@@ -30,7 +30,12 @@ It rejects `bootstrap`, `vault` and a `DEPLOYMENT_ENVIRONMENT` pipeline variable
 Each environment's PostgreSQL role may hold at most 30 connections, and a
 transaction left idle for 10 minutes is ended; size connection pools within that
 (for example 10 per replica with up to three replicas). The shared server allows
-100 connections in all.
+100 connections in all. Kafka throttles each environment's user per broker: in
+`int` and `uat` to 4 MiB/s produced and 8 MiB/s fetched, in `prod` to 16 and
+32 MiB/s, with topic and partition creation limited to 5 (10 in `prod`)
+partitions a second. A throttled client slows down rather than fails; size bulk
+loads within these rates. Existing environments get the quotas when onboarding
+next runs for them.
 
 In `int` and `uat`, an application that sends email points its SMTP settings at
 the [mail catcher](platform-mail.md#non-production-mail), never at a real relay.
