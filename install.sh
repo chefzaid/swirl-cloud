@@ -21,7 +21,7 @@
 #   ./install.sh --questionnaire caiq-v4 [--live]  catalog controls mapped to a security questionnaire
 #   ./install.sh --contract-annex [--generic]  security measures, sub-processors, locations, DORA register
 #   ./install.sh --isms-kit --output-dir DIR  policy, risk register, continuity plan, supplier register
-#   ./install.sh --admin-access grant|revoke|list  time-limited platform administration
+#   ./install.sh --admin-access grant|grant-role|guest|revoke|list  time-limited administration, roles and guests
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)

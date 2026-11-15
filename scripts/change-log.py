@@ -94,10 +94,18 @@ def grant_changes(since):
     body = {"size": 500, "sort": [{"granted_at": "asc"}], "query": {"range": {"granted_at": {"gte": since.isoformat()}}}}
     response = json.loads(run("kubectl", "--request-timeout=60s", "-n", "infra", "exec", "-i", "deploy/elasticsearch", "--",
                               "sh", "-c", script, stdin=json.dumps(body)))
-    return [entry(hit["_source"]["granted_at"], f"Administrator access for {hit['_source']['user']}: {hit['_source'].get('reason', '')}",
-                  hit["_source"].get("requested_by", ""), hit["_source"].get("approved_by", ""), "",
-                  hit["_source"].get("state", ""), f"./install.sh --admin-access revoke {hit['_source']['user']}", "grants")
-            for hit in response.get("hits", {}).get("hits", [])]
+    def change(grant):
+        kind = grant.get("kind") or "admin"
+        what = {"admin": "Administrator access", "role": f"Role {grant.get('group', '')}", "guest": "Guest account end date"}[kind]
+        option = {"admin": "", "role": f" --group {grant.get('group', '')}", "guest": " --guest"}[kind]
+        return what, f"./install.sh --admin-access revoke --user {grant['user']}{option}"
+    rows = []
+    for hit in response.get("hits", {}).get("hits", []):
+        grant = hit["_source"]
+        what, way_back = change(grant)
+        rows.append(entry(grant["granted_at"], f"{what} for {grant['user']}: {grant.get('reason', '')}",
+                          grant.get("requested_by", ""), grant.get("approved_by", ""), "", grant.get("state", ""), way_back, "grants"))
+    return rows
 
 
 def collect(since):

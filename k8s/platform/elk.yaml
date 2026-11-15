@@ -445,8 +445,14 @@ spec:
                 "${endpoint}/_index_template/security-findings" >/dev/null
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
-                --data-binary '{"index_patterns":["access-grants"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0},"mappings":{"dynamic":false,"properties":{"@timestamp":{"type":"date"},"user":{"type":"keyword"},"realm":{"type":"keyword"},"reason":{"type":"text"},"requested_by":{"type":"keyword"},"approved_by":{"type":"keyword"},"granted_at":{"type":"date"},"expires_at":{"type":"date"},"ended_at":{"type":"date"},"ended_by":{"type":"keyword"},"state":{"type":"keyword"}}}}}' \
+                --data-binary '{"index_patterns":["access-grants"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0},"mappings":{"dynamic":false,"properties":{"@timestamp":{"type":"date"},"user":{"type":"keyword"},"realm":{"type":"keyword"},"reason":{"type":"text"},"requested_by":{"type":"keyword"},"approved_by":{"type":"keyword"},"granted_at":{"type":"date"},"expires_at":{"type":"date"},"ended_at":{"type":"date"},"ended_by":{"type":"keyword"},"state":{"type":"keyword"},"kind":{"type":"keyword"},"group":{"type":"keyword"},"sponsor":{"type":"keyword"},"warned_at":{"type":"date"}}}}}' \
                 "${endpoint}/_index_template/access-grants" >/dev/null
+              # Fields added since the index was created (time-limited roles and guests).
+              mapping_status="$(curl -sS -o /dev/null -w '%{http_code}' --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"properties":{"kind":{"type":"keyword"},"group":{"type":"keyword"},"sponsor":{"type":"keyword"},"warned_at":{"type":"date"}}}' \
+                "${endpoint}/access-grants/_mapping")"
+              case "$mapping_status" in 200|404) ;; *) echo "access-grants mapping: HTTP $mapping_status" >&2; exit 1 ;; esac
               # Single-document state index; one shard and no replica like every
               # other platform index, so a single node stays green.
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \

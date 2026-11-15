@@ -192,6 +192,28 @@ of expiry, and `NewPlatformAdministrator` reports each grant. Members added
 directly in Keycloak are never removed automatically: keep them to the
 break-glass accounts.
 
+### Access with an end date
+
+Contractors, interns, auditors and temporary project access get an end date in
+the same way. A service role ([access groups](#access-groups)) is granted until
+a date at most a year away, with an approver; a guest account (created as usual,
+in Keycloak or the directory) gets an end date and a sponsor among the staff:
+
+```bash
+./install.sh --admin-access grant-role --user carol --group access-grafana \
+  --until 2027-03-31 --reason "AUDIT-7: yearly security audit" --approved-by bob
+./install.sh --admin-access guest --user dave --until 2027-01-31 \
+  --sponsor bob --reason "Contract C-2026-14, data migration"
+./install.sh --admin-access revoke --user carol --group access-grafana
+./install.sh --admin-access revoke --user dave --guest
+```
+
+The end is the end of that day (UTC). Security detection removes the role, or
+disables the guest account and ends its sessions, within five minutes of it. A
+week before the end of a grant longer than a week it raises
+`TimedAccessEndingSoon` with the person, the access and the sponsor (or
+approver), once, so the access can be renewed with a new grant.
+
 ## Identity events
 
 `keycloak-sso-reconcile` enables event storage in every realm: login events

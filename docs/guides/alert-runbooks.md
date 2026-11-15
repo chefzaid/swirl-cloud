@@ -518,6 +518,15 @@ A user joined `platform-admins` in the platform realm or got `admin` in the mast
 realm; the alert lasts a day. If the grant was not approved, remove it, end the
 user's sessions and check Keycloak admin events for who granted it.
 
+### TimedAccessEndingSoon
+
+A time-limited role or guest account ends within a week (labels `user`,
+`access`, `ends`, and `sponsor`: the guest's sponsor or the role's approver).
+Nothing needs doing if it should end. To keep it, the sponsor or approver asks
+for a new grant after the old one ends, or revokes it and grants again now
+(`./install.sh --admin-access`, [access with an end date](../security.md#access-with-an-end-date)).
+Each grant warns once.
+
 ### HostSSHBruteForceThenSuccess
 
 An address failed SSH logins at least five times, then signed in. Contact the

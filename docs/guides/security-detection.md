@@ -25,7 +25,9 @@ example Elasticsearch down) raises
 [KubernetesJobFailed](alert-runbooks.md#kubernetesjobfailed); the
 `security-monitoring` [compliance](compliance-evidence.md) control fails after
 30 minutes without a successful run. The job also ends expired
-[just-in-time administrator grants](../security.md#just-in-time-administration).
+[just-in-time administrator grants](../security.md#just-in-time-administration),
+time-limited roles and guest accounts ([access with an end date](../security.md#access-with-an-end-date)),
+and warns a week before those end.
 
 ## Data and access
 

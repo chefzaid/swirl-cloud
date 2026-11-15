@@ -22,6 +22,8 @@ MOCK = textwrap.dedent("""\
     const fixture = JSON.parse(readFileSync(process.env.FIXTURE, "utf8"));
     const state = fixture.state;
     const posted = [];
+    const keycloakCalls = [];
+    const updates = [];
     const reply = (status, body) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
     Date.now = () => Date.parse(fixture.now);
     globalThis.fetch = async (url, options = {}) => {
@@ -31,9 +33,18 @@ MOCK = textwrap.dedent("""\
         if (method === "PUT") { state[id] = JSON.parse(options.body); return reply(200, {}); }
         return id in state ? reply(200, { _source: state[id] }) : reply(404, {});
       }
+      if (url.includes("/access-grants/_update/")) {
+        updates.push({ id: decodeURIComponent(url.split("/").pop()), doc: JSON.parse(options.body).doc });
+        return reply(200, {});
+      }
       if (url.endsWith("/_search?ignore_unavailable=true&allow_no_indices=true")) {
         const index = url.split("/").slice(-2)[0];
         const body = JSON.parse(options.body);
+        if (index === "access-grants") {
+          const until = Date.parse(body.query.bool.filter[1].range.expires_at.lte);
+          const hits = (fixture.grants || []).filter((grant) => grant.state === "active" && Date.parse(grant.expires_at) <= until);
+          return reply(200, { hits: { hits: hits.map((grant) => ({ _id: grant.id, _source: grant })) } });
+        }
         if (index === "kubernetes-logs-host-*") {
           const identifiers = body.query.bool.filter[0].terms.syslog_identifier;
           const since = body.query.bool.filter[1].range["@timestamp"].gte;
@@ -54,7 +65,19 @@ MOCK = textwrap.dedent("""\
         return reply(200, { hits: { hits: [], total: { value: 0 } }, aggregations: {} });
       }
       if (url.includes("/protocol/openid-connect/token")) return reply(200, { access_token: "token" });
-      if (url.includes("/admin/realms/")) return reply(200, []);
+      if (url.includes("/admin/realms/")) {
+        const path = url.split("/admin/realms/")[1];
+        if (fixture.grants) {
+          keycloakCalls.push(`${method} ${decodeURIComponent(path)}${options.body ? " " + options.body : ""}`);
+          const user = path.match(/users\\?username=([^&]+)/);
+          if (user) return reply(200, [{ id: "u-" + user[1], username: user[1] }]);
+          const group = path.match(/groups\\?search=([^&]+)/);
+          if (group) return reply(200, [{ id: "g-" + decodeURIComponent(group[1]), name: decodeURIComponent(group[1]) }]);
+          if (method === "GET" && /users\\/u-[^/]+$/.test(path)) return reply(200, { id: path.split("/").pop(), email: "x@example.com", enabled: true });
+          if (method !== "GET") return new Response(null, { status: 204 });
+        }
+        return reply(200, []);
+      }
       if (url.endsWith("/api/v2/alerts")) { posted.push(...JSON.parse(options.body)); return reply(200, {}); }
       if (url.endsWith("/_bulk")) {
         // A finding already stored this hour conflicts, as Elasticsearch's "create" does.
@@ -64,7 +87,7 @@ MOCK = textwrap.dedent("""\
       }
       return reply(404, `unexpected ${method} ${url}`);
     };
-    process.on("exit", () => writeFileSync(process.env.RESULT, JSON.stringify({ posted, state })));
+    process.on("exit", () => writeFileSync(process.env.RESULT, JSON.stringify({ posted, state, keycloakCalls, updates })));
     """)
 
 
@@ -80,14 +103,16 @@ def sudo(timestamp, user, host="node-1"):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class SecurityDetectionTest(unittest.TestCase):
-    def run_detection(self, journal, state=None, stored=(), identity=()):
+    def run_detection(self, journal, state=None, stored=(), identity=(), grants=None):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         documents = yaml.safe_load_all((ROOT / "k8s/platform/security-detection.yaml").read_text())
         script = next(d for d in documents if d and d["kind"] == "ConfigMap")["data"]["detect.mjs"]
         (directory / "detect.mjs").write_text(script)
         (directory / "mock.mjs").write_text(MOCK)
-        (directory / "fixture.json").write_text(json.dumps({"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored),
-                                                                 "identity": list(identity)}))
+        fixture = {"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored), "identity": list(identity)}
+        if grants is not None:
+            fixture["grants"] = grants
+        (directory / "fixture.json").write_text(json.dumps(fixture))
         env = {"PATH": "/usr/bin:/bin", "FIXTURE": str(directory / "fixture.json"), "RESULT": str(directory / "result.json"),
                "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "KEYCLOAK_URL": "http://kc",
                "KEYCLOAK_REALM": "example", "RUNBOOK_BASE_URL": "https://runbooks", "ELASTICSEARCH_USERNAME": "u",
@@ -98,6 +123,7 @@ class SecurityDetectionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.findings = [json.loads(line)["security_finding"] for line in result.stdout.splitlines() if line.startswith("{")]
         output = json.loads((directory / "result.json").read_text())
+        self.output = output
         return {(alert["labels"]["alertname"], alert["labels"].get("source_address") or alert["labels"].get("user"))
                 for alert in output["posted"]}, output["state"]
 
@@ -136,6 +162,34 @@ class SecurityDetectionTest(unittest.TestCase):
         self.assertFalse([alert for alert in alerts if alert[0] == "EmergencyAccountUsed"])
         alerts, _ = self.run_detection([], identity=quiet + [login("security-admin-console")])
         self.assertEqual({("EmergencyAccountUsed", "admin")}, {alert for alert in alerts if alert[0] == "EmergencyAccountUsed"})
+
+    def test_timed_access_ends_and_warns_a_week_before(self):
+        def grant(id, user, expires, granted="2026-09-01T00:00:00+00:00", **fields):
+            return {"id": id, "user": user, "state": "active", "granted_at": granted, "expires_at": expires,
+                    "approved_by": "bob", **fields}
+        grants = [
+            grant("a1", "alice", "2026-10-27T11:00:00+00:00", granted="2026-10-27T07:00:00+00:00"),  # administration, older record
+            grant("r1", "carol", "2026-10-27T00:00:00+00:00", kind="role", group="access-grafana"),
+            grant("g1", "dave", "2026-10-26T00:00:00+00:00", kind="guest", sponsor="erin"),
+            grant("w1", "frank", "2026-11-01T00:00:00+00:00", kind="guest", sponsor="erin"),  # ends in five days
+            grant("w2", "gina", "2026-11-01T00:00:00+00:00", kind="role", group="access-gitlab", warned_at="2026-10-26T00:00:00Z"),
+            grant("s1", "hal", "2026-10-28T00:00:00+00:00", granted="2026-10-27T00:00:00+00:00", kind="role", group="access-kibana"),
+        ]
+        alerts, _ = self.run_detection([], grants=grants)
+        calls = self.output["keycloakCalls"]
+        self.assertIn("DELETE example/users/u-alice/groups/g-platform-admins", calls)
+        self.assertIn("DELETE example/users/u-carol/groups/g-access-grafana", calls)
+        self.assertTrue(any(call.startswith("PUT example/users/u-dave ") and '"enabled":false' in call and '"email":"x@example.com"' in call
+                            for call in calls))
+        self.assertIn("POST example/users/u-dave/logout", calls)
+        self.assertFalse([call for call in calls if "frank" in call or "gina" in call or "hal" in call])
+        ended = {update["id"] for update in self.output["updates"] if update["doc"].get("state") == "expired"}
+        self.assertEqual({"a1", "r1", "g1"}, ended)
+        # Warned once, only for a grant longer than a week that ends within one.
+        self.assertEqual({("TimedAccessEndingSoon", "frank")}, {alert for alert in alerts if alert[0] == "TimedAccessEndingSoon"})
+        warning = next(a for a in self.output["posted"] if a["labels"]["alertname"] == "TimedAccessEndingSoon")
+        self.assertEqual(("account", "erin", "2026-11-01"), (warning["labels"]["access"], warning["labels"]["sponsor"], warning["labels"]["ends"]))
+        self.assertEqual([{"id": "w1", "doc": {"warned_at": NOW}}], [u for u in self.output["updates"] if "warned_at" in u["doc"]])
 
 
 if __name__ == "__main__":

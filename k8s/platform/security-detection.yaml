@@ -266,37 +266,71 @@ data:
           + "confirm the grant was approved." }));
     }
 
-    // Just-in-time administration (scripts/admin-access.py): end temporary
-    // platform-admins memberships whose time is up. Permanent members have no
-    // grant record and are never touched.
-    async function expireTemporaryAdministrators() {
-      const due = await search("access-grants", { size: 100, query: { bool: { filter: [
-        { term: { state: "active" } }, { range: { expires_at: { lte: new Date(now).toISOString() } } }] } } });
+    // Time-limited access (scripts/admin-access.py): end group memberships and
+    // guest accounts whose time is up, and warn a week before the end of grants
+    // longer than a week. Permanent members have no grant record and are never touched.
+    async function endTimedAccess() {
+      const week = 7 * 86400000;
+      const due = await search("access-grants", { size: 500, query: { bool: { filter: [
+        { term: { state: "active" } }, { range: { expires_at: { lte: new Date(now + week).toISOString() } } }] } } });
       if (!due.hits.hits.length) return [];
       const token = await keycloakToken();
-      const call = async (method, path) => {
-        const response = await fetch(`${keycloak}/admin/realms/${path}`, { method, headers: { Authorization: `Bearer ${token}` } });
+      const call = async (method, path, body) => {
+        const response = await fetch(`${keycloak}/admin/realms/${path}`, { method,
+          headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+          body: body ? JSON.stringify(body) : undefined });
         if (!response.ok && response.status !== 404) throw new Error(`Keycloak ${method} ${path}: HTTP ${response.status}`);
-        return response.status === 204 || method !== "GET" ? null : response.json();
+        return response.status === 204 || response.status === 404 || method !== "GET" ? null : response.json();
       };
-      const group = (await call("GET", `${realm}/groups?search=platform-admins&exact=true`)).find((g) => g.name === "platform-admins");
+      const update = async (id, doc) => {
+        const response = await fetch(`${elasticsearch}/access-grants/_update/${encodeURIComponent(id)}`, { method: "POST",
+          headers: { Authorization: esAuth, "Content-Type": "application/json" }, body: JSON.stringify({ doc }) });
+        if (!response.ok) throw new Error(`access-grants update: HTTP ${response.status}`);
+      };
+      const groups = new Map();
+      const groupId = async (name) => {
+        if (!groups.has(name)) groups.set(name, ((await call("GET", `${realm}/groups?search=${encodeURIComponent(name)}&exact=true`)) || [])
+          .find((g) => g.name === name)?.id);
+        return groups.get(name);
+      };
+      const findings = [];
       for (const hit of due.hits.hits) {
         const grant = hit._source;
-        const users = await call("GET", `${realm}/users?username=${encodeURIComponent(grant.user)}&exact=true`);
-        if (users?.[0] && group) await call("DELETE", `${realm}/users/${users[0].id}/groups/${group.id}`);
-        const update = await fetch(`${elasticsearch}/access-grants/_update/${encodeURIComponent(hit._id)}`, { method: "POST",
-          headers: { Authorization: esAuth, "Content-Type": "application/json" },
-          body: JSON.stringify({ doc: { state: "expired", ended_at: new Date(now).toISOString(), ended_by: "security-detection" } }) });
-        if (!update.ok) throw new Error(`access-grants update: HTTP ${update.status}`);
-        console.log(`Ended temporary platform administration for ${grant.user}.`);
+        const kind = grant.kind || "admin";
+        const group = grant.group || "platform-admins";
+        const access = kind === "guest" ? "account" : group;
+        const ends = Date.parse(grant.expires_at);
+        if (ends > now) {
+          if (ends - Date.parse(grant.granted_at) > week && !grant.warned_at) {
+            findings.push({ alertname: "TimedAccessEndingSoon", severity: "info", user: grant.user, access,
+              sponsor: grant.sponsor || grant.approved_by || "", ends: grant.expires_at.slice(0, 10),
+              summary: `Access for ${grant.user} ends on ${grant.expires_at.slice(0, 10)}`,
+              description: `${kind === "guest" ? `${grant.user}'s guest account` : `${grant.user}'s membership of ${group}`} ends at `
+                + `${grant.expires_at.replace("T", " ").slice(0, 16)} UTC. To keep it, ${grant.sponsor || grant.approved_by} `
+                + "asks for a new grant before then (./install.sh --admin-access)." });
+            await update(hit._id, { warned_at: new Date(now).toISOString() });
+          }
+          continue;
+        }
+        const user = (await call("GET", `${realm}/users?username=${encodeURIComponent(grant.user)}&exact=true`))?.[0];
+        if (user && kind === "guest") {
+          const full = await call("GET", `${realm}/users/${user.id}`);
+          if (full) await call("PUT", `${realm}/users/${user.id}`, { ...full, enabled: false });
+          await call("POST", `${realm}/users/${user.id}/logout`);
+        } else if (user) {
+          const id = await groupId(group);
+          if (id) await call("DELETE", `${realm}/users/${user.id}/groups/${id}`);
+        }
+        await update(hit._id, { state: "expired", ended_at: new Date(now).toISOString(), ended_by: "security-detection" });
+        console.log(kind === "guest" ? `Disabled the guest account ${grant.user}.` : `Ended ${grant.user}'s membership of ${group}.`);
       }
-      return [];
+      return findings;
     }
 
     const findings = [];
     const failures = [];
     for (const rule of [bruteForceThenSuccess, emergencyAccountUsed, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
-                        expireTemporaryAdministrators, sshBruteForceThenSuccess, sudoByNewUser]) {
+                        endTimedAccess, sshBruteForceThenSuccess, sudoByNewUser]) {
       try {
         findings.push(...await rule());
       } catch (error) {
