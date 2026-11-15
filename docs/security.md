@@ -337,7 +337,8 @@ claims either way.
 
 A second factor is optional. Users add an authenticator app in the Keycloak
 account console (**Account security → Signing in**). `./install.sh --admin-mfa
-status` shows which `platform-admins` members have one; `--admin-mfa require`
+status` shows which `platform-admins` members have one (an authenticator app, a
+security key or a passkey); `--admin-mfa require`
 asks the others to set one up at next sign-in (*Configure OTP* required action)
 without changing the sign-in flow. Rerun it after adding administrators.
 

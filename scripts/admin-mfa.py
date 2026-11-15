@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Second factor for platform administrators: optional by default.
 
-  admin-mfa.py status     which platform-admins members have a one-time-password authenticator
+  admin-mfa.py status     which platform-admins members have a one-time-password authenticator or a passkey
   admin-mfa.py require    ask every member without one to set it up at their next sign-in
 
 Any user can add an authenticator app in the Keycloak account console
@@ -9,7 +9,8 @@ Any user can add an authenticator app in the Keycloak account console
 a code at every sign-in. `require` adds Keycloak's "Configure OTP" required
 action to members who have none, so enrolment happens at their next sign-in; it
 does not change the sign-in flow, and members who already use a second factor
-are unaffected. Run it again after adding administrators.
+are unaffected. A security key or passkey (Keycloak's WebAuthn credentials)
+counts as a second factor too. Run it again after adding administrators.
 """
 import argparse
 import json
@@ -27,7 +28,7 @@ group=$($k get groups -r "$1" --config "$c" -q search=platform-admins -q exact=t
 for user in $($k get "groups/$group/members" -r "$1" --config "$c" -q max=1000 --fields id --format csv --noquotes); do
   name=$($k get "users/$user" -r "$1" --config "$c" --fields username --format csv --noquotes)
   actions=$($k get "users/$user" -r "$1" --config "$c" --fields requiredActions --format csv --noquotes)
-  otp=$($k get "users/$user/credentials" -r "$1" --config "$c" --fields type --format csv --noquotes | grep -cx otp || true)
+  otp=$($k get "users/$user/credentials" -r "$1" --config "$c" --fields type --format csv --noquotes | grep -cxE 'otp|webauthn|webauthn-passwordless' || true)
   if [ "$2" = require ] && [ "$otp" = 0 ] && ! echo "$actions" | grep -q CONFIGURE_TOTP; then
     # Only set it when no other required action is pending, so none is dropped.
     if echo "$actions" | grep -q '[A-Za-z]'; then
