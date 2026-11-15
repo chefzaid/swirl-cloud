@@ -1,0 +1,40 @@
+# promtool unit test for the server package findings and HostPackageScanFailing,
+# run by validate-manifests.py against each rendered profile's rules.
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # node-a scans fine; node-b's findings come from a scan four days old.
+      - series: 'swirl_cloud_host_vulnerability{job="node-exporter",node="node-a",vuln_id="CVE-2026-1",severity="High",package="openssl",installed_version="1",fixed_version="2"}'
+        values: '1x10'
+      - series: 'swirl_cloud_host_vulnerability_scan_timestamp_seconds{job="node-exporter",node="node-a"}'
+        values: '0x10'
+      - series: 'swirl_cloud_host_vulnerability{job="node-exporter",node="node-b",vuln_id="CVE-2026-2",severity="Critical",package="linux-image",installed_version="1",fixed_version="2"}'
+        values: '1x10'
+      - series: 'swirl_cloud_host_vulnerability_scan_timestamp_seconds{job="node-exporter",node="node-b"}'
+        values: '-345600x10'
+    promql_expr_test:
+      - expr: swirl_cloud:host_vulnerability_id
+        eval_time: 5m
+        exp_samples:
+          - labels: 'swirl_cloud:host_vulnerability_id{node="node-a",vuln_id="CVE-2026-1",severity="High",image_registry="host",image_repository="node-a"}'
+            value: 1
+  - interval: 1m
+    input_series:
+      # The scan on node-a fails from 10 m; node-b keeps working.
+      - series: 'swirl_cloud_host_vulnerability_scan_success{job="node-exporter",node="node-a"}'
+        values: '1x9 0x200'
+      - series: 'swirl_cloud_host_vulnerability_scan_success{job="node-exporter",node="node-b"}'
+        values: '1x210'
+      - series: 'swirl_cloud_host_vulnerability_scan_timestamp_seconds{job="node-exporter",node="node-b"}'
+        values: '0+60x210'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HostPackageScanFailing", alertstate="firing"}
+        eval_time: 1h
+        exp_samples: []
+      - expr: ALERTS{alertname="HostPackageScanFailing", alertstate="firing"}
+        eval_time: 3h
+        exp_samples:
+          - labels: 'ALERTS{alertname="HostPackageScanFailing",alertstate="firing",severity="warning",owner="security",node="node-a"}'
+            value: 1

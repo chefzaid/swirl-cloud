@@ -587,6 +587,27 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#trivynewcriticalvulnerability
           summary: New critical vulnerabilities in a running image
           description: '{{ $labels.image_repository }} in {{ $labels.exported_namespace }} now has {{ $value }} critical findings without an exception. Triage them (docs/security.md#vulnerability-triage) in the Trivy dashboard.'
+      # Server package findings (platform/host-package-scan.yaml) in the image x
+      # vulnerability shape of trivy_vulnerability_id, as image host/<node>, from
+      # scans that finished in the last three days. platform-reports tracks both.
+      - record: swirl_cloud:host_vulnerability_id
+        expr: |
+          label_replace(label_replace(
+            max by (node, vuln_id, severity) (swirl_cloud_host_vulnerability)
+              and on (node) (time() - swirl_cloud_host_vulnerability_scan_timestamp_seconds < 259200),
+            "image_registry", "host", "", ""), "image_repository", "$1", "node", "(.+)")
+      - alert: HostPackageScanFailing
+        expr: |
+          max by (node) (swirl_cloud_host_vulnerability_scan_success == 0)
+          or max by (node) (time() - swirl_cloud_host_vulnerability_scan_timestamp_seconds > 172800)
+        for: 2h
+        labels:
+          severity: warning
+          owner: security
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#hostpackagescanfailing
+          summary: A server's packages are not being scanned
+          description: 'The package scan on {{ $labels.node }} failed or has not finished for two days, so new vulnerabilities in its packages, kernel or K3s go unseen.'
       - alert: HostFirewallDisabled
         expr: swirl_cloud_host_firewall_active == 0
         for: 5m

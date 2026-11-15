@@ -1,0 +1,158 @@
+# Server packages in the vulnerability deadlines (TODO §46). Once a day on every
+# server, Trivy scans the server's own packages (Ubuntu packages, the kernel,
+# OpenSSL) and the K3s, containerd and runc binaries against the platform's Trivy
+# server, so no vulnerability database is downloaded here. Fixable Critical and
+# High findings become node-exporter textfile metrics; the recording rule
+# swirl_cloud:host_vulnerability_id turns them into the image x vulnerability
+# shape the hourly platform-reports snapshot tracks, as image host/<node>, so
+# they get the same deadlines, Platform Report lines and --vulnerability-report
+# rows as container images. Runbook: docs/guides/alert-runbooks.md#hostpackagescanfailing.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: host-package-scan
+  namespace: host-agents
+data:
+  metrics.tpl: |
+    {{- range . }}{{- range .Vulnerabilities }}
+    swirl_cloud_host_vulnerability{vuln_id="{{ .VulnerabilityID | replace "\"" "" }}",severity="{{ .Severity | lower | title }}",package="{{ .PkgName | replace "\"" "" }}",installed_version="{{ .InstalledVersion | replace "\"" "" }}",fixed_version="{{ .FixedVersion | replace "\"" "" }}"} 1
+    {{- end }}{{- end }}
+  scan.sh: |
+    #!/bin/sh
+    # One scan a day; a restart scans at once. A failed scan keeps the previous
+    # findings and reports the failure, so findings never vanish because a scan broke.
+    set -u
+    root="${HOST_ROOT:-/host}"
+    textfile="${TEXTFILE_DIR:-/textfile}"
+    work="${TMPDIR:-/tmp}"
+    out="$textfile/swirl_cloud_host_vulnerabilities.prom"
+    skip=""
+    for dir in proc sys dev run tmp home root snap var/lib/rancher var/lib/kubelet var/lib/longhorn var/lib/containerd \
+        var/lib/docker var/log var/backups var/lib/swirl-cloud; do
+      skip="${skip:+$skip,}$root/$dir"
+    done
+    scan() {
+      trivy rootfs --server "$TRIVY_SERVER" --cache-dir "$work/trivy" --quiet --timeout 20m \
+        --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed \
+        --format template --template "@${TEMPLATE:-/opt/host-package-scan/metrics.tpl}" "$@"
+    }
+    while true; do
+      body="$work/findings.prom"
+      success=1
+      scan --pkg-types os --skip-dirs "$skip" "$root" > "$body" || success=0
+      for dir in "$root/usr/local/bin" "$root/var/lib/rancher/k3s/data/current/bin"; do
+        if [ "$success" = 1 ] && [ -d "$dir" ]; then
+          scan --pkg-types library "$dir" >> "$body" || success=0
+        fi
+      done
+      now="$(date +%s)"
+      if [ "$success" = 1 ]; then
+        stamp="$now"
+        findings="$(grep '^swirl_cloud_host_vulnerability{' "$body" | sort -u)"
+      else
+        echo "Scan failed; keeping the previous findings."
+        stamp="$(sed -n 's/^swirl_cloud_host_vulnerability_scan_timestamp_seconds //p' "$out" 2>/dev/null)"
+        findings="$(grep '^swirl_cloud_host_vulnerability{' "$out" 2>/dev/null)"
+      fi
+      tmp="$(mktemp "$textfile/.swirl_cloud_host_vulnerabilities.XXXXXX")"
+      {
+        echo "# HELP swirl_cloud_host_vulnerability A fixable Critical or High vulnerability in this server's own packages or K3s binaries."
+        echo "# TYPE swirl_cloud_host_vulnerability gauge"
+        [ -n "$findings" ] && printf '%s\n' "$findings"
+        echo "# HELP swirl_cloud_host_vulnerability_scan_success Whether the last scan of this server's packages worked (1 or 0)."
+        echo "# TYPE swirl_cloud_host_vulnerability_scan_success gauge"
+        echo "swirl_cloud_host_vulnerability_scan_success $success"
+        if [ -n "$stamp" ]; then
+          echo "# HELP swirl_cloud_host_vulnerability_scan_timestamp_seconds When the last successful scan finished."
+          echo "# TYPE swirl_cloud_host_vulnerability_scan_timestamp_seconds gauge"
+          echo "swirl_cloud_host_vulnerability_scan_timestamp_seconds $stamp"
+        fi
+      } > "$tmp"
+      chmod 0644 "$tmp"
+      mv "$tmp" "$out"
+      echo "Scan finished: success=$success findings=$(printf '%s' "$findings" | grep -c '^swirl')"
+      [ "${SCAN_ONCE:-false}" = true ] && exit 0
+      sleep "${SCAN_INTERVAL_SECONDS:-86400}"
+    done
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: host-package-scan
+  namespace: host-agents
+  labels:
+    app: host-package-scan
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    matchLabels:
+      app: host-package-scan
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: host-package-scan
+    spec:
+      priorityClassName: platform-background
+      automountServiceAccountToken: false
+      # Root reads root-only files of the host (read-only) and writes the
+      # node-exporter textfile directory; every capability is dropped.
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: scan
+          image: docker.io/aquasec/trivy:0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9
+          command: ["sh", "/opt/host-package-scan/scan.sh"]
+          env:
+            - name: TRIVY_SERVER
+              value: http://trivy-service.infra.svc.cluster.local:4954
+            - name: TRIVY_SKIP_VERSION_CHECK
+              value: "true"
+            - name: TRIVY_DISABLE_TELEMETRY
+              value: "true"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: script
+              mountPath: /opt/host-package-scan
+              readOnly: true
+            - name: root
+              mountPath: /host
+              readOnly: true
+            - name: textfile
+              mountPath: /textfile
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: script
+          configMap:
+            name: host-package-scan
+        - name: root
+          hostPath:
+            path: /
+        - name: textfile
+          hostPath:
+            path: /var/lib/node_exporter/textfile_collector
+            type: DirectoryOrCreate
+        - name: tmp
+          emptyDir:
+            sizeLimit: 512Mi

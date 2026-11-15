@@ -178,7 +178,9 @@ data:
     const deadlines = Object.fromEntries((process.env.VULNERABILITY_DEADLINE_DAYS || "Critical=15,High=30")
       .split(",").map((pair) => pair.split("=")).map(([severity, days]) => [severity, Number(days)]));
     const vulnerabilities = await query(`count by (image_registry, image_repository, vuln_id, severity) `
-      + `(trivy_vulnerability_id{severity=~"${Object.keys(deadlines).join("|")}"})`);
+      + `(trivy_vulnerability_id{severity=~"${Object.keys(deadlines).join("|")}"}`
+      // Server packages, as image host/<node> (platform/host-package-scan.yaml).
+      + ` or swirl_cloud:host_vulnerability_id{severity=~"${Object.keys(deadlines).join("|")}"})`);
     const seen = hour.toISOString();
     const counts = Object.fromEntries(Object.keys(deadlines).map((severity) => [severity, { open: 0, past_deadline: 0 }]));
     // Unexpired exceptions (files/vulnerability-exceptions.yaml) stay tracked from first sight but are not counted.

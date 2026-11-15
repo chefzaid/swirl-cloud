@@ -327,6 +327,19 @@ first sighting, so its deadline resumes on expiry, and the report lists expired
 exceptions. A finding triaged without an ID stays in the tables below only and
 still counts: an image-wide exception would also hide new findings.
 
+The servers' own packages are tracked the same way, as image `host/<node>`:
+once a day the `host-package-scan` DaemonSet in `host-agents`
+([host-package-scan.yaml](../k8s/platform/host-package-scan.yaml)) scans each
+server's Ubuntu packages (the kernel and OpenSSL included) and the K3s,
+containerd and runc binaries against the platform's Trivy server, and keeps the
+fixable Critical and High findings as node-exporter metrics
+(`swirl_cloud_host_vulnerability`). They get the same deadlines, Platform Report
+counts and `--vulnerability-report` rows; an exception names the node as its
+image. A package that unattended upgrades hold back, or a kernel waiting for a
+reboot, stays listed until the server runs the fixed version. Findings drop out
+three days after the last successful scan, and `HostPackageScanFailing` warns
+after two days without one.
+
 List critical findings by image, deduplicated across workloads (Trivy Operator
 keeps one report per running digest):
 
