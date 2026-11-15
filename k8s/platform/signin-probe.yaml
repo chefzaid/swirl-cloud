@@ -1,0 +1,215 @@
+# Sign-in probe (TODO §46): an account with no rights signs in through Keycloak's
+# login page every five minutes on OAuth2 Proxy and on Vault's OIDC sign-in, so a
+# broken client or client secret raises SignInProbeFailing before a person finds
+# it. Runbook: docs/guides/alert-runbooks.md#signinprobefailing.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: signin-probe-password
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  length: 40
+  digits: 8
+  symbols: 4
+  symbolCharacters: "-_.!"
+  noUpper: false
+  allowRepeat: true
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: signin-probe-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  # Generate once; the account Job sets it on the account on every sync.
+  refreshInterval: "0"
+  target:
+    name: signin-probe-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        PROBE_USERNAME: signin-probe
+        PROBE_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: signin-probe-password
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signin-probe
+  namespace: infra
+data:
+  probe.mjs: |
+    # swirl-cloud:file signin-probe.mjs
+  account.mjs: |
+    # swirl-cloud:file signin-probe-account.mjs
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: signin-probe-account
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: signin-probe-account
+    spec:
+      priorityClassName: platform-background
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: account
+          image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+          command: ["node", "/opt/signin-probe/account.mjs"]
+          env:
+            - name: KEYCLOAK_URL
+              value: http://keycloak:8080/auth
+            - name: KEYCLOAK_REALM
+              value: __KEYCLOAK_REALM__
+            - name: PUBLIC_DOMAIN
+              value: __PUBLIC_DOMAIN__
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef: {name: keycloak-admin-secret, key: KC_BOOTSTRAP_ADMIN_USERNAME}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: keycloak-admin-secret, key: KC_BOOTSTRAP_ADMIN_PASSWORD}
+          envFrom:
+            - secretRef:
+                name: signin-probe-credentials
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: script
+              mountPath: /opt/signin-probe
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: signin-probe
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signin-probe
+  namespace: infra
+  labels:
+    app: signin-probe
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: signin-probe
+  template:
+    metadata:
+      labels:
+        app: signin-probe
+      annotations:
+        swirl-cloud.io/signin-probe: pending
+    spec:
+      priorityClassName: platform-background
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+          command: ["node", "/opt/signin-probe/probe.mjs"]
+          env:
+            - name: PUBLIC_DOMAIN
+              value: __PUBLIC_DOMAIN__
+            - name: KEYCLOAK_REALM
+              value: __KEYCLOAK_REALM__
+            - name: PROBE_INTERVAL_SECONDS
+              value: "300"
+          envFrom:
+            - secretRef:
+                name: signin-probe-credentials
+          ports:
+            - name: metrics
+              containerPort: 9464
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 30
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 60
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: script
+              mountPath: /opt/signin-probe
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: signin-probe
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signin-probe
+  namespace: infra
+  labels:
+    app: signin-probe
+spec:
+  selector:
+    app: signin-probe
+  ports:
+    - name: metrics
+      port: 9464
+      targetPort: metrics

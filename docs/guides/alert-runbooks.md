@@ -543,6 +543,43 @@ Inside the cluster as well, GitLab's registry is down: check the `gitlab` pod an
 `kubectl -n infra exec deploy/gitlab -- gitlab-ctl status registry`. The probe
 proves the API answers; it does not push or pull an image.
 
+### SignInProbeFailing
+
+The probe account could not sign in twice in a row on the tool in `target`, so
+people signing in there probably fail too. Its logs name the step:
+`kubectl -n infra logs deploy/signin-probe --since=30m`.
+
+- Any step with `HTTP 403` and a challenge page: the edge is challenging the
+  probe as a bot. It goes out through the public addresses with the user agent
+  `swirl-cloud-signin-probe`; allow it as for the registry probe in
+  [Cloudflare configuration](../dns.md#cloudflare).
+- `start` or `authorization`: the tool did not send the probe to Keycloak. For
+  `oauth2-proxy`, check the `oauth2-proxy` pods; for `vault`, that Vault is
+  unsealed and its OIDC sign-in is configured (`scripts/configure-vault.sh`).
+- `login page`: Keycloak's login page does not load or changed; check the
+  `keycloak` pod and the sign-in theme.
+- `sign-in`: the password was refused, the account is locked, or Keycloak asks
+  for an action (terms, profile). Sync `swirl-cloud` in Argo CD: the
+  `signin-probe-account` job resets the account. If it keeps failing, look at
+  the account's required actions in the Keycloak console.
+- `callback`: the tool could not exchange the code, usually a client secret
+  that differs between Keycloak and the tool. Rerun the Keycloak reconcile
+  (sync `swirl-cloud`) and compare the client's secret with the tool's.
+
+### SignInProbeStale
+
+The sign-in probe has reported nothing for 15 minutes, so a broken sign-in
+would go unseen. Check the `signin-probe` pod in `infra` (`kubectl -n infra
+describe deploy/signin-probe`) and that its `signin-probe-credentials` Secret
+exists: External Secrets generates it on the first sync.
+
+### SignInProbeUnexpectedAccess
+
+A tool gave the sign-in probe account, which belongs to no group, a session with
+access (today only Vault can tell: it issued a token). The probe revoked the
+token. Check the tool's role bindings, here Vault's OIDC role `platform-admin`
+and its `bound_claims`, before anyone else signs in with the same gap.
+
 ### PrometheusTargetDown
 
 Its alerts cannot fire. Check the pod or exporter

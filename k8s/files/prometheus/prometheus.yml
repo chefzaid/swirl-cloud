@@ -178,6 +178,11 @@ scrape_configs:
       - target_label: __address__
         replacement: blackbox-exporter.__INTERNAL_DNS_ZONE__:9115
 
+  - job_name: signin-probe
+    scrape_interval: 60s
+    static_configs:
+      - targets: [signin-probe.__INTERNAL_DNS_ZONE__:9464]
+
   - job_name: argocd
     kubernetes_sd_configs:
       - role: pod

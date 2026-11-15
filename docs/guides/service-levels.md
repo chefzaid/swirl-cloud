@@ -87,12 +87,24 @@ otherwise, and link to their [runbook](alert-runbooks.md#sloavailabilitybudgetbu
 | `swirl_cloud_sli:ci_queue_seconds:p90_6h` | Time nine in ten CI jobs waited for a runner over six hours |
 | `swirl_cloud_sli:ci_platform_failures:ratio_rate6h` | CI jobs failed by the runner, the system or a timeout (script failures and cancellations excluded) |
 | `swirl_cloud_sli:argocd_sync_failures:ratio_rate6h` | Argo CD sync operations that failed |
+| `swirl_signin_probe_success{target}` | The probe account signed in through Keycloak's login page on OAuth2 Proxy (`oauth2-proxy`) and on Vault's OIDC sign-in (`vault`) at its last run, every five minutes (1 or 0) |
 | `probe_success{job="registry-probes",instance}` | The registry API answers an anonymous `GET /v2/` with `401` and its version header, through the public edge and inside the cluster (1 or 0); a 403 challenge page counts as available for the generic probe but not here |
 
 [`CIJobsQueueingLong`](alert-runbooks.md#cijobsqueueinglong) fires when CI queue
 time stays above ten minutes for an hour; data stores alert through
-[`DatastoreDown`](alert-runbooks.md#datastoredown), and the registry through
-[`RegistryApiUnavailable`](alert-runbooks.md#registryapiunavailable).
+[`DatastoreDown`](alert-runbooks.md#datastoredown), the registry through
+[`RegistryApiUnavailable`](alert-runbooks.md#registryapiunavailable), and sign-in
+through [`SignInProbeFailing`](alert-runbooks.md#signinprobefailing).
+
+The sign-in probe (`k8s/platform/signin-probe.yaml`) uses the platform realm's
+`signin-probe` account, which belongs to no group: a job on every sync keeps it
+enabled, without pending actions or lockout, and removes any group or role
+someone gives it. So a working sign-in ends with the tool admitting the account
+and refusing access: OAuth2 Proxy sets its session, and Vault answers that the
+account's groups do not match its administrators' role. A wrong client secret, a
+broken login page or a stuck account fails it at the step the probe logs
+(`kubectl -n infra logs deploy/signin-probe`). Its sign-ins appear in the
+identity events every five minutes under that name.
 
 ## Game days
 
