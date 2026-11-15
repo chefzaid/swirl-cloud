@@ -567,38 +567,5 @@ class DeploymentCommand(unittest.TestCase):
         message = self.run_deploy("int", active_variables=[{"key": "DEPLOYMENT_ENVIRONMENT", "value": "int"}])
         self.assertIn("already running: https://gitlab/p/41", message)
 
-    def approval_api(self, approvers, author="ada", merged=True):
-        class FakeGitLab:
-            def request(self, method, path, data=None):
-                if path.endswith("/merge_requests"):
-                    return [{"iid": 12, "state": "merged" if merged else "opened", "web_url": "https://gitlab/mr/12", "author": {"username": author}}]
-                if path.endswith("/merge_requests/12/approvals"):
-                    return {"approved_by": [{"user": {"username": name}} for name in approvers]}
-                raise AssertionError(path)
-        return FakeGitLab()
-
-    def test_production_needs_an_approval_from_someone_else(self):
-        from datetime import date
-        today = date(2026, 11, 15)
-        decision = self.deploy.production_decision(self.approval_api(["bob", "ada"]), 7, "a" * 40, today)
-        self.assertEqual((decision["approved_by"], decision["author"]), (["bob"], "ada"))
-        with patch.object(self.deploy, "configmap_value", return_value={}):
-            with self.assertRaises(ServiceError) as raised:
-                self.deploy.production_decision(self.approval_api(["ada"]), 7, "a" * 40, today)
-            self.assertIn("https://gitlab/mr/12 approved in GitLab by someone other than its author", str(raised.exception))
-            with self.assertRaises(ServiceError) as raised:
-                self.deploy.production_decision(self.approval_api(["bob"], merged=False), 7, "a" * 40, today)
-            self.assertIn("came in without one", str(raised.exception))
-
-    def test_a_waiver_allows_a_single_operator_until_its_review_date(self):
-        from datetime import date
-        waiver = {"accepted_by": "ada", "reason": "one operator", "review_by": "2027-01-31"}
-        with patch.object(self.deploy, "configmap_value", return_value=waiver):
-            decision = self.deploy.production_decision(self.approval_api([]), 7, "a" * 40, date(2026, 11, 15))
-            self.assertEqual((decision["approved_by"], decision["waiver"]), ([], waiver))
-            with self.assertRaises(ServiceError) as raised:
-                self.deploy.production_decision(self.approval_api([]), 7, "a" * 40, date(2027, 2, 1))
-            self.assertIn("2027-01-31 has passed", str(raised.exception))
-
 
 if __name__ == "__main__": unittest.main()

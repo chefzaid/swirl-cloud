@@ -6,8 +6,8 @@
 Assembled read-only from what already records changes: commits to this
 repository's deployed configuration (k8s/, config/), Argo CD's sync history of
 the root Application and production Applications, installer and Ansible runs
-(/var/lib/swirl-cloud/install-runs), time-limited access grants (Elasticsearch
-access-grants) and production deployment approvals (infra/swirl-cloud-prod-approvals). Each entry names who, the approver where one is
+(/var/lib/swirl-cloud/install-runs) and just-in-time administrator grants
+(Elasticsearch access-grants). Each entry names who, the approver where one is
 recorded, the revision, the result and the way back; entries without an approver
 are flagged for review (ISO/IEC 27001 A.8.32). Secret values are never read.
 """
@@ -108,32 +108,10 @@ def grant_changes(since):
     return rows
 
 
-def approval_changes(since):
-    try:
-        found = run("kubectl", "--request-timeout=30s", "-n", "infra", "get", "configmap", "swirl-cloud-prod-approvals",
-                    "--ignore-not-found", "-o", "json")
-    except RuntimeError as error:
-        raise RuntimeError(f"production approvals: {error}") from None
-    if not found.strip():
-        return []
-    decisions = json.loads(json.loads(found).get("data", {}).get("approvals.json") or "[]")
-    rows = []
-    for decision in decisions:
-        if when(decision["at"]) < since:
-            continue
-        approver = ", ".join(decision.get("approved_by") or [])
-        if not approver and decision.get("waiver"):
-            approver = f"waived by {decision['waiver']['accepted_by']} (review {decision['waiver']['review_by']})"
-        rows.append(entry(decision["at"], f"Production deployment of {decision.get('application', '')} ({decision.get('merge_request') or 'no merge request'})",
-                          decision.get("deployed_by", ""), approver, decision.get("commit", "")[:12], decision.get("pipeline", ""),
-                          "deploy the previous release to prod (scripts/deploy-application.py --release-version)", "approvals"))
-    return rows
-
-
 def collect(since):
     rows, errors = [], []
     for name, source in (("Git", git_changes), ("Argo CD", argocd_changes), ("Installer runs", installer_changes),
-                         ("Administrator grants", grant_changes), ("Production approvals", approval_changes)):
+                         ("Administrator grants", grant_changes)):
         try:
             rows += source(since)
         except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as error:

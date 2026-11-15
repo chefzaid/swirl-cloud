@@ -6,7 +6,6 @@ fatal; text cannot break the table."""
 from datetime import datetime, timezone
 import importlib.util
 import json
-import sys
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -36,12 +35,7 @@ def fake_run(*command, stdin=None):
         return json.dumps(APPLICATIONS)
     if "deploy/elasticsearch" in command:
         return json.dumps(GRANTS)
-    if "swirl-cloud-prod-approvals" in command:
-        return json.dumps({"data": {"approvals.json": json.dumps(APPROVALS)}}) if APPROVALS else ""
     raise RuntimeError("sudo: a password is required")
-
-
-APPROVALS = []
 
 
 class ChangeLogTest(unittest.TestCase):
@@ -75,20 +69,6 @@ class ChangeLogTest(unittest.TestCase):
             rows, errors = change_log.collect(SINCE)
         self.assertEqual(["Argo CD: kubectl: connection refused"], errors)
         self.assertEqual(["git", "grants"], [row["source"] for row in rows])
-
-    def test_production_approvals_and_waivers_name_who_approved(self):
-        approvals = [
-            {"at": "2026-11-05T10:00:00+00:00", "application": "shop", "merge_request": "https://gitlab/mr/12", "approved_by": ["bob"],
-             "deployed_by": "ada", "commit": "a" * 40, "pipeline": "https://gitlab/p/9"},
-            {"at": "2026-11-06T10:00:00+00:00", "application": "shop", "merge_request": "", "approved_by": [], "deployed_by": "ada",
-             "commit": "b" * 40, "pipeline": "https://gitlab/p/10", "waiver": {"accepted_by": "ada", "review_by": "2027-01-31"}},
-            {"at": "2020-01-01T00:00:00+00:00", "application": "old", "approved_by": ["bob"], "commit": "c" * 40}]
-        with mock.patch.object(change_log, "run", side_effect=fake_run), mock.patch.object(sys.modules[__name__], "APPROVALS", approvals):
-            rows, errors = change_log.collect(SINCE)
-        self.assertEqual([], errors)
-        found = [row for row in rows if row["source"] == "approvals"]
-        self.assertEqual(["bob", "waived by ada (review 2027-01-31)"], [row["approved_by"] for row in found])
-        self.assertEqual(("ada", "aaaaaaaaaaaa"), (found[0]["who"], found[0]["revision"]))
 
 
 if __name__ == "__main__":

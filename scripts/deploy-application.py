@@ -3,7 +3,6 @@
 
   list                                   applications, environments, revisions and health
   deploy --application APP --environment ENV [--ref REF | --release-version X.Y.Z] [--yes]
-  waiver set --accepted-by NAME --reason TEXT --review-by YYYY-MM-DD | waiver show | waiver clear
 
 Choices come from Argo CD Applications labelled swirl-cloud/environment that are
 registered in infra/deployment-environments. A deployment starts the project's
@@ -12,16 +11,8 @@ branch, uat and prod accept the default branch (a new release) or an existing
 release version. Manual release gates are played only after confirmation. Success
 is reported only when the target Argo CD Application is Synced and Healthy at a
 new revision. A one-day GitLab token is created for the run and revoked after it.
-
-prod needs a second person (segregation of duties, ISO/IEC 27001 A.5.3): the
-merged merge request that brought the deployed commit in must be approved in
-GitLab by someone other than its author. An installation with one operator
-records a waiver instead, as an accepted risk with a review date at most a year
-away. Each prod decision is recorded in infra/swirl-cloud-prod-approvals, which
-./install.sh --change-log reads.
 """
 import argparse
-from datetime import date, datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -35,10 +26,6 @@ from urllib.parse import quote
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts/lib"))
 from onboarding_services import HTTP, HTTPFailure, ServiceError, forward  # noqa: E402
-
-WAIVERS = ("infra", "swirl-cloud-waivers", "segregation-of-duties")
-APPROVALS = ("infra", "swirl-cloud-prod-approvals", "approvals.json")
-KEEP_APPROVALS = 500
 
 LABEL = "swirl-cloud/environment"
 # Unique per run: acquiring a token revokes others of the same name, which would
@@ -124,64 +111,6 @@ def wait_for_argo(name, previous, timeout=900):
     raise ServiceError(f"Argo CD did not report {name} Synced and Healthy at a new revision within {timeout // 60} minutes")
 
 
-def configmap_value(location, default):
-    namespace, name, key = location
-    result = subprocess.run(["kubectl", "--request-timeout=20s", "-n", namespace, "get", "configmap", name, "-o", "json"],
-                            capture_output=True, text=True, timeout=60)
-    if result.returncode:
-        return default
-    return json.loads(json.loads(result.stdout).get("data", {}).get(key) or json.dumps(default))
-
-
-def save_configmap_value(location, value):
-    namespace, name, key = location
-    document = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": name, "namespace": namespace},
-                "data": {key: json.dumps(value, indent=2, sort_keys=True)}}
-    result = subprocess.run(["kubectl", "apply", "-f", "-"], input=json.dumps(document), capture_output=True, text=True, timeout=60)
-    if result.returncode:
-        raise ServiceError("Could not record in " + name + ": " + (result.stderr.strip().splitlines() or ["kubectl failed"])[-1])
-
-
-def release_commit(api, project_id, version):
-    """The commit a release version points at, from its tag (1.2.3 or v1.2.3)."""
-    for tag in (version, "v" + version):
-        try:
-            return api.request("GET", f"/projects/{project_id}/repository/tags/{quote(tag, safe='')}")["commit"]
-        except HTTPFailure as error:
-            if error.status != 404:
-                raise
-    return None
-
-
-def change_approval(api, project_id, sha):
-    """(merge request, approvers other than its author) for the merged request that brought sha in."""
-    merged = [mr for mr in api.request("GET", f"/projects/{project_id}/repository/commits/{sha}/merge_requests")
-              if mr.get("state") == "merged"]
-    for mr in merged:
-        approvals = api.request("GET", f"/projects/{project_id}/merge_requests/{mr['iid']}/approvals")
-        author = (mr.get("author") or {}).get("username")
-        others = sorted({entry["user"]["username"] for entry in approvals.get("approved_by", [])
-                         if (entry.get("user") or {}).get("username") not in (None, author)})
-        if others:
-            return mr, others
-    return (merged[0] if merged else None), []
-
-
-def production_decision(api, project_id, sha, today):
-    """The approval or the valid waiver that lets sha reach prod; refuses otherwise."""
-    mr, approvers = change_approval(api, project_id, sha)
-    if approvers:
-        return {"merge_request": mr.get("web_url", ""), "author": (mr.get("author") or {}).get("username", ""), "approved_by": approvers}
-    waiver = configmap_value(WAIVERS, {})
-    if waiver and date.fromisoformat(waiver["review_by"]) >= today:
-        return {"merge_request": (mr or {}).get("web_url", ""), "author": ((mr or {}).get("author") or {}).get("username", ""),
-                "approved_by": [], "waiver": waiver}
-    where = f"merge request {mr['web_url']}" if mr else "a merge request (the commit came in without one)"
-    expired = f" The waiver's review date {waiver['review_by']} has passed." if waiver else ""
-    raise ServiceError(f"prod needs {where} approved in GitLab by someone other than its author.{expired} "
-                       "An installation with one operator records a waiver: deploy-application.py waiver set")
-
-
 def deploy(args):
     apps = applications()
     entry = apps.get(args.application)
@@ -211,15 +140,6 @@ def deploy(args):
                     if any(v["key"] == "DEPLOYMENT_ENVIRONMENT" and v["value"] == args.environment for v in settings):
                         raise ServiceError(f"A {args.environment} deployment is already {status}: {active['web_url']}")
             commit = api.request("GET", f"/projects/{project['id']}/repository/commits/{quote(ref, safe='')}")
-            decision = None
-            if args.environment == "prod":
-                released = release_commit(api, project["id"], args.release_version) if args.release_version else commit
-                if not released:
-                    raise ServiceError(f"No tag for release {args.release_version}; prod checks the release's commit for an approval")
-                decision = production_decision(api, project["id"], released["id"], datetime.now(timezone.utc).date())
-                decision.update(application=args.application, commit=released["id"])
-                print("Approved by " + ", ".join(decision["approved_by"]) + f" ({decision['merge_request']})." if decision["approved_by"]
-                      else f"No second approval: waiver accepted by {decision['waiver']['accepted_by']}, review by {decision['waiver']['review_by']}.")
             variables = [{"key": "PIPELINE_MODE", "value": "full"}, {"key": "DEPLOYMENT_ENVIRONMENT", "value": args.environment}]
             if args.release_version:
                 variables.append({"key": "RELEASE_VERSION", "value": args.release_version})
@@ -233,10 +153,6 @@ def deploy(args):
                 return 1
             pipeline = api.request("POST", f"/projects/{project['id']}/pipeline", {"ref": ref, "variables": variables})
             print(f"Pipeline {pipeline['id']}: {pipeline['web_url']}", flush=True)
-            if decision:
-                decision.update(at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(), pipeline=pipeline["web_url"],
-                                deployed_by=os.environ.get("SUDO_USER") or os.environ.get("USER", ""))
-                save_configmap_value(APPROVALS, (configmap_value(APPROVALS, []) + [decision])[-KEEP_APPROVALS:])
             played, seen = set(), {}
             deadline = time.monotonic() + args.timeout * 60
             while time.monotonic() < deadline:
@@ -272,29 +188,6 @@ def deploy(args):
     return 0
 
 
-def waiver_command(args):
-    current = configmap_value(WAIVERS, {})
-    if args.action == "show":
-        print(json.dumps(current, indent=2) if current else "No waiver: prod needs a second approval.")
-        return 0
-    if args.action == "clear":
-        save_configmap_value(WAIVERS, {})
-        print("Waiver cleared: prod needs a second approval.")
-        return 0
-    if not (args.accepted_by and args.reason and args.review_by):
-        raise ServiceError("waiver set needs --accepted-by, --reason and --review-by")
-    review = date.fromisoformat(args.review_by)
-    today = datetime.now(timezone.utc).date()
-    if not today < review <= today + timedelta(days=366):
-        raise ServiceError("--review-by must be in the next year")
-    if len(args.reason.strip()) < 10:
-        raise ServiceError("give the reason, such as why the company has one operator")
-    save_configmap_value(WAIVERS, {"accepted_by": args.accepted_by, "reason": args.reason.strip(), "review_by": review.isoformat(),
-                                   "recorded": datetime.now(timezone.utc).replace(microsecond=0).isoformat()})
-    print(f"Waiver recorded until {review}: prod deploys without a second approval, and each one is recorded as waived.")
-    return 0
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -308,14 +201,7 @@ def main():
     run.add_argument("--yes", action="store_true", help="start without the confirmation question")
     run.add_argument("--approve-manual", action="store_true", help="also run manual release gates without asking")
     run.add_argument("--timeout", type=int, default=60, help="pipeline timeout in minutes (default 60)")
-    waiver = sub.add_parser("waiver", help="the single-operator waiver of the second approval for prod")
-    waiver.add_argument("action", choices=("set", "show", "clear"))
-    waiver.add_argument("--accepted-by")
-    waiver.add_argument("--reason")
-    waiver.add_argument("--review-by")
     args = parser.parse_args()
-    if args.command == "waiver":
-        return waiver_command(args)
     if args.command == "list":
         apps = applications()
         if not apps:

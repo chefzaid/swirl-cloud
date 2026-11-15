@@ -582,25 +582,6 @@ minutes (default 60). Manual release gates run only after you confirm or with
 only when the Application is `Synced` and `Healthy` at a new revision, then prints
 the application URLs.
 
-`prod` needs a second person (segregation of duties, ISO/IEC 27001 A.5.3): the
-merged merge request that brought the commit in, or the release's tagged commit,
-must be approved in GitLab (**Approve** on the merge request) by someone other
-than its author. GitLab Community Edition does not enforce approvals, so this
-command does, and it refuses a self-approved change or one pushed without a
-merge request. An installation with one operator records a waiver instead, an
-accepted risk with a review date at most a year away:
-
-```bash
-scripts/deploy-application.py waiver set --accepted-by ada \
-  --reason "One operator until the second hire (risk R-07)" --review-by 2027-06-30
-scripts/deploy-application.py waiver show
-scripts/deploy-application.py waiver clear
-```
-
-Each `prod` deployment records who approved it, or the waiver, in the ConfigMap
-`infra/swirl-cloud-prod-approvals`, and `./install.sh --change-log` lists it.
-A pipeline started directly in GitLab bypasses this command and so the check.
-
 #### Infrastructure reconciliation and verification
 
 The [platform pipeline](../.gitlab-ci.yml) and Argo CD act independently:
