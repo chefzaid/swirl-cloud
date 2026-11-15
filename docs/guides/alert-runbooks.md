@@ -129,6 +129,13 @@ Argo CD sync or schedule. Delete the failed Job once a run succeeds.
 
 ## Platform services
 
+### PlatformTokenExpiring
+
+A GitLab token the platform's jobs use (registry retention, Sonar discovery)
+expires within 30 days, within 7 (critical), or GitLab no longer accepts it.
+The daily `token-expiry` job raises it. Rerun `scripts/configure-gitlab-ci.sh`
+on the control plane: it replaces a token that is stale and updates the Secret.
+
 ### KubernetesNodeNotReady
 
 A node has not been Ready for five minutes; its single-replica volumes are

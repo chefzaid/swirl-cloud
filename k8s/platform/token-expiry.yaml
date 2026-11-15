@@ -1,0 +1,81 @@
+# Expiry of the platform's own GitLab tokens (TODO §46, expiry calendar). Runbook:
+# docs/guides/alert-runbooks.md#platformtokenexpiring.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: token-expiry
+  namespace: infra
+data:
+  check.mjs: |
+    # swirl-cloud:file token-expiry.mjs
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: token-expiry
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  schedule: "17 6 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: token-expiry
+        spec:
+          priorityClassName: platform-background
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+              command: ["node", "/opt/token-expiry/check.mjs"]
+              env:
+                - name: GITLAB_API_URL
+                  value: http://gitlab.__INTERNAL_DNS_ZONE__/api/v4
+                - name: ALERTMANAGER_URL
+                  value: http://alertmanager.__INTERNAL_DNS_ZONE__:9093
+                - name: RUNBOOK_BASE_URL
+                  value: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md
+                - name: TOKEN_REGISTRY_RETENTION
+                  valueFrom:
+                    secretKeyRef: {name: gitlab-registry-retention-token, key: api-token, optional: true}
+                - name: TOKEN_SONAR_DISCOVERY
+                  valueFrom:
+                    secretKeyRef: {name: sonar-apps-discovery-token, key: api-token, optional: true}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 48Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /opt/token-expiry
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: token-expiry
