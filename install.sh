@@ -22,6 +22,7 @@
 #   ./install.sh --contract-annex [--generic]  security measures, sub-processors, locations, DORA register
 #   ./install.sh --isms-kit --output-dir DIR  policy, risk register, continuity plan, supplier register
 #   ./install.sh --admin-access grant|grant-role|guest|revoke|list  time-limited administration, roles and guests
+#   ./install.sh --checkpoint create|list|show|delete  volume snapshots and deployed revisions before a risky change
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)
@@ -38,7 +39,8 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '3,26s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    # Every comment line of the header, up to the first command.
+    sed -n '3,/^set /s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 if [[ $EUID -eq 0 ]]; then
@@ -160,6 +162,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/change-log.py" "$@"
+        ;;
+    --checkpoint)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/checkpoint.py" "$@"
         ;;
     -h|--help)
         usage

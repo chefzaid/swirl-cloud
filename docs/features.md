@@ -12,7 +12,7 @@ pieces fit together.
 - scopes: `infra` (shared platform) or `apps` (adds Odoo in `corp`)
 - local administrator password alignment across infrastructure services
 - rerunnable steps that keep installed identity, exposure, topology and HA state
-- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`, `--duty`, `--change-log`
+- operator commands on `./install.sh`: `--status`, `--plan`, `--support-bundle`, `--access-review`, `--credential-age`, `--vulnerability-report`, `--policy-report`, `--processing-records`, `--asset-inventory`, `--questionnaire`, `--contract-annex`, `--isms-kit`, `--admin-access`, `--admin-mfa`, `--game-day`, `--duty`, `--change-log`, `--checkpoint`
 - semantic [releases](guides/releases.md) with a changelog, a CycloneDX SBOM, OpenVEX statements, third-party notices and SSH-signed bundles; a bundle refuses a component past its end of life
 - a record of every installer and Ansible run shown by `--status`, and the installation report emailed when platform mail is configured
 

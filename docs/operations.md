@@ -369,6 +369,44 @@ another namespace's snapshot directly. Deleting a `VolumeSnapshot` deletes its
 Longhorn snapshot. Snapshots count against the node's disk like the data they
 keep, so remove them once the change is done.
 
+### Checkpoints
+
+Before a risky change (an upgrade, a migration, removing a module), take a
+checkpoint:
+
+```bash
+./install.sh --checkpoint create --label "CHG-12: GitLab 19.4" [--hours 72] [--namespace infra ...]
+./install.sh --checkpoint list
+./install.sh --checkpoint show cp-20261115-101500
+./install.sh --checkpoint delete cp-20261115-101500
+```
+
+It snapshots every bound Longhorn claim (or those in the named namespaces) and
+records the revision Argo CD deploys and each Helm release's revision in the
+ConfigMap `checkpoint-<id>` in `infra`. Each volume's snapshot is
+crash-consistent: PostgreSQL, MongoDB, Kafka and Elasticsearch recover from it
+as after a power cut. Volumes are snapshotted one after another, so two volumes
+may differ by a few seconds. The `checkpoint-expiry` CronJob deletes a
+checkpoint when it expires (72 hours by default, at most 14 days). It is not a
+backup: the snapshots are lost with their volumes.
+
+To go back after a failed change:
+
+1. Manifests: revert the change's commit in Git (Argo CD redeploys the recorded
+   revision), or `helm rollback <release> <revision>` for a platform release,
+   with the revisions from `--checkpoint show`.
+2. Data, one volume at a time: turn off Argo CD's automatic sync for the
+   application, scale the workload that uses the claim to zero, and in the
+   Longhorn UI attach the volume in maintenance mode and **Revert** it to the
+   checkpoint's snapshot. The snapshot's Longhorn name is the end of its
+   `snapshotHandle` (`kubectl get volumesnapshotcontent` for the snapshot,
+   `snap://<volume>/<snapshot>`). Detach the volume, scale the workload back and
+   turn automatic sync on again.
+
+Reverting discards everything written since the checkpoint on that volume. To
+look before deciding, copy the snapshot into a new claim instead
+([volume snapshots](#volume-snapshots)).
+
 ### GitLab storage
 
 Repositories, Registry, packages and artifacts share the `gitlab-data` PVC

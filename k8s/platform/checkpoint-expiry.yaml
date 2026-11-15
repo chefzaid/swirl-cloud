@@ -1,0 +1,131 @@
+# Expiry of checkpoints taken with ./install.sh --checkpoint (scripts/checkpoint.py):
+# every hour, delete the VolumeSnapshots and checkpoint records whose expiry
+# annotation has passed (docs/operations.md#checkpoints).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: checkpoint-expiry
+  namespace: infra
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: swirl-cloud-checkpoint-expiry
+rules:
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["list", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: swirl-cloud-checkpoint-expiry
+subjects:
+  - kind: ServiceAccount
+    name: checkpoint-expiry
+    namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swirl-cloud-checkpoint-expiry
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: checkpoint-expiry
+  namespace: infra
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["list", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: checkpoint-expiry
+  namespace: infra
+subjects:
+  - kind: ServiceAccount
+    name: checkpoint-expiry
+    namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: checkpoint-expiry
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: checkpoint-expiry
+  namespace: infra
+data:
+  expire.mjs: |
+    # swirl-cloud:file checkpoint-expiry.mjs
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: checkpoint-expiry
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  schedule: "23 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: checkpoint-expiry
+        spec:
+          serviceAccountName: checkpoint-expiry
+          # It lists and deletes expired checkpoint objects through the API.
+          automountServiceAccountToken: true
+          priorityClassName: platform-background
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: expire
+              image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+              command: ["node", "/opt/checkpoint-expiry/expire.mjs"]
+              env:
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 48Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /opt/checkpoint-expiry
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: checkpoint-expiry
