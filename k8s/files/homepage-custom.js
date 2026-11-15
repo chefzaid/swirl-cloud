@@ -42,6 +42,31 @@
   new MutationObserver(place).observe(document.body, { childList: true, subtree: true });
   place();
 
+  // Notices of maintenance and incidents (./install.sh --notice), from the portal
+  // gate, which answers administrators only; everyone else sees them on the gate's page.
+  fetch("/gate/notices.json", { credentials: "same-origin" }).then((response) => (response.ok ? response.json() : []))
+    .then((notices) => {
+      if (!Array.isArray(notices) || !notices.length || document.getElementById("swirl-notices")) return;
+      const list = document.createElement("div");
+      list.id = "swirl-notices";
+      list.setAttribute("role", "status");
+      const when = new Intl.DateTimeFormat(language, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      for (const notice of notices) {
+        const item = document.createElement("p");
+        item.className = "swirl-notice" + (Date.parse(notice.starts) <= Date.now() ? " now" : "");
+        const service = document.createElement("strong");
+        service.textContent = notice.service === "*" ? (language === "fr" ? "Plateforme" : "Platform") : notice.service;
+        const time = document.createElement("time");
+        time.textContent = `${when.format(new Date(notice.starts))} - ${when.format(new Date(notice.ends))}`;
+        const text = document.createElement("span");
+        text.textContent = (language === "fr" && notice.fr) || notice.en;
+        item.append(service, time, text);
+        list.append(item);
+      }
+      (document.getElementById("inner_wrapper") || document.body).prepend(list);
+    })
+    .catch(() => {});
+
   document.addEventListener("keydown", (event) => {
     if (event.defaultPrevented || event.target.closest?.("input, textarea, select, [contenteditable]")) return;
     const slash = event.key === "/" && !(event.altKey || event.ctrlKey || event.metaKey);

@@ -446,3 +446,29 @@ input:focus-visible,
 .service-card a:focus-visible {
   outline: none;
 }
+
+/* Notices of maintenance and incidents (homepage-custom.js). */
+#swirl-notices {
+  display: grid;
+  gap: 8px;
+  margin: 12px 16px 0;
+}
+
+.swirl-notice {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--swirl-orange) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--swirl-orange) 10%, transparent);
+  color: var(--swirl-text);
+  font-size: 13px;
+}
+
+.swirl-notice.now {
+  border-color: var(--swirl-orange);
+}
+
+.swirl-notice time {
+  margin: 0 6px;
+  color: var(--swirl-muted);
+}

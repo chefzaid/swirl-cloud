@@ -24,6 +24,7 @@
 #   ./install.sh --admin-access grant|grant-role|guest|revoke|list  time-limited administration, roles and guests
 #   ./install.sh --checkpoint create|list|show|delete  volume snapshots and deployed revisions before a risky change
 #   ./install.sh --keycloak-keys status|rotate|retire  rotate Keycloak's realm signing keys without signing anyone out
+#   ./install.sh --notice add|list|remove  maintenance and incident notices on the portal, for the service's users
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)
@@ -173,6 +174,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/rotate-keycloak-keys.py" "$@"
+        ;;
+    --notice)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/portal-notice.py" "$@"
         ;;
     -h|--help)
         usage

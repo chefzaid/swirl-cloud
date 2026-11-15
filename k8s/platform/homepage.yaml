@@ -685,10 +685,18 @@ spec:
         - name: portal-gate
           mountPath: /gate
           readOnly: true
+        - name: portal-notices
+          mountPath: /notices
+          readOnly: true
       volumes:
       - name: portal-gate
         configMap:
           name: portal-gate
+      # Written by ./install.sh --notice, not by Git; no notice until it exists.
+      - name: portal-notices
+        configMap:
+          name: portal-notices
+          optional: true
       - name: homepage-config
         configMap:
           name: homepage-config

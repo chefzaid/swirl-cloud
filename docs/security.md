@@ -557,6 +557,8 @@ writes the request to the platform's first administrator. The infrastructure
 entries, cluster usage and pod status reach only administrators' browsers: the
 [portal gate](../k8s/files/portal-gate.mjs) in front of Homepage builds that
 page, from the rules in [`portal-access.json`](../k8s/files/portal-access.json).
+A [notice](operations.md#notices-to-the-people-affected) about a service shows
+only to the people who can open it, and to administrators.
 
 Every other tool admits `platform-admins` only. GitLab creates a blocked account
 at a person's first sign-in: approve it under **Admin, Users**. Portainer

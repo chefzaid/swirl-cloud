@@ -3,6 +3,9 @@
 // from Homepage's own service list, holding only what their access groups open,
 // plus the services they could ask for, greyed. Nothing else about the
 // platform reaches their browser. Rules: /gate/access.json (portal-access.json).
+// Notices (./install.sh --notice, ConfigMap portal-notices) show on the page of
+// everyone who can open the service they name; administrators read them from
+// /gate/notices.json, which Homepage's custom script shows.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import http from "node:http";
@@ -15,6 +18,7 @@ const title = process.env.PORTAL_TITLE || "Cloud";
 const contact = process.env.ACCESS_CONTACT || "";
 const accountUrl = process.env.ACCOUNT_URL || "";
 const signOutUrl = process.env.SIGN_OUT_URL || "";
+const NOTICES = process.env.GATE_NOTICES || "/notices/notices.json";
 // What a person who is not an administrator may fetch besides the page itself.
 const ASSETS = /^\/(icons\/[\w.-]+|api\/config\/custom\.css)$/;
 
@@ -26,6 +30,18 @@ const TEXT = {
         signOut: "Se déconnecter", empty: "Vous n'avez encore aucun service. Demandez un accès à votre administrateur.",
         subject: "Demande d'accès", body: "Merci de me donner accès à", unavailable: "Le portail est indisponible pour le moment." },
 };
+
+// Notices that have not ended yet; the file is optional and re-read on each request,
+// so a change reaches the page within the kubelet's ConfigMap refresh.
+function activeNotices(now = Date.now()) {
+  try {
+    const notices = JSON.parse(readFileSync(NOTICES, "utf8"));
+    return (Array.isArray(notices) ? notices : []).filter((notice) => notice && Date.parse(notice.ends) > now
+      && typeof notice.service === "string" && typeof notice.en === "string");
+  } catch {
+    return [];
+  }
+}
 
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -77,7 +93,17 @@ function icon(name) {
   return "";
 }
 
-function page(sections, person, text, language, nonce) {
+function noticeList(notices, language) {
+  if (!notices.length) return "";
+  return `<div class="notices" role="status">${notices.map((notice) => {
+    const now = Date.parse(notice.starts) <= Date.now();
+    return `<p class="notice${now ? " now" : ""}"><strong>${escape(notice.service === "*" ? (language === "fr" ? "Plateforme" : "Platform") : notice.service)}</strong> `
+      + `<time data-start="${escape(notice.starts)}" data-end="${escape(notice.ends)}">${escape(notice.starts.slice(0, 16).replace("T", " "))} - ${escape(notice.ends.slice(11, 16))} UTC</time> `
+      + `<span>${escape((language === "fr" && notice.fr) || notice.en)}</span></p>`;
+  }).join("")}</div>`;
+}
+
+function page(sections, person, text, language, nonce, notices = []) {
   const cards = (section) => section.services.map((service) => {
     const locked = service.state === "locked";
     const href = locked
@@ -117,14 +143,23 @@ ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(
 .what{display:flex;flex-direction:column;min-width:0}.name{font-size:14px;font-weight:600;line-height:1.3}.about{margin-top:3px;font-size:12px;line-height:1.4;color:var(--swirl-muted)}
 .locked{border-style:dashed;background:transparent}.locked .tile,.locked .name,.locked .about{opacity:.5}
 .badge{align-self:flex-start;margin-top:8px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--swirl-orange) 16%,transparent);color:var(--swirl-orange);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.notices{margin-top:16px;display:grid;gap:8px}.notice{margin:0;padding:10px 14px;border:1px solid color-mix(in srgb,var(--swirl-orange) 45%,transparent);border-radius:10px;background:color-mix(in srgb,var(--swirl-orange) 10%,transparent);color:var(--swirl-text);font-size:13px}
+.notice.now{border-color:var(--swirl-orange)}.notice time{color:var(--swirl-muted);margin:0 6px}
 .empty,.none{margin:28px 4px;color:var(--swirl-muted)}.none{display:none}[hidden]{display:none!important}
 ${masks}</style></head><body><main>
 <header><span class="brand"><img src="/icons/swirl.svg" alt="" width="34" height="34"><span>Swirl<i>.</i></span></span>
 <input class="find" type="search" placeholder="${escape(text.search)}" aria-label="${escape(text.search)}" autocomplete="off">
 <span class="who"><span>${escape(person)}</span>${accountUrl ? `<a href="${escape(accountUrl)}">${escape(text.account)}</a>` : ""}${signOutUrl ? `<a href="${escape(signOutUrl)}">${escape(text.signOut)}</a>` : ""}</span></header>
-${body}<p class="none">${escape(text.none)}</p></main>
+${noticeList(notices, language)}${body}<p class="none">${escape(text.none)}</p></main>
 <script nonce="${nonce}">
 (() => {
+  // Notice times in the reader's own time zone.
+  const hours = new Intl.DateTimeFormat(document.documentElement.lang, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const clock = new Intl.DateTimeFormat(document.documentElement.lang, { hour: "2-digit", minute: "2-digit" });
+  for (const time of document.querySelectorAll(".notice time")) {
+    const start = new Date(time.dataset.start), end = new Date(time.dataset.end);
+    if (!isNaN(start) && !isNaN(end)) time.textContent = hours.format(start) + " - " + (end - start < 86400000 ? clock.format(end) : hours.format(end));
+  }
   const find = document.querySelector(".find"), none = document.querySelector(".none");
   find.addEventListener("input", () => {
     const wanted = find.value.trim().toLowerCase();
@@ -173,6 +208,8 @@ async function staff(req, res, groups) {
         .filter((service) => service.state && service.href)
         .sort((a, b) => (a.state === "locked") - (b.state === "locked")),
     })).filter((section) => section.services.length);
+    const reachable = new Set(sections.flatMap((section) => section.services.filter((service) => service.state === "open").map((service) => service.name)));
+    const notices = activeNotices().filter((notice) => notice.service === "*" || reachable.has(notice.service));
     const nonce = randomBytes(16).toString("base64");
     const person = req.headers["x-auth-request-email"] || req.headers["x-auth-request-user"] || "";
     res.writeHead(200, {
@@ -180,7 +217,7 @@ async function staff(req, res, groups) {
       "Content-Security-Policy": `default-src 'none'; img-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'nonce-${nonce}'; `
         + `script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
     });
-    res.end(req.method === "HEAD" ? undefined : page(sections, person, text, language, nonce));
+    res.end(req.method === "HEAD" ? undefined : page(sections, person, text, language, nonce, notices));
   } catch (error) {
     console.error(`portal gate: ${error.message}`);
     refuse(502, text.unavailable);
@@ -190,6 +227,12 @@ async function staff(req, res, groups) {
 http.createServer((req, res) => {
   if (req.url === "/gate/healthz") { res.writeHead(200, { "Content-Type": "text/plain" }); return res.end("ok\n"); }
   const groups = String(req.headers["x-auth-request-groups"] || "").split(",").map((group) => group.trim()).filter(Boolean);
-  if (groups.includes(ADMINISTRATORS)) return passThrough(req, res);
+  if (groups.includes(ADMINISTRATORS)) {
+    if (req.url === "/gate/notices.json") {
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
+      return res.end(JSON.stringify(activeNotices()));
+    }
+    return passThrough(req, res);
+  }
   return staff(req, res, groups);
 }).listen(PORT, () => console.log(`portal gate listening on ${PORT}`));

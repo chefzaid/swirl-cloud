@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Guards for the portal gate (ADR 0031): administrators get Homepage unchanged;
 anyone else gets only the services their access groups open, the ones they can
-ask for greyed, and nothing else of the platform, not even its names."""
+ask for greyed, and nothing else of the platform, not even its names. Notices
+show only to people who can open their service, and to administrators."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 import unittest
@@ -30,6 +32,15 @@ SERVICES = [
     {"name": "Observability & Logging", "services": [
         {"name": "Grafana", "href": "https://grafana.example.com", "icon": "grafana.png", "description": "Dashboards"},
         {"name": "Kibana", "href": "https://kibana.example.com", "icon": "kibana.png", "description": "Logs"}]},
+]
+
+
+NOTICES = [
+    {"id": "n1", "service": "GitLab", "starts": "2026-01-01T22:00:00+00:00", "ends": "2999-01-01T23:00:00+00:00",
+     "en": "GitLab <upgrade> tonight", "fr": "Mise à jour de GitLab ce soir"},
+    {"id": "n2", "service": "Grafana", "starts": "2026-01-01T22:00:00+00:00", "ends": "2999-01-01T23:00:00+00:00", "en": "Grafana restarts"},
+    {"id": "n3", "service": "*", "starts": "2998-01-01T22:00:00+00:00", "ends": "2999-01-01T23:00:00+00:00", "en": "Network maintenance"},
+    {"id": "n4", "service": "GitLab", "starts": "2020-01-01T22:00:00+00:00", "ends": "2020-01-01T23:00:00+00:00", "en": "Long over"},
 ]
 
 
@@ -60,12 +71,15 @@ class PortalGateTest(unittest.TestCase):
         cls.upstream = ThreadingHTTPServer(("127.0.0.1", 0), Homepage)
         threading.Thread(target=cls.upstream.serve_forever, daemon=True).start()
         cls.port = free_port()
+        cls.notices = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump(NOTICES, cls.notices)
+        cls.notices.close()
         cls.gate = subprocess.Popen(
             ["node", str(ROOT / "k8s/files/portal-gate.mjs")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env={"PATH": __import__("os").environ["PATH"], "GATE_PORT": str(cls.port), "UPSTREAM_PORT": str(cls.upstream.server_port),
                  "GATE_RULES": str(ROOT / "k8s/files/portal-access.json"), "PORTAL_TITLE": "Example Cloud",
                  "ACCESS_CONTACT": "admin@example.com", "ACCOUNT_URL": "https://keycloak.example.com/account",
-                 "SIGN_OUT_URL": "https://keycloak.example.com/oauth2/sign_out"})
+                 "SIGN_OUT_URL": "https://keycloak.example.com/oauth2/sign_out", "GATE_NOTICES": cls.notices.name})
         for _ in range(50):
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{cls.port}/gate/healthz", timeout=1)
@@ -79,6 +93,7 @@ class PortalGateTest(unittest.TestCase):
         cls.gate.terminate()
         cls.gate.wait(timeout=5)
         cls.upstream.shutdown()
+        Path(cls.notices.name).unlink()
 
     def get(self, path, groups=None, method="GET", language="en"):
         headers = {"Accept-Language": language, "X-Auth-Request-Email": "ada@example.com"}
@@ -141,6 +156,21 @@ class PortalGateTest(unittest.TestCase):
         self.assertIn('lang="fr"', page)
         self.assertIn("Demander l&#39;accès", page)
         self.assertIn("subject=Demande%20d&#39;acc%C3%A8s%3A%20Grafana", page)
+
+    def test_notices_show_to_who_can_open_the_service(self):
+        _, page, _ = self.get("/")
+        self.assertIn("GitLab &lt;upgrade&gt; tonight", page)
+        self.assertIn("Network maintenance", page)
+        self.assertNotIn("Grafana restarts", page)
+        self.assertNotIn("Long over", page)
+        _, page, _ = self.get("/", "access-grafana")
+        self.assertIn("Grafana restarts", page)
+        _, page, _ = self.get("/", language="fr")
+        self.assertIn("Mise à jour de GitLab ce soir", page)
+        self.assertIn("Plateforme", page)
+        status, body, _ = self.get("/gate/notices.json", "platform-admins")
+        self.assertEqual((200, ["n1", "n2", "n3"]), (status, [notice["id"] for notice in json.loads(body)]))
+        self.assertEqual(404, self.get("/gate/notices.json")[0])
 
 
 if __name__ == "__main__":

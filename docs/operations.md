@@ -651,6 +651,26 @@ enrollment).
 
 ## Maintenance
 
+### Notices to the people affected
+
+Before a maintenance window, or during an incident, tell the people who use the
+service on the portal:
+
+```bash
+./install.sh --notice add --service GitLab --from 2026-11-20T22:00 --until 2026-11-20T23:00 \
+  --en "Upgrade to GitLab 19.4: GitLab is unavailable." --fr "Mise à jour vers GitLab 19.4 : GitLab est indisponible."
+./install.sh --notice list
+./install.sh --notice remove 3f9c2a1b
+```
+
+`--service` is the service as the portal names it, or `*` for the whole
+platform; times without a zone are UTC. From now until it ends, the notice shows
+at the top of the portal for the people who can open that service and for
+administrators, in their browser's language (English when no French text is
+given) and with the times in their own time zone. It disappears when it ends;
+adding a notice removes those that have ended. Notices live in the ConfigMap
+`infra/portal-notices`, not in Git, and reach the page within about a minute.
+
 ### Image updates
 
 Platform images are pinned by digest in their owning manifests and Helm values;
