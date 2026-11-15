@@ -341,6 +341,15 @@ status` shows which `platform-admins` members have one; `--admin-mfa require`
 asks the others to set one up at next sign-in (*Configure OTP* required action)
 without changing the sign-in flow. Rerun it after adding administrators.
 
+Passkeys are enabled in the platform realm (`webAuthnPolicyPasswordlessPasskeysEnabled`,
+set by `keycloak-sso-reconcile`): a person who registers one in the account
+console (**Account security → Signing in → Passkey**) signs in with it from the
+usual sign-in page, without a password and without phishable codes. Passwords
+keep working for everyone else, and the browser offers saved passkeys on the
+username field. Register a second passkey or keep the password as the way back
+when a device is lost; an administrator can remove a lost passkey from the
+user's **Credentials** in the Keycloak console.
+
 ## Credential age
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its

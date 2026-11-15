@@ -171,7 +171,8 @@ data:
       "internationalizationEnabled":true,
       "supportedLocales":["en","fr"],
       "defaultLocale":"en",
-      "loginTheme":"swirl"
+      "loginTheme":"swirl",
+      "webAuthnPolicyPasswordlessPasskeysEnabled":true
     }'
     expect_success "$(request PUT "realms/$realm" "$realm_body")"
     # Realm mail follows the platform mail relay (ADR 0029) for password reset
