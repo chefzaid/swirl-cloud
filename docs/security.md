@@ -214,6 +214,29 @@ week before the end of a grant longer than a week it raises
 `TimedAccessEndingSoon` with the person, the access and the sponsor (or
 approver), once, so the access can be renewed with a new grant.
 
+## Keycloak signing keys
+
+Keycloak signs tokens with each realm's generated keys: RSA for ID and access
+tokens, HMAC for refresh and offline tokens, AES for its own cookies. Rotate
+them in the master and platform realms once a year, after a suspected
+compromise, and when an administrator who could read them leaves:
+
+```bash
+./install.sh --keycloak-keys status
+./install.sh --keycloak-keys rotate [--dry-run]
+./install.sh --keycloak-keys retire [--after-days 31] [--dry-run]   # a month later
+```
+
+`rotate` adds a new key of each kind with a higher priority, named with the
+date (`rsa-generated-20261115`), and makes the previous ones passive: new
+tokens use the new keys and tokens already issued stay valid, so nobody is
+signed out. Tools that cache Keycloak's public keys fetch the new one when they
+first see it. `retire` deletes the passive keys once the newest rotation of
+their kind is at least 31 days old, beyond the 30-day offline session idle
+time; tokens they signed stop working then. Imported keys and the encryption
+key (`rsa-enc-generated`) are listed but never changed. A rotation of both
+realms is recorded in the control calendar (`signing-key-rotation`).
+
 ## Identity events
 
 `keycloak-sso-reconcile` enables event storage in every realm: login events

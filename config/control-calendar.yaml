@@ -28,6 +28,11 @@ duties:
     every_days: 365
     done_by: scripts/rotate-local-admin-passwords.sh, then ./install.sh --duty done credential-rotation
     evidence: ISO/IEC 27001 A.5.17
+  - id: signing-key-rotation
+    name: Keycloak realm signing keys rotated
+    every_days: 365
+    done_by: ./install.sh --keycloak-keys rotate (recorded when it runs), then retire after 31 days
+    evidence: ISO/IEC 27001 A.8.24
   - id: risk-review
     name: Risk register, accepted risks and vulnerability exceptions reviewed
     every_days: 365
