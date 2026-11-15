@@ -1,0 +1,136 @@
+# CSI volume snapshot controller (kubernetes-csi/external-snapshotter v8.4.0,
+# Apache-2.0; Rancher's mirror of registry.k8s.io/sig-storage/snapshot-controller).
+# It turns VolumeSnapshot objects into Longhorn snapshots through Longhorn's CSI
+# driver, with the VolumeSnapshotClass in templates/volume-snapshot-class.yaml.
+# A snapshot lives on the volume's own replicas, so it is a quick checkpoint or
+# the source of a clone, not a backup. RBAC follows upstream's
+# deploy/kubernetes/snapshot-controller; it runs in infra rather than kube-system.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: snapshot-controller
+  namespace: infra
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: swirl-cloud-snapshot-controller
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots/status"]
+    verbs: ["update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: swirl-cloud-snapshot-controller
+subjects:
+  - kind: ServiceAccount
+    name: snapshot-controller
+    namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swirl-cloud-snapshot-controller
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: snapshot-controller-leaderelection
+  namespace: infra
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "delete", "update", "create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: snapshot-controller-leaderelection
+  namespace: infra
+subjects:
+  - kind: ServiceAccount
+    name: snapshot-controller
+    namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: snapshot-controller-leaderelection
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapshot-controller
+  namespace: infra
+  labels:
+    app: snapshot-controller
+spec:
+  replicas: 1
+  # The controller is not ready until the snapshot API answers; it waits up to
+  # 30 seconds for the definitions (--retry-crd-interval-max).
+  minReadySeconds: 35
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snapshot-controller
+  template:
+    metadata:
+      labels:
+        app: snapshot-controller
+    spec:
+      serviceAccountName: snapshot-controller
+      # It watches and updates snapshot objects through the API.
+      automountServiceAccountToken: true
+      priorityClassName: platform-standard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: snapshot-controller
+          image: docker.io/rancher/mirrored-sig-storage-snapshot-controller:v8.4.0@sha256:b845f4bbc34d70bd84e92f8021f47704df1de3dbabbd8289969651360b39d605
+          args:
+            - --v=2
+            - --leader-election=true
+            - --leader-election-namespace=infra
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

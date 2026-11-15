@@ -337,6 +337,38 @@ through GitLab's supported paths.
 To switch an index to another policy, set the new one; do not remove the
 policy first, which leaves the index unmanaged.
 
+### Volume snapshots
+
+Kubernetes volume snapshots work on Longhorn volumes through the CSI snapshot
+controller ([volume-snapshots.yaml](../k8s/platform/volume-snapshots.yaml)) and
+the `longhorn-snapshot` class. A snapshot stays on the volume's own replicas: it
+is a quick checkpoint before a risky change or the source of a copy, not a
+backup, and it is lost with the volume.
+
+```yaml
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: before-migration
+  namespace: apps-indezy-uat
+spec:
+  volumeSnapshotClassName: longhorn-snapshot
+  source:
+    persistentVolumeClaimName: data
+```
+
+Once `kubectl get volumesnapshot before-migration` shows `READYTOUSE true`, a
+new claim in the same namespace copies it with
+`dataSource: {apiGroup: snapshot.storage.k8s.io, kind: VolumeSnapshot, name: before-migration}`
+and a size at least the original's. To copy into another namespace, create a
+`VolumeSnapshotContent` there with `deletionPolicy: Retain`, the same
+`driver: driver.longhorn.io` and `source.snapshotHandle` (read it from the
+original's content, `snap://<volume>/<snapshot>`), and a `VolumeSnapshot` in the
+target namespace that names that content; Kubernetes does not let a claim read
+another namespace's snapshot directly. Deleting a `VolumeSnapshot` deletes its
+Longhorn snapshot. Snapshots count against the node's disk like the data they
+keep, so remove them once the change is done.
+
 ### GitLab storage
 
 Repositories, Registry, packages and artifacts share the `gitlab-data` PVC

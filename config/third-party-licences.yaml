@@ -345,6 +345,17 @@ components:
     support_source: https://endoflife.date/prometheus
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
+  - name: docker.io/rancher/mirrored-sig-storage-snapshot-controller
+    licence: Apache-2.0
+    source: https://github.com/kubernetes-csi/external-snapshotter
+    maintainer: Kubernetes SIG Storage (mirrored by SUSE Rancher)
+    jurisdiction: United States (CNCF / Linux Foundation)
+    end_of_life: latest-only
+    support_source: https://github.com/kubernetes-csi/external-snapshotter/releases
+    customer_use: allowed
+    obligations: Keep the licence and NOTICE file in copies.
+    notes: Rancher's unchanged mirror of registry.k8s.io/sig-storage/snapshot-controller, as K3s uses for its own
+      mirrored images.
   - name: external-secrets chart certController.image (chart default image)
     licence: Apache-2.0
     source: https://github.com/external-secrets/external-secrets
