@@ -202,6 +202,17 @@ data:
     else
       expect_success "$(request PUT "realms/$realm" '{"smtpServer":{}}')"
     fi
+    # The IT charter (termsText in the swirl theme's messages) is accepted at a
+    # new account's first sign-in; Keycloak records the acceptance on the user
+    # (attribute terms_and_conditions).
+    status="$(request GET "realms/$realm/authentication/required-actions/TERMS_AND_CONDITIONS")"
+    if [ "$status" = 404 ]; then
+      expect_success "$(request POST "realms/$realm/authentication/register-required-action" '{"providerId":"TERMS_AND_CONDITIONS","name":"Terms and Conditions"}')"
+    else
+      expect_success "$status"
+    fi
+    expect_success "$(request PUT "realms/$realm/authentication/required-actions/TERMS_AND_CONDITIONS" '{"alias":"TERMS_AND_CONDITIONS","name":"Terms and Conditions","providerId":"TERMS_AND_CONDITIONS","enabled":true,"defaultAction":true,"priority":20,"config":{}}')"
+
     # Sign-in and account pages follow the browser language (English or
     # French), with a language selector; the administration console too. Both
     # realms sign in with the Swirl theme (keycloak.yaml).

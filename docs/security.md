@@ -436,6 +436,16 @@ kubectl config set-context --current --user=keycloak
 
 Root's kubeconfig on the control plane keeps working for emergencies.
 
+## IT charter
+
+A new account accepts the IT charter at its first sign-in (Keycloak's terms
+step, in English or French). Keycloak records the acceptance on the user, as the
+attribute `terms_and_conditions` with its time. The default text is a short
+acceptable-use charter in
+[`messages_en.properties`](../k8s/files/keycloak-theme/messages_en.properties)
+and [`messages_fr.properties`](../k8s/files/keycloak-theme/messages_fr.properties)
+(`termsText`); replace it with the company's own policy from the ISMS kit.
+
 ## Access groups
 
 A person who is not an administrator opens a service only as a member of its
