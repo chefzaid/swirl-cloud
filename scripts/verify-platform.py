@@ -356,6 +356,7 @@ def check_kubelet_memory(report):
     report.add(PASS if state == "active" else WARN, "Kubelet memory reservation", {
         "active": "memory reserved for the host and K3s; pods are evicted before the node swaps",
         "pending-restart": "configured; applies at the next K3s restart (scripts/configure-k3s-kubelet-memory.sh --restart)",
+        "shutdown-off": "memory reserved, but the kubelet holds no shutdown lock, so a reboot stops every pod at once; check: sudo journalctl -u k3s | grep 'node shutdown'",
         "configured": "configured but K3s is not running",
         "missing": "not configured; rerun the installer or scripts/configure-k3s-kubelet-memory.sh"}.get(state, "unknown (needs passwordless sudo)"))
 

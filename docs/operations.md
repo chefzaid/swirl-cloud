@@ -619,14 +619,21 @@ instead of all at once, from a second drop-in
 CI jobs get 10 seconds, analysis tools and `int`/`uat` 20, platform services 30,
 production 30, then data stores, sign-in and system pods 60, so PostgreSQL and
 Vault stop cleanly after everything that writes to them. The kubelet holds the
-shutdown for up to 150 seconds through a systemd inhibitor lock.
+shutdown for up to 150 seconds through a systemd inhibitor lock, which logind
+allows from a third drop-in
+(`/etc/systemd/logind.conf.d/zz-swirl-cloud-kubelet-shutdown.conf`). logind
+keeps the value of the drop-in whose name sorts last, and Ubuntu's
+unattended-upgrades caps the wait at 30 seconds in
+`/usr/lib/systemd/logind.conf.d/unattended-upgrades-logind-maxdelay.conf`, which
+sorts after the kubelet's own `99-kubelet.conf`; with that cap the kubelet logs
+"Failed to start node shutdown manager" and stops every pod at once.
 
 The installer, node enrollment and Ansible write the drop-ins before K3s starts.
 On a running node it applies at the next K3s restart, or now with
 `scripts/configure-k3s-kubelet-memory.sh --restart` (run it when no CI job is
 running; the kubelet and on a server the API restart for about 15 seconds; pods
 keep running). `./install.sh --status`, or the script's `--check`, reports
-whether it is active.
+whether it is active, and `shutdown-off` when the kubelet holds no shutdown lock.
 
 ```bash
 kubectl get node -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.memory,ALLOCATABLE:.status.allocatable.memory

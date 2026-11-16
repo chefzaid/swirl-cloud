@@ -44,4 +44,19 @@ assert critical["shutdownGracePeriodSeconds"] == max(g["shutdownGracePeriodSecon
 assert sum(g["shutdownGracePeriodSeconds"] for g in groups) <= 180, "the host would wait too long to shut down"
 PYTHON
 
+# logind must let the kubelet delay the shutdown for the whole order, and the drop-in
+# must win over Ubuntu's 30-second cap and the kubelet's own file (last name wins).
+[[ "$(shutdown_seconds)" == 150 ]] || fail "The shutdown groups add up to $(shutdown_seconds) s, not 150"
+grep -Fqx "InhibitDelayMaxSec=$(shutdown_seconds)" <<< "$(logind_config)" || fail 'logind does not allow the whole shutdown order'
+grep -Fqx '[Login]' <<< "$(logind_config)" || fail 'The logind drop-in has no [Login] section'
+last="$(printf '%s\n' unattended-upgrades-logind-maxdelay.conf 99-kubelet.conf "$(basename "$LOGIND_PATH")" | LC_ALL=C sort | tail -1)"
+[[ "$last" == "$(basename "$LOGIND_PATH")" ]] || fail "logind reads $last after the platform's drop-in"
+
+# The check reads the kubelet's delay lock from logind's inhibitor list.
+busctl() { printf '%s\n' 'a(ssssuu) 2 "shutdown" "Unattended Upgrades Shutdown" "Stop ongoing upgrades" "delay" 0 1698 "sleep" "ModemManager" "Reset devices" "delay" 0 1795'; }
+if shutdown_armed; then fail 'Another shutdown lock counts as the kubelet'\''s'; fi
+busctl() { printf '%s\n' 'a(ssssuu) 1 "shutdown" "kubelet" "Kubelet needs time to handle node shutdown" "delay" 0 42'; }
+shutdown_armed || fail "The kubelet's shutdown lock is not recognised"
+unset -f busctl
+
 printf '[PASS] Kubelet memory reservation and shutdown order\n'

@@ -46,6 +46,7 @@ not configured; rerun the installer or scripts/configure-k3s-audit.sh	non config
 unknown (needs passwordless sudo)	inconnu (sudo sans mot de passe nécessaire)
 memory reserved for the host and K3s; pods are evicted before the node swaps	mémoire réservée à l'hôte et à K3s ; les pods sont évincés avant que le nœud ne swappe
 configured; applies at the next K3s restart (scripts/configure-k3s-kubelet-memory.sh --restart)	configurée ; s'applique au prochain redémarrage de K3s (scripts/configure-k3s-kubelet-memory.sh --restart)
+memory reserved, but the kubelet holds no shutdown lock, so a reboot stops every pod at once; check: sudo journalctl -u k3s | grep 'node shutdown'	mémoire réservée, mais le kubelet ne tient aucun verrou d'arrêt : un redémarrage arrête tous les pods d'un coup ; vérifier : sudo journalctl -u k3s | grep 'node shutdown'
 configured but K3s is not running	configurée mais K3s ne tourne pas
 not configured; rerun the installer or scripts/configure-k3s-kubelet-memory.sh	non configurée ; relancez l'installateur ou scripts/configure-k3s-kubelet-memory.sh
 last success $age hours ago (limit $limit h)	dernier succès il y a $age heures (limite $limit h)
