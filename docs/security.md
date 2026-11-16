@@ -50,6 +50,11 @@ Added nodes deny inbound host and forwarded traffic on non-cluster interfaces
 declared control-plane address before the provider-facing path is closed. See
 [node enrollment](guides/node-enrollment.md) for role-specific setup.
 
+ClamAV's `clamd` (`infra/clamav`, TCP 3310) answers without authentication, so
+its NetworkPolicy admits only `apps`, `corp` and the labelled application
+namespaces; it keeps nothing it scans. It downloads signatures from
+`database.clamav.net` at start and every two hours, its only outbound traffic.
+
 Odoo is not behind Cloudflare Access: its login page, Live Chat endpoints and the
 website chat frame (`/platform_crm_intake/chat/<id>`) are public by design. Chat
 starts share the login rate limit, the website's lead intake key can only create

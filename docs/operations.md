@@ -638,7 +638,7 @@ also preempt a lower class to place a higher one:
 |---|---|---|
 | `platform-critical` | 1 000 000 | PostgreSQL, MongoDB, Redis, Kafka, Keycloak and the sign-in proxy; Traefik, Vault and External Secrets once their releases are next reconciled |
 | `production` | 500 000 | Odoo, and production applications that name it |
-| `platform-standard` | 0 | GitLab, Argo CD, monitoring, logs and the host agents; also any pod that names no class |
+| `platform-standard` | 0 | GitLab, Argo CD, monitoring, logs, ClamAV and the host agents; also any pod that names no class |
 | `preproduction` | -20 | Applications in `uat` that name it |
 | `integration` | -30 | Applications in `int` that name it |
 | `platform-background` | -50 | SonarQube, Trivy and its scans, DBGate, Kafka UI, Portainer, registry retention |

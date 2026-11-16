@@ -1,0 +1,220 @@
+# Malware scanning for applications (ClamAV). Applications send a file to
+# clamav.__INTERNAL_DNS_ZONE__:3310 with clamd's INSTREAM command and act on the
+# answer ("stream: OK" or "stream: <signature> FOUND"); nothing is stored here.
+# Signatures are downloaded from database.clamav.net when the pod starts and
+# refreshed every two hours by freshclam beside clamd; clamd reloads them on its
+# own. clamd is unauthenticated, so only the application namespaces may reach it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clamav-config
+  namespace: infra
+  labels:
+    app: clamav
+data:
+  clamd.conf: |
+    DatabaseDirectory /var/lib/clamav
+    TemporaryDirectory /tmp
+    TCPSocket 3310
+    TCPAddr 0.0.0.0
+    Foreground yes
+    LogFile /dev/stdout
+    LogFileUnlock yes
+    LogTime yes
+    LogClean no
+    LogVerbose no
+    # Applications send files of 10 MB at most; anything longer is refused.
+    StreamMaxLength 12M
+    MaxThreads 4
+    # A reload holds one copy of the signatures, not two: scans wait for it
+    # (seconds) rather than the pod needing twice the memory.
+    ConcurrentDatabaseReload no
+    SelfCheck 600
+  freshclam.conf: |
+    DatabaseDirectory /var/lib/clamav
+    DatabaseMirror database.clamav.net
+    Foreground yes
+    LogTime yes
+    # Twelve checks a day, within the mirror's rate limits.
+    Checks 12
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clamav
+  namespace: infra
+  labels:
+    app: clamav
+spec:
+  replicas: 1
+  # Two pods would each hold the signatures in memory (about 1.5 GiB).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: clamav
+  template:
+    metadata:
+      labels:
+        app: clamav
+      annotations:
+        swirl-cloud.io/application-data: disabled
+    spec:
+      priorityClassName: platform-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's clamav user and group.
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # clamd refuses to start without signatures.
+        - name: signatures
+          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          command: ["freshclam", "--foreground", "--stdout", "--config-file=/etc/clamav-config/freshclam.conf"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/clamav-config
+              readOnly: true
+            - name: signatures
+              mountPath: /var/lib/clamav
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: clamd
+          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          command: ["clamd", "--foreground", "--config-file=/etc/clamav-config/clamd.conf"]
+          ports:
+            - name: clamd
+              containerPort: 3310
+          # Loading the signatures takes a minute or more on a busy node.
+          startupProbe:
+            tcpSocket:
+              port: clamd
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: clamd
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: clamd
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1536Mi
+            limits:
+              cpu: "2"
+              memory: 2560Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/clamav-config
+              readOnly: true
+            - name: signatures
+              mountPath: /var/lib/clamav
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+        - name: freshclam
+          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          command: ["freshclam", "--daemon", "--foreground", "--stdout", "--config-file=/etc/clamav-config/freshclam.conf"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/clamav-config
+              readOnly: true
+            - name: signatures
+              mountPath: /var/lib/clamav
+            - name: tmp
+              mountPath: /tmp
+              subPath: freshclam
+      volumes:
+        - name: config
+          configMap:
+            name: clamav-config
+        # Downloaded again when the pod starts: nothing here needs a backup.
+        - name: signatures
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  namespace: infra
+  labels:
+    app: clamav
+spec:
+  selector:
+    app: clamav
+  ports:
+    - name: clamd
+      port: 3310
+      targetPort: clamd
+
+---
+# clamd answers anyone who connects: only the application namespaces may.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clamav-application-access
+  namespace: infra
+spec:
+  podSelector:
+    matchLabels:
+      app: clamav
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [apps, corp]
+        - namespaceSelector:
+            matchLabels:
+              swirl-cloud.io/application-workloads: "true"
+      ports:
+        - {protocol: TCP, port: 3310}

@@ -136,6 +136,31 @@ The nightly backup copies each SQLite database with `VACUUM INTO` (the image's
 writable, and each directory with `tar`. A copy that fails fails the backup run
 ([coverage](../operations.md#coverage-and-recovery-points)).
 
+## Malware scanning
+
+ClamAV runs once in `infra` for every application (`k8s/platform/clamav.yaml`).
+An application scans a file by opening TCP `clamav.<internal zone>:3310` (the
+internal zone is `INTERNAL_DNS_ZONE`, for example `clamav.internal.example.com`,
+or `clamav.infra.svc.cluster.local`) and speaking clamd's `INSTREAM` protocol:
+send `zINSTREAM\0`, then the file in chunks each preceded by its length as a
+4-byte big-endian integer, then a zero length. The answer is `stream: OK`,
+`stream: <signature> FOUND`, or `INSTREAM size limit exceeded. ERROR` beyond
+12 MB. `zPING\0` answers `PONG`.
+
+| Property | Value |
+|---|---|
+| Reachable from | `apps`, `corp` and namespaces labelled `swirl-cloud.io/application-workloads` |
+| Largest file | 12 MB (`StreamMaxLength`) |
+| Parallel scans | 4; further connections wait |
+| Signatures | Downloaded at start, refreshed every two hours; reloads hold scans for seconds |
+| Memory | About 1.5 GiB requested, 2.5 GiB at most |
+| Stored | Nothing: files are scanned in memory and dropped |
+
+One pod serves every application, so decide what happens while it restarts or
+loads signatures (a minute or more): refusing the file and asking to try again is
+the safe default. The pod's availability is covered by the
+`KubernetesDeploymentUnavailable` alert.
+
 ## Single-target compatibility (version 1)
 
 One local Application with a repository-local Kustomize directory or Helm chart

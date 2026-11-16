@@ -316,6 +316,7 @@ change and ask the owner before pushing it.
 - [x] Kafka cluster ID per installation: the installer generates one when the cluster has no Kafka storage, records it in `infra/swirl-cloud-identity` and the Argo CD Application (`kafkaClusterId`), and reruns, Ansible and migrations reuse it; installations made before keep `8ipNY9RxQtWkattTais5yQ`, read from the running StatefulSet when not recorded ([identity inputs](docs/deployment.md#organization-and-installation-identity)). *(2026-10-27)*
 - [ ] Decide whether Redis key-name visibility through `KEYS`/`SCAN` is acceptable for shared environments; document the boundary or use separate instances where metadata isolation is required. *Progress 2026-10-27:* the boundary is documented ([onboarding](docs/guides/application-onboarding.md): key names must not hold secrets or personal data); the choice waits in [Needs Input](#needs-input).
 - [x] Datastore exporters for PostgreSQL, MongoDB, Redis and Kafka; `DatastoreDown` alerts. *(live)*
+- [x] Malware scanning for applications: ClamAV 1.5.4 (`k8s/platform/clamav.yaml`), `clamd` on TCP 3310 for the application namespaces only, signatures downloaded at start and every two hours by `freshclam` beside it, non-root on a read-only filesystem (2026-11-17; Indezy scans the documents its members share). Not yet rehearsed on the cluster: check the first start's download and memory.
 - [ ] PostgreSQL/Kafka HA migrations have only been tested offline and against an isolated SQL canary; no three-host rehearsal.
 
 ### 11. Identity and SSO (Keycloak + OAuth2 Proxy)

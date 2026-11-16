@@ -124,6 +124,16 @@ components:
     support_source: https://github.com/axllent/mailpit/releases
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
+  - name: docker.io/clamav/clamav
+    licence: GPL-2.0-only
+    source: https://github.com/Cisco-Talos/clamav
+    maintainer: Cisco Talos
+    jurisdiction: United States
+    end_of_life: no-date
+    support_source: https://docs.clamav.net/faq/faq-eol.html
+    customer_use: allowed
+    obligations: Offer the corresponding source with any copy distributed; run unmodified, the image is used as published.
+    notes: 1.5 is supported until four months after 1.7 is published; its signatures stop four months after 1.7 too.
   - name: docker.io/curlimages/curl
     licence: curl AND MIT
     source: https://github.com/curl/curl-container
