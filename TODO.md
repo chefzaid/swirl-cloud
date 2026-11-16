@@ -335,6 +335,7 @@ change and ask the owner before pushing it.
 - [x] Keycloak metrics scraped; `KeycloakPasswordFailuresHigh` alert. *(live, 2026-10-04)*
 - [ ] Keycloak runs one replica outside HA (§15).
 - [ ] Sign-in at `auth.<domain>` (`auth.swirlit.dev` on this installation) instead of `keycloak.<domain>`, so the URL does not reveal the tech stack. Rename Keycloak's hostname and update every reference to it in the applications, platform services and docs. The hostname is part of the OIDC issuer (`https://keycloak.<domain>/auth/realms/<realm>`) that every client checks in its tokens, so the applications, the platform services, OAuth2 Proxy, Cloudflare Access and the K3s API server (`configure-k3s-oidc.sh`) switch together.
+- [ ] Every sign-in button reads "SSO" instead of naming Keycloak ("Sign in with Keycloak", "Log in via Keycloak"), for the same reason: GitLab (`label: 'Keycloak'` in `k8s/platform/gitlab.yaml`), Grafana (`GF_AUTH_GENERIC_OAUTH_NAME` in `k8s/platform/monitoring.yaml`), Argo CD (`name: Keycloak` in `oidc.config`, `config/argocd-values.yaml`), Kafka UI (`AUTH_OAUTH2_CLIENT_KEYCLOAK_CLIENTNAME` in `k8s/platform/kafka-ui.yaml`), and Vault, Portainer, Odoo, SonarQube, Zammad and the onboarded applications wherever their button names the provider. Done when no sign-in page on the platform shows the word Keycloak.
 
 ### 12. Source, CI and registry (GitLab + Runner)
 
