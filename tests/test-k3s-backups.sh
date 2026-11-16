@@ -61,6 +61,8 @@ run_backup() (
     kubectl() {
         local gitlab_exec='exec -n infra gitlab-5c8d7-new -c gitlab --'
         [[ -n "${MOCK_CLUSTER:-}" ]] || return 1
+        # Exec streams go through SPDY; WebSocket streams cut large dumps short.
+        [[ "$1" != exec || "${KUBECTL_REMOTE_COMMAND_WEBSOCKETS:-}" == false ]] || return 1
         case "$*" in
             'get --raw=/readyz') ;;
             'get persistentvolumeclaims -A -o yaml') printf 'kind: List\nitems: []\n' ;;

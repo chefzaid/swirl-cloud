@@ -38,6 +38,11 @@ offsite_unmount() {
   [[ "$offsite_mounted" == false ]] || umount "$OFFSITE_MOUNT" || true
   offsite_mounted=false
 }
+# kubectl's WebSocket streams (the default since Kubernetes 1.30) close before
+# the end of a large exec stream with stdin: on 2026-11-16 two of four pg_dumpall
+# streams failed with "websocket: close 1006", while eight through SPDY ended
+# complete.
+export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 # Newest archives always kept; on a filesystem of RETENTION_TIERS_MIN_GIB or more,
 # also the newest archive of each of the last RETENTION_DAYS days, RETENTION_WEEKS
