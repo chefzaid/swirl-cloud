@@ -285,7 +285,7 @@ def kafka_quotas(spec):
 
 
 def validate_kafka_quotas(output, spec):
-    found = dict(re.findall(r"\b(producer_byte_rate|consumer_byte_rate|controller_mutation_rate)=([0-9.]+)", output))
+    found = dict(re.findall(r"\b(producer_byte_rate|consumer_byte_rate|controller_mutation_rate)=([0-9.]+(?:E[0-9]+)?)", output))
     if {key: float(value) for key, value in found.items()} != {key: float(value) for key, value in KAFKA_QUOTAS[spec["environment"]].items()}:
         raise ServiceError("Kafka did not keep the environment's quotas")
 

@@ -156,6 +156,12 @@ class DataContract(unittest.TestCase):
             data.validate_kafka_quotas(described.replace("4194304.0", "1048576000.0"), identity)
         with self.assertRaisesRegex(data.ServiceError, "quotas"):
             data.validate_kafka_quotas("", identity)
+        # Kafka prints 10^7 and more in Java's scientific notation, as for prod.
+        described = ("Quota configs for user-principal 'swirl_demo_app_prod' are consumer_byte_rate=3.3554432E7, "
+                     "controller_mutation_rate=10.0, producer_byte_rate=1.6777216E7")
+        data.validate_kafka_quotas(described, data.identity("swirl-demo-app", "prod"))
+        with self.assertRaisesRegex(data.ServiceError, "quotas"):
+            data.validate_kafka_quotas(described.replace("1.6777216E7", "1.6777216E8"), data.identity("swirl-demo-app", "prod"))
 
     def test_existing_broad_kafka_permissions_stop_reconciliation(self):
         identity = data.identity("swirl-demo-app", "int")
