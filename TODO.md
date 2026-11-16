@@ -334,6 +334,7 @@ change and ask the owner before pushing it.
 - [x] Keycloak emails through the platform mail relay (§27). *(live, 2026-10-09)*
 - [x] Keycloak metrics scraped; `KeycloakPasswordFailuresHigh` alert. *(live, 2026-10-04)*
 - [ ] Keycloak runs one replica outside HA (§15).
+- [ ] Sign-in at `auth.<domain>` (`auth.swirlit.dev` on this installation) instead of `keycloak.<domain>`, so the URL does not reveal the tech stack. Rename Keycloak's hostname and update every reference to it in the applications, platform services and docs. The hostname is part of the OIDC issuer (`https://keycloak.<domain>/auth/realms/<realm>`) that every client checks in its tokens, so the applications, the platform services, OAuth2 Proxy, Cloudflare Access and the K3s API server (`configure-k3s-oidc.sh`) switch together.
 
 ### 12. Source, CI and registry (GitLab + Runner)
 
@@ -1145,6 +1146,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Change records, control calendar and outside exposure check | What auditors and buyers ask to see; a location outside the platform for the scan | §46 |
 | P2 | Major-version upgrades of data stores and Odoo, and kept Kubernetes events | `--upgrade` (§32) and a restored copy to rehearse on; end-of-life dates from the licence register | §46 |
 | P2 | Branding as an installation input | Owner's choice ([Needs Input](#needs-input)); a test installation under another name shows the chosen brand on the sign-in pages, the portal and emails | §32 |
+| P2 | Sign-in at `auth.<domain>` instead of `keycloak.<domain>` | Every OIDC client, the edge and the docs moved to the new issuer in one change; no reference to the old hostname left | §11 |
 | P2 | Realms, an access role per service and application, administration per realm and the portal each person sees | Realm ADR first; today's implicit rights removed ([Bugs to fix](#bugs-to-fix)); a new account opens nothing until a role is granted | §47 |
 | P2 | Tickets for IT support and access rights, end-dated access, owner access reviews and IT charter acceptance | Zammad installed (§40) and the roles above; a requested role is granted from the ticket without an administrator | §40, §47 |
 | P2 | Setup checklist, mail catcher for non-production, package proxy and GitLab Pages | Useful from the first installation; the mail catcher before production-like test data (§46); the proxy before strict and offline installations build software (§32–33) | §48 |
