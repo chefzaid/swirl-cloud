@@ -260,10 +260,15 @@ environment or Ansible Vault; never commit credentials or generated configuratio
 - **Public DNS, TLS and Access:** see [Cloudflare setup](dns.md#cloudflare).
   `CONFIGURE_CLOUDFLARE=false` uses local TLS and keeps existing TLS secrets.
 - **Encrypted offsite backups:** `CONFIGURE_OFFSITE_BACKUPS=true` with
-  `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_REGION`,
-  `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` and `BACKUP_REPOSITORY_PASSWORD`
-  (16+ characters; keep a copy outside the cluster). See
-  [backup and recovery](operations.md#backups-and-recovery).
+  `BACKUP_REPOSITORY_PASSWORD` (16+ characters, or `BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH`
+  down to 12 as an accepted risk; keep a copy outside the cluster) and either
+  `BACKUP_STORAGE=s3` with `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`,
+  `BACKUP_S3_REGION`, `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY`, or
+  `BACKUP_STORAGE=ftp` with `BACKUP_FTP_HOST` (the FTPS name), `BACKUP_FTP_USER`,
+  `BACKUP_FTP_PASSWORD` and `BACKUP_NFS_EXPORT` (`host:/path`, for Longhorn).
+  `BACKUP_TIME` (`HH:MM` and a time zone), `LONGHORN_BACKUP_CRON` (UTC),
+  `LONGHORN_BACKUP_EXCLUDE` and `BACKUP_KEEP_LOCAL=false` (no archive left on the
+  server) adjust it. See [backup and recovery](operations.md#backups-and-recovery).
 - **Platform mail:** `CONFIGURE_PLATFORM_MAIL=true` with `PLATFORM_MAIL_HOST`,
   `PLATFORM_MAIL_USERNAME` and `PLATFORM_MAIL_PASSWORD`; the rest has defaults. See
   [platform mail](guides/platform-mail.md).

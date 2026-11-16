@@ -539,18 +539,65 @@ for archive_name in "${archives[@]}"; do
   [[ -n "${keep[$archive_name]:-}" ]] || rm -f -- "$BACKUP_DIR/$archive_name" "$BACKUP_DIR/$archive_name.sha256"
 done
 
+# The server itself, for a rebuild on a reinstalled system: its configuration,
+# the operator's home with the installation inputs, K3s's own state (datastore,
+# token, certificates) and Vault's unseal files. Longhorn backs up the volumes;
+# images, caches and build output are pulled or rebuilt.
+HOST_BACKUP_PATHS="${HOST_BACKUP_PATHS:-/etc /root /home /usr/local /opt /var/spool/cron /var/lib/swirl-cloud $K3S_DATA_DIR/server $K3S_DATA_DIR/agent/etc}"
+HOST_BACKUP_STAGING="${HOST_BACKUP_STAGING:-${RUNTIME_DIRECTORY:-/run/swirl-cloud-k3s-backup}/host}"
+backup_host_files() {
+  local path
+  local -a paths=()
+  rm -rf -- "$HOST_BACKUP_STAGING"
+  install -d -m 0700 "$HOST_BACKUP_STAGING"
+  # The live database changes under a file copy; SQLite's online backup gives a
+  # consistent one. An etcd server keeps its own snapshots under server/db.
+  [[ "$DATASTORE" != sqlite ]] || sqlite3 "$K3S_DB" ".timeout 60000" ".backup '$HOST_BACKUP_STAGING/state.db'"
+  # What a reinstallation has to match: packages, disks, addresses and K3s.
+  dpkg-query -W -f '${Package}\t${Version}\n' > "$HOST_BACKUP_STAGING/packages.tsv" 2>/dev/null || true
+  apt-mark showmanual > "$HOST_BACKUP_STAGING/packages-manual.txt" 2>/dev/null || true
+  lsblk -J -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,UUID > "$HOST_BACKUP_STAGING/disks.json" 2>/dev/null || true
+  cat /proc/mdstat > "$HOST_BACKUP_STAGING/mdstat.txt" 2>/dev/null || true
+  ip -j address > "$HOST_BACKUP_STAGING/addresses.json" 2>/dev/null || true
+  k3s --version > "$HOST_BACKUP_STAGING/k3s-version.txt" 2>/dev/null || true
+  for path in $HOST_BACKUP_PATHS "$HOST_BACKUP_STAGING"; do
+    [[ ! -e "$path" ]] || paths+=("$path")
+  done
+  restic backup --tag swirl-cloud-host --one-file-system --exclude-caches \
+    --exclude "$K3S_DATA_DIR/server/db/state.db" --exclude "$K3S_DATA_DIR/server/db/state.db-*" \
+    --exclude "$K3S_DATA_DIR/server/db/etcd" \
+    --exclude '/home/**/node_modules' --exclude '/home/**/target' --exclude '/home/**/.cache' \
+    --exclude '/home/**/.npm' --exclude '/home/**/.angular' --exclude '/home/**/coverage' \
+    --exclude '/home/**/test-results' --exclude '/home/**/playwright-report' --exclude '/home/**/__pycache__' \
+    --exclude /root/.cache "${paths[@]}"
+  rm -rf -- "$HOST_BACKUP_STAGING"
+}
+
 if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
   command -v restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
   if ! restic snapshots --no-lock >/dev/null 2>&1; then
     restic init
   fi
   restic backup --tag swirl-cloud-k3s "$ARCHIVE" "$ARCHIVE.sha256"
+  if [[ "${BACKUP_KEEP_LOCAL:-true}" == false ]]; then
+    # The off-node copy is the backup: one on this server does not survive its
+    # loss. A failed upload above leaves the archive until a later run succeeds.
+    find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'k3s-*.tar.gz' -o -name 'k3s-*.tar.gz.sha256' \) -delete
+  fi
+  backup_host_files
   # Each archive has its own path, so the default host+paths grouping would keep
   # every snapshot forever.
-  restic forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune
+  for tag in swirl-cloud-k3s swirl-cloud-host; do
+    restic forget --tag "$tag" --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12
+  done
+  restic prune
 fi
 
-echo "Created $ARCHIVE"
+if [[ -e "$ARCHIVE" ]]; then
+  echo "Created $ARCHIVE"
+else
+  echo "Stored $(basename "$ARCHIVE") and the host files off-node; no copy is kept on this server."
+fi
 # Exit 3: an archive exists without the parts listed above.
 if (( ${#failures[@]} > 0 )); then
   printf 'Incomplete: %s\n' "${failures[@]}" >&2

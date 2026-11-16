@@ -425,7 +425,9 @@ nightly backup and optional off-node storage.
 [backup-k3s.sh](../scripts/backup-k3s.sh) writes root-only archives to
 `/var/backups/swirl-cloud/k3s`: the K3s datastore, server credentials and
 configuration, Vault and database backups, and GitLab's `/etc/gitlab` with its
-version and image under `gitlab/`.
+version and image under `gitlab/`. With off-node storage it then uploads the
+archive and backs up the server itself (below), and with `BACKUP_KEEP_LOCAL=false`
+no archive stays on the server once its upload succeeds.
 
 The timer runs the installed copy `/usr/local/sbin/swirl-cloud-k3s-backup`. Script
 changes apply only after rerunning `./scripts/configure-k3s-backups.sh` on the
@@ -458,8 +460,8 @@ sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 
 ### Coverage and recovery points
 
-The archive runs at 02:15 UTC (installer runs add one each). Locally the newest
-7 are kept; on a backup filesystem of 400 GiB or more also the newest archive of
+The archive runs daily at `BACKUP_TIME` (02:15 UTC unless set; installer runs
+add one each). Locally the newest 7 are kept, unless `BACKUP_KEEP_LOCAL=false`; on a backup filesystem of 400 GiB or more also the newest archive of
 each of the last 14 days, 8 ISO weeks and 12 months (`RETENTION_COUNT`,
 `RETENTION_DAYS`, `RETENTION_WEEKS`, `RETENTION_MONTHS`). restic keeps 7 daily, 5
 weekly and 12 monthly. A part that fails (GitLab's native backup, the evidence
@@ -489,16 +491,25 @@ Recovery times are unmeasured (restore drill, TODO §16).
 | Redis, Trivy reports | Not backed up | None | Rebuildable caches. |
 | Portainer, DBGate settings | Their volumes, with volume backups | None until then | Low value; recreated by the installer. |
 | Kubernetes PVC and Longhorn volume inventories | YAML in the nightly archive | Up to 24 h | Maps restored volumes back to claims. |
+| The server itself: `/etc`, `/root`, `/home` without build output and caches, `/usr/local`, `/opt`, crontabs, K3s server state (a consistent SQLite copy, token, certificates, manifests), Vault's unseal key and bootstrap token, installed packages, disk and address layout | restic snapshot tagged `swirl-cloud-host`, after the archive (off-node storage only) | Up to 24 h | Container images, Docker data, logs and Longhorn's replica files stay out; the staged copies are under `/run/swirl-cloud-k3s-backup/host` in the snapshot. |
+| Every Longhorn volume except `LONGHORN_BACKUP_EXCLUDE` (the runner cache and Trivy's database by default) | Longhorn's daily recurring backup `swirl-cloud-daily-backup` (`LONGHORN_BACKUP_CRON`, UTC; 14 kept) to the `default` BackupTarget | Up to 24 h, crash-consistent | Volumes join through Longhorn's `default` group, new ones included; an excluded volume carries only the `swirl-cloud` group, which keeps its weekly trim. Databases come back as after a power cut; the archive's dumps are the consistent copy. |
 
-As of 2026-11-13, `swirl-node-01` has no off-node storage and Longhorn's
-`default` BackupTarget is unavailable: every copy shares the host's failure
-domain. Configure the S3 target in the setup hub (Configure → Backups).
+Off-node storage is either S3-compatible (`BACKUP_STORAGE=s3`) or an FTP backup
+space that also exports NFS (`BACKUP_STORAGE=ftp`, such as OVHcloud's Backup
+Storage). restic encrypts the archives and host files before they leave the
+server, in one repository: in S3 directly, or over FTPS through rclone (two
+connections, since such spaces allow three per address). Longhorn backs the
+volumes up to the same storage through its `default` BackupTarget: the bucket, or
+the NFS export (version 3, `nolock`, soft mount). Credentials are root-only in
+`/etc/swirl-cloud/backup.env` (the FTP password obscured as rclone stores it) and,
+for S3, the Longhorn credential Secret. Keep the repository password off the
+server: without it nothing restores. `BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH`
+(16 by default, 12 at least) lowers its floor as an accepted risk.
 
-Off-node, restic encrypts and uploads archives to S3-compatible storage, and
-Longhorn backs up enrolled volumes to the same bucket through its `default`
-BackupTarget (daily at 03:15 UTC, 14 kept). Credentials are root-only in
-`/etc/swirl-cloud/backup.env` and the Longhorn credential Secret. Keep the
-recovery password off-host.
+Since 2026-11-16, `swirl-node-01` backs up to its OVHcloud Backup Storage
+(500 GB, `ftpback-rbx3-431`): the archive, the host files and every volume but
+the two caches daily from 06:00 Europe/Paris (Longhorn at 05:00 UTC), with no
+archive kept on the server.
 
 `swirl-cloud-k3s-backup-verify.timer` runs
 [verify-k3s-backup.sh](../scripts/verify-k3s-backup.sh) on Wednesdays at
@@ -515,7 +526,7 @@ A failure, or a backup holding the lock for over an hour, fails the unit
 up to four hours for the lock, then fails. The timer runs
 `/usr/local/sbin/swirl-cloud-k3s-backup-verify`, updated by rerunning
 `configure-k3s-backups.sh`. A rerun in the same week repeats that week's subset;
-the last command reads all data (full egress; keep clear of 02:15 UTC):
+the last command reads all data (full egress; keep clear of the backup time):
 
 ```bash
 sudo systemctl start swirl-cloud-k3s-backup-verify.service
@@ -547,24 +558,46 @@ installation and whenever Vault, K3s or backup credentials change.
 
 ### Restore after losing the host
 
-1. Prepare a host with the same Ubuntu and K3s minor version, and clone this
-   repository at the revision the platform ran.
-2. Decrypt the kit:
-   `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in KIT -out kit.tar && tar -xf kit.tar`.
-3. Get the latest archive from `/var/backups/swirl-cloud/k3s` if the disk
-   survived, otherwise from restic with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD`
-   from the kit's `backup.env` (`restic snapshots --tag swirl-cloud-k3s`, then
-   `restic restore`). Check it against its `.sha256` file.
-4. Restore K3s as `RESTORE.txt` describes, with the server token and encryption
-   files from the archive (or the kit, if the archive predates the keys).
-5. Put `vault-unseal-key` and `vault-bootstrap-token` from the kit in
-   `/var/lib/swirl-cloud` (root, mode `600`), restore or start Vault, and unseal
-   it: `sudo systemctl start swirl-cloud-vault-unseal.service`.
-6. Restore PostgreSQL, MongoDB and the Odoo filestore from `application-data/`,
-   then volumes from Longhorn backups where enabled. Restore `/etc/gitlab` from
-   `gitlab/etc-gitlab.tar` before GitLab starts, on the image in
-   `gitlab/version.txt`.
-7. Run `./install.sh --status`, fix every `FAIL`, and export a new kit.
+A rebuild needs the backup storage's address and login (from the provider's
+panel), the repository password and this repository. In order:
+
+1. Reinstall the same Ubuntu release, with the disk layout of
+   `disks.json` and `mdstat.txt` from the host snapshot, and install `restic`
+   (and `rclone` for an FTP space).
+2. Export what `backup.env` held: `RESTIC_REPOSITORY` and `RESTIC_PASSWORD`, plus
+   the S3 keys or the `RCLONE_CONFIG_OFFSITE_*` settings (type `ftp`, host, user,
+   `PASS` from `rclone obscure -`, `EXPLICIT_TLS=true`, `CONCURRENCY=2`). List the
+   snapshots with `restic snapshots`.
+3. Restore the host files apart, then copy them back:
+   `restic restore latest --tag swirl-cloud-host --target /root/restore`. Copy
+   `/home`, `/root`, `/usr/local`, `/opt`, `/var/spool/cron`, `/var/lib/swirl-cloud`
+   (Vault's unseal key and bootstrap token) and `/var/lib/rancher/k3s/server`; copy
+   `/etc` except what belongs to the new disks and network (`fstab`,
+   `mdadm/mdadm.conf`, `netplan`) when the hardware changed. Reinstall the
+   packages of `packages-manual.txt`.
+4. Put the snapshot's `run/swirl-cloud-k3s-backup/host/state.db` at
+   `/var/lib/rancher/k3s/server/db/state.db` (an etcd server restores from
+   `server/db/snapshots` as `RESTORE.txt` describes), then start K3s:
+   `sudo systemctl start k3s`. The K3s binary, unit and configuration came back
+   with `/usr/local` and `/etc`.
+5. Longhorn comes up with its volumes faulted, their replica files gone. Scale the
+   workloads down, then restore each volume from its latest backup under its
+   previous name, so its PersistentVolume binds again: Longhorn UI → Backup →
+   the volume → **Restore Latest Backup** with **Use Previous Name**, after
+   deleting the faulted volume (not its claim). An excluded cache volume is
+   recreated empty instead.
+6. Vault starts from its restored volume, and `swirl-cloud-vault-unseal.service`
+   unseals it with the restored key. Scale the workloads back up.
+7. A database that does not start cleanly from its volume is restored from the
+   archive's dumps: `restic restore` the newest `swirl-cloud-k3s` snapshot and
+   follow its `RESTORE.txt` (PostgreSQL, MongoDB, the Odoo filestore, GitLab's
+   native backup after `/etc/gitlab`).
+8. Run `./install.sh --status`, fix every `FAIL`, and export a new recovery kit.
+
+The archive alone also rebuilds a cluster on a fresh K3s, as before: get it from
+restic (`restic snapshots --tag swirl-cloud-k3s`, then `restic restore`), check
+it against its `.sha256` file and follow its `RESTORE.txt` with the
+[Vault recovery guide](security.md#upgrade-and-recovery).
 
 This path has not been rehearsed end to end yet (TODO §16).
 

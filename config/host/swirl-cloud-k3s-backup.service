@@ -1,5 +1,5 @@
 [Unit]
-Description=Create consistent K3s, Vault, and application recovery backups
+Description=Create consistent K3s, Vault, application and host recovery backups
 After=k3s.service
 Requires=k3s.service
 
@@ -12,7 +12,7 @@ RuntimeDirectory=swirl-cloud-k3s-backup
 ExecStart=/usr/local/sbin/swirl-cloud-k3s-backup
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectHome=true
+ProtectHome=read-only
 ProtectSystem=strict
 ReadOnlyPaths=/etc/rancher/k3s /etc/swirl-cloud /var/lib/rancher/k3s /var/lib/swirl-cloud
 ReadWritePaths=/var/backups/swirl-cloud/k3s /run/lock

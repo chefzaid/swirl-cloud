@@ -12,7 +12,7 @@ token and encryption configuration, not just a datastore snapshot.
 
 ## Decision
 
-Install `swirl-cloud-k3s-backup.timer` (daily 02:15 UTC ± 15 min) running
+Install `swirl-cloud-k3s-backup.timer` (daily at `BACKUP_TIME`, 02:15 UTC by default) running
 [`backup-k3s.sh`](../../scripts/backup-k3s.sh), which writes a root-only archive
 to `/var/backups/swirl-cloud/k3s` containing:
 

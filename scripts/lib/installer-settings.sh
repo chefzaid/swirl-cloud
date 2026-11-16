@@ -112,11 +112,15 @@ configure_repository_delivery() {
 }
 
 configure_backup_destination() {
+    BACKUP_STORAGE="${BACKUP_STORAGE:-s3}"
+    BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH="${BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH:-16}"
+    # Read by configure-k3s-backups.sh with or without off-node storage.
+    export BACKUP_TIME BACKUP_KEEP_LOCAL LONGHORN_BACKUP_CRON LONGHORN_BACKUP_EXCLUDE
     if [[ -z "$CONFIGURE_OFFSITE_BACKUPS" ]]; then
         if [[ "$AUTO_APPROVE" == "true" ]]; then
-            [[ -n "$BACKUP_S3_ENDPOINT$BACKUP_S3_BUCKET$BACKUP_S3_ACCESS_KEY$BACKUP_S3_SECRET_KEY" ]] && \
+            [[ -n "$BACKUP_S3_ENDPOINT$BACKUP_S3_BUCKET$BACKUP_S3_ACCESS_KEY$BACKUP_S3_SECRET_KEY$BACKUP_FTP_HOST" ]] && \
                 CONFIGURE_OFFSITE_BACKUPS=true || CONFIGURE_OFFSITE_BACKUPS=false
-        elif ask_with_default "Configure encrypted off-node backups in S3-compatible object storage?" "Y"; then
+        elif ask_with_default "Configure encrypted off-node backups?" "Y"; then
             CONFIGURE_OFFSITE_BACKUPS=true
         else
             CONFIGURE_OFFSITE_BACKUPS=false
@@ -132,8 +136,9 @@ configure_backup_destination() {
         export CONFIGURE_OFFSITE_BACKUPS
         return
     fi
+    [[ "$BACKUP_STORAGE" == s3 || "$BACKUP_STORAGE" == ftp ]] || error "BACKUP_STORAGE must be s3 or ftp."
 
-    if [[ "$AUTO_APPROVE" != "true" ]]; then
+    if [[ "$AUTO_APPROVE" != "true" && "$BACKUP_STORAGE" == s3 ]]; then
         cat >&2 <<'EOF'
 
 Prepare S3-compatible backup storage:
@@ -151,20 +156,41 @@ EOF
         installer_prompt_value BACKUP_S3_BUCKET "Private backup bucket" "$BACKUP_S3_BUCKET"
         [[ -n "$BACKUP_S3_ACCESS_KEY" ]] || installer_prompt_secret BACKUP_S3_ACCESS_KEY "S3 access-key ID (input hidden)"
         [[ -n "$BACKUP_S3_SECRET_KEY" ]] || installer_prompt_secret BACKUP_S3_SECRET_KEY "S3 secret access key/API token (input hidden)"
-        if [[ -z "$BACKUP_REPOSITORY_PASSWORD" ]]; then
-            installer_prompt_confirmed_secret BACKUP_REPOSITORY_PASSWORD \
-                "Encryption password for the off-node recovery archive" \
-                "Confirm recovery-archive encryption password" || \
-                error "Backup encryption passwords do not match."
-        fi
+    elif [[ "$AUTO_APPROVE" != "true" ]]; then
+        cat >&2 <<'EOF'
+
+Prepare the FTP backup space (OVHcloud Backup Storage, for one):
+  1. Allow this server's address with FTP and NFS in the space's access list.
+  2. Copy its FTPS host name, login and password, and its NFS export.
+EOF
+        installer_prompt_value BACKUP_FTP_HOST "FTPS host of the backup space" "$BACKUP_FTP_HOST"
+        installer_prompt_value BACKUP_FTP_USER "FTP login of the backup space" "$BACKUP_FTP_USER"
+        [[ -n "$BACKUP_FTP_PASSWORD" ]] || installer_prompt_secret BACKUP_FTP_PASSWORD "FTP password of the backup space (input hidden)"
+        installer_prompt_value BACKUP_NFS_EXPORT "NFS export for Longhorn volumes (host:/path)" "$BACKUP_NFS_EXPORT"
     fi
-    [[ "$BACKUP_S3_ENDPOINT" == https://* ]] || error "BACKUP_S3_ENDPOINT must use HTTPS."
-    [[ "$BACKUP_S3_REGION" =~ ^[A-Za-z0-9._-]+$ ]] || error "BACKUP_S3_REGION is invalid."
-    [[ "$BACKUP_S3_BUCKET" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{1,61}[A-Za-z0-9]$ ]] || error "BACKUP_S3_BUCKET is invalid."
-    [[ -n "$BACKUP_S3_ACCESS_KEY" && -n "$BACKUP_S3_SECRET_KEY" ]] || error "S3 backup credentials are required."
-    (( ${#BACKUP_REPOSITORY_PASSWORD} >= 16 )) || error "The backup encryption password must contain at least 16 characters."
-    export CONFIGURE_OFFSITE_BACKUPS BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET
-    export BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD
+    if [[ "$AUTO_APPROVE" != "true" && -z "$BACKUP_REPOSITORY_PASSWORD" ]]; then
+        installer_prompt_confirmed_secret BACKUP_REPOSITORY_PASSWORD \
+            "Encryption password for the off-node recovery archive" \
+            "Confirm recovery-archive encryption password" || \
+            error "Backup encryption passwords do not match."
+    fi
+    if [[ "$BACKUP_STORAGE" == s3 ]]; then
+        [[ "$BACKUP_S3_ENDPOINT" == https://* ]] || error "BACKUP_S3_ENDPOINT must use HTTPS."
+        [[ "$BACKUP_S3_REGION" =~ ^[A-Za-z0-9._-]+$ ]] || error "BACKUP_S3_REGION is invalid."
+        [[ "$BACKUP_S3_BUCKET" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{1,61}[A-Za-z0-9]$ ]] || error "BACKUP_S3_BUCKET is invalid."
+        [[ -n "$BACKUP_S3_ACCESS_KEY" && -n "$BACKUP_S3_SECRET_KEY" ]] || error "S3 backup credentials are required."
+    else
+        [[ -n "$BACKUP_FTP_HOST" && -n "$BACKUP_FTP_USER" && -n "$BACKUP_FTP_PASSWORD" ]] || error "FTP backup credentials are required."
+        [[ "$BACKUP_NFS_EXPORT" =~ ^[A-Za-z0-9.-]+:/ ]] || error "BACKUP_NFS_EXPORT must be host:/path."
+    fi
+    if [[ ! "$BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH" =~ ^[0-9]+$ ]] || (( BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH < 12 )); then
+        error "BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH must be 12 or more."
+    fi
+    (( ${#BACKUP_REPOSITORY_PASSWORD} >= BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH )) || \
+        error "The backup encryption password must contain at least $BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH characters."
+    export CONFIGURE_OFFSITE_BACKUPS BACKUP_STORAGE BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET
+    export BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH
+    export BACKUP_FTP_HOST BACKUP_FTP_USER BACKUP_FTP_PASSWORD BACKUP_FTP_PATH BACKUP_NFS_EXPORT
 }
 
 # Platform mail relay (ADR 0029): alerts, password resets, GitLab and Odoo.

@@ -10,7 +10,8 @@ TEST_DIR="$(mktemp -d /tmp/swirl-cloud-backup-test.XXXXXX)"
 trap 'rm -r -- "$TEST_DIR"' EXIT
 command -v sqlite3 >/dev/null || { printf 'sqlite3 is required for backup tests.\n' >&2; exit 1; }
 
-mkdir -p "$TEST_DIR/data/server/db" "$TEST_DIR/config/config.yaml.d" "$TEST_DIR/vault" "$TEST_DIR/locks"
+mkdir -p "$TEST_DIR/data/server/db" "$TEST_DIR/config/config.yaml.d" "$TEST_DIR/vault" "$TEST_DIR/locks" "$TEST_DIR/host-files"
+printf 'fixture-host\n' > "$TEST_DIR/host-files/hostname"
 printf 'fixture-token\n' > "$TEST_DIR/data/server/token"
 printf 'node-ip: 10.40.0.1\n' > "$TEST_DIR/config/config.yaml.d/20-swirl-cloud-private-node-network.yaml"
 sqlite3 "$TEST_DIR/data/server/db/state.db" <<'SQL'
@@ -23,8 +24,10 @@ SQL
 run_backup() (
     export BACKUP_DIR="$TEST_DIR/$1" K3S_DATA_DIR="$TEST_DIR/data" K3S_CONFIG_DIR="$TEST_DIR/config"
     export BACKUP_ENVIRONMENT_FILE="${MOCK_BACKUP_ENVIRONMENT:-$TEST_DIR/absent.env}"
+    export HOST_BACKUP_PATHS="$TEST_DIR/host-files" HOST_BACKUP_STAGING="$TEST_DIR/$1-host"
     # Off-node settings come only from the environment file, never the caller.
-    unset K3S_DB RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+    unset K3S_DB RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION BACKUP_KEEP_LOCAL
+    unset RCLONE_CONFIG_OFFSITE_TYPE RCLONE_CONFIG_OFFSITE_HOST RCLONE_CONFIG_OFFSITE_USER RCLONE_CONFIG_OFFSITE_PASS
     install() {
         local -a arguments=()
         while [[ $# -gt 0 ]]; do
@@ -387,7 +390,11 @@ cat > "$TEST_DIR/bin/restic" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 store="$MOCK_RESTIC_STORE"
-[[ "${RESTIC_REPOSITORY:-}" == s3:https://* && -n "${RESTIC_PASSWORD:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] || {
+case "${RESTIC_REPOSITORY:-}" in
+    s3:https://*) credentials="${AWS_SECRET_ACCESS_KEY:-}" ;;
+    rclone:offsite:*) [[ "${RCLONE_CONFIG_OFFSITE_TYPE:-}" == ftp ]] && credentials="${RCLONE_CONFIG_OFFSITE_PASS:-}" ;;
+esac
+[[ -n "${credentials:-}" && -n "${RESTIC_PASSWORD:-}" ]] || {
     printf 'Fatal: the repository or its credentials are not in the environment\n' >&2
     exit 1
 }
@@ -405,7 +412,12 @@ case "$*" in
         jq --arg id "$id" '. + [{id: $id, paths: $ARGS.positional}]' --args "$@" \
             < "$store/snapshots.json" > "$store/snapshots.next"
         mv "$store/snapshots.next" "$store/snapshots.json" ;;
-    'forget --tag swirl-cloud-k3s --group-by host,tags '*) ;;
+    'backup --tag swirl-cloud-host '*)
+        # The staged datastore copy must be a readable database, not a torn file.
+        for path in "$@"; do
+            [[ ! -f "$path/state.db" ]] || sqlite3 "$path/state.db" 'SELECT name FROM kine WHERE id = 2' > "$store/host-state"
+        done ;;
+    'forget --tag swirl-cloud-k3s --group-by host,tags '*|'forget --tag swirl-cloud-host --group-by host,tags '*|prune) ;;
     'snapshots --tag swirl-cloud-k3s --json') cat "$store/snapshots.json" ;;
     'check --read-data-subset '*) exit "${MOCK_RESTIC_CHECK_STATUS:-0}" ;;
     'dump '*) cat "$store/$2$3" ;;
@@ -425,7 +437,31 @@ MOCK_RESTIC_STORE="$TEST_DIR/restic" run_backup offsite >/dev/null
 offsite_archive="$(find "$TEST_DIR/offsite" -name 'k3s-*.tar.gz')"
 grep -Fxq init "$TEST_DIR/restic/calls"
 grep -Fxq "backup --tag swirl-cloud-k3s $offsite_archive $offsite_archive.sha256" "$TEST_DIR/restic/calls"
-grep -Fxq 'forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune' "$TEST_DIR/restic/calls"
+for tag in swirl-cloud-k3s swirl-cloud-host; do
+    grep -Fxq "forget --tag $tag --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12" "$TEST_DIR/restic/calls"
+done
+[[ "$(tail -1 "$TEST_DIR/restic/calls")" == prune ]]
+# The host files: listed paths and the staged files, never the live datastore.
+host_call="$(grep '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic/calls")"
+[[ "$host_call" == *" --exclude $TEST_DIR/data/server/db/state.db "* && "$host_call" == *" --exclude-caches "* ]]
+[[ "$host_call" == *" $TEST_DIR/host-files $TEST_DIR/offsite-host" ]]
+[[ "$(cat "$TEST_DIR/restic/host-state")" == /test && ! -e "$TEST_DIR/offsite-host" ]]
+[[ -f "$offsite_archive" ]]
+
+# An FTP backup space through rclone, keeping no archive on the server.
+mkdir -p "$TEST_DIR/restic-ftp"
+{
+    printf 'RESTIC_REPOSITORY=%q\n' 'rclone:offsite:swirl-cloud/restic'
+    printf 'RESTIC_PASSWORD=%q\n' 'fixture repository password'
+    printf 'RCLONE_CONFIG_OFFSITE_TYPE=ftp\nRCLONE_CONFIG_OFFSITE_HOST=ftp.example.test\n'
+    printf 'RCLONE_CONFIG_OFFSITE_USER=fixture\nRCLONE_CONFIG_OFFSITE_PASS=%q\n' 'obscured-fixture'
+    printf 'BACKUP_KEEP_LOCAL=false\n'
+} > "$TEST_DIR/backup-ftp.env"
+seed_archives offsite-ftp
+MOCK_BACKUP_ENVIRONMENT="$TEST_DIR/backup-ftp.env" MOCK_RESTIC_STORE="$TEST_DIR/restic-ftp" run_backup offsite-ftp >/dev/null
+grep -q '^backup --tag swirl-cloud-k3s .*/offsite-ftp/k3s-.*\.tar\.gz ' "$TEST_DIR/restic-ftp/calls"
+grep -q '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic-ftp/calls"
+[[ -z "$(find "$TEST_DIR/offsite-ftp" -maxdepth 1 -name 'k3s-*')" ]] || { printf 'Archives stayed on the server\n' >&2; exit 1; }
 offsite_id="$(jq -r '.[0].id' "$TEST_DIR/restic/snapshots.json")"
 # Older snapshots listed before and after it must not be taken for the newest archive.
 jq --arg older "$TEST_DIR/offsite/k3s-20200101T000000Z.tar.gz" --arg old "$TEST_DIR/offsite/k3s-20200102T000000Z.tar.gz" \

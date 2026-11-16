@@ -184,6 +184,20 @@
     backup_s3_access_key: "{{ lookup('ansible.builtin.env', 'BACKUP_S3_ACCESS_KEY') }}"
     backup_s3_secret_key: "{{ lookup('ansible.builtin.env', 'BACKUP_S3_SECRET_KEY') }}"
     backup_repository_password: "{{ lookup('ansible.builtin.env', 'BACKUP_REPOSITORY_PASSWORD') }}"
+    backup_storage: "{{ lookup('ansible.builtin.env', 'BACKUP_STORAGE') | default('s3', true) }}"
+    backup_ftp_host: "{{ lookup('ansible.builtin.env', 'BACKUP_FTP_HOST') }}"
+    backup_ftp_user: "{{ lookup('ansible.builtin.env', 'BACKUP_FTP_USER') }}"
+    backup_ftp_password: "{{ lookup('ansible.builtin.env', 'BACKUP_FTP_PASSWORD') }}"
+    backup_ftp_path: "{{ lookup('ansible.builtin.env', 'BACKUP_FTP_PATH') | default('swirl-cloud', true) }}"
+    backup_nfs_export: "{{ lookup('ansible.builtin.env', 'BACKUP_NFS_EXPORT') }}"
+    backup_repository_password_min_length: >-
+      {{ lookup('ansible.builtin.env', 'BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH') | default('16', true) | int }}
+    backup_keep_local: "{{ lookup('ansible.builtin.env', 'BACKUP_KEEP_LOCAL') | default('true', true) | bool }}"
+    backup_time: "{{ lookup('ansible.builtin.env', 'BACKUP_TIME') | default('02:15 UTC', true) }}"
+    longhorn_backup_cron: "{{ lookup('ansible.builtin.env', 'LONGHORN_BACKUP_CRON') | default('15 3 * * *', true) }}"
+    longhorn_backup_exclude: >-
+      {{ lookup('ansible.builtin.env', 'LONGHORN_BACKUP_EXCLUDE')
+         | default('gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0', true) }}
     gitlab_admin_token: "{{ lookup('ansible.builtin.env', 'GITLAB_ADMIN_TOKEN') }}"
     github_admin_token: "{{ lookup('ansible.builtin.env', 'GITHUB_ADMIN_TOKEN') }}"
     repository_sync_enabled: >-
@@ -419,16 +433,24 @@
     - name: Validate optional off-node backup inputs
       ansible.builtin.assert:
         that:
-          - backup_s3_endpoint is match('^https://')
-          - backup_s3_bucket | length > 2
-          - backup_s3_region | length > 0
-          - backup_s3_access_key | length > 0
-          - backup_s3_secret_key | length > 0
-          - backup_repository_password | length >= 16
+          - backup_storage in ['s3', 'ftp']
+          - backup_storage != 's3' or backup_s3_endpoint is match('^https://')
+          - backup_storage != 's3' or backup_s3_bucket | length > 2
+          - backup_storage != 's3' or backup_s3_region | length > 0
+          - backup_storage != 's3' or backup_s3_access_key | length > 0
+          - backup_storage != 's3' or backup_s3_secret_key | length > 0
+          - backup_storage != 'ftp' or backup_ftp_host | length > 0
+          - backup_storage != 'ftp' or backup_ftp_user | length > 0
+          - backup_storage != 'ftp' or backup_ftp_password | length > 0
+          - backup_storage != 'ftp' or backup_nfs_export is match('^[A-Za-z0-9.-]+:/')
+          - backup_repository_password_min_length | int >= 12
+          - backup_repository_password | length >= backup_repository_password_min_length | int
         fail_msg: >-
-          Off-node backups require BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET,
-          BACKUP_S3_REGION, BACKUP_S3_ACCESS_KEY, BACKUP_S3_SECRET_KEY, and a
-          16-character BACKUP_REPOSITORY_PASSWORD.
+          Off-node backups require BACKUP_STORAGE s3 (BACKUP_S3_ENDPOINT,
+          BACKUP_S3_BUCKET, BACKUP_S3_REGION, BACKUP_S3_ACCESS_KEY,
+          BACKUP_S3_SECRET_KEY) or ftp (BACKUP_FTP_HOST, BACKUP_FTP_USER,
+          BACKUP_FTP_PASSWORD, BACKUP_NFS_EXPORT), and a BACKUP_REPOSITORY_PASSWORD
+          of BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH (16 by default, 12 at least) characters.
       no_log: true
       when: offsite_backups_enabled
 
@@ -661,6 +683,17 @@
         BACKUP_S3_ACCESS_KEY: "{{ backup_s3_access_key }}"
         BACKUP_S3_SECRET_KEY: "{{ backup_s3_secret_key }}"
         BACKUP_REPOSITORY_PASSWORD: "{{ backup_repository_password }}"
+        BACKUP_STORAGE: "{{ backup_storage }}"
+        BACKUP_FTP_HOST: "{{ backup_ftp_host }}"
+        BACKUP_FTP_USER: "{{ backup_ftp_user }}"
+        BACKUP_FTP_PASSWORD: "{{ backup_ftp_password }}"
+        BACKUP_FTP_PATH: "{{ backup_ftp_path }}"
+        BACKUP_NFS_EXPORT: "{{ backup_nfs_export }}"
+        BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH: "{{ backup_repository_password_min_length }}"
+        BACKUP_KEEP_LOCAL: "{{ backup_keep_local | ternary('true', 'false') }}"
+        BACKUP_TIME: "{{ backup_time }}"
+        LONGHORN_BACKUP_CRON: "{{ longhorn_backup_cron }}"
+        LONGHORN_BACKUP_EXCLUDE: "{{ longhorn_backup_exclude }}"
       no_log: true
 
     - name: Apply role-aware control-plane host security policy
@@ -757,6 +790,17 @@
         BACKUP_S3_ACCESS_KEY: "{{ backup_s3_access_key }}"
         BACKUP_S3_SECRET_KEY: "{{ backup_s3_secret_key }}"
         BACKUP_REPOSITORY_PASSWORD: "{{ backup_repository_password }}"
+        BACKUP_STORAGE: "{{ backup_storage }}"
+        BACKUP_FTP_HOST: "{{ backup_ftp_host }}"
+        BACKUP_FTP_USER: "{{ backup_ftp_user }}"
+        BACKUP_FTP_PASSWORD: "{{ backup_ftp_password }}"
+        BACKUP_FTP_PATH: "{{ backup_ftp_path }}"
+        BACKUP_NFS_EXPORT: "{{ backup_nfs_export }}"
+        BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH: "{{ backup_repository_password_min_length }}"
+        BACKUP_KEEP_LOCAL: "{{ backup_keep_local | ternary('true', 'false') }}"
+        BACKUP_TIME: "{{ backup_time }}"
+        LONGHORN_BACKUP_CRON: "{{ longhorn_backup_cron }}"
+        LONGHORN_BACKUP_EXCLUDE: "{{ longhorn_backup_exclude }}"
       no_log: true
       when:
         - longhorn_enabled

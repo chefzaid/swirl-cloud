@@ -140,8 +140,30 @@ FR = {
     "Deploy/upgrade platform services?": "Déployer ou mettre à jour les services de la plateforme ?",
     "Install/upgrade Descheduler resources?": "Installer ou mettre à jour le Descheduler ?",
     "Install/upgrade Argo CD?": "Installer ou mettre à jour Argo CD ?",
-    "Configure encrypted off-node backups in S3-compatible storage?":
-        "Configurer des sauvegardes chiffrées hors du serveur vers un stockage compatible S3 ?",
+    "Configure encrypted off-node backups?": "Configurer des sauvegardes chiffrées hors du serveur ?",
+    "Off-node backup storage": "Stockage des sauvegardes hors du serveur",
+    "s3: object storage. ftp: an FTP backup space that also exports NFS, such as OVHcloud Backup Storage.":
+        "s3 : stockage objet. ftp : un espace de sauvegarde FTP qui exporte aussi en NFS, comme le Backup Storage d'OVHcloud.",
+    "FTPS host of the backup space": "Hôte FTPS de l'espace de sauvegarde",
+    "The name its TLS certificate carries; at OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net.":
+        "Le nom que porte son certificat TLS ; chez OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net.",
+    "FTP login of the backup space": "Identifiant FTP de l'espace de sauvegarde",
+    "FTP password of the backup space": "Mot de passe FTP de l'espace de sauvegarde",
+    "Folder of the encrypted repository on the backup space": "Dossier du dépôt chiffré sur l'espace de sauvegarde",
+    "NFS export of the same backup space, for Longhorn volumes (host:/path)":
+        "Export NFS du même espace de sauvegarde, pour les volumes Longhorn (hôte:/chemin)",
+    "Shortest accepted encryption password": "Longueur minimale du mot de passe de chiffrement",
+    "12 at least; under 16 is an accepted risk, as whoever holds the repository can guess offline.":
+        "12 au moins ; en dessous de 16, c'est un risque accepté, car qui détient le dépôt peut deviner hors ligne.",
+    "Also keep the recovery archives on this server?": "Garder aussi les archives de reprise sur ce serveur ?",
+    "false keeps them only off-node, once each upload succeeds.":
+        "false ne les garde que hors du serveur, une fois chaque envoi réussi.",
+    "Daily backup start (HH:MM and time zone)": "Heure de la sauvegarde quotidienne (HH:MM et fuseau horaire)",
+    "For example 06:00 Europe/Paris.": "Par exemple 06:00 Europe/Paris.",
+    "Daily Longhorn volume backup (cron, UTC)": "Sauvegarde quotidienne des volumes Longhorn (cron, UTC)",
+    "Volumes left out of the volume backup (namespace/claim, space-separated)":
+        "Volumes exclus de la sauvegarde des volumes (espace de noms/demande, séparés par des espaces)",
+    "Caches the cluster refills by itself.": "Des caches que le cluster remplit de lui-même.",
     "S3-compatible HTTPS endpoint": "Point d'accès HTTPS compatible S3",
     "S3 region": "Région S3", "Private backup bucket": "Bucket privé de sauvegarde",
     "S3 access-key ID": "Identifiant de clé d'accès S3", "S3 secret access key": "Clé d'accès secrète S3",

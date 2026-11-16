@@ -20,6 +20,7 @@ VERSION_KEY = "SWIRL_CLOUD_INSTALL_INPUTS"
 
 TRUE, FALSE = ("true", "1", "yes", "y"), ("false", "0", "no", "n")
 DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\Z")
+DOMAIN_ANY_CASE = re.compile(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}\Z")
 LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z")
 NAME = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*\Z")
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+\Z")
@@ -49,6 +50,14 @@ class Input:
 
 def flag(values, name, default="false"):
     return (values.get(name) or default).lower() in TRUE
+
+
+def s3_backups(values):
+    return flag(values, "CONFIGURE_OFFSITE_BACKUPS") and (values.get("BACKUP_STORAGE") or "s3") == "s3"
+
+
+def ftp_backups(values):
+    return flag(values, "CONFIGURE_OFFSITE_BACKUPS") and values.get("BACKUP_STORAGE") == "ftp"
 
 
 def nodes_added(values):
@@ -214,21 +223,49 @@ INPUTS = (
         ("INSTALL_DESCHEDULER", "Install/upgrade Descheduler resources?"),
         ("INSTALL_ARGOCD", "Install/upgrade Argo CD?"))),
     # Backups
-    Input("CONFIGURE_OFFSITE_BACKUPS", "Backups", "Configure encrypted off-node backups in S3-compatible storage?",
+    Input("CONFIGURE_OFFSITE_BACKUPS", "Backups", "Configure encrypted off-node backups?",
           kind="bool", default="false", express=True),
+    Input("BACKUP_STORAGE", "Backups", "Off-node backup storage", kind="choice", choices=("s3", "ftp"), default="s3",
+          express=True, when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
+          help="s3: object storage. ftp: an FTP backup space that also exports NFS, such as OVHcloud Backup Storage."),
     Input("BACKUP_S3_ENDPOINT", "Backups", "S3-compatible HTTPS endpoint", pattern=re.compile(r"https://\S+\Z"), express=True,
-          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), required=lambda v: True),
+          when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_REGION", "Backups", "S3 region", pattern=re.compile(r"[A-Za-z0-9._-]+\Z"), express=True,
-          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), required=lambda v: True),
+          when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_BUCKET", "Backups", "Private backup bucket", pattern=re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{1,61}[A-Za-z0-9]\Z"),
-          express=True, when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), required=lambda v: True),
+          express=True, when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_ACCESS_KEY", "Backups", "S3 access-key ID", kind="secret", express=True,
-          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), required=lambda v: True),
+          when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_SECRET_KEY", "Backups", "S3 secret access key", kind="secret", express=True,
-          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), required=lambda v: True),
+          when=s3_backups, required=lambda v: True),
+    Input("BACKUP_FTP_HOST", "Backups", "FTPS host of the backup space", pattern=DOMAIN_ANY_CASE, express=True,
+          when=ftp_backups, required=lambda v: True,
+          help="The name its TLS certificate carries; at OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net."),
+    Input("BACKUP_FTP_USER", "Backups", "FTP login of the backup space", pattern=re.compile(r"\S+\Z"), express=True,
+          when=ftp_backups, required=lambda v: True),
+    Input("BACKUP_FTP_PASSWORD", "Backups", "FTP password of the backup space", kind="secret", express=True,
+          when=ftp_backups, required=lambda v: True),
+    Input("BACKUP_FTP_PATH", "Backups", "Folder of the encrypted repository on the backup space", default="swirl-cloud",
+          pattern=re.compile(r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\Z"), when=ftp_backups),
+    Input("BACKUP_NFS_EXPORT", "Backups", "NFS export of the same backup space, for Longhorn volumes (host:/path)",
+          pattern=re.compile(r"[A-Za-z0-9.-]+:/[A-Za-z0-9._/-]+\Z"), express=True, when=ftp_backups, required=lambda v: True),
     Input("BACKUP_REPOSITORY_PASSWORD", "Backups", "Recovery-archive encryption password (16+ characters)", kind="secret",
-          express=True, pattern=re.compile(r".{16,}\Z", re.S), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
+          express=True, pattern=re.compile(r".{12,}\Z", re.S), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
           required=lambda v: True, help="Keep a copy outside this cluster; restores need it."),
+    Input("BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH", "Backups", "Shortest accepted encryption password", kind="int",
+          default="16", when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
+          help="12 at least; under 16 is an accepted risk, as whoever holds the repository can guess offline."),
+    Input("BACKUP_KEEP_LOCAL", "Backups", "Also keep the recovery archives on this server?", kind="bool", default="true",
+          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
+          help="false keeps them only off-node, once each upload succeeds."),
+    Input("BACKUP_TIME", "Backups", "Daily backup start (HH:MM and time zone)", default="02:15 UTC",
+          pattern=re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9] [A-Za-z][A-Za-z0-9_+/-]*\Z"), help="For example 06:00 Europe/Paris."),
+    Input("LONGHORN_BACKUP_CRON", "Backups", "Daily Longhorn volume backup (cron, UTC)", default="15 3 * * *",
+          pattern=re.compile(r"[0-9*/,-]+(?: [0-9*/,-]+){4}\Z"), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS")),
+    Input("LONGHORN_BACKUP_EXCLUDE", "Backups", "Volumes left out of the volume backup (namespace/claim, space-separated)",
+          default="gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0",
+          pattern=re.compile(r"(?:[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9.-]*(?: |\Z))*\Z"),
+          when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), help="Caches the cluster refills by itself."),
     # Email
     Input("CONFIGURE_PLATFORM_MAIL", "Email", "Send platform email (alerts, password resets) through an SMTP relay?",
           kind="bool", default="false", express=True,
@@ -406,7 +443,21 @@ def validate(values):
             problems.append(f"{left}/{right}: use only one")
     if values.get("INTERNAL_DNS_ZONE") and values.get("INTERNAL_DNS_ZONE") == values.get("PLATFORM_DOMAIN"):
         problems.append("INTERNAL_DNS_ZONE: must differ from PLATFORM_DOMAIN")
+    problems.extend(backup_problems(values))
     return problems
+
+
+def backup_problems(values):
+    """The encryption password's floor is an input, so its length is checked here."""
+    minimum = values.get("BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH") or "16"
+    if not re.fullmatch(r"[0-9]{1,9}", minimum) or int(minimum) < 12:
+        return ["BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH: must be 12 or more"]
+    password = values.get("BACKUP_REPOSITORY_PASSWORD", "")
+    if flag(values, "CONFIGURE_OFFSITE_BACKUPS") and password and len(password) < int(minimum):
+        return [f"BACKUP_REPOSITORY_PASSWORD: must contain at least {minimum} characters"]
+    if not flag(values, "BACKUP_KEEP_LOCAL", "true") and not flag(values, "CONFIGURE_OFFSITE_BACKUPS"):
+        return ["BACKUP_KEEP_LOCAL: false needs off-node backups"]
+    return []
 
 
 def api_vip_problems(values):
