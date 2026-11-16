@@ -22,11 +22,18 @@ VERIFY_LOCK_WAIT_SECONDS="${VERIFY_LOCK_WAIT_SECONDS:-3600}"
 [[ "$VERIFY_DATA_SUBSETS" =~ ^[1-9][0-9]*$ ]] || { echo "VERIFY_DATA_SUBSETS must be a positive integer." >&2; exit 1; }
 [[ "$VERIFY_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "VERIFY_LOCK_WAIT_SECONDS must be a whole number of seconds." >&2; exit 1; }
 
+# rclone's FTP backend stalls when restic's parallel requests (five by default)
+# outnumber its connections (two, under the backup space's limit of three), so
+# restic sends one request at a time there; it still uploads about 14 MB/s.
+restic_options=()
+[[ "${RESTIC_REPOSITORY:-}" != rclone:* ]] || restic_options=(-o rclone.connections=1)
+restic() { command restic "${restic_options[@]}" "$@"; }
+
 if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   echo "No off-node restic repository is configured; nothing to verify."
   exit 0
 fi
-command -v restic >/dev/null || { echo "restic is required to verify off-node backups." >&2; exit 1; }
+type -P restic >/dev/null || { echo "restic is required to verify off-node backups." >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq is required." >&2; exit 1; }
 
 # Shared with the backup. Wait instead of skipping, which would be recorded as

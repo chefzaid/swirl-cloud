@@ -498,7 +498,8 @@ Off-node storage is either S3-compatible (`BACKUP_STORAGE=s3`) or an FTP backup
 space that also exports NFS (`BACKUP_STORAGE=ftp`, such as OVHcloud's Backup
 Storage). restic encrypts the archives and host files before they leave the
 server, in one repository: in S3 directly, or over FTPS through rclone (two
-connections, since such spaces allow three per address). Longhorn backs the
+connections, since such spaces allow three per address, and one restic request
+at a time, as more stall rclone's FTP connections; about 14 MB/s). Longhorn backs the
 volumes up to the same storage through its `default` BackupTarget: the bucket, or
 the NFS export (version 3, `nolock`, soft mount). Credentials are root-only in
 `/etc/swirl-cloud/backup.env` (the FTP password obscured as rclone stores it) and,

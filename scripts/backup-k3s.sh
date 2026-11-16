@@ -20,6 +20,12 @@ if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
   set +a
 fi
 
+# rclone's FTP backend stalls when restic's parallel requests (five by default)
+# outnumber its connections (two, under the backup space's limit of three), so
+# restic sends one request at a time there; it still uploads about 14 MB/s.
+restic_options=()
+[[ "${RESTIC_REPOSITORY:-}" != rclone:* ]] || restic_options=(-o rclone.connections=1)
+restic() { command restic "${restic_options[@]}" "$@"; }
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 # Newest archives always kept; on a filesystem of RETENTION_TIERS_MIN_GIB or more,
 # also the newest archive of each of the last RETENTION_DAYS days, RETENTION_WEEKS
@@ -574,7 +580,7 @@ backup_host_files() {
 }
 
 if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
-  command -v restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
+  type -P restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
   if ! restic snapshots --no-lock >/dev/null 2>&1; then
     restic init
   fi

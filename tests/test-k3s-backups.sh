@@ -398,6 +398,12 @@ esac
     printf 'Fatal: the repository or its credentials are not in the environment\n' >&2
     exit 1
 }
+# An rclone repository takes one request at a time; nothing else takes options.
+if [[ "${1:-}" == -o ]]; then
+    [[ "$2" == rclone.connections=1 && "$RESTIC_REPOSITORY" == rclone:* ]] || exit 1
+    printf '%s\n' "$2" >> "$store/options"
+    shift 2
+fi
 printf '%s\n' "$*" >> "$store/calls"
 case "$*" in
     'snapshots --no-lock') [[ -f "$store/snapshots.json" ]] ;;
@@ -467,6 +473,7 @@ grep -q '^backup --tag swirl-cloud-k3s .*/offsite-ftp/k3s-.*\.tar\.gz ' "$TEST_D
 grep -q '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic-ftp/calls"
 [[ -z "$(find "$TEST_DIR/offsite-ftp" -maxdepth 1 -name 'k3s-*')" ]] || { printf 'Archives stayed on the server\n' >&2; exit 1; }
 [[ "$(cat "$TEST_DIR/restic-ftp/host-state")" == /test ]]
+[[ "$(sort -u "$TEST_DIR/restic-ftp/options")" == rclone.connections=1 && ! -e "$TEST_DIR/restic/options" ]]
 offsite_id="$(jq -r '.[0].id' "$TEST_DIR/restic/snapshots.json")"
 # Older snapshots listed before and after it must not be taken for the newest archive.
 jq --arg older "$TEST_DIR/offsite/k3s-20200101T000000Z.tar.gz" --arg old "$TEST_DIR/offsite/k3s-20200102T000000Z.tar.gz" \
