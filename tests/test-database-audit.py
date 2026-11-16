@@ -105,7 +105,7 @@ class DatabaseAudit(unittest.TestCase):
     def test_password_writers_turn_statement_logging_off(self):
         writers = ["k8s/platform/sonarqube.yaml", "k8s/corp/odoo.yaml", "k8s/files/zammad/database.sh",
                    "scripts/configure-application-data.py", "scripts/rotate-local-admin-passwords.sh",
-                   "scripts/configure-postgres-ha.py"]
+                   "scripts/configure-postgres-ha.py", "k8s/platform/vaultwarden.yaml"]
         found = set()
         for path in list((ROOT / "k8s").rglob("*.yaml")) + list((ROOT / "k8s/files").rglob("*.sh")) + list((ROOT / "scripts").glob("*.*")):
             text = path.read_text(errors="ignore")

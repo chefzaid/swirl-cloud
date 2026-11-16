@@ -206,6 +206,16 @@ components:
       or embedded basis in a paid product that significantly overlaps IBM's paid Vault versions; each
       version turns into MPL-2.0 four years after its release.
     notes: Vault 1.15 and later. OpenBao is the MPL-2.0 fork.
+  - name: docker.io/vaultwarden/server
+    licence: AGPL-3.0-only
+    source: https://github.com/dani-garcia/vaultwarden
+    maintainer: Vaultwarden project (Daniel García and contributors)
+    jurisdiction: Unknown (community project)
+    end_of_life: latest-only
+    support_source: https://github.com/dani-garcia/vaultwarden/releases
+    customer_use: allowed
+    obligations: Offer the corresponding source to users who interact with a modified version over a network; unmodified upstream images need no extra step.
+    notes: Not affiliated with Bitwarden Inc. The bundled web vault is Bitwarden's web client (GPL-3.0), built by dani-garcia/bw_web_builds.
   - name: docker.io/library/alpine
     licence: MIT AND GPL-2.0-only
     source: https://gitlab.alpinelinux.org/alpine/aports

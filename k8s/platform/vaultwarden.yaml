@@ -1,0 +1,371 @@
+# Vaultwarden: the staff password manager (TODO §29 and §31, ADR 0032), for the
+# Bitwarden browser, desktop and mobile apps. Sign-in goes through Keycloak only
+# (SSO_ONLY); each person's master password still encrypts their vault on their
+# device, so the server never holds a readable password. Its database is on the
+# platform PostgreSQL (in the nightly pg_dumpall); attachments, Sends and the
+# signing key are on a Longhorn volume (in the daily off-node volume backups).
+# The admin page is off: settings come from here. HashiCorp Vault keeps holding
+# machine secrets. Guide: docs/guides/passwords.md.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: vaultwarden-password
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  length: 40
+  digits: 8
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+
+---
+# Generated once: the database role takes this on every start.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vaultwarden-database-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: "0"
+  target:
+    name: vaultwarden-database-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        VW_DB_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: vaultwarden-password
+
+---
+# Generated once: keycloak-sso-reconcile sets it on the vaultwarden client.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vaultwarden-sso
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: "0"
+  target:
+    name: vaultwarden-sso
+    creationPolicy: Owner
+    template:
+      data:
+        VAULTWARDEN_SSO_CLIENT_SECRET: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: vaultwarden-password
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vaultwarden-bootstrap
+  namespace: infra
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: vaultwarden-bootstrap
+    creationPolicy: Owner
+  data:
+    - secretKey: POSTGRES_ADMIN_USER
+      remoteRef: {key: infra/postgres, property: username}
+    - secretKey: POSTGRES_ADMIN_PASSWORD
+      remoteRef: {key: infra/postgres, property: password}
+    - secretKey: SSO_PRIMARY_EMAIL
+      remoteRef: {key: infra/keycloak, property: sso_primary_email}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden
+  namespace: infra
+  labels:
+    app: vaultwarden
+data:
+  # Database role and database on the platform PostgreSQL, idempotent.
+  database.sh: |
+    #!/bin/sh
+    set -eu
+    export PGPASSWORD="$POSTGRES_ADMIN_PASSWORD"
+    until psql --host="$PGHOST" --username="$POSTGRES_ADMIN_USER" --dbname=postgres --tuples-only \
+        --command='SELECT 1' >/dev/null 2>&1; do
+      echo "Waiting for PostgreSQL..."
+      sleep 3
+    done
+    psql --host="$PGHOST" --username="$POSTGRES_ADMIN_USER" --dbname=postgres --set=ON_ERROR_STOP=1 \
+      --set=db_password="$VW_DB_PASSWORD" <<'SQL'
+    -- Keep the password out of the database audit log.
+    SET log_statement = 'none';
+    SELECT 'CREATE ROLE vaultwarden LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION'
+    WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'vaultwarden')
+    \gexec
+    -- Five connections from the pool (DATABASE_MAX_CONNS), at most ten for the role.
+    ALTER ROLE vaultwarden WITH LOGIN PASSWORD :'db_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 10;
+    SELECT 'CREATE DATABASE vaultwarden OWNER vaultwarden'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'vaultwarden')
+    \gexec
+    SQL
+  # Mail through the platform relay when it is configured (ADR 0029), for
+  # organization invitations and emergency access.
+  start.sh: |
+    #!/bin/sh
+    set -eu
+    if [ -n "${PLATFORM_MAIL_HOST:-}" ]; then
+      export SMTP_HOST="$PLATFORM_MAIL_HOST" SMTP_PORT="$PLATFORM_MAIL_PORT" SMTP_FROM="$PLATFORM_MAIL_FROM" \
+        SMTP_FROM_NAME="${PLATFORM_MAIL_FROM_NAME:-Passwords}" SMTP_USERNAME="$PLATFORM_MAIL_USERNAME" \
+        SMTP_PASSWORD="$PLATFORM_MAIL_PASSWORD"
+      case "${PLATFORM_MAIL_TLS:-ssl}" in
+        ssl) export SMTP_SECURITY=force_tls ;;
+        *) export SMTP_SECURITY=starttls ;;
+      esac
+    fi
+    exec /start.sh
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-data
+  namespace: infra
+  labels:
+    app: vaultwarden
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultwarden
+  namespace: infra
+  labels:
+    app: vaultwarden
+spec:
+  selector:
+    app: vaultwarden
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  namespace: infra
+  labels:
+    app: vaultwarden
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vaultwarden
+  template:
+    metadata:
+      labels:
+        app: vaultwarden
+    spec:
+      priorityClassName: platform-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: database
+          image: docker.io/library/postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+          command: ["sh", "/opt/vaultwarden/database.sh"]
+          env:
+            - name: PGHOST
+              value: postgres.__INTERNAL_DNS_ZONE__
+          envFrom:
+            - secretRef: {name: vaultwarden-bootstrap}
+            - secretRef: {name: vaultwarden-database-credentials}
+          securityContext: &container
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/vaultwarden
+              readOnly: true
+      containers:
+        - name: vaultwarden
+          image: docker.io/vaultwarden/server:1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f
+          command: ["sh", "/opt/vaultwarden/start.sh"]
+          env:
+            - name: VW_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: vaultwarden-database-credentials, key: VW_DB_PASSWORD}
+            - name: DATABASE_URL
+              value: postgresql://vaultwarden:$(VW_DB_PASSWORD)@postgres.__INTERNAL_DNS_ZONE__:5432/vaultwarden
+            - name: DATABASE_MAX_CONNS
+              value: "5"
+            - name: DOMAIN
+              value: https://passwords.__PUBLIC_DOMAIN__
+            - name: ROCKET_PORT
+              value: "8080"
+            - name: DATA_FOLDER
+              value: /data
+            # Accounts come from Keycloak only; nobody signs up or signs in without it.
+            - name: SIGNUPS_ALLOWED
+              value: "false"
+            - name: SSO_ENABLED
+              value: "true"
+            - name: SSO_ONLY
+              value: "true"
+            - name: SSO_SIGNUPS_ALLOWED
+              value: "true"
+            - name: SSO_SIGNUPS_MATCH_EMAIL
+              value: "true"
+            - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
+              value: "false"
+            - name: SSO_AUTHORITY
+              value: https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__
+            - name: SSO_CLIENT_ID
+              value: vaultwarden
+            - name: SSO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: {name: vaultwarden-sso, key: VAULTWARDEN_SSO_CLIENT_SECRET}
+            - name: SSO_PKCE
+              value: "true"
+            - name: SSO_SCOPES
+              value: email profile
+            # Only the platform's first administrator creates organizations (shared collections).
+            - name: ORG_CREATION_USERS
+              valueFrom:
+                secretKeyRef: {name: vaultwarden-bootstrap, key: SSO_PRIMARY_EMAIL}
+            - name: PASSWORD_HINTS_ALLOWED
+              value: "false"
+            - name: SHOW_PASSWORD_HINT
+              value: "false"
+            - name: INVITATION_ORG_NAME
+              value: __PLATFORM_TITLE_JSON__
+            # The origin admits Cloudflare only, which sets the client's address here.
+            - name: IP_HEADER
+              value: CF-Connecting-IP
+            - name: ORG_EVENTS_ENABLED
+              value: "true"
+            - name: EVENTS_DAYS_RETAIN
+              value: "400"
+            - name: PUSH_ENABLED
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: platform-mail
+                optional: true
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /alive, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /alive, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          securityContext: *container
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: scripts
+              mountPath: /opt/vaultwarden
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vaultwarden-data
+        - name: scripts
+          configMap:
+            name: vaultwarden
+            defaultMode: 0555
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+
+---
+# Browser, desktop and mobile apps call the API directly, so no sign-in gate sits
+# in front: Vaultwarden sends every person to Keycloak itself.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vaultwarden
+  namespace: infra
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: infra-vaultwarden-body-limit@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [passwords.__PUBLIC_DOMAIN__]
+      secretName: __TLS_SECRET_NAME__
+  rules:
+    - host: passwords.__PUBLIC_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vaultwarden
+                port:
+                  number: 8080
+
+---
+# Attachments and Sends up to 100 MiB.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vaultwarden-body-limit
+  namespace: infra
+spec:
+  buffering:
+    maxRequestBodyBytes: 104857600

@@ -467,6 +467,13 @@ data:
     ensure_client zammad true '' \
       '["https://support.__PUBLIC_DOMAIN__/auth/openid_connect/callback"]' \
       '["https://support.__PUBLIC_DOMAIN__"]' 'https://support.__PUBLIC_DOMAIN__'
+    # Vaultwarden needs a confidential client; its secret is generated in the
+    # cluster (platform/vaultwarden.yaml).
+    if [ -n "${VAULTWARDEN_SSO_CLIENT_SECRET:-}" ]; then
+      ensure_client vaultwarden false "$VAULTWARDEN_SSO_CLIENT_SECRET" \
+        '["https://passwords.__PUBLIC_DOMAIN__/identity/connect/oidc-signin"]' \
+        '["https://passwords.__PUBLIC_DOMAIN__"]' 'https://passwords.__PUBLIC_DOMAIN__'
+    fi
     ensure_client argocd true '' \
       '["https://argocd.__PUBLIC_DOMAIN__/auth/callback","https://argocd.__PUBLIC_DOMAIN__/pkce/verify","http://localhost:8085/auth/callback"]' \
       '["https://argocd.__PUBLIC_DOMAIN__"]' 'https://argocd.__PUBLIC_DOMAIN__'
@@ -700,6 +707,9 @@ spec:
                 name: keycloak-sso-credentials
             - secretRef:
                 name: platform-mail
+                optional: true
+            - secretRef:
+                name: vaultwarden-sso
                 optional: true
           securityContext:
             allowPrivilegeEscalation: false

@@ -211,6 +211,7 @@ Name it `NNNN-short-title.md` with the next sequence number. Statuses:
 - [ADR 0029: Send Platform Email Through One Operator-Supplied SMTP Relay](./adr/0029-platform-transactional-mail.md)
 - [ADR 0030: Watch Public Endpoints From Outside The Cluster](./adr/0030-outage-watch-outside-the-cluster.md)
 - [ADR 0031: One Access Group Per Service, Refused Without It](./adr/0031-access-groups-per-service.md)
+- [ADR 0032: Vaultwarden for Staff Passwords, Signed In Through Keycloak](./adr/0032-vaultwarden-for-staff-passwords.md)
 
 ## Superseded ADRs
 

@@ -167,6 +167,12 @@ data:
             description: Ask IT for help or for access to a service
             namespace: infra
             podSelector: app=zammad
+        - Vaultwarden:
+            icon: vaultwarden.png
+            href: https://passwords.__PUBLIC_DOMAIN__
+            description: Your passwords and the team's shared ones, in the browser and on your phone
+            namespace: infra
+            podSelector: app=vaultwarden
         - Odoo:
             icon: odoo.png
             href: https://odoo.__PUBLIC_DOMAIN__
