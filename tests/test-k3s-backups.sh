@@ -24,10 +24,13 @@ SQL
 run_backup() (
     export BACKUP_DIR="$TEST_DIR/$1" K3S_DATA_DIR="$TEST_DIR/data" K3S_CONFIG_DIR="$TEST_DIR/config"
     export BACKUP_ENVIRONMENT_FILE="${MOCK_BACKUP_ENVIRONMENT:-$TEST_DIR/absent.env}"
-    export HOST_BACKUP_PATHS="$TEST_DIR/host-files" HOST_BACKUP_STAGING="$TEST_DIR/$1-host"
+    export HOST_BACKUP_PATHS="$TEST_DIR/host-files" HOST_BACKUP_STAGING="$TEST_DIR/$1-host" OFFSITE_MOUNT="$TEST_DIR/$1-offsite"
     # Off-node settings come only from the environment file, never the caller.
     unset K3S_DB RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION BACKUP_KEEP_LOCAL
-    unset RCLONE_CONFIG_OFFSITE_TYPE RCLONE_CONFIG_OFFSITE_HOST RCLONE_CONFIG_OFFSITE_USER RCLONE_CONFIG_OFFSITE_PASS
+    unset BACKUP_NFS_EXPORT BACKUP_NFS_PATH
+    # The NFS export is "mounted" as a directory; each call is recorded.
+    mount() { printf 'mount %s\n' "$*" >> "$TEST_DIR/mounts"; mkdir -p "${*: -1}"; }
+    umount() { printf 'umount %s\n' "$*" >> "$TEST_DIR/mounts"; }
     install() {
         local -a arguments=()
         while [[ $# -gt 0 ]]; do
@@ -109,7 +112,7 @@ run_backup() (
     }
     # Plenty of space, unless MOCK_DF gives the filesystem's size and free bytes.
     df() { printf 'Size Avail\n%s\n' "${MOCK_DF:-1000000000000 900000000000}"; }
-    export -f install k3s kubectl df
+    export -f install k3s kubectl df mount umount
     # Replace only the root check and fixed host paths; all other logic is the
     # production script's.
     # shellcheck disable=SC1090
@@ -392,18 +395,12 @@ set -euo pipefail
 store="$MOCK_RESTIC_STORE"
 case "${RESTIC_REPOSITORY:-}" in
     s3:https://*) credentials="${AWS_SECRET_ACCESS_KEY:-}" ;;
-    rclone:offsite:*) [[ "${RCLONE_CONFIG_OFFSITE_TYPE:-}" == ftp ]] && credentials="${RCLONE_CONFIG_OFFSITE_PASS:-}" ;;
+    /*/restic) credentials=local; printf '%s\n' "$RESTIC_REPOSITORY" > "$store/repository" ;;
 esac
 [[ -n "${credentials:-}" && -n "${RESTIC_PASSWORD:-}" ]] || {
     printf 'Fatal: the repository or its credentials are not in the environment\n' >&2
     exit 1
 }
-# An rclone repository takes one request at a time; nothing else takes options.
-if [[ "${1:-}" == -o ]]; then
-    [[ "$2" == rclone.connections=1 && "$RESTIC_REPOSITORY" == rclone:* ]] || exit 1
-    printf '%s\n' "$2" >> "$store/options"
-    shift 2
-fi
 printf '%s\n' "$*" >> "$store/calls"
 case "$*" in
     'snapshots --no-lock') [[ -f "$store/snapshots.json" ]] ;;
@@ -456,24 +453,26 @@ host_call="$(grep '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic/calls")"
 [[ ! -e "$TEST_DIR/restic/host-state" && ! -e "$TEST_DIR/offsite-host" ]]
 [[ -f "$offsite_archive" ]]
 
-# An FTP backup space through rclone, keeping no archive on the server.
-mkdir -p "$TEST_DIR/restic-ftp"
+# An NFS export, mounted only for the run, keeping no archive on the server.
+[[ ! -e "$TEST_DIR/mounts" ]] || { printf 'An S3 backup mounted something\n' >&2; exit 1; }
+mkdir -p "$TEST_DIR/restic-nfs"
 {
-    printf 'RESTIC_REPOSITORY=%q\n' 'rclone:offsite:swirl-cloud/restic'
+    printf 'BACKUP_NFS_EXPORT=%q\n' 'nfs.example.test:/export/backup'
+    printf 'BACKUP_NFS_PATH=swirl-cloud\n'
     printf 'RESTIC_PASSWORD=%q\n' 'fixture repository password'
-    printf 'RCLONE_CONFIG_OFFSITE_TYPE=ftp\nRCLONE_CONFIG_OFFSITE_HOST=ftp.example.test\n'
-    printf 'RCLONE_CONFIG_OFFSITE_USER=fixture\nRCLONE_CONFIG_OFFSITE_PASS=%q\n' 'obscured-fixture'
     printf 'BACKUP_KEEP_LOCAL=false\n'
-} > "$TEST_DIR/backup-ftp.env"
-seed_archives offsite-ftp
+} > "$TEST_DIR/backup-nfs.env"
+seed_archives offsite-nfs
 # A SQLite server: the host files take a consistent copy of the live database.
 rmdir "$TEST_DIR/data/server/db/etcd/member"
-MOCK_BACKUP_ENVIRONMENT="$TEST_DIR/backup-ftp.env" MOCK_RESTIC_STORE="$TEST_DIR/restic-ftp" run_backup offsite-ftp >/dev/null
-grep -q '^backup --tag swirl-cloud-k3s .*/offsite-ftp/k3s-.*\.tar\.gz ' "$TEST_DIR/restic-ftp/calls"
-grep -q '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic-ftp/calls"
-[[ -z "$(find "$TEST_DIR/offsite-ftp" -maxdepth 1 -name 'k3s-*')" ]] || { printf 'Archives stayed on the server\n' >&2; exit 1; }
-[[ "$(cat "$TEST_DIR/restic-ftp/host-state")" == /test ]]
-[[ "$(sort -u "$TEST_DIR/restic-ftp/options")" == rclone.connections=1 && ! -e "$TEST_DIR/restic/options" ]]
+MOCK_BACKUP_ENVIRONMENT="$TEST_DIR/backup-nfs.env" MOCK_RESTIC_STORE="$TEST_DIR/restic-nfs" run_backup offsite-nfs >/dev/null
+grep -q '^backup --tag swirl-cloud-k3s .*/offsite-nfs/k3s-.*\.tar\.gz ' "$TEST_DIR/restic-nfs/calls"
+grep -q '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic-nfs/calls"
+[[ -z "$(find "$TEST_DIR/offsite-nfs" -maxdepth 1 -name 'k3s-*')" ]] || { printf 'Archives stayed on the server\n' >&2; exit 1; }
+[[ "$(cat "$TEST_DIR/restic-nfs/host-state")" == /test ]]
+[[ "$(cat "$TEST_DIR/restic-nfs/repository")" == "$TEST_DIR/offsite-nfs-offsite/swirl-cloud/restic" ]]
+grep -Fxq "mount -t nfs -o vers=3,nolock,soft,timeo=600,retrans=5 nfs.example.test:/export/backup $TEST_DIR/offsite-nfs-offsite" "$TEST_DIR/mounts"
+[[ "$(tail -1 "$TEST_DIR/mounts")" == "umount $TEST_DIR/offsite-nfs-offsite" ]]
 offsite_id="$(jq -r '.[0].id' "$TEST_DIR/restic/snapshots.json")"
 # Older snapshots listed before and after it must not be taken for the newest archive.
 jq --arg older "$TEST_DIR/offsite/k3s-20200101T000000Z.tar.gz" --arg old "$TEST_DIR/offsite/k3s-20200102T000000Z.tar.gz" \

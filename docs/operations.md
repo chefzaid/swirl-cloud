@@ -494,23 +494,28 @@ Recovery times are unmeasured (restore drill, TODO §16).
 | The server itself: `/etc`, `/root`, `/home` without build output and caches, `/usr/local`, `/opt`, crontabs, K3s server state (a consistent SQLite copy, token, certificates, manifests), Vault's unseal key and bootstrap token, installed packages, disk and address layout | restic snapshot tagged `swirl-cloud-host`, after the archive (off-node storage only) | Up to 24 h | Container images, Docker data, logs and Longhorn's replica files stay out; the staged copies are under `/run/swirl-cloud-k3s-backup/host` in the snapshot. |
 | Every Longhorn volume except `LONGHORN_BACKUP_EXCLUDE` (the runner cache and Trivy's database by default) | Longhorn's daily recurring backup `swirl-cloud-daily-backup` (`LONGHORN_BACKUP_CRON`, UTC; 14 kept) to the `default` BackupTarget | Up to 24 h, crash-consistent | Volumes join through Longhorn's `default` group, new ones included; an excluded volume carries only the `swirl-cloud` group, which keeps its weekly trim. Databases come back as after a power cut; the archive's dumps are the consistent copy. |
 
-Off-node storage is either S3-compatible (`BACKUP_STORAGE=s3`) or an FTP backup
-space that also exports NFS (`BACKUP_STORAGE=ftp`, such as OVHcloud's Backup
-Storage). restic encrypts the archives and host files before they leave the
-server, in one repository: in S3 directly, or over FTPS through rclone (two
-connections, since such spaces allow three per address, and one restic request
-at a time, as more stall rclone's FTP connections; about 14 MB/s). Longhorn backs the
-volumes up to the same storage through its `default` BackupTarget: the bucket, or
-the NFS export (version 3, `nolock`, soft mount). Credentials are root-only in
-`/etc/swirl-cloud/backup.env` (the FTP password obscured as rclone stores it) and,
-for S3, the Longhorn credential Secret. Keep the repository password off the
+Off-node storage is either S3-compatible (`BACKUP_STORAGE=s3`) or an NFS version 3
+export (`BACKUP_STORAGE=nfs`, such as OVHcloud's Backup Storage). restic encrypts
+the archives and host files before they leave the server, in one repository: in
+the bucket, or in `BACKUP_NFS_PATH/restic` on the export, which each backup and
+check mounts only while it runs, in its unit's own mount namespace (`nolock`,
+soft, so an unreachable export fails the run instead of hanging it). Longhorn
+backs the volumes up to the same storage through its `default` BackupTarget: the
+bucket, or the export's `backupstore/`. Credentials are root-only in
+`/etc/swirl-cloud/backup.env` and, for S3, the Longhorn credential Secret; an NFS
+export admits the server by address. Keep the repository password off the
 server: without it nothing restores. `BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH`
 (16 by default, 12 at least) lowers its floor as an accepted risk.
 
+OVHcloud's Backup Storage also offers FTP, but restic through rclone's FTP backend
+could not read back: on 2026-11-16 streaming the 3.1 GB archive stalled after
+ten minutes, as each partial read waits for the server to acknowledge an aborted
+transfer, while over NFS it read back in 78 s and a prune took 10 s.
+
 Since 2026-11-16, `swirl-node-01` backs up to its OVHcloud Backup Storage
-(500 GB, `ftpback-rbx3-431`): the archive, the host files and every volume but
-the two caches daily from 06:00 Europe/Paris (Longhorn at 05:00 UTC), with no
-archive kept on the server.
+(500 GB, NFS export of `ftpback-rbx3-431`): the archive, the host files and every
+volume but the two caches daily from 06:00 Europe/Paris (Longhorn at 05:00 UTC),
+with no archive kept on the server.
 
 `swirl-cloud-k3s-backup-verify.timer` runs
 [verify-k3s-backup.sh](../scripts/verify-k3s-backup.sh) on Wednesdays at
@@ -559,16 +564,18 @@ installation and whenever Vault, K3s or backup credentials change.
 
 ### Restore after losing the host
 
-A rebuild needs the backup storage's address and login (from the provider's
-panel), the repository password and this repository. In order:
+A rebuild needs access to the backup storage (an NFS export admits the new
+server once the provider's access list names its address), the repository
+password and this repository. In order:
 
 1. Reinstall the same Ubuntu release, with the disk layout of
    `disks.json` and `mdstat.txt` from the host snapshot, and install `restic`
-   (and `rclone` for an FTP space).
-2. Export what `backup.env` held: `RESTIC_REPOSITORY` and `RESTIC_PASSWORD`, plus
-   the S3 keys or the `RCLONE_CONFIG_OFFSITE_*` settings (type `ftp`, host, user,
-   `PASS` from `rclone obscure -`, `EXPLICIT_TLS=true`, `CONCURRENCY=2`). List the
-   snapshots with `restic snapshots`.
+   (and `nfs-common` for an NFS export).
+2. Point restic at the repository: for S3, `RESTIC_REPOSITORY` and the keys that
+   `backup.env` held; for NFS, mount the export
+   (`sudo mount -t nfs -o vers=3,nolock HOST:/PATH /mnt/backup`) and set
+   `RESTIC_REPOSITORY=/mnt/backup/swirl-cloud/restic`. Export `RESTIC_PASSWORD`
+   and list the snapshots with `restic snapshots`.
 3. Restore the host files apart, then copy them back:
    `restic restore latest --tag swirl-cloud-host --target /root/restore`. Copy
    `/home`, `/root`, `/usr/local`, `/opt`, `/var/spool/cron`, `/var/lib/swirl-cloud`

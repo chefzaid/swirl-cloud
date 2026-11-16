@@ -5,19 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGURE_OFFSITE_BACKUPS="${CONFIGURE_OFFSITE_BACKUPS:-false}"
 # s3: object storage; restic stores archives and host files, Longhorn the volumes.
-# ftp: an FTP backup space that also exports NFS (OVHcloud Backup Storage, for
-# one): restic over FTPS through rclone, Longhorn volumes over NFS version 3.
+# nfs: an NFS version 3 export (OVHcloud Backup Storage, for one), mounted only
+# while restic runs; Longhorn backs the volumes up to the same export.
 BACKUP_STORAGE="${BACKUP_STORAGE:-s3}"
 BACKUP_S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-}"
 BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
 BACKUP_S3_REGION="${BACKUP_S3_REGION:-}"
 BACKUP_S3_ACCESS_KEY="${BACKUP_S3_ACCESS_KEY:-}"
 BACKUP_S3_SECRET_KEY="${BACKUP_S3_SECRET_KEY:-}"
-BACKUP_FTP_HOST="${BACKUP_FTP_HOST:-}"
-BACKUP_FTP_USER="${BACKUP_FTP_USER:-}"
-BACKUP_FTP_PASSWORD="${BACKUP_FTP_PASSWORD:-}"
-BACKUP_FTP_PATH="${BACKUP_FTP_PATH:-swirl-cloud}"
 BACKUP_NFS_EXPORT="${BACKUP_NFS_EXPORT:-}"
+# Folder of the restic repository on the export; Longhorn writes backupstore/.
+BACKUP_NFS_PATH="${BACKUP_NFS_PATH:-swirl-cloud}"
 BACKUP_REPOSITORY_PASSWORD="${BACKUP_REPOSITORY_PASSWORD:-}"
 # Lowering it below 16 is an accepted risk: whoever holds the repository can
 # guess the password offline.
@@ -40,9 +38,8 @@ cleanup() {
   [[ -z "$timer_file" || ! -f "$timer_file" ]] || rm -f -- "$timer_file"
   BACKUP_S3_ACCESS_KEY=""
   BACKUP_S3_SECRET_KEY=""
-  BACKUP_FTP_PASSWORD=""
   BACKUP_REPOSITORY_PASSWORD=""
-  unset BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_FTP_PASSWORD BACKUP_REPOSITORY_PASSWORD 2>/dev/null || true
+  unset BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -64,19 +61,16 @@ if command -v systemd-analyze >/dev/null && ! systemd-analyze calendar "$on_cale
 fi
 
 if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]]; then
-  [[ "$BACKUP_STORAGE" =~ ^(s3|ftp)$ ]] || { echo "BACKUP_STORAGE must be s3 or ftp." >&2; exit 1; }
+  [[ "$BACKUP_STORAGE" =~ ^(s3|nfs)$ ]] || { echo "BACKUP_STORAGE must be s3 or nfs." >&2; exit 1; }
   if [[ "$BACKUP_STORAGE" == s3 ]]; then
     [[ "$BACKUP_S3_ENDPOINT" == https://* ]] || { echo "BACKUP_S3_ENDPOINT must use HTTPS." >&2; exit 1; }
     [[ -n "$BACKUP_S3_BUCKET" && -n "$BACKUP_S3_REGION" ]] || { echo "BACKUP_S3_BUCKET and BACKUP_S3_REGION are required." >&2; exit 1; }
     [[ -n "$BACKUP_S3_ACCESS_KEY" && -n "$BACKUP_S3_SECRET_KEY" ]] || { echo "S3 access credentials are required." >&2; exit 1; }
   else
-    [[ "$BACKUP_FTP_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]] || \
-      { echo "BACKUP_FTP_HOST must be the FTPS host name of the backup space." >&2; exit 1; }
-    [[ "$BACKUP_FTP_USER" =~ ^[^[:space:]]+$ && -n "$BACKUP_FTP_PASSWORD" ]] || { echo "FTP backup credentials are required." >&2; exit 1; }
-    [[ "$BACKUP_FTP_PATH" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] || \
-      { echo "BACKUP_FTP_PATH must be a relative folder such as swirl-cloud." >&2; exit 1; }
     [[ "$BACKUP_NFS_EXPORT" =~ ^[A-Za-z0-9.-]+:/[A-Za-z0-9._/-]+$ ]] || \
-      { echo "BACKUP_NFS_EXPORT must be host:/path, the NFS export of the same backup space." >&2; exit 1; }
+      { echo "BACKUP_NFS_EXPORT must be host:/path." >&2; exit 1; }
+    [[ "$BACKUP_NFS_PATH" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ && "$BACKUP_NFS_PATH" != backupstore* ]] || \
+      { echo "BACKUP_NFS_PATH must be a relative folder such as swirl-cloud, apart from Longhorn's backupstore." >&2; exit 1; }
   fi
   [[ "$LONGHORN_BACKUP_CRON" =~ ^[0-9*/,-]+(\ [0-9*/,-]+){4}$ ]] || { echo "LONGHORN_BACKUP_CRON must be a five-field cron schedule." >&2; exit 1; }
   if [[ ! "$BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH" =~ ^[0-9]+$ ]] || (( BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH < 12 )); then
@@ -98,14 +92,11 @@ sudo install -d -o root -g root -m 0700 /etc/swirl-cloud /var/lib/swirl-cloud
 
 if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]]; then
   packages=(restic)
-  [[ "$BACKUP_STORAGE" != ftp ]] || packages+=(rclone)
-  for package in "${packages[@]}"; do
-    if ! command -v "$package" >/dev/null; then
-      sudo apt-get update -qq
-      sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages[@]}" >/dev/null
-      break
-    fi
-  done
+  [[ "$BACKUP_STORAGE" != nfs ]] || packages+=(nfs-common)
+  if ! command -v restic >/dev/null || { [[ "$BACKUP_STORAGE" == nfs ]] && ! command -v mount.nfs >/dev/null; }; then
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages[@]}" >/dev/null
+  fi
   backup_environment="$(mktemp)"
   chmod 600 "$backup_environment"
   {
@@ -116,18 +107,11 @@ if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]]; then
       printf 'AWS_SECRET_ACCESS_KEY=%q\n' "$BACKUP_S3_SECRET_KEY"
       printf 'AWS_DEFAULT_REGION=%q\n' "$BACKUP_S3_REGION"
     else
-      # restic starts rclone, which reads the remote "offsite" from these; the
-      # password is stored obscured, as rclone requires, in this root-only file.
-      printf 'RESTIC_REPOSITORY=%q\n' "rclone:offsite:$BACKUP_FTP_PATH/restic"
+      # Each run mounts the export in its own runtime directory and points
+      # restic at the repository there.
+      printf 'BACKUP_NFS_EXPORT=%q\n' "$BACKUP_NFS_EXPORT"
+      printf 'BACKUP_NFS_PATH=%q\n' "$BACKUP_NFS_PATH"
       printf 'RESTIC_PASSWORD=%q\n' "$BACKUP_REPOSITORY_PASSWORD"
-      printf 'RCLONE_CONFIG_OFFSITE_TYPE=ftp\n'
-      printf 'RCLONE_CONFIG_OFFSITE_HOST=%q\n' "$BACKUP_FTP_HOST"
-      printf 'RCLONE_CONFIG_OFFSITE_USER=%q\n' "$BACKUP_FTP_USER"
-      printf 'RCLONE_CONFIG_OFFSITE_PASS=%q\n' "$(printf '%s' "$BACKUP_FTP_PASSWORD" | rclone obscure -)"
-      printf 'RCLONE_CONFIG_OFFSITE_EXPLICIT_TLS=true\n'
-      # Backup spaces limit connections per address (three at OVHcloud); the
-      # backup and its weekly check never run together.
-      printf 'RCLONE_CONFIG_OFFSITE_CONCURRENCY=2\n'
     fi
     printf 'BACKUP_KEEP_LOCAL=%q\n' "$BACKUP_KEEP_LOCAL"
   } > "$backup_environment"
@@ -149,8 +133,8 @@ sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-bac
 sudo systemctl daemon-reload
 sudo systemctl enable --now swirl-cloud-k3s-backup.timer >/dev/null
 # The verification reads the off-node copy, so it runs only while backup.env
-# names a restic repository.
-if sudo grep -qs '^RESTIC_REPOSITORY=.' /etc/swirl-cloud/backup.env; then
+# names a restic repository or the export that holds one.
+if sudo grep -Eqs '^(RESTIC_REPOSITORY|BACKUP_NFS_EXPORT)=.' /etc/swirl-cloud/backup.env; then
   sudo systemctl enable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
 else
   sudo systemctl disable --now swirl-cloud-k3s-backup-verify.timer >/dev/null
@@ -174,8 +158,8 @@ if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \
     backup_target="s3://$BACKUP_S3_BUCKET@$BACKUP_S3_REGION/longhorn"
     credential_secret=swirl-cloud-longhorn-backup
   else
-    # The export takes NFS version 3 only, without locking; a soft mount fails a
-    # backup instead of hanging Longhorn while the backup space is unreachable.
+    # Version 3 without locking, as such exports offer; a soft mount fails a
+    # backup instead of hanging Longhorn while the storage is unreachable.
     backup_target="nfs://$BACKUP_NFS_EXPORT?nfsOptions=vers=3,nolock,soft,timeo=600,retrans=5"
     credential_secret=""
   fi

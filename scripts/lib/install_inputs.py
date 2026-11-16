@@ -20,7 +20,6 @@ VERSION_KEY = "SWIRL_CLOUD_INSTALL_INPUTS"
 
 TRUE, FALSE = ("true", "1", "yes", "y"), ("false", "0", "no", "n")
 DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\Z")
-DOMAIN_ANY_CASE = re.compile(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}\Z")
 LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z")
 NAME = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*\Z")
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+\Z")
@@ -56,8 +55,8 @@ def s3_backups(values):
     return flag(values, "CONFIGURE_OFFSITE_BACKUPS") and (values.get("BACKUP_STORAGE") or "s3") == "s3"
 
 
-def ftp_backups(values):
-    return flag(values, "CONFIGURE_OFFSITE_BACKUPS") and values.get("BACKUP_STORAGE") == "ftp"
+def nfs_backups(values):
+    return flag(values, "CONFIGURE_OFFSITE_BACKUPS") and values.get("BACKUP_STORAGE") == "nfs"
 
 
 def nodes_added(values):
@@ -225,9 +224,9 @@ INPUTS = (
     # Backups
     Input("CONFIGURE_OFFSITE_BACKUPS", "Backups", "Configure encrypted off-node backups?",
           kind="bool", default="false", express=True),
-    Input("BACKUP_STORAGE", "Backups", "Off-node backup storage", kind="choice", choices=("s3", "ftp"), default="s3",
+    Input("BACKUP_STORAGE", "Backups", "Off-node backup storage", kind="choice", choices=("s3", "nfs"), default="s3",
           express=True, when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
-          help="s3: object storage. ftp: an FTP backup space that also exports NFS, such as OVHcloud Backup Storage."),
+          help="s3: object storage. nfs: an NFS version 3 export, such as OVHcloud Backup Storage."),
     Input("BACKUP_S3_ENDPOINT", "Backups", "S3-compatible HTTPS endpoint", pattern=re.compile(r"https://\S+\Z"), express=True,
           when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_REGION", "Backups", "S3 region", pattern=re.compile(r"[A-Za-z0-9._-]+\Z"), express=True,
@@ -238,17 +237,11 @@ INPUTS = (
           when=s3_backups, required=lambda v: True),
     Input("BACKUP_S3_SECRET_KEY", "Backups", "S3 secret access key", kind="secret", express=True,
           when=s3_backups, required=lambda v: True),
-    Input("BACKUP_FTP_HOST", "Backups", "FTPS host of the backup space", pattern=DOMAIN_ANY_CASE, express=True,
-          when=ftp_backups, required=lambda v: True,
-          help="The name its TLS certificate carries; at OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net."),
-    Input("BACKUP_FTP_USER", "Backups", "FTP login of the backup space", pattern=re.compile(r"\S+\Z"), express=True,
-          when=ftp_backups, required=lambda v: True),
-    Input("BACKUP_FTP_PASSWORD", "Backups", "FTP password of the backup space", kind="secret", express=True,
-          when=ftp_backups, required=lambda v: True),
-    Input("BACKUP_FTP_PATH", "Backups", "Folder of the encrypted repository on the backup space", default="swirl-cloud",
-          pattern=re.compile(r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\Z"), when=ftp_backups),
-    Input("BACKUP_NFS_EXPORT", "Backups", "NFS export of the same backup space, for Longhorn volumes (host:/path)",
-          pattern=re.compile(r"[A-Za-z0-9.-]+:/[A-Za-z0-9._/-]+\Z"), express=True, when=ftp_backups, required=lambda v: True),
+    Input("BACKUP_NFS_EXPORT", "Backups", "NFS export of the backup storage (host:/path)",
+          pattern=re.compile(r"[A-Za-z0-9.-]+:/[A-Za-z0-9._/-]+\Z"), express=True, when=nfs_backups, required=lambda v: True,
+          help="At OVHcloud ftpback-<zone>-<n>.ovh.net:/export/ftpbackup/<server name>, with NFS allowed for this server."),
+    Input("BACKUP_NFS_PATH", "Backups", "Folder of the encrypted repository on the export", default="swirl-cloud",
+          pattern=re.compile(r"(?!backupstore)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\Z"), when=nfs_backups),
     Input("BACKUP_REPOSITORY_PASSWORD", "Backups", "Recovery-archive encryption password (16+ characters)", kind="secret",
           express=True, pattern=re.compile(r".{12,}\Z", re.S), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"),
           required=lambda v: True, help="Keep a copy outside this cluster; restores need it."),

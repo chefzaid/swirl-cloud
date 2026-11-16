@@ -391,7 +391,7 @@ def first_steps():
     steps = [(root_test("test", "-s", "/var/lib/swirl-cloud/recovery-kit.json"),
               "Export the recovery kit and store it off this host",
               "scripts/export-recovery-kit.sh --separate-archives"),
-             (root_test("grep", "-qs", "^RESTIC_REPOSITORY=.", "/etc/swirl-cloud/backup.env"),
+             (root_test("grep", "-Eqs", "^(RESTIC_REPOSITORY|BACKUP_NFS_EXPORT)=.", "/etc/swirl-cloud/backup.env"),
               "Copy the nightly archives off site",
               "./install.sh > Configure > Backups, then scripts/configure-k3s-backups.sh")]
     try:

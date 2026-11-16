@@ -20,12 +20,24 @@ if [[ -r "$BACKUP_ENVIRONMENT_FILE" ]]; then
   set +a
 fi
 
-# rclone's FTP backend stalls when restic's parallel requests (five by default)
-# outnumber its connections (two, under the backup space's limit of three), so
-# restic sends one request at a time there; it still uploads about 14 MB/s.
-restic_options=()
-[[ "${RESTIC_REPOSITORY:-}" != rclone:* ]] || restic_options=(-o rclone.connections=1)
-restic() { command restic "${restic_options[@]}" "$@"; }
+# NFS storage is mounted only while the run uses it, in the unit's own mount
+# namespace, and restic writes to it as a local repository. Version 3 without
+# locking, as such exports offer; a soft mount fails the run instead of hanging
+# it while the storage is unreachable.
+OFFSITE_MOUNT="${OFFSITE_MOUNT:-${RUNTIME_DIRECTORY:-/run/swirl-cloud-k3s-backup}/offsite}"
+[[ -z "${BACKUP_NFS_EXPORT:-}" ]] || RESTIC_REPOSITORY="$OFFSITE_MOUNT/${BACKUP_NFS_PATH:-swirl-cloud}/restic"
+offsite_mounted=false
+offsite_mount() {
+  [[ -n "${BACKUP_NFS_EXPORT:-}" && "$offsite_mounted" == false ]] || return 0
+  install -d -m 0700 "$OFFSITE_MOUNT"
+  mount -t nfs -o vers=3,nolock,soft,timeo=600,retrans=5 "$BACKUP_NFS_EXPORT" "$OFFSITE_MOUNT"
+  offsite_mounted=true
+  install -d -m 0700 "$(dirname "$RESTIC_REPOSITORY")"
+}
+offsite_unmount() {
+  [[ "$offsite_mounted" == false ]] || umount "$OFFSITE_MOUNT" || true
+  offsite_mounted=false
+}
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/swirl-cloud/k3s}"
 # Newest archives always kept; on a filesystem of RETENTION_TIERS_MIN_GIB or more,
 # also the newest archive of each of the last RETENTION_DAYS days, RETENTION_WEEKS
@@ -109,7 +121,7 @@ backup_failed() {
 }
 
 staging_dir="$(mktemp -d "$BACKUP_DIR/.staging.XXXXXX")"
-trap 'rm -rf -- "$staging_dir"' EXIT
+trap 'rm -rf -- "$staging_dir"; offsite_unmount' EXIT
 install -d -m 0700 "$staging_dir/k3s-db" "$staging_dir/k3s-server" \
   "$staging_dir/k3s-config" "$staging_dir/vault" "$staging_dir/application-data" \
   "$staging_dir/kubernetes" "$staging_dir/gitlab" "$staging_dir/elasticsearch"
@@ -580,7 +592,8 @@ backup_host_files() {
 }
 
 if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
-  type -P restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
+  command -v restic >/dev/null || { echo "restic is required for off-node backup storage." >&2; exit 1; }
+  offsite_mount
   if ! restic snapshots --no-lock >/dev/null 2>&1; then
     restic init
   fi

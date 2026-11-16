@@ -279,7 +279,7 @@ Using the supplied component selection; unset components default to installed.	U
 BACKUP_NFS_EXPORT must be host:/path.	BACKUP_NFS_EXPORT doit être de la forme hôte:/chemin.
 BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH must be 12 or more.	BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH doit valoir 12 ou plus.
 BACKUP_S3_BUCKET is invalid.	BACKUP_S3_BUCKET est invalide.
-BACKUP_STORAGE must be s3 or ftp.	BACKUP_STORAGE doit valoir s3 ou ftp.
+BACKUP_STORAGE must be s3 or nfs.	BACKUP_STORAGE doit valoir s3 ou nfs.
 BACKUP_S3_ENDPOINT must use HTTPS.	BACKUP_S3_ENDPOINT doit utiliser HTTPS.
 BACKUP_S3_REGION is invalid.	BACKUP_S3_REGION est invalide.
 Backup encryption passwords do not match.	Les mots de passe de chiffrement des sauvegardes ne correspondent pas.
@@ -298,7 +298,6 @@ PLATFORM_MAIL_TLS must be ssl or starttls.	PLATFORM_MAIL_TLS doit valoir ssl ou 
 Platform mail is left as it is; see docs/guides/platform-mail.md to set it up later.	La messagerie de la plateforme reste inchangée ; voir docs/guides/platform-mail.md pour la configurer plus tard.
 Platform mail needs PLATFORM_MAIL_HOST, PLATFORM_MAIL_USERNAME and PLATFORM_MAIL_PASSWORD.	La messagerie de la plateforme exige PLATFORM_MAIL_HOST, PLATFORM_MAIL_USERNAME et PLATFORM_MAIL_PASSWORD.
 REPOSITORY_SYNC_MAPPINGS was replaced by GITHUB_USERNAME, GITHUB_REPOSITORIES, and GITLAB_GROUP_PATH; see docs/guides/repository-onboarding.md.	REPOSITORY_SYNC_MAPPINGS a été remplacé par GITHUB_USERNAME, GITHUB_REPOSITORIES et GITLAB_GROUP_PATH ; voir docs/guides/repository-onboarding.md.
-FTP backup credentials are required.	Les identifiants FTP de l'espace de sauvegarde sont requis.
 S3 backup credentials are required.	Les identifiants S3 des sauvegardes sont requis.
 Set GITOPS_REPOSITORY_URL to an HTTP(S) .git repository accessible by Argo CD.	Renseignez dans GITOPS_REPOSITORY_URL un dépôt .git HTTP(S) accessible par Argo CD.
 Set ORGANIZATION_NAME to the company or organization display name.	Renseignez dans ORGANIZATION_NAME le nom d'affichage de l'entreprise ou de l'organisation.

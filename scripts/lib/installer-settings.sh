@@ -118,7 +118,7 @@ configure_backup_destination() {
     export BACKUP_TIME BACKUP_KEEP_LOCAL LONGHORN_BACKUP_CRON LONGHORN_BACKUP_EXCLUDE
     if [[ -z "$CONFIGURE_OFFSITE_BACKUPS" ]]; then
         if [[ "$AUTO_APPROVE" == "true" ]]; then
-            [[ -n "$BACKUP_S3_ENDPOINT$BACKUP_S3_BUCKET$BACKUP_S3_ACCESS_KEY$BACKUP_S3_SECRET_KEY$BACKUP_FTP_HOST" ]] && \
+            [[ -n "$BACKUP_S3_ENDPOINT$BACKUP_S3_BUCKET$BACKUP_S3_ACCESS_KEY$BACKUP_S3_SECRET_KEY$BACKUP_NFS_EXPORT" ]] && \
                 CONFIGURE_OFFSITE_BACKUPS=true || CONFIGURE_OFFSITE_BACKUPS=false
         elif ask_with_default "Configure encrypted off-node backups?" "Y"; then
             CONFIGURE_OFFSITE_BACKUPS=true
@@ -136,7 +136,7 @@ configure_backup_destination() {
         export CONFIGURE_OFFSITE_BACKUPS
         return
     fi
-    [[ "$BACKUP_STORAGE" == s3 || "$BACKUP_STORAGE" == ftp ]] || error "BACKUP_STORAGE must be s3 or ftp."
+    [[ "$BACKUP_STORAGE" == s3 || "$BACKUP_STORAGE" == nfs ]] || error "BACKUP_STORAGE must be s3 or nfs."
 
     if [[ "$AUTO_APPROVE" != "true" && "$BACKUP_STORAGE" == s3 ]]; then
         cat >&2 <<'EOF'
@@ -159,14 +159,11 @@ EOF
     elif [[ "$AUTO_APPROVE" != "true" ]]; then
         cat >&2 <<'EOF'
 
-Prepare the FTP backup space (OVHcloud Backup Storage, for one):
-  1. Allow this server's address with FTP and NFS in the space's access list.
-  2. Copy its FTPS host name, login and password, and its NFS export.
+Prepare the NFS backup storage (OVHcloud Backup Storage, for one):
+  1. Allow this server's address with NFS in the storage's access list.
+  2. Copy its export, host:/path (version 3 is enough).
 EOF
-        installer_prompt_value BACKUP_FTP_HOST "FTPS host of the backup space" "$BACKUP_FTP_HOST"
-        installer_prompt_value BACKUP_FTP_USER "FTP login of the backup space" "$BACKUP_FTP_USER"
-        [[ -n "$BACKUP_FTP_PASSWORD" ]] || installer_prompt_secret BACKUP_FTP_PASSWORD "FTP password of the backup space (input hidden)"
-        installer_prompt_value BACKUP_NFS_EXPORT "NFS export for Longhorn volumes (host:/path)" "$BACKUP_NFS_EXPORT"
+        installer_prompt_value BACKUP_NFS_EXPORT "NFS export of the backup storage (host:/path)" "$BACKUP_NFS_EXPORT"
     fi
     if [[ "$AUTO_APPROVE" != "true" && -z "$BACKUP_REPOSITORY_PASSWORD" ]]; then
         installer_prompt_confirmed_secret BACKUP_REPOSITORY_PASSWORD \
@@ -180,7 +177,6 @@ EOF
         [[ "$BACKUP_S3_BUCKET" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{1,61}[A-Za-z0-9]$ ]] || error "BACKUP_S3_BUCKET is invalid."
         [[ -n "$BACKUP_S3_ACCESS_KEY" && -n "$BACKUP_S3_SECRET_KEY" ]] || error "S3 backup credentials are required."
     else
-        [[ -n "$BACKUP_FTP_HOST" && -n "$BACKUP_FTP_USER" && -n "$BACKUP_FTP_PASSWORD" ]] || error "FTP backup credentials are required."
         [[ "$BACKUP_NFS_EXPORT" =~ ^[A-Za-z0-9.-]+:/ ]] || error "BACKUP_NFS_EXPORT must be host:/path."
     fi
     if [[ ! "$BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH" =~ ^[0-9]+$ ]] || (( BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH < 12 )); then
@@ -190,7 +186,7 @@ EOF
         error "The backup encryption password must contain at least $BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH characters."
     export CONFIGURE_OFFSITE_BACKUPS BACKUP_STORAGE BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET
     export BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY BACKUP_REPOSITORY_PASSWORD BACKUP_REPOSITORY_PASSWORD_MIN_LENGTH
-    export BACKUP_FTP_HOST BACKUP_FTP_USER BACKUP_FTP_PASSWORD BACKUP_FTP_PATH BACKUP_NFS_EXPORT
+    export BACKUP_NFS_EXPORT BACKUP_NFS_PATH
 }
 
 # Platform mail relay (ADR 0029): alerts, password resets, GitLab and Odoo.

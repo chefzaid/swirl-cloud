@@ -264,8 +264,8 @@ environment or Ansible Vault; never commit credentials or generated configuratio
   down to 12 as an accepted risk; keep a copy outside the cluster) and either
   `BACKUP_STORAGE=s3` with `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`,
   `BACKUP_S3_REGION`, `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY`, or
-  `BACKUP_STORAGE=ftp` with `BACKUP_FTP_HOST` (the FTPS name), `BACKUP_FTP_USER`,
-  `BACKUP_FTP_PASSWORD` and `BACKUP_NFS_EXPORT` (`host:/path`, for Longhorn).
+  `BACKUP_STORAGE=nfs` with `BACKUP_NFS_EXPORT` (`host:/path`, NFS version 3;
+  `BACKUP_NFS_PATH` names the repository's folder, `swirl-cloud` by default).
   `BACKUP_TIME` (`HH:MM` and a time zone), `LONGHORN_BACKUP_CRON` (UTC),
   `LONGHORN_BACKUP_EXCLUDE` and `BACKUP_KEEP_LOCAL=false` (no archive left on the
   server) adjust it. See [backup and recovery](operations.md#backups-and-recovery).

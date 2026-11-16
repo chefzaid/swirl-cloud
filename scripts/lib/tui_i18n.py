@@ -142,16 +142,12 @@ FR = {
     "Install/upgrade Argo CD?": "Installer ou mettre à jour Argo CD ?",
     "Configure encrypted off-node backups?": "Configurer des sauvegardes chiffrées hors du serveur ?",
     "Off-node backup storage": "Stockage des sauvegardes hors du serveur",
-    "s3: object storage. ftp: an FTP backup space that also exports NFS, such as OVHcloud Backup Storage.":
-        "s3 : stockage objet. ftp : un espace de sauvegarde FTP qui exporte aussi en NFS, comme le Backup Storage d'OVHcloud.",
-    "FTPS host of the backup space": "Hôte FTPS de l'espace de sauvegarde",
-    "The name its TLS certificate carries; at OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net.":
-        "Le nom que porte son certificat TLS ; chez OVHcloud ftpback-<zone>-<n>.mybackup.ovh.net.",
-    "FTP login of the backup space": "Identifiant FTP de l'espace de sauvegarde",
-    "FTP password of the backup space": "Mot de passe FTP de l'espace de sauvegarde",
-    "Folder of the encrypted repository on the backup space": "Dossier du dépôt chiffré sur l'espace de sauvegarde",
-    "NFS export of the same backup space, for Longhorn volumes (host:/path)":
-        "Export NFS du même espace de sauvegarde, pour les volumes Longhorn (hôte:/chemin)",
+    "s3: object storage. nfs: an NFS version 3 export, such as OVHcloud Backup Storage.":
+        "s3 : stockage objet. nfs : un export NFS version 3, comme le Backup Storage d'OVHcloud.",
+    "NFS export of the backup storage (host:/path)": "Export NFS du stockage de sauvegarde (hôte:/chemin)",
+    "At OVHcloud ftpback-<zone>-<n>.ovh.net:/export/ftpbackup/<server name>, with NFS allowed for this server.":
+        "Chez OVHcloud ftpback-<zone>-<n>.ovh.net:/export/ftpbackup/<nom du serveur>, avec NFS autorisé pour ce serveur.",
+    "Folder of the encrypted repository on the export": "Dossier du dépôt chiffré sur l'export",
     "Shortest accepted encryption password": "Longueur minimale du mot de passe de chiffrement",
     "12 at least; under 16 is an accepted risk, as whoever holds the repository can guess offline.":
         "12 au moins ; en dessous de 16, c'est un risque accepté, car qui détient le dépôt peut deviner hors ligne.",
