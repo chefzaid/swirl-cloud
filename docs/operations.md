@@ -26,7 +26,7 @@ Administrative UIs use the access controls in [security and identity](security.m
 | Portainer | `https://portainer.<your-domain>` | Kubernetes management |
 | DBGate | `https://dbgate.<your-domain>` | PostgreSQL, MongoDB, and Redis administration |
 | Kafbat UI | `https://kafka.<your-domain>` | Kafka administration |
-| IT Support (Zammad) | `https://support.<your-domain>` | Tickets for help and access requests ([access groups](security.md#access-groups)) |
+| Zammad | `https://support.<your-domain>` | IT help desk: tickets for help and access requests ([access groups](security.md#access-groups)) |
 | Mailpit | `https://cloud.<your-domain>/mailpit/` | Email sent by `int` and `uat`, caught instead of delivered ([guide](guides/platform-mail.md#non-production-mail)) |
 | Trivy reports | `https://grafana.<your-domain>/d/trivy-security/trivy-security-reports` | Current workload and cluster findings |
 | Lynis reports | `https://kibana.<your-domain>/app/dashboards#/view/lynis-security-audits` | Host audit history |
