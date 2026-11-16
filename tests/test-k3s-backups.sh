@@ -445,7 +445,9 @@ done
 host_call="$(grep '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic/calls")"
 [[ "$host_call" == *" --exclude $TEST_DIR/data/server/db/state.db "* && "$host_call" == *" --exclude-caches "* ]]
 [[ "$host_call" == *" $TEST_DIR/host-files $TEST_DIR/offsite-host" ]]
-[[ "$(cat "$TEST_DIR/restic/host-state")" == /test && ! -e "$TEST_DIR/offsite-host" ]]
+# An etcd server: its live member directory stays out and nothing is copied from SQLite.
+[[ "$host_call" == *" --exclude $TEST_DIR/data/server/db/etcd "* ]]
+[[ ! -e "$TEST_DIR/restic/host-state" && ! -e "$TEST_DIR/offsite-host" ]]
 [[ -f "$offsite_archive" ]]
 
 # An FTP backup space through rclone, keeping no archive on the server.
@@ -458,10 +460,13 @@ mkdir -p "$TEST_DIR/restic-ftp"
     printf 'BACKUP_KEEP_LOCAL=false\n'
 } > "$TEST_DIR/backup-ftp.env"
 seed_archives offsite-ftp
+# A SQLite server: the host files take a consistent copy of the live database.
+rmdir "$TEST_DIR/data/server/db/etcd/member"
 MOCK_BACKUP_ENVIRONMENT="$TEST_DIR/backup-ftp.env" MOCK_RESTIC_STORE="$TEST_DIR/restic-ftp" run_backup offsite-ftp >/dev/null
 grep -q '^backup --tag swirl-cloud-k3s .*/offsite-ftp/k3s-.*\.tar\.gz ' "$TEST_DIR/restic-ftp/calls"
 grep -q '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic-ftp/calls"
 [[ -z "$(find "$TEST_DIR/offsite-ftp" -maxdepth 1 -name 'k3s-*')" ]] || { printf 'Archives stayed on the server\n' >&2; exit 1; }
+[[ "$(cat "$TEST_DIR/restic-ftp/host-state")" == /test ]]
 offsite_id="$(jq -r '.[0].id' "$TEST_DIR/restic/snapshots.json")"
 # Older snapshots listed before and after it must not be taken for the newest archive.
 jq --arg older "$TEST_DIR/offsite/k3s-20200101T000000Z.tar.gz" --arg old "$TEST_DIR/offsite/k3s-20200102T000000Z.tar.gz" \
