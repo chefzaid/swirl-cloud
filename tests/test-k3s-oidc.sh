@@ -21,4 +21,7 @@ for bad in "PLATFORM_DOMAIN=example.com KEYCLOAK_REALM=master" "PLATFORM_DOMAIN=
     if (eval "$bad" main >/dev/null 2>&1); then fail "Accepted: $bad"; fi
 done
 
+# The EXIT trap removes the temporary file after main returns; a local one is unset by then.
+if declare -f main | grep -Eq '^\s*local .*\btemporary\b'; then fail 'main keeps the EXIT trap'\''s file in a local variable'; fi
+
 printf '[PASS] Keycloak sign-in for kubectl\n'

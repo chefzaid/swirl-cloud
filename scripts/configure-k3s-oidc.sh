@@ -30,7 +30,8 @@ dropin() {
 }
 
 main() {
-    local mode="${1:-}" changed=false file temporary started
+    # temporary is not local: the EXIT trap runs after main returns.
+    local mode="${1:-}" changed=false file started
     SUDO=(sudo)
     [[ "$mode" != --check ]] || SUDO=(sudo -n)
     case "$mode" in
