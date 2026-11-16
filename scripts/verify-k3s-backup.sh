@@ -27,7 +27,7 @@ VERIFY_LOCK_WAIT_SECONDS="${VERIFY_LOCK_WAIT_SECONDS:-3600}"
 # locking, as such exports offer; a soft mount fails the run instead of hanging
 # it while the storage is unreachable.
 OFFSITE_MOUNT="${OFFSITE_MOUNT:-${RUNTIME_DIRECTORY:-/run/swirl-cloud-k3s-backup-verify}/offsite}"
-[[ -z "${BACKUP_NFS_EXPORT:-}" ]] || RESTIC_REPOSITORY="$OFFSITE_MOUNT/${BACKUP_NFS_PATH:-swirl-cloud}/restic"
+[[ -z "${BACKUP_NFS_EXPORT:-}" ]] || export RESTIC_REPOSITORY="$OFFSITE_MOUNT/${BACKUP_NFS_PATH:-swirl-cloud}/restic"
 offsite_mounted=false
 offsite_mount() {
   [[ -n "${BACKUP_NFS_EXPORT:-}" && "$offsite_mounted" == false ]] || return 0
