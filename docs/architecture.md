@@ -30,11 +30,11 @@ flowchart LR
 
 | Layer | Components | Installed by |
 | --- | --- | --- |
-| Kubernetes | K3s `v1.36.4+k3s1` with secrets encryption, SQLite or embedded etcd, CoreDNS private zone, floating API endpoint (keepalived VIP or Tailscale Service) | Installer and [node enrollment](guides/node-enrollment.md) |
+| Kubernetes | K3s `v1.36.6+k3s1` with secrets encryption, SQLite or embedded etcd, CoreDNS private zone, floating API endpoint (keepalived VIP or Tailscale Service) | Installer and [node enrollment](guides/node-enrollment.md) |
 | Storage | Longhorn 1.13.0, weekly trim, optional S3 backups, opt-in encrypted volumes | Shared Helm helper |
 | Ingress and edge | Traefik 3.7 (direct LoadBalancer or HA DaemonSet with `cloudflared`), Cloudflare DNS/TLS/WAF/Access | [`configure-ingress.sh`](../scripts/configure-ingress.sh), [`configure-cloudflare.sh`](../scripts/configure-cloudflare.sh) |
 | Secrets | Vault 2.1 (Raft), External Secrets 2.11 | Shared Helm helper and [`configure-vault.sh`](../scripts/configure-vault.sh) |
-| Data | PostgreSQL 18 (optional CloudNativePG HA), Redis 8 (optional Sentinel HA), Kafka KRaft (optional three-node quorum), MongoDB 7 | Platform chart |
+| Data | PostgreSQL 18 (optional CloudNativePG HA), Redis 8 (optional Sentinel HA), Kafka KRaft (optional three-node quorum), MongoDB 8 | Platform chart |
 | Identity | Keycloak 26, OAuth2 Proxy, Cloudflare Access IdP | Platform chart |
 | Delivery | GitLab CE 19 with Registry and Dependency Proxy, GitLab Runner, Argo CD 3.5 | Platform chart and shared Helm helper |
 | Observability | Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter, Elasticsearch, Logstash, Kibana, Fluent Bit, Filebeat, Trivy Operator, SonarQube | Platform chart |

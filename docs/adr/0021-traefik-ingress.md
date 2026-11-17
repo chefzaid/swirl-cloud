@@ -13,7 +13,7 @@ changing how applications own their routes.
 
 ## Decision
 
-- Disable K3s's bundled Traefik and install Traefik (currently v3.7.13) through a
+- Disable K3s's bundled Traefik and install Traefik (currently v3.7.19) through a
   pinned platform Helm release with [`configure-ingress.sh`](../../scripts/configure-ingress.sh).
 - Keep native Kubernetes Ingress for platform and application routes; use
   same-namespace Traefik Middleware for authentication (ForwardAuth), body limits

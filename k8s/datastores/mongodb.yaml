@@ -70,9 +70,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mongodb
-          # MongoDB 8.x refuses Linux 6.19-7.0.13, and Ubuntu 26.04 ships kernel 7.0.0,
-          # so stay on 7.0.
-          image: docker.io/library/mongo:7.0.45-jammy@sha256:7fba8c37d681a79f22a85d2b06bd5ed121a7973c0a6ca20ed4887bb0a1548ce0
+          # MongoDB refuses Linux 6.19-7.0.13; since 8.0.37 it reads Ubuntu's
+          # /proc/version_signature, and Ubuntu 26.04's 7.0.0 kernels carry 7.0.14 or later.
+          image: docker.io/library/mongo:8.0.38-noble@sha256:76a93cc399d05709baeea4e55385749657aa0085ad5b497c851380778eccea2c
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -122,7 +122,7 @@ spec:
               cpu: 300m
               memory: 768Mi
         - name: mongodb-exporter
-          image: docker.io/percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1
+          image: docker.io/percona/mongodb_exporter:0.54.0@sha256:934e9db87e85e0fa63654e73c3504845993a254e898783ca905e65a68848b5a4
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

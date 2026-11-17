@@ -49,7 +49,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: migrate-sso-identity
-          image: docker.io/library/postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+          image: docker.io/library/postgres:18.7-bookworm@sha256:ece55f7868da684e400f82f1030a050718adbdd65c23aa500c486f6e2950dc0f
           env:
             - name: SONAR_DB_PASSWORD
               valueFrom:
@@ -145,7 +145,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: bootstrap
-          image: docker.io/curlimages/curl:8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac
+          image: docker.io/curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
           env:
             - name: SONAR_ADMIN_TOKEN
               valueFrom:
@@ -263,7 +263,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       initContainers:
       - name: prepare-theme
-        image: docker.io/library/sonarqube:26.9.0.129388-community@sha256:4905574ab8584dcac1a06c01cdc43a4ce9e369723ac4a7ab1d029c1bf71e6fe9
+        image: docker.io/library/sonarqube:26.11.0.134175-community@sha256:65541accbdb92e27fe770fc6ba99988a3dd5a0c71ffafd67f88abfad366996fa
         command:
         - sh
         - -ec
@@ -294,7 +294,7 @@ spec:
         - name: sonarqube-themed-index
           mountPath: /prepared
       - name: init-database
-        image: docker.io/library/postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+        image: docker.io/library/postgres:18.7-bookworm@sha256:ece55f7868da684e400f82f1030a050718adbdd65c23aa500c486f6e2950dc0f
         securityContext:
           runAsNonRoot: true
           runAsUser: 10001
@@ -355,7 +355,7 @@ spec:
             memory: 256Mi
       containers:
       - name: sonarqube
-        image: docker.io/library/sonarqube:26.9.0.129388-community@sha256:4905574ab8584dcac1a06c01cdc43a4ce9e369723ac4a7ab1d029c1bf71e6fe9
+        image: docker.io/library/sonarqube:26.11.0.134175-community@sha256:65541accbdb92e27fe770fc6ba99988a3dd5a0c71ffafd67f88abfad366996fa
         ports:
         - containerPort: 9000
         env:

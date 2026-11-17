@@ -18,7 +18,7 @@ variables:
 
 validate:repository:
   stage: validate
-  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+  image: "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
   cache:
     key: swirl-cloud-alpine-tools-v2
     paths:
@@ -32,7 +32,7 @@ validate:repository:
 
 verify:gitops:
   stage: verify
-  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+  image: "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
   cache:
     key: swirl-cloud-alpine-tools-v2
     paths:
@@ -66,7 +66,7 @@ verify:delivery-platform:
   needs:
     - job: verify:gitops
       artifacts: false
-  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+  image: "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
   cache:
     key: swirl-cloud-alpine-tools-v2
     paths:
@@ -109,7 +109,7 @@ verify:delivery-platform:
 
 verify:registry-write:
   stage: verify
-  image: "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+  image: "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
   cache:
     key: swirl-cloud-alpine-tools-v2
     paths:
@@ -177,7 +177,7 @@ report:platform-artifacts:
   needs: []
   allow_failure: true
   image:
-    name: "docker.io/aquasec/trivy:0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
+    name: "docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"
     entrypoint: [""]
   variables:
     TRIVY_CACHE_DIR: $CI_PROJECT_DIR/.cache/trivy
@@ -185,7 +185,7 @@ report:platform-artifacts:
   script:
     - mkdir -p reports
     - trivy config --skip-check-update --exit-code 0 --severity CRITICAL,HIGH --output reports/vendored-charts.txt k8s/charts
-    - trivy image --server http://trivy-service.infra:4954 --scanners vuln --exit-code 0 --severity CRITICAL,HIGH --output reports/ci-image.txt "docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+    - trivy image --server http://trivy-service.infra:4954 --scanners vuln --exit-code 0 --severity CRITICAL,HIGH --output reports/ci-image.txt "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
     - cat reports/vendored-charts.txt reports/ci-image.txt
   artifacts:
     when: always

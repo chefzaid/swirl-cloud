@@ -150,7 +150,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: render-config
-          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
+          image: docker.io/library/odoo:19.0-20261112@sha256:49c9d2a9935f07f15e2404ce8649a84c4f0d4e70a880f7209ad27a19ab415f77
           command: ["/bin/bash", "-ec"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -211,7 +211,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: bootstrap-database
-          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
+          image: docker.io/library/odoo:19.0-20261112@sha256:49c9d2a9935f07f15e2404ce8649a84c4f0d4e70a880f7209ad27a19ab415f77
           command: ["/bin/bash", "-ec"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -481,7 +481,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: odoo
-          image: docker.io/library/odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
+          image: docker.io/library/odoo:19.0-20261112@sha256:49c9d2a9935f07f15e2404ce8649a84c4f0d4e70a880f7209ad27a19ab415f77
           env:
             - name: SSO_PRIMARY_EMAIL
               valueFrom:

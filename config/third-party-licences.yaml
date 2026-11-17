@@ -168,7 +168,7 @@ components:
     source: https://gitlab.com/gitlab-org/gitlab-foss
     maintainer: GitLab Inc.
     jurisdiction: United States
-    end_of_life: "2026-12-17"
+    end_of_life: "2027-01-21"
     support_source: https://endoflife.date/gitlab
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
@@ -179,7 +179,7 @@ components:
     source: https://gitlab.com/gitlab-org/gitlab-runner
     maintainer: GitLab Inc.
     jurisdiction: United States
-    end_of_life: "2026-12-17"
+    end_of_life: "2027-01-21"
     support_source: https://docs.gitlab.com/policy/maintenance/
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
@@ -188,7 +188,7 @@ components:
     source: https://github.com/grafana/grafana
     maintainer: Grafana Labs
     jurisdiction: United States
-    end_of_life: "2027-05-18"
+    end_of_life: "2027-07-20"
     support_source: https://endoflife.date/grafana
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source. A modified
@@ -241,7 +241,7 @@ components:
     source: https://github.com/mongodb/mongo
     maintainer: MongoDB, Inc.
     jurisdiction: United States
-    end_of_life: "2027-08-31"
+    end_of_life: "2029-10-31"
     support_source: https://endoflife.date/mongodb
     customer_use: decision-needed
     obligations: Offering MongoDB's functionality to third parties as a service obliges releasing the
@@ -261,7 +261,7 @@ components:
     source: https://github.com/nodejs/node
     maintainer: OpenJS Foundation
     jurisdiction: United States
-    end_of_life: "2028-04-30"
+    end_of_life: "2029-04-30"
     support_source: https://endoflife.date/nodejs
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
@@ -312,7 +312,7 @@ components:
     source: https://github.com/ruby/ruby
     maintainer: Ruby core team
     jurisdiction: Japan
-    end_of_life: "2028-03-31"
+    end_of_life: "2029-03-31"
     support_source: https://endoflife.date/ruby
     customer_use: allowed
     obligations: Keep the copyright and permission notice in copies.
@@ -361,7 +361,7 @@ components:
     source: https://github.com/prometheus/prometheus
     maintainer: Prometheus project (CNCF)
     jurisdiction: United States (Linux Foundation)
-    end_of_life: "2026-11-06"
+    end_of_life: latest-only
     support_source: https://endoflife.date/prometheus
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
@@ -495,7 +495,7 @@ components:
     source: https://github.com/keycloak/keycloak
     maintainer: Keycloak project (CNCF)
     jurisdiction: United States (Linux Foundation)
-    end_of_life: "2026-10-01"
+    end_of_life: latest-only
     support_source: https://endoflife.date/keycloak
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.

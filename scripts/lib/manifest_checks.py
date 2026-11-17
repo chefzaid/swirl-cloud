@@ -330,8 +330,8 @@ def prometheus_config(runtime, stage):
 
 
 def argocd_probe_policy(contract):
-    """The separately installed Argo CD release follows the probe policy; chart 10.9.2 defaults to 1-second probes."""
-    require(contract["DEFAULT_ARGOCD_CHART_VERSION"] == "10.9.2", "Argo CD chart changed: recheck its probe defaults here")
+    """The separately installed Argo CD release follows the probe policy; chart 10.18.0 defaults to 1-second probes."""
+    require(contract["DEFAULT_ARGOCD_CHART_VERSION"] == "10.18.0", "Argo CD chart changed: recheck its probe defaults here")
     values = yaml.safe_load((ROOT / "config/argocd-values.yaml").read_text())
     default = {"timeoutSeconds": 1, "periodSeconds": 10, "failureThreshold": 3}
     for component, kinds in (("server", ("livenessProbe", "readinessProbe")), ("repoServer", ("livenessProbe", "readinessProbe")),
@@ -372,8 +372,8 @@ def ingress_policy(contract):
     base = yaml.safe_load((ROOT / "config/traefik-values.yaml").read_text())
     ha = layer(base, yaml.safe_load((ROOT / "config/traefik-ha-values.yaml").read_text()))
     for profile, values in (("config/traefik-values.yaml", base), ("config/traefik-ha-values.yaml layered", ha)):
-        # Traefik chart 41.6.0 probe defaults (timeouts of 2 seconds) apply where the values set none.
-        require(contract["DEFAULT_TRAEFIK_CHART_VERSION"] == "41.6.0", "Traefik chart changed: recheck its probe defaults here")
+        # Traefik chart 42.4.1 probe defaults (timeouts of 2 seconds) apply where the values set none.
+        require(contract["DEFAULT_TRAEFIK_CHART_VERSION"] == "42.4.1", "Traefik chart changed: recheck its probe defaults here")
         probe_policy(f"{profile}: traefik", {
             "livenessProbe": {"timeoutSeconds": 2, "periodSeconds": 10, "failureThreshold": 3, **(values.get("livenessProbe") or {})},
             "readinessProbe": {"timeoutSeconds": 2, **(values.get("readinessProbe") or {})}})

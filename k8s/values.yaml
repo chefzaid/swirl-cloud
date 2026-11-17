@@ -46,7 +46,7 @@ redis-ha:
   priorityClassName: platform-critical
   image:
     repository: docker.io/library/redis
-    tag: 8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    tag: 8.10.3-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
   replicas: 3
   hardAntiAffinity: true
   persistentVolume:
@@ -89,7 +89,7 @@ redis-ha:
   # annotated-pod job once per container. Matches datastores/redis.yaml.
   extraContainers:
     - name: redis-exporter
-      image: quay.io/oliver006/redis_exporter:v1.92.1-alpine@sha256:f6f0528b12a26d2f89d73d74dd323005022142c7f7bde939f7bbba9adde48fce
+      image: quay.io/oliver006/redis_exporter:v1.97.0-alpine@sha256:ae30be386ab25600a8b222538a868d1b156b7e411073f7d2d5208fe79cc98d81
       command: ["sh", "-ec"]
       args:
         - |
@@ -176,7 +176,7 @@ trivy-operator:
   image:
     registry: docker.io
     repository: aquasec/trivy-operator
-    tag: "0.34.0@sha256:8123bd89b5f089cb5148123bb2b7a23f4d3cee305dd59132616f73776ef8bc9a"
+    tag: "0.36.1@sha256:05191a514247ae644dd5cc71306a94f44faff0a6a3fa817235911b911ecebcb9"
     pullPolicy: IfNotPresent
     pullSecrets: []
   service:
@@ -223,7 +223,7 @@ trivy-operator:
     image:
       registry: docker.io
       repository: aquasec/trivy
-      tag: "0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
+      tag: "0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"
       pullPolicy: IfNotPresent
     additionalVulnerabilityReportFields: Description,Links,CVSS,Target,Class,PackagePath,PackageType
     offlineScan: true
@@ -271,7 +271,7 @@ trivy-operator:
   policiesBundle:
     registry: docker.io
     repository: aquasec/trivy-checks
-    tag: "2.2.0@sha256:b4a7e239039f2ed756c2e88f2d2f95f80658aed99545e637db3ce6133051fb87"
+    tag: "2.3.0@sha256:2a540ca498daa278b14a77e8e5cd02594d16d131e5032afa65c279d0005826f2"
   nodeCollector:
     registry: ghcr.io
     repository: aquasecurity/node-collector

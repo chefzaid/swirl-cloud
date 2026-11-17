@@ -59,7 +59,7 @@ spec:
         - configMapRef:
             name: application-data-access
             optional: true
-        image: docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+        image: docker.io/library/redis:8.10.3-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -94,7 +94,7 @@ spec:
           mountPath: /etc/redis-acl
           readOnly: true
       - name: redis-exporter
-        image: quay.io/oliver006/redis_exporter:v1.92.1-alpine@sha256:f6f0528b12a26d2f89d73d74dd323005022142c7f7bde939f7bbba9adde48fce
+        image: quay.io/oliver006/redis_exporter:v1.97.0-alpine@sha256:ae30be386ab25600a8b222538a868d1b156b7e411073f7d2d5208fe79cc98d81
         # The ACL Secret can exist before Redis enforces it, and an unexpected
         # password fails every scrape.
         command: ["sh", "-ec"]

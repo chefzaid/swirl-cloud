@@ -4,7 +4,7 @@ server:
   priorityClassName: platform-critical
   image:
     repository: docker.io/hashicorp/vault
-    tag: 2.1.1@sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2
+    tag: 2.2.2@sha256:dfa48c2fa2b0099ccb47681ec5c4804bf5aec9d6879ecfee07ad4b92a5427ad6
   shareProcessNamespace: true
   statefulSet:
     securityContext:

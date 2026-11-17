@@ -15,7 +15,7 @@ too much of a single host; separate VMs per service would duplicate operations.
 Run one K3s cluster as the shared platform:
 
 - start on one OVHcloud dedicated server and grow by adding control planes and workers
-- install K3s at a pinned version (currently `v1.36.4+k3s1`) with `--secrets-encryption`,
+- install K3s at a pinned version (currently `v1.36.6+k3s1`) with `--secrets-encryption`,
   `--write-kubeconfig-mode 600` and the bundled Traefik disabled
 - keep SQLite for a single server and convert to embedded etcd before adding control planes
 - host shared services once and let application repositories deploy onto them

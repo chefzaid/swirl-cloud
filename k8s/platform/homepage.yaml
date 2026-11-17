@@ -549,7 +549,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: homepage
-        image: ghcr.io/gethomepage/homepage:v2.7.0@sha256:19c5c09184458a41b7b5915e71463a39f36cd33540f41bdbed008791b8182d5f
+        image: ghcr.io/gethomepage/homepage:v2.8.0@sha256:019d8f063a7299e7c1c51ee4a70b692291809af3244894fbec2c2ac7d1f71b18
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
@@ -647,7 +647,7 @@ spec:
           mountPath: /app/public/icons
           readOnly: true
       - name: portal-gate
-        image: docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+        image: docker.io/library/node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
         command: ["node", "/gate/gate.mjs"]
         securityContext:
           allowPrivilegeEscalation: false

@@ -117,7 +117,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: snapshot-controller
-          image: docker.io/rancher/mirrored-sig-storage-snapshot-controller:v8.4.0@sha256:b845f4bbc34d70bd84e92f8021f47704df1de3dbabbd8289969651360b39d605
+          image: docker.io/rancher/mirrored-sig-storage-snapshot-controller:v8.7.0@sha256:8511f417d0072efcd937aedd7cc79a937d5066e64ee17beb6097301c92742f19
           args:
             - --v=2
             - --leader-election=true
