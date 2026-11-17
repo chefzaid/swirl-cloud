@@ -165,7 +165,7 @@ data:
             icon: zammad.png
             href: https://support.__PUBLIC_DOMAIN__
             description: Ask IT for help or for access to a service
-            namespace: infra
+            namespace: corp
             podSelector: app=zammad
         - Vaultwarden:
             icon: vaultwarden.png

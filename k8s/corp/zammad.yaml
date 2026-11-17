@@ -1,5 +1,5 @@
-# Zammad: tickets for IT support and access requests (TODO §47, ADR 0031).
-# One pod runs Zammad's Rails server, websocket server, background worker and
+# Zammad: tickets for IT support and access requests (TODO §47, ADR 0031), in
+# corp with Odoo: company applications, apart from the platform's tools. One pod runs Zammad's Rails server, websocket server, background worker and
 # nginx front; init containers create its database on the platform PostgreSQL,
 # migrate it, and set sign-in through Keycloak and search through the platform
 # Elasticsearch. Attachments stay in the database, so the nightly pg_dumpall
@@ -8,7 +8,7 @@ apiVersion: generators.external-secrets.io/v1alpha1
 kind: Password
 metadata:
   name: zammad-password
-  namespace: infra
+  namespace: corp
   annotations:
     argocd.argoproj.io/sync-wave: "-4"
 spec:
@@ -25,7 +25,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: zammad-database-credentials
-  namespace: infra
+  namespace: corp
   annotations:
     argocd.argoproj.io/sync-wave: "-3"
 spec:
@@ -48,7 +48,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: zammad-elasticsearch-credentials
-  namespace: infra
+  namespace: corp
   annotations:
     argocd.argoproj.io/sync-wave: "-3"
 spec:
@@ -72,7 +72,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: zammad-bootstrap
-  namespace: infra
+  namespace: corp
 spec:
   refreshInterval: 1h
   secretStoreRef:
@@ -94,7 +94,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zammad
-  namespace: infra
+  namespace: corp
   labels:
     app: zammad
 data:
@@ -124,7 +124,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: zammad
-  namespace: infra
+  namespace: corp
   labels:
     app: zammad
 spec:
@@ -140,7 +140,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zammad
-  namespace: infra
+  namespace: corp
   labels:
     app: zammad
 spec:
@@ -201,12 +201,6 @@ spec:
             - name: POSTGRESQL_PASS
               valueFrom:
                 secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
-            - name: REDIS_USERNAME
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
             - {name: RAILS_TRUSTED_PROXIES, value: "['127.0.0.1', '::1']"}
             - {name: TMP, value: /opt/zammad/tmp}
           securityContext: *container
@@ -229,12 +223,6 @@ spec:
             - name: POSTGRESQL_PASS
               valueFrom:
                 secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
-            - name: REDIS_USERNAME
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
             - {name: TMP, value: /opt/zammad/tmp}
             - {name: ZAMMAD_FQDN, value: support.__PUBLIC_DOMAIN__}
             - {name: ZAMMAD_TITLE, value: __PLATFORM_TITLE_JSON__}
@@ -265,12 +253,6 @@ spec:
             - name: POSTGRESQL_PASS
               valueFrom:
                 secretKeyRef: {name: zammad-database-credentials, key: POSTGRESQL_PASS}
-            - name: REDIS_USERNAME
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: username, optional: true}
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef: {name: application-redis-legacy-auth, key: password, optional: true}
             - {name: RAILS_TRUSTED_PROXIES, value: "['127.0.0.1', '::1']"}
             - {name: TMP, value: /opt/zammad/tmp}
             - {name: RAILS_CHECK_PENDING_MIGRATIONS, value: "true"}
@@ -362,9 +344,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: zammad
-  namespace: infra
+  namespace: corp
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: infra-platform-access-portal@kubernetescrd,infra-zammad-body-limit@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: corp-zammad-access@kubernetescrd,corp-zammad-body-limit@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -388,7 +370,177 @@ apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: zammad-body-limit
-  namespace: infra
+  namespace: corp
 spec:
   buffering:
     maxRequestBodyBytes: 52428800
+
+---
+# Traefik keeps middlewares to their own namespace, so the help desk has its own
+# copy of the portal's sign-in gate: every member of staff (access-portal).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: zammad-access
+  namespace: corp
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/?allowed_groups=access-portal,platform-admins
+    trustForwardHeader: true
+    preserveLocationHeader: true
+    forwardBody: false
+    addAuthCookiesToResponse: [_oauth2_proxy]
+    authResponseHeaders: [X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups]
+
+---
+# corp refuses incoming traffic by default (base/corp-namespace.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-zammad-ingress
+  namespace: corp
+spec:
+  podSelector:
+    matchLabels:
+      app: zammad
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: infra
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# Zammad's own Redis (sessions, websocket and job state, nothing that needs
+# keeping): the platform Redis holds platform and application keys and needs a
+# credential that lives in infra.
+apiVersion: v1
+kind: Service
+metadata:
+  name: zammad-redis
+  namespace: corp
+  labels:
+    app: zammad-redis
+spec:
+  selector:
+    app: zammad-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zammad-redis
+  namespace: corp
+  labels:
+    app: zammad-redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zammad-redis
+  template:
+    metadata:
+      labels:
+        app: zammad-redis
+    spec:
+      priorityClassName: platform-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+          args: ["--save", "", "--appendonly", "no", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            tcpSocket: {port: redis}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: redis}
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 64Mi
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-zammad-redis
+  namespace: corp
+spec:
+  podSelector:
+    matchLabels:
+      app: zammad-redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: zammad
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+# The Elasticsearch bootstrap (platform/elk.yaml) runs in infra and sets the
+# zammad search user's password from this namespace's generated Secret.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: elasticsearch-bootstrap-zammad
+  namespace: corp
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["zammad-elasticsearch-credentials"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: elasticsearch-bootstrap-zammad
+  namespace: corp
+subjects:
+  - kind: ServiceAccount
+    name: elasticsearch-bootstrap
+    namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: elasticsearch-bootstrap-zammad

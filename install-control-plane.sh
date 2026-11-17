@@ -1193,6 +1193,10 @@ EOF
             --timeout="$EXTERNAL_SECRET_WAIT_TIMEOUT"
         kubectl wait --for=condition=ready pod -l app=odoo -n corp \
             --timeout="$PLATFORM_WAIT_TIMEOUT"
+        step "Deploying the Zammad help desk in the corp namespace..."
+        kubectl apply -f "$K8S_DIR/corp/zammad.yaml"
+        kubectl wait --for=condition=ready pod -l app=zammad -n corp \
+            --timeout="$PLATFORM_WAIT_TIMEOUT"
     fi
 
     if [[ "$INSTALL_DESCHEDULER" == "true" ]]; then

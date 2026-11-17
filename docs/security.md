@@ -563,7 +563,9 @@ Staff ask for help and for access in the IT help desk, Zammad, at
 `https://support.<your-domain>`: every member of `access-portal` may open it,
 signs in through Keycloak, and gets a customer account the first time; the
 first administrator signs in as Zammad's administrator. Make other people
-agents in Zammad's settings.
+agents in Zammad's settings. It runs in `corp` with Odoo, as a company
+application (installed with the corporate applications), with its own Redis;
+its database stays on the platform PostgreSQL.
 
 On the portal, a person who is not an administrator sees the production
 applications, GitLab, Odoo and the help desk (which decide access themselves), the services

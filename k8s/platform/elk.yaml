@@ -315,6 +315,19 @@ spec:
           claimName: elasticsearch-data
 
 ---
+# Reads the help desk's generated search password from corp (corp/zammad.yaml
+# grants this account that one Secret), since a pod cannot mount another
+# namespace's Secret.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: elasticsearch-bootstrap
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+automountServiceAccountToken: false
+
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -334,7 +347,9 @@ spec:
     spec:
       priorityClassName: platform-standard
       restartPolicy: OnFailure
-      automountServiceAccountToken: false
+      serviceAccountName: elasticsearch-bootstrap
+      # It reads one Secret in corp through the API (the help desk's search password).
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -354,12 +369,6 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: security-detection-credentials
-                  key: ELASTICSEARCH_PASSWORD
-                  optional: true
-            - name: ZAMMAD_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: zammad-elasticsearch-credentials
                   key: ELASTICSEARCH_PASSWORD
                   optional: true
           command:
@@ -465,7 +474,23 @@ spec:
               if [ -n "${SECURITY_DETECTION_PASSWORD:-}" ]; then
                 put_user security_detection "$SECURITY_DETECTION_PASSWORD" '["security_detection"]' 'Security Detection Reader'
               fi
-              # The help desk's search index (platform/zammad.yaml): its own indices and attachment pipeline only.
+              # The help desk's search index (corp/zammad.yaml): its own indices and attachment pipeline only.
+              # Its password is generated in corp; wait a minute for External Secrets to write it.
+              ZAMMAD_PASSWORD=""
+              sa=/var/run/secrets/kubernetes.io/serviceaccount
+              for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                code="$(curl -sS -o /tmp/zammad-secret.json -w '%{http_code}' --cacert "$sa/ca.crt" \
+                  -H "Authorization: Bearer $(cat "$sa/token")" \
+                  https://kubernetes.default.svc/api/v1/namespaces/corp/secrets/zammad-elasticsearch-credentials || true)"
+                if [ "$code" = 200 ]; then
+                  ZAMMAD_PASSWORD="$(sed -n 's/^ *"ELASTICSEARCH_PASSWORD": *"\([^"]*\)".*/\1/p' /tmp/zammad-secret.json | base64 -d)"
+                  break
+                fi
+                # No corp namespace or no help desk on this installation.
+                [ "$code" = 403 ] && break
+                sleep 5
+              done
+              rm -f /tmp/zammad-secret.json
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"cluster":["monitor","manage_ingest_pipelines"],"indices":[{"names":["zammad*"],"privileges":["all"]}]}' \
