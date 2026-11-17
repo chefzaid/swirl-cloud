@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Guards for the host rules of the security detection job, run against fake
-Elasticsearch, Keycloak and Alertmanager: an SSH login after five failures from
-the same address alerts and four do not, and sudo by a user outside the learned
-history alerts while the first run only learns. Only findings first stored in
-the hour are printed for SOC forwarding."""
+Elasticsearch, Keycloak, Prometheus and Alertmanager: an SSH login after five
+failures from the same address alerts and four do not, sudo by a user outside the
+learned history alerts while the first run only learns, and a ClamAV detection
+names the pod that sent the file. Only findings first stored in the hour are
+printed for SOC forwarding."""
 import json
 from pathlib import Path
 import shutil
@@ -53,6 +54,20 @@ MOCK = textwrap.dedent("""\
             && Date.parse(line["@timestamp"]) >= floor);
           return reply(200, { hits: { hits: hits.map((line) => ({ _source: line })) } });
         }
+        if (index === "malware-scans-*") {
+          // Infected results since the window's start, grouped by signature and sender.
+          const wanted = body.query.bool.filter[0].term["clamav.result"];
+          const since = Date.parse(body.query.bool.filter[1].range["@timestamp"].gte);
+          const groups = new Map();
+          for (const scan of fixture.scans || []) {
+            if (scan.clamav.result !== wanted || Date.parse(scan["@timestamp"]) < since) continue;
+            const key = [scan.clamav.signature, scan.clamav.client_address];
+            const group = groups.get(key.join("|")) || { key, doc_count: 0, category: { buckets: [{ key: scan.clamav.category }] } };
+            group.doc_count += 1;
+            groups.set(key.join("|"), group);
+          }
+          return reply(200, { hits: { hits: [] }, aggregations: { found: { buckets: [...groups.values()] } } });
+        }
         if (index === "identity-audit-*" && body.size) {
           // Term filters and must_not terms on the fixture's identity events.
           const value = (event, path) => path.split(".").reduce((node, key) => node?.[key], event);
@@ -77,6 +92,11 @@ MOCK = textwrap.dedent("""\
           if (method !== "GET") return new Response(null, { status: 204 });
         }
         return reply(200, []);
+      }
+      if (url.startsWith("http://prom/api/v1/query?")) {
+        const address = new URL(url).searchParams.get("query").match(/pod_ip="([^"]+)"/)[1];
+        const pod = (fixture.pods || {})[address];
+        return reply(200, { status: "success", data: { result: pod ? [{ metric: pod }] : [] } });
       }
       if (url.endsWith("/api/v2/alerts")) { posted.push(...JSON.parse(options.body)); return reply(200, {}); }
       if (url.endsWith("/_bulk")) {
@@ -103,18 +123,19 @@ def sudo(timestamp, user, host="node-1"):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class SecurityDetectionTest(unittest.TestCase):
-    def run_detection(self, journal, state=None, stored=(), identity=(), grants=None):
+    def run_detection(self, journal, state=None, stored=(), identity=(), grants=None, scans=(), pods=None):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         documents = yaml.safe_load_all((ROOT / "k8s/platform/security-detection.yaml").read_text())
         script = next(d for d in documents if d and d["kind"] == "ConfigMap")["data"]["detect.mjs"]
         (directory / "detect.mjs").write_text(script)
         (directory / "mock.mjs").write_text(MOCK)
-        fixture = {"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored), "identity": list(identity)}
+        fixture = {"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored), "identity": list(identity),
+                   "scans": list(scans), "pods": pods or {}}
         if grants is not None:
             fixture["grants"] = grants
         (directory / "fixture.json").write_text(json.dumps(fixture))
         env = {"PATH": "/usr/bin:/bin", "FIXTURE": str(directory / "fixture.json"), "RESULT": str(directory / "result.json"),
-               "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "KEYCLOAK_URL": "http://kc",
+               "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "PROMETHEUS_URL": "http://prom", "KEYCLOAK_URL": "http://kc",
                "KEYCLOAK_REALM": "example", "RUNBOOK_BASE_URL": "https://runbooks", "ELASTICSEARCH_USERNAME": "u",
                "ELASTICSEARCH_PASSWORD": "p", "KEYCLOAK_ADMIN": "admin", "KEYCLOAK_ADMIN_PASSWORD": "x",
                "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "x"}
@@ -162,6 +183,28 @@ class SecurityDetectionTest(unittest.TestCase):
         self.assertFalse([alert for alert in alerts if alert[0] == "EmergencyAccountUsed"])
         alerts, _ = self.run_detection([], identity=quiet + [login("security-admin-console")])
         self.assertEqual({("EmergencyAccountUsed", "admin")}, {alert for alert in alerts if alert[0] == "EmergencyAccountUsed"})
+
+    def test_malware_found_names_the_sending_pod(self):
+        def scan(minute, result, signature=None, address="10.42.0.31", category="malware"):
+            fields = {"result": result, "client_address": address}
+            if signature:
+                fields.update(signature=signature, category=category)
+            return {"@timestamp": f"2026-10-27T11:{minute:02d}:00.000Z", "clamav": fields}
+        scans = [scan(50, "clean"), scan(52, "infected", "Win.Trojan.Agent-1"), scan(53, "infected", "Win.Trojan.Agent-1"),
+                 scan(54, "infected", "Heuristics.OLE2.ContainsMacros", "10.42.0.77", "heuristic"),
+                 scan(30, "infected", "Win.Trojan.Older-1")]  # before the 15-minute window
+        self.run_detection([], scans=scans, pods={"10.42.0.31": {"namespace": "apps", "pod": "indezy-server-1"}})
+        found = {a["labels"]["signature"]: a for a in self.output["posted"] if a["labels"]["alertname"] == "MalwareDetected"}
+        self.assertEqual({"Win.Trojan.Agent-1", "Heuristics.OLE2.ContainsMacros"}, set(found))
+        trojan = found["Win.Trojan.Agent-1"]
+        self.assertEqual(("critical", "apps/indezy-server-1", "security"),
+                         (trojan["labels"]["severity"], trojan["labels"]["sender"], trojan["labels"]["owner"]))
+        self.assertIn("2 file(s) sent by apps/indezy-server-1 (10.42.0.31)", trojan["annotations"]["description"])
+        self.assertTrue(trojan["annotations"]["runbook_url"].endswith("#malwaredetected"))
+        # A policy refusal is a warning, and an address no pod held is reported as it is.
+        macros = found["Heuristics.OLE2.ContainsMacros"]["labels"]
+        self.assertEqual(("warning", "10.42.0.77"), (macros["severity"], macros["sender"]))
+        self.assertEqual({"MalwareDetected"}, {f["alertname"] for f in self.findings})
 
     def test_timed_access_ends_and_warns_a_week_before(self):
         def grant(id, user, expires, granted="2026-09-01T00:00:00+00:00", **fields):

@@ -18,6 +18,7 @@ Alertmanager with `owner: security`, `source: security-detection` and a
 | `NewPlatformAdministrator` | A user added to `platform-admins` in the platform realm, or given the `admin` role in the master realm, compared with the previous run | reported for a day |
 | `HostSSHBruteForceThenSuccess` (critical) | A successful SSH login from an address that failed five or more times on the same host; Fail2ban and CrowdSec bans are not in the journal, so the failures stand in for them | 15 minutes |
 | `HostSudoByNewUser` | A user running a command with sudo who is not in the learned history; the first run learns the last seven days | reported for a day |
+| `MalwareDetected` (critical for malware, warning for a refusal by policy) | ClamAV answered `FOUND` for a file an application sent: one finding per signature and sender, the sender named as the pod that held its address in the last hour (kube-state-metrics in Prometheus) | 15 minutes |
 
 Each run re-posts current findings with a 30-minute end time, so an alert stays
 active while its evidence is in the window, then resolves. A failed run (for
@@ -32,9 +33,11 @@ and warns a week before those end.
 ## Data and access
 
 The job reads `identity-audit-*` ([identity events](../security.md#identity-events)),
-`kubernetes-audit-*` ([API audit log](../security.md#kubernetes-api-audit-log))
-and `kubernetes-logs-host-*` (the host journal) as the Elasticsearch user
-`security_detection`. That user may also write `security-detection-state`
+`kubernetes-audit-*` ([API audit log](../security.md#kubernetes-api-audit-log)),
+`kubernetes-logs-host-*` (the host journal) and `malware-scans-*` (ClamAV's
+results, [malware scanning](application-onboarding.md#malware-scanning)) as the
+Elasticsearch user `security_detection`, and asks Prometheus which pod held a
+sender's address. That user may also write `security-detection-state`
 (administrator and sudo baselines), `security-findings-*` and
 `access-grants`. Its password comes from an in-cluster External Secrets
 generator; the Elasticsearch security bootstrap creates the account on every

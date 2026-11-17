@@ -28,7 +28,7 @@ BACKUP_TIME="${BACKUP_TIME:-02:15 UTC}"
 LONGHORN_BACKUP_CRON="${LONGHORN_BACKUP_CRON:-15 3 * * *}"
 # Volumes (namespace/claim) left out of the daily volume backup: caches the
 # cluster refills by itself.
-LONGHORN_BACKUP_EXCLUDE="${LONGHORN_BACKUP_EXCLUDE:-gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0}"
+LONGHORN_BACKUP_EXCLUDE="${LONGHORN_BACKUP_EXCLUDE:-gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0 infra/signatures-clamav-0 infra/signatures-clamav-1}"
 RUN_BACKUP_NOW="${RUN_BACKUP_NOW:-true}"
 backup_environment=""
 timer_file=""

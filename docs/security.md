@@ -52,8 +52,13 @@ declared control-plane address before the provider-facing path is closed. See
 
 ClamAV's `clamd` (`infra/clamav`, TCP 3310) answers without authentication, so
 its NetworkPolicy admits only `apps`, `corp` and the labelled application
-namespaces; it keeps nothing it scans. It downloads signatures from
-`database.clamav.net` at start and every two hours, its only outbound traffic.
+namespaces, and Prometheus to its metrics. It keeps no file it scans, only each
+result (verdict, name, the sender's address) in `malware-scans-*` for 13 months.
+Beyond signatures it refuses Office macros, password-protected archives and
+documents, damaged programs, potentially unwanted content and anything past its
+scan limits ([what it refuses](guides/application-onboarding.md#malware-scanning)).
+Each replica checks `database.clamav.net` every hour, its only outbound traffic;
+a refused file raises `MalwareDetected`.
 
 Odoo is not behind Cloudflare Access: its login page, Live Chat endpoints and the
 website chat frame (`/platform_crm_intake/chat/<id>`) are public by design. Chat

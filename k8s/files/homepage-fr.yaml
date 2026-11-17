@@ -5,6 +5,7 @@ Private cloud applications, infrastructure, data, delivery, and observability: A
 ERP and CRM application: Application ERP et CRM
 Ask IT for help or for access to a service: Demander de l'aide à l'informatique ou l'accès à un service
 Your passwords and the team's shared ones, in the browser and on your phone: Vos mots de passe et ceux partagés par l'équipe, dans le navigateur et sur votre téléphone
+Malware scanning of the files sent to applications, with its reports in Grafana: Analyse antimalware des fichiers envoyés aux applications, avec ses rapports dans Grafana
 Source control, CI, artifacts, and collaboration: Gestion du code source, CI, artefacts et collaboration
 GitOps continuous delivery: Livraison continue GitOps
 Code quality and security analysis: Analyse de la qualité et de la sécurité du code

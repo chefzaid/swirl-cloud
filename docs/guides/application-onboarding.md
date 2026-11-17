@@ -138,28 +138,49 @@ writable, and each directory with `tar`. A copy that fails fails the backup run
 
 ## Malware scanning
 
-ClamAV runs once in `infra` for every application (`k8s/platform/clamav.yaml`).
+ClamAV runs in `infra` for every application (`k8s/platform/clamav.yaml`).
 An application scans a file by opening TCP `clamav.<internal zone>:3310` (the
 internal zone is `INTERNAL_DNS_ZONE`, for example `clamav.internal.example.com`,
 or `clamav.infra.svc.cluster.local`) and speaking clamd's `INSTREAM` protocol:
 send `zINSTREAM\0`, then the file in chunks each preceded by its length as a
 4-byte big-endian integer, then a zero length. The answer is `stream: OK`,
-`stream: <signature> FOUND`, or `INSTREAM size limit exceeded. ERROR` beyond
-12 MB. `zPING\0` answers `PONG`.
+`stream: <name> FOUND`, or `INSTREAM size limit exceeded. ERROR` beyond 52 MiB.
+`zPING\0` answers `PONG`. Refuse the file on `FOUND`; treat any other answer, a
+refused connection or a timeout as "cannot check now" and refuse it too, asking
+the person to try again.
 
 | Property | Value |
 |---|---|
 | Reachable from | `apps`, `corp` and namespaces labelled `swirl-cloud.io/application-workloads` |
-| Largest file | 12 MB (`StreamMaxLength`) |
-| Parallel scans | 4; further connections wait |
-| Signatures | Downloaded at start, refreshed every two hours; reloads hold scans for seconds |
-| Memory | About 1.5 GiB requested, 2.5 GiB at most |
-| Stored | Nothing: files are scanned in memory and dropped |
+| Largest file | 50 MB (`StreamMaxLength 52M`) |
+| Time per file | A minute at most (`MaxScanTime`); allow 90 seconds before giving up |
+| Parallel scans | 8 per replica, 16 in all; further connections wait |
+| Availability | Two replicas, updated one at a time; a replica takes files only with a complete, loaded signature set |
+| Signatures | A new replica starts from the official set its image carries; the differences since are checked every hour and loaded beside the current set, so scans never pause |
+| Stored | The file nothing; its result (time, verdict, name, the sender's address) in `malware-scans-*` for 13 months |
 
-One pod serves every application, so decide what happens while it restarts or
-loads signatures (a minute or more): refusing the file and asking to try again is
-the safe default. The pod's availability is covered by the
-`KubernetesDeploymentUnavailable` alert.
+What `FOUND` covers, besides malware signatures (the name tells which):
+
+| Name | Refused because |
+|---|---|
+| `Heuristics.OLE2.ContainsMacros` | An Office document with VBA macros |
+| `Heuristics.Encrypted.*` | An archive or document that needs a password to open, so it cannot be checked (a PDF that only restricts printing or copying is checked and passes) |
+| `Heuristics.Limits.Exceeded.*` | An archive or document past a scan limit: 100 MB unpacked per file, 400 MB in all, 10 000 files, 17 levels of nesting, or a minute |
+| `Heuristics.Broken.Executable` and other `Heuristics.*` | A damaged program or a structure that hides content |
+| `PUA.*` | Potentially unwanted content, such as a PDF that runs JavaScript |
+
+Tell the person which of these applies rather than "malware" for the
+`Heuristics.*` and `PUA.*` names: the file may be theirs and harmless, and they
+can send it another way (without macros, without a password, unpacked).
+
+Every result is in Grafana's **ClamAV Malware Scanning** dashboard (also on the
+portal, after CrowdSec): files scanned and refused, by result and category, the
+refused files with their names and senders, and each replica's signatures, test
+scans, threads and memory. A refused file raises `MalwareDetected` within five
+minutes, naming the sending pod ([security detection](security-detection.md)).
+ClamAV's own health has its alerts: `ClamAVUnavailable`, `ClamAVTestScanFailing`,
+`ClamAVSignaturesOutdated`, `ClamAVSignaturesStale` and `ClamAVScanQueueBacklog`
+([runbooks](alert-runbooks.md#malware-scanning)).
 
 ## Single-target compatibility (version 1)
 

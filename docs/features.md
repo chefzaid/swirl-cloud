@@ -70,7 +70,7 @@ pieces fit together.
 - PostgreSQL 18, MongoDB 7, Redis 8 and Kafka KRaft in `infra`
 - per-environment access: PostgreSQL logins, Redis ACL prefixes, Kafka SCRAM users
 - opt-in PostgreSQL HA (CloudNativePG), Kafka HA (three controllers and brokers) and Redis Sentinel HA, with journaled migrations
-- malware scanning for applications: ClamAV 1.5 (`clamd` on `clamav.<internal zone>:3310`, [guide](guides/application-onboarding.md#malware-scanning)), its signatures refreshed every two hours, reachable from the application namespaces only
+- malware scanning for applications: ClamAV 1.5 (`clamd` on `clamav.<internal zone>:3310`, [guide](guides/application-onboarding.md#malware-scanning)), two replicas that take files only with a complete signature set, checked every hour and loaded without pausing scans; files up to 50 MB; macros, password-protected files and files past the scan limits refused too; every result in Grafana's ClamAV Malware Scanning dashboard, `MalwareDetected` naming the sending pod, and alerts on its availability, test scan and signature age; reachable from the application namespaces only
 
 ## Delivery
 

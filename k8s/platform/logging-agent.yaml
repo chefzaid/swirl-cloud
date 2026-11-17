@@ -186,6 +186,16 @@ data:
         Emitter_Storage.type      filesystem
         Emitter_Mem_Buf_Limit     10MB
 
+    # ClamAV's scan results (marked by the Lua filter) move to the
+    # malware-scans-* indices, kept as long as the identity events.
+    [FILTER]
+        Name                      rewrite_tag
+        Match                     kube.*
+        Rule                      $log_source ^malware-scan$ malware.clamav false
+        Emitter_Name              malware_scan_emitter
+        Emitter_Storage.type      filesystem
+        Emitter_Mem_Buf_Limit     10MB
+
     # swirl-cloud:soc-forwarding-pipeline
 
     [OUTPUT]
@@ -271,6 +281,25 @@ data:
         HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
         Logstash_Format           On
         Logstash_Prefix           database-audit
+        Logstash_DateFormat       %Y.%m
+        Suppress_Type_Name        On
+        Generate_ID               On
+        Write_Operation           index
+        Replace_Dots              On
+        Buffer_Size               5M
+        Retry_Limit               False
+        Trace_Error               On
+
+    [OUTPUT]
+        Name                      es
+        Alias                     malware_scans
+        Match                     malware.*
+        Host                      elasticsearch.__INTERNAL_DNS_ZONE__
+        Port                      9200
+        HTTP_User                 ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd               ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format           On
+        Logstash_Prefix           malware-scans
         Logstash_DateFormat       %Y.%m
         Suppress_Type_Name        On
         Generate_ID               On
@@ -406,6 +435,37 @@ data:
       return fields
     end
 
+    -- A clamd result line ("... -> instream(10.42.0.9@41532): <verdict>") as
+    -- fields; false for the pod's own scans; nil for any other line.
+    local function clamav_scan(line)
+      local client, verdict = string.match(line, "instream%(([^@)]+)@%d+%): (.-)%s*$")
+      if client == nil then
+        return nil
+      end
+      if client == "127.0.0.1" or client == "::1" then
+        return false
+      end
+      local scan = {client_address = client}
+      local name = string.match(verdict, "^(.+) FOUND$")
+      if name ~= nil then
+        scan["result"] = "infected"
+        scan["signature"] = name
+        if string.find(name, "^Heuristics%.") then
+          scan["category"] = "heuristic"
+        elseif string.find(name, "^PUA%.") then
+          scan["category"] = "pua"
+        else
+          scan["category"] = "malware"
+        end
+      elseif verdict == "OK" then
+        scan["result"] = "clean"
+      else
+        scan["result"] = "error"
+        scan["detail"] = verdict
+      end
+      return scan
+    end
+
     function enrich_kubernetes(tag, timestamp, record)
       local kubernetes = record["kubernetes"]
       if kubernetes == nil then
@@ -455,6 +515,21 @@ data:
         if audit ~= nil then
           record["log_source"] = "database-audit"
           record["database_audit"] = audit
+        end
+      end
+
+      -- ClamAV's scan results, one line per scan (platform/clamav.yaml), go to
+      -- the malware-scans-* indices. The pod's own test scans come from
+      -- 127.0.0.1 and are dropped. Only the platform clamd may produce them.
+      if kubernetes["namespace_name"] == "infra" and kubernetes["container_name"] == "clamd" and
+          labels ~= nil and labels["app"] == "clamav" and type(line) == "string" then
+        local scan = clamav_scan(line)
+        if scan == false then
+          return -1, timestamp, record
+        end
+        if scan ~= nil then
+          record["log_source"] = "malware-scan"
+          record["clamav"] = scan
         end
       end
 
@@ -628,6 +703,30 @@ data:
         }
       }
     }
+  malware-scans-template.json: |
+    {
+      "order": 100,
+      "index_patterns": ["malware-scans-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "10s",
+        "index.lifecycle.name": "swirl-cloud-identity-audit"
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "log_source": {"type": "keyword"},
+          "log": {"type": "text"},
+          "clamav": {"properties": {
+            "result": {"type": "keyword"}, "category": {"type": "keyword"},
+            "signature": {"type": "keyword", "ignore_above": 256},
+            "client_address": {"type": "keyword"}, "detail": {"type": "keyword", "ignore_above": 512}}},
+          "kubernetes": {"properties": {"pod_name": {"type": "keyword"}, "host": {"type": "keyword"}}}
+        }
+      }
+    }
   identity-audit-ilm-policy.json: |
     {
       "policy": {
@@ -736,6 +835,10 @@ spec:
                 -H 'Content-Type: application/json' \
                 --data-binary @/config/database-audit-template.json \
                 http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/database-audit >/dev/null
+              curl -fsS --user "${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" -X PUT \
+                -H 'Content-Type: application/json' \
+                --data-binary @/config/malware-scans-template.json \
+                http://elasticsearch.__INTERNAL_DNS_ZONE__:9200/_template/malware-scans >/dev/null
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

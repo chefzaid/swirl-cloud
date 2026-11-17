@@ -360,6 +360,12 @@ data:
         - CrowdSec:
             icon: crowdsec.png
             description: Internet-facing node detection and collaborative blocking
+        - ClamAV:
+            icon: clam-av.png
+            href: https://grafana.__PUBLIC_DOMAIN__/d/clamav-malware-scanning
+            description: Malware scanning of the files sent to applications, with its reports in Grafana
+            namespace: infra
+            podSelector: app=clamav
         - Fail2ban:
             icon: fail2ban.png
             description: Internet-facing node SSH abuse banning

@@ -1,5 +1,5 @@
 # Security detection rules over identity events, the Kubernetes API audit log,
-# host SSH and sudo journal lines and Keycloak state, every five minutes; findings go to Alertmanager like
+# host SSH and sudo journal lines, ClamAV detections and Keycloak state, every five minutes; findings go to Alertmanager like
 # Prometheus alerts (docs/guides/security-detection.md). The job's Elasticsearch
 # account uses a password generated here; the Elasticsearch bootstrap creates it.
 apiVersion: generators.external-secrets.io/v1alpha1
@@ -54,6 +54,7 @@ data:
     // its evidence is in the window and resolves on its own afterwards.
     const elasticsearch = process.env.ELASTICSEARCH_URL;
     const alertmanager = process.env.ALERTMANAGER_URL;
+    const prometheus = process.env.PROMETHEUS_URL;
     const keycloak = process.env.KEYCLOAK_URL;
     const realm = process.env.KEYCLOAK_REALM;
     const runbooks = process.env.RUNBOOK_BASE_URL;
@@ -327,10 +328,48 @@ data:
       return findings;
     }
 
+    // The pod that held a cluster address in the last hour (kube-state-metrics),
+    // or nothing when no pod did or Prometheus does not answer.
+    async function podAt(address) {
+      if (!prometheus || !/^[0-9a-fA-F.:]+$/.test(address)) return "";
+      try {
+        const query = `last_over_time(kube_pod_info{pod_ip="${address}"}[1h])`;
+        const response = await fetch(`${prometheus}/api/v1/query?query=${encodeURIComponent(query)}`);
+        if (!response.ok) return "";
+        const pods = ((await response.json()).data?.result || []).map((series) => `${series.metric.namespace}/${series.metric.pod}`);
+        return [...new Set(pods)].sort().join(", ");
+      } catch {
+        return "";
+      }
+    }
+
+    // ClamAV answered FOUND for a file an application sent (malware-scans-*,
+    // platform/clamav.yaml), so the application refused it: one finding per
+    // signature and sender. Malware is critical; a file refused by policy
+    // (Heuristics.* or PUA.*: macros, encryption, scan limits) is a warning.
+    async function malwareDetected() {
+      const result = await search("malware-scans-*", { size: 0,
+        query: { bool: { filter: [{ term: { "clamav.result": "infected" } }, { range: { "@timestamp": { gte: minutes(15) } } }] } },
+        aggs: { found: { multi_terms: { terms: [{ field: "clamav.signature" }, { field: "clamav.client_address" }], size: 50 },
+          aggs: { category: { terms: { field: "clamav.category", size: 1 } } } } } });
+      const findings = [];
+      for (const bucket of result.aggregations?.found?.buckets || []) {
+        const [signature, address] = bucket.key;
+        const pod = await podAt(address);
+        const malware = (bucket.category?.buckets?.[0]?.key || "malware") === "malware";
+        findings.push({ alertname: "MalwareDetected", severity: malware ? "critical" : "warning", signature, sender: pod || address,
+          summary: malware ? `ClamAV found ${signature} in a file` : `ClamAV refused a file by policy (${signature})`,
+          description: `${bucket.doc_count} file(s) sent by ${pod ? `${pod} (${address})` : address} in the last 15 minutes `
+            + `answered ${signature}, and the application refused them. Find who uploaded them in the application's log at that time, `
+            + "then check what else they sent; the Grafana dashboard ClamAV Malware Scanning lists every result." });
+      }
+      return findings;
+    }
+
     const findings = [];
     const failures = [];
     for (const rule of [bruteForceThenSuccess, emergencyAccountUsed, rbacChangedOutsideGitOps, secretReadByNewIdentity, newPlatformAdministrators,
-                        endTimedAccess, sshBruteForceThenSuccess, sudoByNewUser]) {
+                        endTimedAccess, sshBruteForceThenSuccess, sudoByNewUser, malwareDetected]) {
       try {
         findings.push(...await rule());
       } catch (error) {
@@ -412,6 +451,8 @@ spec:
                   value: http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
                 - name: ALERTMANAGER_URL
                   value: http://alertmanager.__INTERNAL_DNS_ZONE__:9093
+                - name: PROMETHEUS_URL
+                  value: http://prometheus.__INTERNAL_DNS_ZONE__:9090
                 - name: KEYCLOAK_URL
                   value: http://keycloak:8080/auth
                 - name: KEYCLOAK_REALM

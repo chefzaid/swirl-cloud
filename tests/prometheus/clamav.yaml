@@ -1,0 +1,72 @@
+# promtool unit test for the ClamAV alerts, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # Both replicas ready, then none from 10 m.
+      - series: 'kube_statefulset_status_replicas_ready{namespace="infra",statefulset="clamav"}'
+        values: '2x9 0x20'
+      # clamav-0 stops detecting the test file at 10 m; clamav-1's exporter
+      # stops running test scans (its last one stays at 0 s).
+      - series: 'clamav_canary_detected{pod="clamav-0"}'
+        values: '1x9 0x20'
+      - series: 'clamav_canary_last_run_timestamp_seconds{pod="clamav-0"}'
+        values: '0+60x29'
+      - series: 'clamav_canary_detected{pod="clamav-1"}'
+        values: '1x29'
+      - series: 'clamav_canary_last_run_timestamp_seconds{pod="clamav-1"}'
+        values: '0x29'
+      # Scans wait for a thread from 6 m.
+      - series: 'clamav_queue_items{pod="clamav-0"}'
+        values: '0x5 3x24'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ClamAVUnavailable", alertstate="firing"}
+        eval_time: 13m
+        exp_samples: []
+      - expr: ALERTS{alertname="ClamAVUnavailable", alertstate="firing"}
+        eval_time: 16m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ClamAVUnavailable",alertstate="firing",severity="critical",owner="platform",namespace="infra",statefulset="clamav"}'
+            value: 1
+      - expr: ALERTS{alertname="ClamAVTestScanFailing", alertstate="firing"}
+        eval_time: 18m
+        exp_samples: []
+      - expr: ALERTS{alertname="ClamAVTestScanFailing", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ClamAVTestScanFailing",alertstate="firing",severity="critical",owner="platform",pod="clamav-0"}'
+            value: 1
+          - labels: 'ALERTS{alertname="ClamAVTestScanFailing",alertstate="firing",severity="critical",owner="platform",pod="clamav-1"}'
+            value: 1
+      - expr: ALERTS{alertname="ClamAVScanQueueBacklog", alertstate="firing"}
+        eval_time: 19m
+        exp_samples: []
+      - expr: ALERTS{alertname="ClamAVScanQueueBacklog", alertstate="firing"}
+        eval_time: 23m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ClamAVScanQueueBacklog",alertstate="firing",severity="warning",owner="platform",pod="clamav-0"}'
+            value: 1
+  - interval: 5m
+    input_series:
+      # Signatures published at 0 s and never updated after (100 hours).
+      - series: 'clamav_signatures_published_timestamp_seconds{pod="clamav-0"}'
+        values: '0x1200'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ClamAVSignaturesOutdated", alertstate="firing"}
+        eval_time: 47h
+        exp_samples: []
+      - expr: ALERTS{alertname="ClamAVSignaturesOutdated", alertstate="firing"}
+        eval_time: 50h
+        exp_samples:
+          - labels: 'ALERTS{alertname="ClamAVSignaturesOutdated",alertstate="firing",severity="warning",owner="platform",pod="clamav-0"}'
+            value: 1
+      - expr: ALERTS{alertname="ClamAVSignaturesStale", alertstate="firing"}
+        eval_time: 95h
+        exp_samples: []
+      - expr: ALERTS{alertname="ClamAVSignaturesStale", alertstate="firing"}
+        eval_time: 98h
+        exp_samples:
+          - labels: 'ALERTS{alertname="ClamAVSignaturesStale",alertstate="firing",severity="critical",owner="platform",pod="clamav-0"}'
+            value: 1

@@ -996,6 +996,8 @@ data:
         orgId: 1
       - name: Platform reports
         orgId: 1
+      - name: Malware scans
+        orgId: 1
     datasources:
       - name: Prometheus
         uid: prometheus
@@ -1030,6 +1032,21 @@ data:
         access: proxy
         url: http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
         database: platform-reports-*
+        basicAuth: true
+        basicAuthUser: $ELASTICSEARCH_USERNAME
+        editable: false
+        jsonData:
+          timeField: "@timestamp"
+          esVersion: 9.4.6
+        secureJsonData:
+          basicAuthPassword: $ELASTICSEARCH_PASSWORD
+      # Every ClamAV scan result (platform/clamav.yaml), kept for 13 months.
+      - name: Malware scans
+        uid: malware-scans
+        type: elasticsearch
+        access: proxy
+        url: http://elasticsearch.__INTERNAL_DNS_ZONE__:9200
+        database: malware-scans-*
         basicAuth: true
         basicAuthUser: $ELASTICSEARCH_USERNAME
         editable: false
@@ -1138,7 +1155,7 @@ spec:
       annotations:
         swirl-cloud.io/application-observability: pending
         # Bump when grafana-datasources changes; Grafana reads them at startup.
-        swirl-cloud.io/datasources-version: "2"
+        swirl-cloud.io/datasources-version: "3"
     spec:
       priorityClassName: platform-standard
       serviceAccountName: grafana

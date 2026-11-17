@@ -543,6 +543,88 @@ Confirm the account and its sudo rights (`sudo -l -U <user>`, `/etc/sudoers.d`).
 If unexpected, remove the rights, lock the account and review its commands with
 `sudo journalctl -t sudo --since -1d`.
 
+### MalwareDetected
+
+ClamAV answered `FOUND` for files an application sent, so it refused them
+(labels `signature` and `sender`: the sending pod, or its address when no pod
+held it in the last hour). Critical for a malware signature; a warning for a
+refusal by policy (`Heuristics.*`, `PUA.*`: macros, password-protected files,
+scan limits, see [what ClamAV refuses](application-onboarding.md#malware-scanning)).
+
+1. Open Grafana's **ClamAV Malware Scanning** dashboard: **Refused files** lists
+   each one with its time and sender.
+2. Find who uploaded it in the application's log at that time (Indezy logs
+   `Member <id> uploaded a document holding <name>: refused`).
+3. For malware: treat the account as possibly compromised. Check what else it
+   uploaded or sent before, contact its owner through another channel, and
+   suspend it if nobody can explain the file.
+4. For a policy refusal, nothing needs doing unless the same person keeps
+   trying; the application told them why.
+5. If a harmless file was refused by a signature, report the false positive with
+   its name at <https://www.clamav.net/reports/fp>.
+
+## Malware scanning
+
+ClamAV ([`clamav.yaml`](../../k8s/platform/clamav.yaml)): two replicas in `infra`,
+each with its signatures on its own volume. Applications refuse every file they
+would scan while no replica can answer. `kubectl -n infra get pods -l app=clamav`
+shows the replicas; each has the containers `clamd`, `freshclam` and `exporter`.
+
+### ClamAVUnavailable
+
+No replica has been ready for five minutes, so applications refuse every file.
+A replica is ready only once clamd answers with a complete, loaded signature set.
+
+- `Init:` status: the `signatures` init container has no complete set. It
+  copies the set the image carries onto a new volume, so read
+  `kubectl -n infra logs clamav-0 -c signatures` for a copy error (a full
+  volume) or an image without databases (a `_base` tag).
+- `Running` but not ready: `kubectl -n infra logs clamav-0 -c clamd`. An
+  `OOMKilled` restart means the signatures and scans need more memory than the
+  container limit.
+- `Pending`: the volume did not attach (`kubectl -n infra describe pod
+  clamav-0`, Longhorn) or the node lacks the memory requested.
+
+### ClamAVTestScanFailing
+
+A replica's exporter has not seen clamd detect the EICAR test file for ten
+minutes, so its answers cannot be trusted. Read
+`kubectl -n infra logs clamav-0 -c exporter` (the answer clamd gave) and the
+`clamd` logs. If clamd answers but finds nothing, delete the pod so it starts
+again from its volume's signatures; if the exporter logs nothing at all, it is
+stuck and its liveness probe restarts it.
+
+### ClamAVSignaturesOutdated
+
+A replica scans with daily signatures published more than two days ago, so
+recent malware passes. Read `kubectl -n infra logs clamav-0 -c freshclam`:
+
+- `429` or `403` and a cool-down date: the mirror refuses the node's address,
+  usually after repeated whole downloads. freshclam waits out the cool-down by
+  itself; restarting the pod does not help and can extend the block. A newer
+  image (its tag in [`clamav.yaml`](../../k8s/platform/clamav.yaml)) carries a
+  newer set, which a restarted replica takes at start.
+- DNS or connection errors: the node's outbound access.
+- No space: `kubectl -n infra exec clamav-0 -c freshclam -- df -h /var/lib/clamav`.
+
+The other replica's age on the dashboard tells whether the mirror or this pod is
+at fault.
+
+### ClamAVSignaturesStale
+
+The same, past four days. Fix the update as for
+[ClamAVSignaturesOutdated](#clamavsignaturesoutdated); if the mirror stays
+unreachable, decide with the applications' owners whether to keep accepting
+files.
+
+### ClamAVScanQueueBacklog
+
+Files have waited for a free clamd thread for fifteen minutes, so uploads slow
+down and may time out. Check the **Threads and queue** and **Scans by result**
+panels for a burst from one sender, and the replicas' CPU. Raise `MaxThreads`
+in [`clamd.conf`](../../k8s/files/clamav/clamd.conf) (with the container's
+memory) or the replicas if the load is lasting.
+
 ## Ingress and monitoring
 
 ### IngressServiceErrorRateHigh

@@ -813,6 +813,64 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#indezyapislow
           summary: The Indezy API is slow
           description: 'One Indezy API request in twenty took over {{ $value | humanizeDuration }} for 15 minutes.'
+  # ClamAV (platform/clamav.yaml): applications refuse files while it cannot scan.
+  - name: swirl-cloud.malware-scanning
+    rules:
+      - alert: ClamAVUnavailable
+        expr: |
+          kube_statefulset_status_replicas_ready{namespace="infra",statefulset="clamav"} == 0
+          or absent(kube_statefulset_status_replicas_ready{namespace="infra",statefulset="clamav"})
+        for: 5m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clamavunavailable
+          summary: No ClamAV replica can scan files
+          description: 'No ClamAV replica has been ready for five minutes, so applications refuse every file they would scan.'
+      # The exporter scans the EICAR test file once a minute through clamd's INSTREAM.
+      - alert: ClamAVTestScanFailing
+        expr: |
+          min by (pod) (clamav_canary_detected) == 0
+          or max by (pod) (time() - clamav_canary_last_run_timestamp_seconds) > 600
+        for: 10m
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clamavtestscanfailing
+          summary: ClamAV does not detect its test file
+          description: '{{ $labels.pod }} has not detected the EICAR test file for ten minutes; its answers to applications cannot be trusted.'
+      - alert: ClamAVSignaturesOutdated
+        expr: max by (pod) (time() - clamav_signatures_published_timestamp_seconds) > 2 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clamavsignaturesoutdated
+          summary: ClamAV signatures are more than two days old
+          description: '{{ $labels.pod }} scans with signatures published {{ $value | humanizeDuration }} ago; new malware goes undetected.'
+      - alert: ClamAVSignaturesStale
+        expr: max by (pod) (time() - clamav_signatures_published_timestamp_seconds) > 4 * 86400
+        for: 1h
+        labels:
+          severity: critical
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clamavsignaturesstale
+          summary: ClamAV signatures are more than four days old
+          description: '{{ $labels.pod }} scans with signatures published {{ $value | humanizeDuration }} ago.'
+      - alert: ClamAVScanQueueBacklog
+        expr: min by (pod) (min_over_time(clamav_queue_items[10m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#clamavscanqueuebacklog
+          summary: Files wait for a free ClamAV thread
+          description: '{{ $labels.pod }} has had scans waiting for a thread for fifteen minutes; applications wait longer and may time out.'
   - name: swirl-cloud.monitoring
     rules:
       - alert: PrometheusTargetDown
