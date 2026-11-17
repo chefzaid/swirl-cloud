@@ -17,9 +17,9 @@ data:
     TemporaryDirectory /tmp
     TCPSocket 3310
     TCPAddr 0.0.0.0
+    # In the foreground clamd logs to stdout; it refuses LogFile /dev/stdout,
+    # since it opens its log without following symbolic links.
     Foreground yes
-    LogFile /dev/stdout
-    LogFileUnlock yes
     LogTime yes
     LogClean no
     LogVerbose no
@@ -37,6 +37,10 @@ data:
     LogTime yes
     # Twelve checks a day, within the mirror's rate limits.
     Checks 12
+    # Testing a download loads every signature, more than freshclam's 512 MiB:
+    # each kill retried the download until the mirror refused this address for
+    # hours. Downloads are still checked against their signatures.
+    TestDatabases no
 
 ---
 apiVersion: apps/v1
