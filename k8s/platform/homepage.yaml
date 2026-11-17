@@ -167,12 +167,6 @@ data:
             description: Ask IT for help or for access to a service
             namespace: corp
             podSelector: app=zammad
-        - Vaultwarden:
-            icon: vaultwarden.png
-            href: https://passwords.__PUBLIC_DOMAIN__
-            description: Your passwords and the team's shared ones, in the browser and on your phone
-            namespace: infra
-            podSelector: app=vaultwarden
         - Odoo:
             icon: odoo.png
             href: https://odoo.__PUBLIC_DOMAIN__
@@ -338,6 +332,12 @@ data:
             description: Secrets, policies, and Kubernetes authentication
             namespace: infra
             podSelector: app.kubernetes.io/name=vault
+        - Vaultwarden:
+            icon: vaultwarden.png
+            href: https://passwords.__PUBLIC_DOMAIN__
+            description: Your passwords and the team's shared ones, in the browser and on your phone
+            namespace: infra
+            podSelector: app=vaultwarden
         - External Secrets:
             icon: mdi-key-chain-variant
             description: Vault-to-Kubernetes secret synchronization
