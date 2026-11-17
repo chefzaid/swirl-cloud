@@ -233,6 +233,22 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_node_name]
         target_label: node
 
+  # ClamAV's exporter (platform/clamav.yaml), one target per replica: annotations
+  # would make one per container, each scrape running the test scan.
+  - job_name: clamav
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: clamav;metrics
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+
   - job_name: external-secrets
     kubernetes_sd_configs:
       - role: pod

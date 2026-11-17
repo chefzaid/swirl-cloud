@@ -94,8 +94,7 @@ spec:
         swirl-cloud.io/application-data: disabled
         # A changed setting or script replaces the pods; clamd reads its settings at start.
         swirl-cloud.io/clamav: pending
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9464"
+        # Prometheus scrapes the exporter through its own job (files/prometheus/prometheus.yml).
     spec:
       priorityClassName: platform-standard
       automountServiceAccountToken: false
