@@ -70,9 +70,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mongodb
-          # MongoDB refuses Linux 6.19-7.0.13; since 8.0.37 it reads Ubuntu's
+          # MongoDB refuses Linux 6.19-7.0.13; since 8.0.37 and 9.0.4 it reads Ubuntu's
           # /proc/version_signature, and Ubuntu 26.04's 7.0.0 kernels carry 7.0.14 or later.
-          image: docker.io/library/mongo:8.0.38-noble@sha256:76a93cc399d05709baeea4e55385749657aa0085ad5b497c851380778eccea2c
+          image: docker.io/library/mongo:9.0.8-resolute@sha256:1c2e2674ed3adde7edcfe83f7a7a5cbe0204521161d4199ab34e9ec3da2db5c4
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -241,7 +241,7 @@ components:
     source: https://github.com/mongodb/mongo
     maintainer: MongoDB, Inc.
     jurisdiction: United States
-    end_of_life: "2029-10-31"
+    end_of_life: "2031-10-31"
     support_source: https://endoflife.date/mongodb
     customer_use: decision-needed
     obligations: Offering MongoDB's functionality to third parties as a service obliges releasing the
