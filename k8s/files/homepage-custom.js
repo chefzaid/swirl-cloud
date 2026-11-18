@@ -43,22 +43,25 @@
   // Each tile's running version, from the portal gate (administrators only), which
   // reads it from the tile's pods: an image update shows without a portal change.
   // Tiles are told apart by their group, as one application has a tile per environment.
+  // The badge joins the tile's status tags; custom.css stacks it under the status.
   let versions = {};
   function showVersions() {
     for (const group of document.querySelectorAll(".services-group")) {
       const known = versions[group.querySelector(".service-group-name")?.textContent?.trim()] || {};
       for (const tile of group.querySelectorAll("li.service[data-name]")) {
-        const name = tile.querySelector(".service-name");
+        const tags = tile.querySelector(".service-tags");
         const version = known[tile.dataset.name];
-        let badge = name?.querySelector(".swirl-version");
-        if (!name || !version) { badge?.remove(); continue; }
+        let badge = tags?.querySelector(".swirl-version");
+        tile.classList.toggle("swirl-has-version", Boolean(tags && version));
+        if (!tags || !version) { badge?.remove(); continue; }
         if (!badge) {
-          badge = document.createElement("span");
-          badge.className = "swirl-version";
-          name.insertBefore(badge, name.querySelector(".service-description"));
+          badge = document.createElement("div");
+          badge.className = "shrink-0 flex items-center justify-center service-tag swirl-version";
+          badge.append(document.createElement("div"));
+          tags.append(badge);
         }
-        if (badge.textContent !== version) {
-          badge.textContent = version;
+        if (badge.firstChild.textContent !== version) {
+          badge.firstChild.textContent = version;
           badge.title = (language === "fr" ? "Version en service : " : "Running version: ") + version;
         }
       }
