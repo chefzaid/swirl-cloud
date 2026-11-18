@@ -2,7 +2,8 @@
 """Guards for the portal gate (ADR 0031): administrators get Homepage unchanged;
 anyone else gets only the services their access groups open, the ones they can
 ask for greyed, and nothing else of the platform, not even its names. Notices
-show only to people who can open their service, and to administrators."""
+show only to people who can open their service, and to administrators, who
+also get each tile's running version from its pods."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -13,24 +14,30 @@ import threading
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICES = [
     {"name": "Applications - PROD", "services": [
-        {"name": "Shop", "href": "https://shop.example.com", "icon": "/icons/shop.svg", "description": "Sells <b>things</b> & more"}]},
+        {"name": "Shop", "href": "https://shop.example.com", "icon": "/icons/shop.svg", "description": "Sells <b>things</b> & more",
+         "namespace": "apps", "podSelector": "app=shop-web"}]},
     {"name": "Applications - UAT", "services": [
-        {"name": "Shop UAT", "href": "https://shop-uat.example.com", "icon": "mdi-cart-outline", "description": "Test shop"}]},
+        {"name": "Shop UAT", "href": "https://shop-uat.example.com", "icon": "mdi-cart-outline", "description": "Test shop",
+         "namespace": "apps-uat", "podSelector": "app=shop-web"}]},
     {"name": "DevOps & Delivery", "services": [
-        {"name": "GitLab", "href": "https://gitlab.example.com", "icon": "gitlab.png", "description": "Source"},
-        {"name": "Argo CD", "href": "https://argocd.example.com", "icon": "argo-cd.png", "description": "Delivery"},
+        {"name": "GitLab", "href": "https://gitlab.example.com", "icon": "gitlab.png", "description": "Source",
+         "namespace": "infra", "podSelector": "app=gitlab"},
+        {"name": "Argo CD", "href": "https://argocd.example.com", "icon": "argo-cd.png", "description": "Delivery",
+         "namespace": "infra", "podSelector": "app.kubernetes.io/part-of=argocd"},
         {"name": "SonarQube", "href": "https://sonarqube.example.com", "icon": "sonarqube.png", "description": "Quality"},
         {"name": "Mailpit", "href": "https://cloud.example.com/mailpit/", "icon": "mdi-email-search-outline", "description": "Mail"}]},
     {"name": "Cluster Management", "services": [
         {"name": "Portainer", "href": "https://portainer.example.com", "icon": "portainer.png", "description": "Cluster"},
         {"name": "K3s", "icon": "k3s.png", "description": "No link"}]},
     {"name": "Observability & Logging", "services": [
-        {"name": "Grafana", "href": "https://grafana.example.com", "icon": "grafana.png", "description": "Dashboards"},
+        {"name": "Grafana", "href": "https://grafana.example.com", "icon": "grafana.png", "description": "Dashboards",
+         "namespace": "infra", "podSelector": "app=grafana"},
         {"name": "Kibana", "href": "https://kibana.example.com", "icon": "kibana.png", "description": "Logs"}]},
 ]
 
@@ -42,6 +49,51 @@ NOTICES = [
     {"id": "n3", "service": "*", "starts": "2998-01-01T22:00:00+00:00", "ends": "2999-01-01T23:00:00+00:00", "en": "Network maintenance"},
     {"id": "n4", "service": "GitLab", "starts": "2020-01-01T22:00:00+00:00", "ends": "2020-01-01T23:00:00+00:00", "en": "Long over"},
 ]
+
+
+TOKEN = "service-account-token"
+ARGOCD = "v3.6.1-sha256-296e3d74f449"
+
+
+def pod(image, version=None):
+    labels = {"app.kubernetes.io/version": version} if version else {}
+    return {"metadata": {"labels": labels}, "spec": {"containers": [{"image": image}, {"image": "docker.io/library/sidecar:9.9.9"}]}}
+
+
+# Running pods by namespace and label selector, as the API server answers.
+PODS = {
+    ("apps", "app=shop-web"): [pod("registry.example.com/shop/web:2.4.0@sha256:" + "a" * 64)],
+    # A build tag that names no version, then a digest alone: no version.
+    ("apps-uat", "app=shop-web"): [pod("registry.example.com/shop/web:main-1a2b3c"), pod("registry.example.com/shop/web@sha256:" + "b" * 64)],
+    ("infra", "app=gitlab"): [pod("docker.io/gitlab/gitlab-ce:19.5.6-ce.0@sha256:" + "c" * 64)],
+    # The chart's label wins over a sidecar image (Redis), and the most common version over a pod mid-rollout.
+    ("infra", "app.kubernetes.io/part-of=argocd"): [pod("quay.io/argoproj/argocd:v3.6.1", ARGOCD), pod("docker.io/library/redis:8.10.3", ARGOCD),
+                                                    pod("quay.io/argoproj/argocd:v3.6.0", "v3.6.0"), pod("quay.io/argoproj/argocd:v3.6.1")],
+    ("infra", "app=grafana"): [pod("docker.io/grafana/grafana@sha256:" + "d" * 64)],
+}
+
+
+class Kubernetes(BaseHTTPRequestHandler):
+    def do_GET(self):
+        url = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(url.query)
+        parts = url.path.split("/")
+        if self.headers.get("Authorization") != f"Bearer {TOKEN}":
+            status, body = 401, {}
+        elif url.path == "/version":
+            status, body = 200, {"gitVersion": "v1.36.6+k3s1"}
+        elif len(parts) == 6 and parts[1:4] == ["api", "v1", "namespaces"] and parts[5] == "pods" \
+                and query.get("fieldSelector") == ["status.phase=Running"]:
+            status, body = 200, {"items": PODS.get((parts[4], query.get("labelSelector", [""])[0]), [])}
+        else:
+            status, body = 404, {}
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(body).encode())
+
+    def log_message(self, *args):
+        pass
 
 
 class Homepage(BaseHTTPRequestHandler):
@@ -71,6 +123,10 @@ class PortalGateTest(unittest.TestCase):
         cls.upstream = ThreadingHTTPServer(("127.0.0.1", 0), Homepage)
         threading.Thread(target=cls.upstream.serve_forever, daemon=True).start()
         cls.port = free_port()
+        cls.kubernetes = ThreadingHTTPServer(("127.0.0.1", 0), Kubernetes)
+        threading.Thread(target=cls.kubernetes.serve_forever, daemon=True).start()
+        cls.account = tempfile.TemporaryDirectory()
+        (Path(cls.account.name) / "token").write_text(TOKEN + "\n")
         cls.notices = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
         json.dump(NOTICES, cls.notices)
         cls.notices.close()
@@ -79,7 +135,8 @@ class PortalGateTest(unittest.TestCase):
             env={"PATH": __import__("os").environ["PATH"], "GATE_PORT": str(cls.port), "UPSTREAM_PORT": str(cls.upstream.server_port),
                  "GATE_RULES": str(ROOT / "k8s/files/portal-access.json"), "PORTAL_TITLE": "Example Cloud",
                  "ACCESS_CONTACT": "admin@example.com", "ACCOUNT_URL": "https://keycloak.example.com/account",
-                 "SIGN_OUT_URL": "https://keycloak.example.com/oauth2/sign_out", "GATE_NOTICES": cls.notices.name})
+                 "SIGN_OUT_URL": "https://keycloak.example.com/oauth2/sign_out", "GATE_NOTICES": cls.notices.name,
+                 "KUBERNETES_API": f"http://127.0.0.1:{cls.kubernetes.server_port}", "SERVICE_ACCOUNT_DIR": cls.account.name})
         for _ in range(50):
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{cls.port}/gate/healthz", timeout=1)
@@ -93,6 +150,8 @@ class PortalGateTest(unittest.TestCase):
         cls.gate.terminate()
         cls.gate.wait(timeout=5)
         cls.upstream.shutdown()
+        cls.kubernetes.shutdown()
+        cls.account.cleanup()
         Path(cls.notices.name).unlink()
 
     def get(self, path, groups=None, method="GET", language="en"):
@@ -171,6 +230,19 @@ class PortalGateTest(unittest.TestCase):
         status, body, _ = self.get("/gate/notices.json", "platform-admins")
         self.assertEqual((200, ["n1", "n2", "n3"]), (status, [notice["id"] for notice in json.loads(body)]))
         self.assertEqual(404, self.get("/gate/notices.json")[0])
+
+
+    def test_administrators_get_each_tiles_running_version(self):
+        status, body, headers = self.get("/gate/versions.json", "platform-admins")
+        self.assertEqual(200, status)
+        self.assertEqual("private, no-store", headers["Cache-Control"])
+        # Tiles are keyed by group: one application has a tile per environment. A tile
+        # whose pods name no version (Shop UAT, Grafana) or that has no pod is left out.
+        self.assertEqual({"Applications - PROD": {"Shop": "2.4.0"},
+                          "DevOps & Delivery": {"GitLab": "19.5.6", "Argo CD": "3.6.1"},
+                          "Cluster Management": {"K3s": "1.36.6"}}, json.loads(body))
+        for groups in (None, "access-grafana"):
+            self.assertEqual(404, self.get("/gate/versions.json", groups)[0])
 
 
 if __name__ == "__main__":

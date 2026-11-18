@@ -2,7 +2,8 @@
 // the portal's apps and services by name and description (settings.yaml
 // quicklaunch), not the web. Homepage opens Quick Launch when someone types on
 // the page; this field does the same on a click or tap, and "/" or Ctrl+K
-// (Cmd+K) open it from the keyboard. Styled in custom.css.
+// (Cmd+K) open it from the keyboard. Styled in custom.css. It also shows the
+// gate's notices and each tile's running version.
 (() => {
   // "fr" for portalLanguage fr (templates/resources.yaml, scripts/render-identity.py).
   const language = "en";
@@ -39,8 +40,40 @@
     if (input && input.placeholder !== label) input.placeholder = label;
   }
 
-  new MutationObserver(place).observe(document.body, { childList: true, subtree: true });
+  // Each tile's running version, from the portal gate (administrators only), which
+  // reads it from the tile's pods: an image update shows without a portal change.
+  // Tiles are told apart by their group, as one application has a tile per environment.
+  let versions = {};
+  function showVersions() {
+    for (const group of document.querySelectorAll(".services-group")) {
+      const known = versions[group.querySelector(".service-group-name")?.textContent?.trim()] || {};
+      for (const tile of group.querySelectorAll("li.service[data-name]")) {
+        const name = tile.querySelector(".service-name");
+        const version = known[tile.dataset.name];
+        let badge = name?.querySelector(".swirl-version");
+        if (!name || !version) { badge?.remove(); continue; }
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "swirl-version";
+          name.insertBefore(badge, name.querySelector(".service-description"));
+        }
+        if (badge.textContent !== version) {
+          badge.textContent = version;
+          badge.title = (language === "fr" ? "Version en service : " : "Running version: ") + version;
+        }
+      }
+    }
+  }
+  function refreshVersions() {
+    fetch("/gate/versions.json", { credentials: "same-origin" }).then((response) => (response.ok ? response.json() : null))
+      .then((answer) => { if (answer && typeof answer === "object") { versions = answer; showVersions(); } })
+      .catch(() => {});
+  }
+
+  new MutationObserver(() => { place(); showVersions(); }).observe(document.body, { childList: true, subtree: true });
   place();
+  refreshVersions();
+  setInterval(refreshVersions, 300000);
 
   // Notices of maintenance and incidents (./install.sh --notice), from the portal
   // gate, which answers administrators only; everyone else sees them on the gate's page.

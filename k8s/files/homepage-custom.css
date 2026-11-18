@@ -392,6 +392,20 @@ html body #__next {
   color: var(--swirl-muted);
 }
 
+/* Running version after the name (homepage-custom.js, from the portal gate). */
+.swirl-version {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--swirl-line-strong);
+  border-radius: 999px;
+  font: 500 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--swirl-subtle);
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
 /* Status: a small badge in the status colour on its own tint. */
 .service-tags {
   top: 0.75rem;

@@ -576,7 +576,7 @@ On the portal, a person who is not an administrator sees the production
 applications, GitLab, Odoo and the help desk (which decide access themselves), the services
 their groups open, and the services they could ask for, greyed, with a link that
 writes the request to the platform's first administrator. The infrastructure
-entries, cluster usage and pod status reach only administrators' browsers: the
+entries, cluster usage, pod status and running versions reach only administrators' browsers: the
 [portal gate](../k8s/files/portal-gate.mjs) in front of Homepage builds that
 page, from the rules in [`portal-access.json`](../k8s/files/portal-access.json).
 A [notice](operations.md#notices-to-the-people-affected) about a service shows

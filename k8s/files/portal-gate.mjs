@@ -5,10 +5,12 @@
 // platform reaches their browser. Rules: /gate/access.json (portal-access.json).
 // Notices (./install.sh --notice, ConfigMap portal-notices) show on the page of
 // everyone who can open the service they name; administrators read them from
-// /gate/notices.json, which Homepage's custom script shows.
+// /gate/notices.json, which Homepage's custom script shows, as it shows each
+// tile's running version from /gate/versions.json.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import http from "node:http";
+import https from "node:https";
 
 const UPSTREAM = { host: process.env.UPSTREAM_HOST || "127.0.0.1", port: Number(process.env.UPSTREAM_PORT || 3000) };
 const PORT = Number(process.env.GATE_PORT || 3001);
@@ -56,6 +58,84 @@ function upstream(path, headers = {}) {
     request.on("error", reject);
     request.end();
   });
+}
+
+// Versions on the tiles (administrators only, through Homepage's custom script):
+// read from the pods each tile names (namespace and pod selector) when the page
+// asks, so an image update shows without any change here. A pod's version is its
+// chart's app.kubernetes.io/version label, else its first container's image tag;
+// a tile shows the most common one among its running pods. The cluster's own
+// tiles show the API server's version. Pod listing uses Homepage's service account.
+const KUBERNETES = new URL(process.env.KUBERNETES_API || "https://kubernetes.default.svc");
+const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT_DIR || "/var/run/secrets/kubernetes.io/serviceaccount";
+const CLUSTER_TILES = new Set(["K3s", "Kubernetes API"]);
+const VERSIONS_TTL = 60000;
+let versionsCache = { at: 0, value: null };
+
+function kubernetes(path) {
+  return new Promise((resolve, reject) => {
+    const secure = KUBERNETES.protocol === "https:";
+    const options = { host: KUBERNETES.hostname, port: KUBERNETES.port || (secure ? 443 : 80), path, method: "GET", timeout: 10000,
+      headers: { Accept: "application/json", Authorization: `Bearer ${readFileSync(`${SERVICE_ACCOUNT}/token`, "utf8").trim()}` } };
+    if (secure) options.ca = readFileSync(`${SERVICE_ACCOUNT}/ca.crt`);
+    const request = (secure ? https : http).request(options, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        if (response.statusCode !== 200) return reject(new Error(`Kubernetes answered ${response.statusCode} for ${path.split("?")[0]}`));
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); } catch (error) { reject(error); }
+      });
+    });
+    request.on("timeout", () => request.destroy(new Error("Kubernetes timeout")));
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+// "v3.6.1", "18.7-bookworm", "26.11.0.134175-community", "v1.36.6+k3s1": at most
+// three numbers, so a variant, build or distribution suffix never shows.
+const versionOf = (text) => /^v?(\d+(?:\.\d+){0,2})/.exec(String(text || ""))?.[1] || null;
+
+function imageTag(image) {
+  const name = String(image || "").split("@")[0];
+  const last = name.slice(name.lastIndexOf("/") + 1);
+  return last.includes(":") ? last.slice(last.indexOf(":") + 1) : null;
+}
+
+const podVersion = (pod) => versionOf(pod.metadata?.labels?.["app.kubernetes.io/version"])
+  || versionOf(imageTag(pod.spec?.containers?.[0]?.image));
+
+function mostCommon(values) {
+  const counts = new Map();
+  for (const value of values) if (value) counts.set(value, (counts.get(value) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+}
+
+async function tileVersions(host) {
+  const services = await upstream("/api/services", { host });
+  if (services.status !== 200) throw new Error(`Homepage answered ${services.status}`);
+  const groups = JSON.parse(services.body.toString("utf8"));
+  const cluster = groups.some((group) => (group.services || []).some((service) => CLUSTER_TILES.has(service.name)))
+    ? versionOf((await kubernetes("/version").catch(() => ({}))).gitVersion) : null;
+  const versions = {};
+  await Promise.all(groups.flatMap((group) => (group.services || []).map(async (service) => {
+    let version = CLUSTER_TILES.has(service.name) ? cluster : null;
+    if (service.namespace && service.podSelector) {
+      const pods = await kubernetes(`/api/v1/namespaces/${encodeURIComponent(service.namespace)}/pods?labelSelector=`
+        + `${encodeURIComponent(service.podSelector)}&fieldSelector=status.phase%3DRunning`).catch(() => ({ items: [] }));
+      version = mostCommon((pods.items || []).map(podVersion));
+    }
+    if (version) (versions[group.name] ||= {})[service.name] = version;
+  })));
+  return versions;
+}
+
+async function cachedVersions(host) {
+  if (!versionsCache.value || Date.now() - versionsCache.at > VERSIONS_TTL) {
+    versionsCache = { at: Date.now(), value: tileVersions(host) };
+    versionsCache.value.catch(() => { versionsCache = { at: 0, value: null }; });
+  }
+  return versionsCache.value;
 }
 
 // Administrators: the request goes to Homepage as it came.
@@ -231,6 +311,16 @@ http.createServer((req, res) => {
     if (req.url === "/gate/notices.json") {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
       return res.end(JSON.stringify(activeNotices()));
+    }
+    if (req.url === "/gate/versions.json") {
+      return cachedVersions(req.headers.host || "").then((versions) => {
+        res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
+        res.end(JSON.stringify(versions));
+      }, (error) => {
+        console.error(`portal gate: versions: ${error.message}`);
+        res.writeHead(502, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
+        res.end("{}");
+      });
     }
     return passThrough(req, res);
   }
