@@ -860,7 +860,7 @@ spec:
               readOnly: true
       containers:
         - name: fluent-bit
-          image: cr.fluentbit.io/fluent/fluent-bit:5.1.2@sha256:d792375ca8e53be72fc25716c28f291f32c6fc6f4f31d12d0d14bc78cefe9226
+          image: cr.fluentbit.io/fluent/fluent-bit:5.2.0@sha256:e2718c47aaab7d99587fdffe78818549bdd09dee5e30a9199d2ff3da6e2c7628
           env:
             - name: NODE_NAME
               valueFrom:
@@ -1024,7 +1024,7 @@ spec:
               readOnly: true
       containers:
         - name: fluent-bit
-          image: cr.fluentbit.io/fluent/fluent-bit:5.1.2@sha256:d792375ca8e53be72fc25716c28f291f32c6fc6f4f31d12d0d14bc78cefe9226
+          image: cr.fluentbit.io/fluent/fluent-bit:5.2.0@sha256:e2718c47aaab7d99587fdffe78818549bdd09dee5e30a9199d2ff3da6e2c7628
           envFrom:
             - secretRef:
                 name: fluent-bit-elasticsearch-credentials
