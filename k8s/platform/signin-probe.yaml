@@ -1,7 +1,8 @@
 # Sign-in probe (TODO §46): an account with no rights signs in through Keycloak's
 # login page every five minutes on OAuth2 Proxy and on Vault's OIDC sign-in, so a
 # broken client or client secret raises SignInProbeFailing before a person finds
-# it. Runbook: docs/guides/alert-runbooks.md#signinprobefailing.
+# it. Vault's API is called on its cluster address: Cloudflare Access guards its
+# public host. Runbook: docs/guides/alert-runbooks.md#signinprobefailing.
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: Password
 metadata:
@@ -162,6 +163,9 @@ spec:
               value: __KEYCLOAK_REALM__
             - name: PROBE_INTERVAL_SECONDS
               value: "300"
+            # Vault's public host is behind Cloudflare Access; see probe.mjs.
+            - name: VAULT_ADDR
+              value: http://vault.__INTERNAL_DNS_ZONE__:8200
           envFrom:
             - secretRef:
                 name: signin-probe-credentials

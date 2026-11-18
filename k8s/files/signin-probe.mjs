@@ -107,11 +107,15 @@ async function oauth2Proxy() {
 
 // Vault's OIDC sign-in: Vault exchanges the code with its client secret, then
 // refuses the account because its groups do not match the administrators' role.
+// Vault's public host sits behind Cloudflare Access, which turns the probe away,
+// so its API calls go to Vault's cluster address (VAULT_ADDR), as the platform's
+// other automation does; the redirect URI stays the public one people use.
 async function vault() {
   const cookies = jar();
   const base = `https://vault.${domain}`;
+  const api = process.env.VAULT_ADDR || base;
   const redirect = `${base}/ui/vault/auth/oidc/oidc/callback`;
-  const started = await request(cookies, `${base}/v1/auth/oidc/oidc/auth_url`, {
+  const started = await request(cookies, `${api}/v1/auth/oidc/oidc/auth_url`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role: process.env.VAULT_OIDC_ROLE || "platform-admin", redirect_uri: redirect }),
   });
@@ -119,11 +123,11 @@ async function vault() {
   const authUrl = (await started.json())?.data?.auth_url;
   if (!authUrl) throw new ProbeError("start", "Vault returned no authorization URL (is OIDC sign-in configured?)");
   const callback = new URL(await keycloakLogin(cookies, authUrl, redirect));
-  const answer = await request(cookies, `${base}/v1/auth/oidc/oidc/callback?${callback.searchParams}`);
+  const answer = await request(cookies, `${api}/v1/auth/oidc/oidc/callback?${callback.searchParams}`);
   const body = await answer.json().catch(() => ({}));
   if (answer.status === 200 && body?.auth?.client_token) {
     // Never keep a token: the account should have none.
-    await request(cookies, `${base}/v1/auth/token/revoke-self`, { method: "POST", headers: { "X-Vault-Token": body.auth.client_token } }).catch(() => {});
+    await request(cookies, `${api}/v1/auth/token/revoke-self`, { method: "POST", headers: { "X-Vault-Token": body.auth.client_token } }).catch(() => {});
     return { unexpectedAccess: 1 };
   }
   const errors = (body?.errors || []).join(" ");

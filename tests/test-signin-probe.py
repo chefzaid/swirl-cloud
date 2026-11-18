@@ -83,7 +83,8 @@ class SignInProbe(unittest.TestCase):
             calls = directory / "calls.log"
             calls.touch()
             env = dict(os.environ, SCENARIO=scenario, CALLS=str(calls), PUBLIC_DOMAIN="example.test", KEYCLOAK_REALM="staff",
-                       PROBE_USERNAME="signin-probe", PROBE_PASSWORD=PASSWORD, PROBE_ONCE="true", METRICS_PORT="0")
+                       PROBE_USERNAME="signin-probe", PROBE_PASSWORD=PASSWORD, PROBE_ONCE="true", METRICS_PORT="0",
+                       VAULT_ADDR="http://vault.cluster.test:8200")
             result = subprocess.run(["node", "--import", str(directory / "mock.mjs"), str(directory / "probe.mjs")],
                                     env=env, capture_output=True, text=True, timeout=60, check=True)
             self.assertNotIn(PASSWORD, result.stdout + result.stderr)
@@ -98,6 +99,9 @@ class SignInProbe(unittest.TestCase):
         self.assertEqual(metrics['swirl_signin_probe_unexpected_access{target="vault"}'], 0)
         self.assertIn("POST https://keycloak.example.test/auth/realms/staff/login-actions/authenticate cookie=AUTH_SESSION_ID", calls)
         self.assertTrue(logs["vault"]["success"])
+        # Vault's public host is behind Cloudflare Access: its API goes through the cluster address.
+        self.assertIn("POST http://vault.cluster.test:8200/v1/auth/oidc/oidc/auth_url", calls)
+        self.assertNotIn("https://vault.example.test/v1/", calls)
 
     def test_wrong_client_secret_fails_at_the_callback(self):
         metrics, logs, _ = self.run_probe("bad-secret")

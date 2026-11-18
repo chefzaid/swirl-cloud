@@ -652,12 +652,17 @@ people signing in there probably fail too. Its logs name the step:
 `kubectl -n infra logs deploy/signin-probe --since=30m`.
 
 - Any step with `HTTP 403` and a challenge page: the edge is challenging the
-  probe as a bot. It goes out through the public addresses with the user agent
-  `swirl-cloud-signin-probe`; allow it as for the registry probe in
-  [Cloudflare configuration](../dns.md#cloudflare).
+  probe as a bot. It reaches Keycloak and OAuth2 Proxy through the public
+  addresses with the user agent `swirl-cloud-signin-probe`; allow it as for the
+  registry probe in [Cloudflare configuration](../dns.md#cloudflare). Vault's
+  public host is behind Cloudflare Access, so the probe calls Vault's API on its
+  cluster address (`VAULT_ADDR`) instead.
 - `start` or `authorization`: the tool did not send the probe to Keycloak. For
   `oauth2-proxy`, check the `oauth2-proxy` pods; for `vault`, that Vault is
   unsealed and its OIDC sign-in is configured (`scripts/configure-vault.sh`).
+  `Vault answered HTTP 302` with a `cloudflareaccess.com` location means the
+  probe is calling Vault's public host: check `VAULT_ADDR` in
+  `k8s/platform/signin-probe.yaml`.
 - `login page`: Keycloak's login page does not load or changed; check the
   `keycloak` pod and the sign-in theme.
 - `sign-in`: the password was refused, the account is locked, or Keycloak asks
