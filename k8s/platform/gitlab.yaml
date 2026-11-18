@@ -234,6 +234,13 @@ spec:
             # eight ~1 GiB Puma workers, leaving too little memory for CI.
             puma['worker_processes'] = 2
             sidekiq['concurrency'] = 10
+            # Every log also reaches Elasticsearch through the container's output,
+            # so the 2 GiB log volume keeps only recent files. Omnibus's defaults
+            # (30 rotations of up to 200 MiB per service, 30 days of rotated Rails
+            # logs) outgrew it, and each restart leaves the open file uncompressed.
+            logging['svlogd_size'] = 50 * 1024 * 1024
+            logging['svlogd_num'] = 5
+            logging['logrotate_rotate'] = 7
             # The cluster Prometheus scrapes /-/metrics. GitLab's bundled
             # Prometheus, Alertmanager and exporters had no reader.
             prometheus_monitoring['enable'] = false
