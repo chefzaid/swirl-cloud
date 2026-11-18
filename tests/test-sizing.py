@@ -131,6 +131,22 @@ class Sizing(unittest.TestCase):
         self.assertEqual(sizing.recording_patch(rendered, standard)["spec"]["source"]["helm"]["valuesObject"],
                          {"sizingProfile": None, "trivy-operator": None})
 
+    def test_the_large_profile_raises_the_pods_per_node_within_a_node_pod_range(self):
+        self.assertIsNone(sizing.kubelet_max_pods("standard"))
+        self.assertEqual(sizing.kubelet_max_pods("large"), 200)
+        for profile in sizing.available():
+            self.assertLessEqual(sizing.kubelet_max_pods(profile) or 110, install_inputs.MAX_PODS_PER_NODE, profile)
+        self.assertIn("200 on large", install_inputs.BY_NAME["KUBELET_MAX_PODS"].help)
+        for profile, printed in (("large", "200\n"), ("standard", "\n")):
+            result = subprocess.run([sys.executable, str(ROOT / "scripts/lib/sizing.py"), "kubelet-max-pods",
+                                     "--profile", profile], capture_output=True, text=True)
+            self.assertEqual((result.returncode, result.stdout), (0, printed), result.stderr)
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "k8s/files/sizing").mkdir(parents=True)
+            (Path(directory) / "k8s/files/sizing/odd.yaml").write_text("node: {kubeletMaxPods: many}\n")
+            with self.assertRaises(sizing.SizingError):
+                sizing.kubelet_max_pods("odd", Path(directory))
+
     def test_the_suggestion_and_the_installer_choices_follow_the_profiles(self):
         self.assertEqual(sizing.suggested(threads=16, memory_gib=125), "large")
         self.assertEqual(sizing.suggested(threads=8, memory_gib=125), "standard")

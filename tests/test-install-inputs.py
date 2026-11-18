@@ -92,6 +92,16 @@ class InstallInputs(unittest.TestCase):
             self.assertTrue(vip_problems({**lan, "K3S_API_VIP": taken}), taken)
         self.assertEqual([], vip_problems({**lan, "K3S_NODE_TRANSPORT": "tailscale"}))
 
+    def test_pods_per_node_fit_a_node_pod_range(self):
+        values = {**VALID, install_inputs.VERSION_KEY: "1"}
+        problems = lambda value: [p for p in install_inputs.validate({**values, "KUBELET_MAX_PODS": value})
+                                  if p.startswith("KUBELET_MAX_PODS")]
+        self.assertEqual([], problems(""), "empty follows the sizing profile")
+        self.assertEqual([], problems("200"))
+        self.assertEqual([], problems(str(install_inputs.MAX_PODS_PER_NODE)))
+        for value in ("0", str(install_inputs.MAX_PODS_PER_NODE + 1), "many", "-5"):
+            self.assertTrue(problems(value), value)
+
     def test_written_files_are_private_and_round_trip(self):
         values = {**VALID, "ORGANIZATION_NAME": 'A "quoted" \\ name $(x)'}
         path = self.dir / "nested/install.env"

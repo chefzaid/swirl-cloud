@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Reserve memory for the host and K3s on this node and let the kubelet evict pods
-# before the node swaps, through a managed config.yaml.d drop-in. Also stop pods in
-# priority order when the host shuts down, through a kubelet configuration drop-in
-# and a logind drop-in that lets the kubelet delay the shutdown that long.
+# before the node swaps, and cap the pods the node runs (KUBELET_MAX_PODS), through a
+# managed config.yaml.d drop-in. Also stop pods in priority order when the host shuts
+# down, through a kubelet configuration drop-in and a logind drop-in that lets the
+# kubelet delay the shutdown that long.
 # K3s reads both at start: --restart applies them now (the kubelet, and on a server
 # the API, restart briefly; workloads keep running), otherwise the next K3s restart does.
 set -Eeuo pipefail
@@ -17,6 +18,8 @@ KUBELET_CONFIG_PATH="${KUBELET_CONFIG_DIR:-/var/lib/rancher/k3s/agent/etc/kubele
 # the kubelet's shutdown manager does not start, so this name sorts after both.
 LOGIND_PATH="${LOGIND_CONFIG_DIR:-/etc/systemd/logind.conf.d}/zz-swirl-cloud-kubelet-shutdown.conf"
 MEMINFO=/proc/meminfo
+# A server's K3s flags, where the installer passes them (node-cidr-mask-size among them).
+K3S_UNIT_PATH=/etc/systemd/system/k3s.service
 error() { echo "[ERROR] $*" >&2; exit 1; }
 info() { echo "[INFO]  $*"; }
 
@@ -30,8 +33,15 @@ Usage: $0 [--check | --restart]
 
 Memory for K3s itself scales with the node (KUBE_RESERVED_MEMORY overrides it, for
 example 4Gi); the host keeps SYSTEM_RESERVED_MEMORY (default 1Gi).
+KUBELET_MAX_PODS caps the pods on this node (the sizing profile's kubeletMaxPods);
+empty restores K3s's 110, and unset keeps the node's current cap. It must fit the
+node's pod range: 252 on K3s's default /24.
 USAGE
 }
+
+# Addresses the node's pod range (podCIDR) leaves for pods: the network and broadcast
+# addresses, the cni0 gateway and one spare are kept out.
+POD_RANGE_RESERVE=4
 
 # Memory for the K3s process (API server, datastore, kubelet and containerd),
 # scaled as GKE reserves it: 25 % of the first 4 GiB, 20 % of the next 4 GiB,
@@ -60,6 +70,42 @@ dropin() {
         "eviction-soft=memory.available<1536Mi" \
         "eviction-soft-grace-period=memory.available=1m" \
         "eviction-max-pod-grace-period=60"
+    [[ -z "${MAX_PODS:-}" ]] || printf '  - "%s"\n' "max-pods=$MAX_PODS"
+}
+
+# The prefix length of every node's pod range: the controller manager gives each node
+# the same (node-cidr-mask-size, /24 by default in K3s). Read from the registered
+# nodes when the API answers, else from the server's K3s configuration, else /24.
+node_cidr_mask() {
+    local cidrs file mask=""
+    cidrs="$(KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}" kubectl --request-timeout=5s get nodes \
+        -o jsonpath='{.items[*].spec.podCIDR}' 2>/dev/null)" || cidrs=""
+    mask="$(tr ' ' '\n' <<< "$cidrs" | sed -n 's#^[0-9.]*/\([0-9]\{1,2\}\)$#\1#p' | sort -n | tail -1)"
+    if [[ -z "$mask" ]]; then
+        for file in "$CONFIG_ROOT/config.yaml" "$CONFIG_ROOT"/config.yaml.d/*.yaml "$K3S_UNIT_PATH"; do
+            [[ -r "$file" ]] || continue
+            mask="$(grep -Eo 'node-cidr-mask-size(-ipv4)?=[0-9]+' "$file" | tail -1 | sed 's/.*=//')" || true
+            [[ -z "$mask" ]] || break
+        done
+    fi
+    echo "${mask:-24}"
+}
+
+# MAX_PODS: KUBELET_MAX_PODS when given (empty: K3s's default), else the cap the
+# drop-in already sets, so a rerun without the sizing profile keeps it.
+resolve_max_pods() {
+    local mask capacity
+    if [[ -n "${KUBELET_MAX_PODS+set}" ]]; then
+        MAX_PODS="$KUBELET_MAX_PODS"
+    else
+        MAX_PODS="$(sed -n 's/^  - "max-pods=\([0-9]*\)"$/\1/p' "$DROPIN_PATH" 2>/dev/null | tail -1)" || MAX_PODS=""
+    fi
+    [[ -n "$MAX_PODS" ]] || return 0
+    [[ "$MAX_PODS" =~ ^[1-9][0-9]{0,5}$ ]] || error "KUBELET_MAX_PODS must be a positive whole number, not '$MAX_PODS'"
+    mask="$(node_cidr_mask)"
+    capacity=$(( mask > 30 ? 0 : (1 << (32 - mask)) - POD_RANGE_RESERVE ))
+    (( MAX_PODS <= capacity )) || \
+        error "KUBELET_MAX_PODS=$MAX_PODS does not fit the node's /$mask pod range ($capacity pods at most)"
 }
 
 # On a host shutdown the kubelet stops pods from the lowest priority class up, each
@@ -155,6 +201,7 @@ main() {
         [[ "$file" > "$DROPIN_PATH" ]] && sudo grep -Eq '^[[:space:]]*kubelet-arg:' "$file" && \
             error "A later K3s drop-in replaces kubelet arguments: $file"
     done
+    resolve_max_pods
     temporary="$(mktemp)"
     trap 'rm -f "$temporary"' EXIT
     dropin > "$temporary"
@@ -178,6 +225,7 @@ main() {
         changed=true
     fi
 
+    info "Pods per node: ${MAX_PODS:-K3s default (110)}."
     if [[ -z "$service" ]]; then
         info "The kubelet memory reservation will apply when K3s is installed."
     elif [[ "$changed" == false ]] && ! pending "$service"; then

@@ -628,6 +628,7 @@ every node. Pods cannot use the reserved memory.
 | `kube-reserved` (K3s) | 25 % of the first 4 GiB, 20 % of the next 4, 10 % of the next 8, 6 % up to 128 GiB, 2 % above (as GKE; about 3.5 GiB on 32 GiB); override with `KUBE_RESERVED_MEMORY` (for example `4Gi`) |
 | Soft eviction | Under 1.5 GiB available for a minute; pods get up to 60 seconds |
 | Hard eviction | Under 500 MiB available, at once |
+| `max-pods` | K3s's 110, or the sizing profile's (`large`: 200); override with `KUBELET_MAX_PODS` ([pods per node](#pods-per-node)) |
 
 Pods above their memory request go first, lowest priority first, then the one
 furthest above its request. Every platform workload names a priority class
@@ -684,7 +685,38 @@ keep running). `./install.sh --status`, or the script's `--check`, reports
 whether it is active, and `shutdown-off` when the kubelet holds no shutdown lock.
 
 ```bash
-kubectl get node -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.memory,ALLOCATABLE:.status.allocatable.memory
+kubectl get node -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.memory,ALLOCATABLE:.status.allocatable.memory,PODS:.status.allocatable.pods
+```
+
+### Pods per node
+
+The kubelet admits at most 110 pods by default, counting every pod on the node,
+CI jobs included. The platform alone runs about 100 on one server, so parallel
+CI jobs found the node full: the scheduler left them pending with `0/1 nodes are
+available: 1 Too many pods` or preempted one, as `ci-jobs` is the lowest
+priority. The `large` [sizing profile](guides/capacity-planning.md#sizing-profiles)
+raises the cap to 200 (`node.kubeletMaxPods` in
+[`k8s/files/sizing/large.yaml`](../k8s/files/sizing/large.yaml)); `standard`
+keeps 110. The installer input `KUBELET_MAX_PODS` overrides the profile.
+
+Every pod takes an address from its node's pod range, a /24 of the cluster's
+`10.42.0.0/16` (`kubectl get node -o jsonpath='{.items[*].spec.podCIDR}'`): 254
+addresses, so the script refuses more than 252 (2^(32 − mask) − 4). It reads the
+mask from the registered nodes, else from the server's K3s flags
+(`node-cidr-mask-size`), else assumes K3s's /24. More pods per node does not
+reserve CPU or memory: requests still decide what fits.
+
+The cap is per node. The installer, node enrollment and `ansible/deploy.yml`
+pass the profile's value to every node they configure, so new workers and
+control planes get the same cap. For the script run by hand, `KUBELET_MAX_PODS`
+sets the cap, empty restores K3s's 110, and unset keeps the node's current cap.
+To apply it to a running node, an already enrolled worker included, run on that
+node while no CI job runs (the kubelet restarts, and on a server the API is
+unavailable for 10 to 15 seconds; pods keep running):
+
+```bash
+KUBELET_MAX_PODS=200 scripts/configure-k3s-kubelet-memory.sh --restart
+kubectl get node -o custom-columns=NAME:.metadata.name,PODS:.status.allocatable.pods
 ```
 
 ## Hardware health

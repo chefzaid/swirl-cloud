@@ -325,6 +325,12 @@ PLATFORM_DOMAIN="${PLATFORM_DOMAIN:-${DEFAULT_PLATFORM_DOMAIN:-}}"
 K3S_REGISTRY_HOST="${K3S_REGISTRY_HOST:-${DEFAULT_K3S_REGISTRY_HOST:-${PLATFORM_DOMAIN:+registry.$PLATFORM_DOMAIN}}}"
 K3S_REGISTRY_ENDPOINT="${K3S_REGISTRY_ENDPOINT:-${DEFAULT_K3S_REGISTRY_ENDPOINT:-http://10.43.255.251:5050}}"
 [[ -n "$K3S_REGISTRY_HOST" ]] || error "Cannot resolve the cluster registry; set PLATFORM_DOMAIN or K3S_REGISTRY_HOST."
+# New nodes run as many pods as the platform's sizing profile gives every node, unless
+# KUBELET_MAX_PODS is set; an unreadable profile leaves K3s's default.
+if [[ -z "${KUBELET_MAX_PODS:-}" ]] && max_pods="$(python3 "$SCRIPT_DIR/lib/sizing.py" kubelet-max-pods)"; then
+    KUBELET_MAX_PODS="$max_pods"
+fi
+[[ -z "${KUBELET_MAX_PODS+set}" ]] || export KUBELET_MAX_PODS
 stored_ha_mode="$(kubectl -n infra get configmap swirl-cloud-topology --ignore-not-found -o jsonpath='{.data.highAvailabilityEnabled}')"
 if [[ -z "${HIGH_AVAILABILITY_ENABLED:-}" ]]; then
     HIGH_AVAILABILITY_ENABLED="${stored_ha_mode:-false}"

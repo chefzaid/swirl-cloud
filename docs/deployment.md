@@ -236,6 +236,7 @@ Besides the [identity inputs](#organization-and-installation-identity):
 | `CLOUDFLARE_NODE_DNS_LABEL` | Public administration label, independent of the node name; default `node-01`. |
 | `CLOUDFLARE_PUBLISH_APEX` | Default `false`; opt in only if the platform should manage apex DNS. |
 | `SIZING_PROFILE` | `standard` or `large` service sizes ([sizing profiles](guides/capacity-planning.md#sizing-profiles)); empty keeps the installed profile or suggests one from the host. |
+| `KUBELET_MAX_PODS` | Most pods a node runs, up to 252; empty follows the sizing profile (`large`: 200, `standard`: K3s's 110). See [pods per node](operations.md#pods-per-node). |
 
 A Tailscale example, with identity, credentials and the
 [Tailscale inputs](guides/node-enrollment.md#tailscale) set:

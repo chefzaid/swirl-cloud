@@ -236,6 +236,13 @@ prepare_rendered_configuration() {
     sizing_reason="${sizing#*$'\t'}"
     export SIZING_PROFILE
     info "Sizing profile: $SIZING_PROFILE ($sizing_reason)."
+    # Pods per node (configure-k3s-kubelet-memory.sh, here and on enrolled nodes): as
+    # chosen, else the profile's; empty keeps K3s's 110.
+    if [[ -z "${KUBELET_MAX_PODS:-}" ]]; then
+        KUBELET_MAX_PODS="$(python3 "$SCRIPT_DIR/scripts/lib/sizing.py" kubelet-max-pods --profile "$SIZING_PROFILE")" || \
+            error "Cannot read the pods per node of sizing profile $SIZING_PROFILE."
+    fi
+    export KUBELET_MAX_PODS
     RENDERED_CONFIG_DIR="$(mktemp -d /tmp/swirl-cloud-rendered.XXXXXX)"
     chmod 700 "$RENDERED_CONFIG_DIR"
     "$RENDER_CONFIG_SCRIPT" \

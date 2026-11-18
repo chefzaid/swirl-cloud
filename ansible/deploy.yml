@@ -661,8 +661,21 @@
     - name: Configure the enforced K3s AppArmor runtime profile
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-k3s-apparmor.sh"
 
-    - name: Reserve node memory for the host and K3s (applies at the next K3s restart)
+    - name: Read the pods per node of the platform's sizing profile
+      ansible.builtin.command: python3 {{ repository_root }}/scripts/lib/sizing.py kubelet-max-pods
+      register: profile_max_pods
+      changed_when: false
+      failed_when: false
+      when: lookup('ansible.builtin.env', 'KUBELET_MAX_PODS') | length == 0
+
+    # KUBELET_MAX_PODS as set, else the profile's (empty: K3s's 110); an unreadable
+    # profile passes nothing, so the node keeps its current cap.
+    - name: Reserve node memory for the host and K3s and cap its pods (applies at the next K3s restart)
       ansible.builtin.command: "{{ repository_root }}/scripts/configure-k3s-kubelet-memory.sh"
+      environment: >-
+        {{ {} if profile_max_pods.rc | default(0) != 0 else
+           {'KUBELET_MAX_PODS': lookup('ansible.builtin.env', 'KUBELET_MAX_PODS')
+                                or profile_max_pods.stdout | default('') | trim} }}
       register: kubelet_memory
       changed_when: "'configured' in kubelet_memory.stdout"
 

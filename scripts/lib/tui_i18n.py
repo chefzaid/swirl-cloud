@@ -128,6 +128,10 @@ FR = {
         "Loyer, ou prix d'achat réparti sur la durée de vie plus l'hébergement. Vide : pas de refacturation.",
     "Currency of server costs (ISO 4217 code)": "Devise des coûts des serveurs (code ISO 4217)",
     "Activate the opt-in high-availability profile?": "Activer le profil de haute disponibilité ?",
+    "Pods per node": "Pods par nœud",
+    "Empty follows the sizing profile: 200 on large, else the K3s default of 110. At most 252 on a node's /24 pod range.":
+        "Vide : suit le profil de dimensionnement, 200 avec large, sinon 110 par défaut dans K3s. "
+        "252 au plus sur la plage de pods /24 d'un nœud.",
     "Install/upgrade system prerequisites?": "Installer ou mettre à jour les prérequis système ?",
     "Also install developer tools (Java 21, Maven, Docker)?": "Installer aussi les outils de développement (Java 21, Maven, Docker) ?",
     "Install or reinstall the K3s control plane?": "Installer ou réinstaller le plan de contrôle K3s ?",

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Guard the kubelet memory reservation without a node: K3s's share scaled to the
-# node's memory, and an eviction-hard that would drop K3s's disk thresholds.
+# node's memory, an eviction-hard that would drop K3s's disk thresholds, and the
+# pod cap within the node's pod range.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
@@ -13,8 +14,10 @@ for case in 4096:1024 8192:1843 16384:2662 32045:3601 131072:9543 262144:12164; 
     [[ "$reserved" == "${case#*:}" ]] || fail "K3s reserves ${reserved} MiB of ${case%:*} MiB, expected ${case#*:}"
 done
 
+unset KUBELET_MAX_PODS
 MEMINFO="$(mktemp)"
-trap 'rm -f "$MEMINFO"' EXIT
+STATE="$(mktemp -d)"
+trap 'rm -rf "$MEMINFO" "$STATE"' EXIT
 printf 'MemTotal:       32814176 kB\nMemFree:          805000 kB\n' > "$MEMINFO"
 config="$(dropin)"
 grep -qx 'kubelet-arg+:' <<< "$config" || fail 'The drop-in replaces kubelet arguments set by other drop-ins'
@@ -25,6 +28,44 @@ grep -Fq 'eviction-hard=memory.available<500Mi,nodefs.available<5%,imagefs.avail
 grep -Fq 'eviction-soft-grace-period=memory.available=' <<< "$config" || fail 'The soft threshold has no grace period'
 config="$(KUBE_RESERVED_MEMORY=4Gi dropin)"
 grep -Fqx '  - "kube-reserved=memory=4Gi"' <<< "$config" || fail 'KUBE_RESERVED_MEMORY is ignored'
+
+# The pod cap: none unless asked (K3s's 110), as asked, kept by a rerun that does not
+# say, and never more than the node's pod range holds.
+CONFIG_ROOT="$STATE/k3s"
+DROPIN_PATH="$CONFIG_ROOT/config.yaml.d/30-swirl-cloud-kubelet-memory.yaml"
+K3S_UNIT_PATH="$STATE/k3s.service"
+mkdir -p "$CONFIG_ROOT/config.yaml.d"
+kubectl() { [[ -n "${POD_CIDRS:-}" ]] && printf '%s' "$POD_CIDRS"; }
+capped() { resolve_max_pods && dropin; }
+POD_CIDRS='10.42.0.0/24'
+if grep -q 'max-pods' <<< "$(capped)"; then fail 'A node caps its pods without being asked'; fi
+config="$(KUBELET_MAX_PODS=200 capped)"
+grep -Fqx '  - "max-pods=200"' <<< "$config" || fail "KUBELET_MAX_PODS is ignored: $config"
+grep -Fqx '  - "kube-reserved=memory=3601Mi"' <<< "$config" || fail 'The pod cap replaces the memory reservation'
+printf '%s\n' "$config" > "$DROPIN_PATH"
+grep -Fqx '  - "max-pods=200"' <<< "$(capped)" || fail 'A rerun without KUBELET_MAX_PODS drops the pod cap'
+if grep -q 'max-pods' <<< "$(KUBELET_MAX_PODS='' capped)"; then fail "An empty KUBELET_MAX_PODS keeps the cap, not K3s's 110"; fi
+for value in 0 -1 many 1e3 ' 200' 253; do
+    if (KUBELET_MAX_PODS="$value" resolve_max_pods) 2>/dev/null; then fail "KUBELET_MAX_PODS='$value' is accepted"; fi
+done
+(KUBELET_MAX_PODS=252 resolve_max_pods) || fail 'A /24 pod range refuses 252 pods'
+large="$(python3 "$SCRIPT_DIR/lib/sizing.py" kubelet-max-pods --profile large)"
+(KUBELET_MAX_PODS="$large" resolve_max_pods) || fail "The large profile's $large pods do not fit a /24 pod range"
+# The smallest registered range sets the limit; without the API, the server's K3s flags.
+POD_CIDRS='10.42.0.0/24 10.42.1.0/25'
+if (KUBELET_MAX_PODS=200 resolve_max_pods) 2>/dev/null; then fail "The cap ignores a node's /25 pod range"; fi
+(KUBELET_MAX_PODS=124 resolve_max_pods) || fail 'A /25 pod range refuses 124 pods'
+POD_CIDRS=''
+cat > "$K3S_UNIT_PATH" <<'UNIT'
+ExecStart=/usr/local/bin/k3s \
+    server \
+        '--kube-controller-manager-arg' \
+        'node-cidr-mask-size=23' \
+UNIT
+(KUBELET_MAX_PODS=500 resolve_max_pods) || fail "The server's node-cidr-mask-size is ignored without the API"
+rm "$K3S_UNIT_PATH"
+if (KUBELET_MAX_PODS=253 resolve_max_pods) 2>/dev/null; then fail 'Without the API or a K3s flag the range is not /24'; fi
+unset -f kubectl
 
 # Shutdown by priority: every platform class falls in a group, data stores last and longest.
 python3 - "$(shutdown_config)" "$SCRIPT_DIR/../k8s/base/security-baseline.yaml" <<'PYTHON' || fail 'The shutdown order does not match the priority classes'
@@ -59,4 +100,4 @@ busctl() { printf '%s\n' 'a(ssssuu) 1 "shutdown" "kubelet" "Kubelet needs time t
 shutdown_armed || fail "The kubelet's shutdown lock is not recognised"
 unset -f busctl
 
-printf '[PASS] Kubelet memory reservation and shutdown order\n'
+printf '[PASS] Kubelet memory reservation, pod cap and shutdown order\n'

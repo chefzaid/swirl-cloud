@@ -195,6 +195,10 @@ install_worker() {
     printf -v quoted_hardener '%q' "$remote_hardener"
     remote_command="chmod 700 $quoted_installer $quoted_hardener $(printf '%q' "$remote_dir/scripts/configure-k3s-apparmor.sh") $(printf '%q' "$remote_dir/scripts/configure-longhorn-host.sh") $(printf '%q' "$remote_dir/scripts/configure-k3s-registry-mirror.sh") $(printf '%q' "$remote_dir/scripts/configure-k3s-kubelet-memory.sh") $(printf '%q' "$remote_dir/scripts/configure-tailscale.sh") $(printf '%q' "$remote_dir/scripts/configure-ovh-vrack.sh") $(printf '%q' "$remote_dir/scripts/configure-k3s-control-plane-network.sh") && $quoted_installer"
     remote_command="export K3S_REGISTRY_HOST=$(printf '%q' "$K3S_REGISTRY_HOST") K3S_REGISTRY_ENDPOINT=$(printf '%q' "$K3S_REGISTRY_ENDPOINT"); $remote_command"
+    # Every node gets the same pod cap (configure-k3s-kubelet-memory.sh); unset keeps K3s's default.
+    if [[ -n "${KUBELET_MAX_PODS+set}" ]]; then
+        remote_command="export KUBELET_MAX_PODS=$(printf '%q' "$KUBELET_MAX_PODS"); $remote_command"
+    fi
     if [[ "$ENROLLMENT_ROLE" == control-plane && "${HIGH_AVAILABILITY_ENABLED:-false}" == true ]]; then
         remote_command="export HIGH_AVAILABILITY_ENABLED=true; $remote_command"
     fi

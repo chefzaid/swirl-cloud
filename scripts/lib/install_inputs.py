@@ -25,6 +25,9 @@ NAME = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*\Z")
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+\Z")
 GIT_URL = re.compile(r"https?://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9_.~%+-]+)+\.git\Z")
 KEY = re.compile(r"[A-Z][A-Z0-9_]*\Z")
+# The pods a node's /24 pod range (K3s's default node-cidr-mask-size) holds, less a
+# reserve; scripts/configure-k3s-kubelet-memory.sh checks the node's actual range.
+MAX_PODS_PER_NODE = 252
 
 
 @dataclass(frozen=True)
@@ -207,6 +210,9 @@ INPUTS = (
     Input("SIZING_PROFILE", "Nodes", "Service sizing profile", kind="choice", choices=("standard", "large"),
           help="Empty keeps the installed profile, or suggests large for 16+ threads and 96+ GiB; "
                "volumes only grow. See docs/guides/capacity-planning.md."),
+    Input("KUBELET_MAX_PODS", "Nodes", "Pods per node", kind="int",
+          help="Empty follows the sizing profile: 200 on large, else the K3s default of 110. "
+               f"At most {MAX_PODS_PER_NODE} on a node's /24 pod range."),
     # Components
     Input("INSTALL_PREREQS", "Components", "Install/upgrade system prerequisites?", kind="bool", default="true"),
     Input("INSTALL_DEVELOPER_TOOLS", "Components", "Also install developer tools (Java 21, Maven, Docker)?", kind="bool",
@@ -419,6 +425,9 @@ def validate(values):
         problems.append("CONTROL_PLANE_COUNT: must be odd (1, 3, 5, ...)")
     if counts.get("CLUSTER_NODE_COUNT", 10**9) < counts.get("CONTROL_PLANE_COUNT", 0):
         problems.append("CLUSTER_NODE_COUNT: must be at least CONTROL_PLANE_COUNT")
+    max_pods = values.get("KUBELET_MAX_PODS", "")
+    if re.fullmatch(r"[0-9]{1,9}", max_pods) and not 1 <= int(max_pods) <= MAX_PODS_PER_NODE:
+        problems.append(f"KUBELET_MAX_PODS: must be 1 to {MAX_PODS_PER_NODE} (a node's /24 pod range)")
     for name in ("K3S_CONTROL_PLANE_IPS", "K3S_WORKER_IPS", "K3S_PRIVATE_ADDRESS", "K3S_API_VIP"):
         for part in filter(None, values.get(name, "").split(",")):
             try:

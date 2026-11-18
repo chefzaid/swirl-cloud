@@ -58,7 +58,7 @@ Configure → Nodes):
 | Profile | For | What it sets |
 | --- | --- | --- |
 | `standard` | The [minimum server](../deployment.md#support-matrix) and up | Every manifest's own requests, limits, volumes and settings. |
-| `large` | One server with 16+ threads and 96+ GiB | GitLab (4 Puma workers, 20 Sidekiq threads, 16 GiB, 150 Gi data), six concurrent CI jobs of up to 4 CPU, 8 GiB and 20 GiB ephemeral storage, 8 CPU and 12 GiB for a job that [asks](../operations.md#node-memory-and-eviction) (instance and project runners, 30 Gi cache), PostgreSQL (20 Gi, `shared_buffers` 2 GB), Elasticsearch (4 GiB heap, 50 Gi, container logs kept 14 days), Prometheus (30 days or 20 GB, 30 Gi), more memory for Logstash, Kibana, Kafka, MongoDB, Keycloak, SonarQube, Grafana, Odoo (4 workers) and Argo CD, and four concurrent Trivy scans. |
+| `large` | One server with 16+ threads and 96+ GiB | GitLab (4 Puma workers, 20 Sidekiq threads, 16 GiB, 150 Gi data), six concurrent CI jobs of up to 4 CPU, 8 GiB and 20 GiB ephemeral storage, 8 CPU and 12 GiB for a job that [asks](../operations.md#node-memory-and-eviction) (instance and project runners, 30 Gi cache), PostgreSQL (20 Gi, `shared_buffers` 2 GB), Elasticsearch (4 GiB heap, 50 Gi, container logs kept 14 days), Prometheus (30 days or 20 GB, 30 Gi), more memory for Logstash, Kibana, Kafka, MongoDB, Keycloak, SonarQube, Grafana, Odoo (4 workers) and Argo CD, four concurrent Trivy scans, and 200 pods per node instead of 110. |
 
 Left empty, the installer keeps the installed profile, or suggests `large` from
 the host's threads and memory on a first installation. The root Application
@@ -74,6 +74,23 @@ still match its manifest or the render fails. Argo CD's own release adds
 Volumes only grow: the installer refuses a profile that would render a volume
 smaller than it is. A StatefulSet's volume templates cannot change in place, so
 Kafka's volumes keep their size; expand those claims directly when needed.
+
+### Pods per node
+
+A node is also full when it runs as many pods as its kubelet admits, whatever
+the requests: 110 by default, and the platform alone runs about 100 on one
+server, so parallel CI jobs were refused with `Too many pods`. The profile's
+`node.kubeletMaxPods` sets every node's cap (`large`: 200), and the installer
+input `KUBELET_MAX_PODS` overrides it. A node's /24 pod range holds 252 pods at
+most. The kubelet reads the cap when K3s starts, so a changed cap reaches a
+running node at its next K3s restart, or at once with
+[`configure-k3s-kubelet-memory.sh --restart`](../operations.md#pods-per-node).
+Compare the pods running on a node with its cap:
+
+```bash
+kubectl get node -o custom-columns=NAME:.metadata.name,PODS:.status.allocatable.pods
+kubectl get pods -A --field-selector spec.nodeName=<node>,status.phase=Running --no-headers | wc -l
+```
 
 ## Related Guides
 

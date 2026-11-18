@@ -3,6 +3,9 @@
 
     sizing.py resolve [--explicit NAME]   print the profile: explicit, recorded, else suggested
     sizing.py recorded                    print the profile the root Application records, if any
+    sizing.py kubelet-max-pods [--profile NAME]
+                                          print the profile's pods per node (empty: K3s's 110);
+                                          the profile defaults to SIZING_PROFILE, else the recorded one
     sizing.py check-volumes --root DIR    fail if rendered PVCs in DIR would shrink live ones
     sizing.py record --root DIR           put DIR's profile on the live root Application
 
@@ -38,11 +41,23 @@ def available(root=ROOT):
 def load(profile, root=ROOT):
     """The profile's definition; standard is empty."""
     if profile == STANDARD:
-        return {"values": {}, "manifests": {}}
+        return {"values": {}, "manifests": {}, "node": {}}
     if not NAME.fullmatch(profile or "") or profile not in available(root):
         raise SizingError(f"Unknown sizing profile {profile!r}; choose one of {', '.join(available(root))}")
     data = yaml.safe_load((root / "k8s/files/sizing" / f"{profile}.yaml").read_text()) or {}
-    return {"values": data.get("values") or {}, "manifests": data.get("manifests") or {}}
+    return {"values": data.get("values") or {}, "manifests": data.get("manifests") or {},
+            "node": data.get("node") or {}}
+
+
+def kubelet_max_pods(profile, root=ROOT):
+    """The pods each node's kubelet runs on the profile; None keeps K3s's default (110).
+    scripts/configure-k3s-kubelet-memory.sh writes it and checks it against the node's pod range."""
+    value = load(profile, root)["node"].get("kubeletMaxPods")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise SizingError(f"sizing {profile}: node.kubeletMaxPods must be a positive whole number")
+    return value
 
 
 def apply_replacements(text, path, key, profile, root=ROOT):
@@ -191,6 +206,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("resolve").add_argument("--explicit", default="")
     commands.add_parser("recorded")
+    commands.add_parser("kubelet-max-pods").add_argument("--profile", default="")
     commands.add_parser("check-volumes").add_argument("--root", required=True)
     commands.add_parser("record").add_argument("--root", required=True)
     args = parser.parse_args()
@@ -200,6 +216,11 @@ def main():
             print(f"{profile}\t{reason}")
         elif args.command == "recorded":
             print(recorded() or "")
+        elif args.command == "kubelet-max-pods":
+            profile = args.profile or os.environ.get("SIZING_PROFILE") or recorded()
+            if not profile:
+                raise SizingError("Cannot read the platform's sizing profile; set SIZING_PROFILE or KUBELET_MAX_PODS.")
+            print(kubelet_max_pods(profile) or "")
         elif args.command == "record":
             print(record(args.root) or "")
         else:

@@ -8,10 +8,15 @@
 #   containers  per container: resources (merged), env (existing values), args
 #   storage     PersistentVolumeClaim request; volumes only grow
 # values: Helm values the root Application carries (subcharts).
+# node: every node's kubelet, written by scripts/configure-k3s-kubelet-memory.sh
+#   kubeletMaxPods  pods per node instead of K3s's 110; at most 252 on a /24 pod range
 values:
   trivy-operator:
     operator:
       scanJobsConcurrentLimit: 4
+node:
+  # The platform alone runs about 100 pods, so CI jobs found the node full at 110.
+  kubeletMaxPods: 200
 manifests:
   platform/gitlab.yaml:
     Deployment/gitlab:
