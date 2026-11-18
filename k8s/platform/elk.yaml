@@ -495,6 +495,16 @@ spec:
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"cluster":["monitor","manage_ingest_pipelines"],"indices":[{"names":["zammad*"],"privileges":["all"]}]}' \
                 "${endpoint}/_security/role/zammad" >/dev/null
+              # Zammad creates its indices without a replica count, so Elasticsearch's
+              # default of one left a replica of each unassigned on a single node (yellow).
+              # No replica, like every other platform index; the index is rebuilt from the database.
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"index_patterns":["zammad*"],"template":{"settings":{"number_of_replicas":0}}}' \
+                "${endpoint}/_index_template/zammad" >/dev/null
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' --data-binary '{"index":{"number_of_replicas":0}}' \
+                "${endpoint}/zammad*/_settings?allow_no_indices=true&ignore_unavailable=true" >/dev/null
               if [ -n "${ZAMMAD_PASSWORD:-}" ]; then
                 put_user zammad "$ZAMMAD_PASSWORD" '["zammad"]' 'Zammad Search'
               fi
