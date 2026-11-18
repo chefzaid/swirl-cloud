@@ -119,6 +119,23 @@ jobs:
             github_head="$(git rev-parse --verify "$github_ref" 2>/dev/null || true)"
             gitlab_head="$(git rev-parse --verify "$gitlab_ref" 2>/dev/null || true)"
 
+            # Dependabot owns its branches on GitHub: it force-pushes each rebase
+            # and deletes the branch when its pull request closes. GitLab mirrors
+            # them, replacing or deleting only the exact copy fetched above, and
+            # they are never merged or copied back to GitHub.
+            if [[ "$branch" == dependabot/* ]]; then
+              if [[ -z "$github_head" ]]; then
+                echo "Deleting GitLab branch $branch, which Dependabot removed"
+                git push --force-with-lease="refs/heads/$branch:$gitlab_head" gitlab ":refs/heads/$branch"
+              elif [[ "$github_head" == "$gitlab_head" ]]; then
+                echo "Branch $branch already matches at $github_head"
+              else
+                echo "Mirroring Dependabot branch $branch to GitLab at $github_head"
+                git push --force-with-lease="refs/heads/$branch:$gitlab_head" gitlab "$github_head:refs/heads/$branch"
+              fi
+              continue
+            fi
+
             if [[ -z "$gitlab_head" ]]; then
               echo "Creating GitLab branch $branch at $github_head"
               git push gitlab "$github_head:refs/heads/$branch"
@@ -136,7 +153,14 @@ jobs:
             else
               echo "Merging divergent branch $branch without force pushing"
               git checkout --quiet --detach "$github_head"
-              git merge --no-ff -m "sync: merge GitLab $branch into GitHub" "$gitlab_head"
+              if ! git merge --no-ff -m "sync: merge GitLab $branch into GitHub" "$gitlab_head"; then
+                # Leave a conflicting branch for a person and keep reconciling
+                # the others, so one stale branch cannot hold back main. The
+                # final ref comparison still fails the run.
+                git merge --abort
+                echo "::error::Branch $branch has conflicting GitHub and GitLab histories; reconcile it by hand"
+                continue
+              fi
               merged_head="$(git rev-parse HEAD)"
               git push gitlab "$merged_head:refs/heads/$branch"
               git push github "$merged_head:refs/heads/$branch"
