@@ -42,6 +42,18 @@ application data (rendered with the French portal). The command checks that the
 [licence register](guides/releases.md#third-party-licences) covers the SBOM, then
 runs the [safety suites](#validation-policy).
 
+`VALIDATION_JOBS` sets how many profiles `validate-manifests.py` renders at once
+(default 1). A render takes about one CPU and up to about 650 MB, mostly
+`promtool` running the rule unit tests. On a live platform host keep the default
+and run it throttled (for example `nice -n 10 taskset -c 0,1`), so validation
+does not compete with production. CI's `validate:repository` asks the runner for
+8 CPUs (`KUBERNETES_CPU_LIMIT`) and renders eight profiles at once. In parallel,
+the output and the reported failure are still those of a serial run, in profile order.
+Only the `large` [sizing profile](guides/capacity-planning.md#sizing-profiles)
+lets a job ask for 8 CPUs; on `standard` the runner refuses the job, so set
+`KUBERNETES_CPU_LIMIT=4`, `KUBERNETES_MEMORY_LIMIT=6Gi` and `VALIDATION_JOBS=4`
+as project CI/CD variables, which take precedence over the pipeline file.
+
 `--live` dry-runs those profiles against the active Kubernetes context. It needs
 `kubectl`, API access and the platform CRDs. Synthetic `example.com` settings
 test API compatibility, not the live installation's credentials, routing or

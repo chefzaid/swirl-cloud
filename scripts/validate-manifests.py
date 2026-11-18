@@ -3,6 +3,7 @@
 
 import argparse
 import base64
+from concurrent.futures import ProcessPoolExecutor, wait
 import copy
 import itertools
 import json
@@ -126,103 +127,157 @@ def source_inputs():
     print("[PASS] Source syntax, documentation links, manifests and deployment policy", flush=True)
 
 
-def render_profiles(output):
+# Install profiles as (high availability, Odoo scope, migration phase, shared data), in report order.
+PROFILES = [(ha, apps, None, False) for ha, apps in itertools.product((False, True), repeat=2)]
+PROFILES += [(True, True, phase, False) for phase in ("dynamic", "expanded", "active")]
+PROFILES += [(False, True, None, True), (True, True, "active", True)]
+
+
+def profile_label(ha, apps, phase, shared_data):
+    label = f"upstream-{'ha' if ha else 'single'}-{'corp' if apps else 'infra'}"
+    if phase:
+        label += f"-{phase}-fencing"
+    if shared_data:
+        label += "-shared-data"
+    return label
+
+
+def render_profile(output, env, ha, apps, phase, shared_data):
+    """Render and check one profile. It writes only output/<label>*, passes its settings
+    to each command explicitly and keeps no state, so profiles can run side by side."""
+    label = profile_label(ha, apps, phase, shared_data)
+    stage = output / label
+    flag = lambda value: str(value).lower()
+    profile_env = dict(env, HIGH_AVAILABILITY_ENABLED=flag(ha))
+    if shared_data and not ha:
+        profile_env["PORTAL_LANGUAGE"] = "fr"  # One profile proves the French portal renders the same both ways.
+    if shared_data:  # Both topologies prove the large sizing profile renders the same both ways.
+        profile_env["SIZING_PROFILE"] = "large"
+    soc_host = "siem.example.net" if ha and not apps and not phase else ""
+    if soc_host:  # One profile forwards every source to a SOC with its own CA.
+        profile_env.update(SOC_SYSLOG_HOST=soc_host, SOC_SYSLOG_CA_FILE=str(ROOT / "config/cloudflare-origin-ca.pem"),
+                           SOC_SYSLOG_SOURCES="identity,kubernetes-audit,vault-audit,detection,host-journal")
+    migration = {}
+    if phase:
+        migration = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())
+        migration["postgresHa"]["active"] = phase == "active"
+        migration.update(yaml.safe_load((ROOT / "config/kafka-ha-values.yaml").read_text()))
+        migration["kafkaHa"].update(phase=phase, clusterId="8ipNY9RxQtWkattTais5yQ")
+        migration["nodeFencing"] = {"enabled": True, "inventorySecret": "fixture-inventory", "nodeNames": ["fixture-node"]}
+    if shared_data:
+        migration.update(yaml.safe_load((ROOT / "config/application-data-values.yaml").read_text()))
+        migration["applicationData"]["kafkaBrokers"] = [
+            {"id": ordinal, "host": "100.100.0.10", "port": 30940 + ordinal}
+            for ordinal in range(3 if phase == "active" else 1)]
+    if migration:
+        migration_file = output / f"{label}-values.json"
+        migration_file.write_text(json.dumps(migration))
+        profile_env["PLATFORM_HA_VALUES_FILE"] = str(migration_file)
+    run("bash", str(ROOT / "scripts/render-cluster-config.sh"), "--output", str(stage),
+        "--domain", "example.com", "--internal-domain", "internal.example.com",
+        "--organization-name", "Example & Company", "--organization-slug", "example",
+        "--gitlab-group", "example", "--gitlab-project", "swirl-cloud",
+        "--gitops-repository", "https://github.com/example/swirl-cloud.git",
+        "--cloudflare-access-team", "example", "--apps-enabled", flag(apps),
+        "--descheduler-enabled", flag(apps), env=profile_env)
+    application = yaml.safe_load((stage / "k8s/addons/swirl-cloud-application.yaml").read_text())
+    helm = application["spec"]["source"]["helm"]
+    values = dict(helm["valuesObject"])
+    for parameter in helm["parameters"]:
+        target = values
+        parts = parameter["name"].split(".")
+        for part in parts[:-1]:
+            target = target.setdefault(part, {})
+        value = parameter["value"]
+        if not parameter.get("forceString") and value in ("true", "false"):
+            value = value == "true"
+        target[parts[-1]] = value
+    value_file = stage / "gitops-values.json"
+    value_file.write_text(json.dumps(values))
+    options = ["--namespace", "infra"]
+    for profile in helm.get("valueFiles", []):
+        options += ["--values", str(ROOT / "k8s" / profile)]
+    options += ["--values", str(value_file)]
+    run("helm", "lint", str(ROOT / "k8s"), "--strict", *options, env=env)
+    rendered = run("helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--skip-tests", *options, env=env)
+    require(set(TOKEN.findall(rendered)) <= {"__RUNNER_TOKEN__"}, f"{label}: unresolved deployment placeholders")
+    require(not FILE_MARKER.search(rendered), f"{label}: unresolved file markers")
+    runtime = index(documents(rendered))
+    resource_wiring(list(runtime.values()))
+    lifecycle_policies(rendered, label)
+    prometheus_config(runtime, stage)
+    soc_forwarding(runtime, label, soc_host)
+    events_collector(runtime, label)
+    workload_priority(list(runtime.values()))
+    owned = {identity(doc) for block in rendered.split("\n---")
+             if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
+    require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")
+    require(any(doc["kind"] == "Deployment" and doc["metadata"]["name"] == "odoo" for doc in runtime.values()) == apps, f"{label}: incorrect Odoo scope")
+    for group in (*GROUPS, "ha"):
+        for path in (stage / "k8s" / group).glob("*.yaml"):
+            if (not apps and (group == "corp" or path.name in {"corp-namespace.yaml", "descheduler.yaml"})) or path.name == "descheduler-run-job.yaml":
+                continue
+            for doc in documents(path.read_text()):
+                require(comparable(runtime.get(identity(doc))) == comparable(doc), f"{label}: installer/GitOps mismatch in {path.relative_to(stage)}: {identity(doc)}")
+    for doc in runtime.values():
+        # Vendored dependencies own their image schema. Enforce our digest
+        # policy on platform-owned resources; lint renders dependencies too.
+        if identity(doc) in owned:
+            for image in images(doc):
+                require(DIGEST.search(image), f"{label}: unpinned rendered image {image}")
+        if not ha and apps:
+            embedded_syntax(doc)
+    (output / f"{label}.yaml").write_text(rendered)
+    return f"[PASS] {label}: Helm lint, {len(runtime)} wired resources and installer/GitOps parity"
+
+
+def render_in_worker(output, env, profile):
+    """render_profile in a pool worker. Its stderr, its commands' included, goes to a file
+    the parent replays in profile order, so parallel output reads as a serial run."""
+    sys.stderr.flush()
+    saved = os.dup(2)
+    try:
+        with open(output / f"{profile_label(*profile)}.stderr", "w") as log:
+            os.dup2(log.fileno(), 2)
+        return render_profile(output, env, *profile)
+    finally:
+        sys.stderr.flush()
+        os.dup2(saved, 2)
+        os.close(saved)
+
+
+def validation_jobs():
+    """Profiles rendered at once: VALIDATION_JOBS, default 1 so a run on a live platform host stays throttled."""
+    value = os.environ.get("VALIDATION_JOBS") or "1"
+    require(re.fullmatch(r"[1-9][0-9]*", value), f"VALIDATION_JOBS must be a positive integer, not {value!r}")
+    return min(int(value), len(PROFILES))
+
+
+def render_profiles(output, jobs):
     # Explicit synthetic settings keep offline validation independent of the
     # operator's environment, kubeconfig and installed cluster identity.
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "TMPDIR"}}
     env.update(PYTHONDONTWRITEBYTECODE="1", KUBECONFIG="/dev/null")
-    profiles = [(ha, apps, None, False) for ha, apps in itertools.product((False, True), repeat=2)]
-    profiles += [(True, True, phase, False) for phase in ("dynamic", "expanded", "active")]
-    profiles += [(False, True, None, True), (True, True, "active", True)]
-    for ha, apps, phase, shared_data in profiles:
-        label = f"upstream-{'ha' if ha else 'single'}-{'corp' if apps else 'infra'}"
-        if phase:
-            label += f"-{phase}-fencing"
-        if shared_data:
-            label += "-shared-data"
-        stage = output / label
-        flag = lambda value: str(value).lower()
-        profile_env = dict(env, HIGH_AVAILABILITY_ENABLED=flag(ha))
-        if shared_data and not ha:
-            profile_env["PORTAL_LANGUAGE"] = "fr"  # One profile proves the French portal renders the same both ways.
-        if shared_data:  # Both topologies prove the large sizing profile renders the same both ways.
-            profile_env["SIZING_PROFILE"] = "large"
-        soc_host = "siem.example.net" if ha and not apps and not phase else ""
-        if soc_host:  # One profile forwards every source to a SOC with its own CA.
-            profile_env.update(SOC_SYSLOG_HOST=soc_host, SOC_SYSLOG_CA_FILE=str(ROOT / "config/cloudflare-origin-ca.pem"),
-                               SOC_SYSLOG_SOURCES="identity,kubernetes-audit,vault-audit,detection,host-journal")
-        migration = {}
-        if phase:
-            migration = yaml.safe_load((ROOT / "config/postgres-ha-values.yaml").read_text())
-            migration["postgresHa"]["active"] = phase == "active"
-            migration.update(yaml.safe_load((ROOT / "config/kafka-ha-values.yaml").read_text()))
-            migration["kafkaHa"].update(phase=phase, clusterId="8ipNY9RxQtWkattTais5yQ")
-            migration["nodeFencing"] = {"enabled": True, "inventorySecret": "fixture-inventory", "nodeNames": ["fixture-node"]}
-        if shared_data:
-            migration.update(yaml.safe_load((ROOT / "config/application-data-values.yaml").read_text()))
-            migration["applicationData"]["kafkaBrokers"] = [
-                {"id": ordinal, "host": "100.100.0.10", "port": 30940 + ordinal}
-                for ordinal in range(3 if phase == "active" else 1)]
-        if migration:
-            migration_file = output / f"{label}-values.json"
-            migration_file.write_text(json.dumps(migration))
-            profile_env["PLATFORM_HA_VALUES_FILE"] = str(migration_file)
-        run("bash", str(ROOT / "scripts/render-cluster-config.sh"), "--output", str(stage),
-            "--domain", "example.com", "--internal-domain", "internal.example.com",
-            "--organization-name", "Example & Company", "--organization-slug", "example",
-            "--gitlab-group", "example", "--gitlab-project", "swirl-cloud",
-            "--gitops-repository", "https://github.com/example/swirl-cloud.git",
-            "--cloudflare-access-team", "example", "--apps-enabled", flag(apps),
-            "--descheduler-enabled", flag(apps), env=profile_env)
-        application = yaml.safe_load((stage / "k8s/addons/swirl-cloud-application.yaml").read_text())
-        helm = application["spec"]["source"]["helm"]
-        values = dict(helm["valuesObject"])
-        for parameter in helm["parameters"]:
-            target = values
-            parts = parameter["name"].split(".")
-            for part in parts[:-1]:
-                target = target.setdefault(part, {})
-            value = parameter["value"]
-            if not parameter.get("forceString") and value in ("true", "false"):
-                value = value == "true"
-            target[parts[-1]] = value
-        value_file = stage / "gitops-values.json"
-        value_file.write_text(json.dumps(values))
-        options = ["--namespace", "infra"]
-        for profile in helm.get("valueFiles", []):
-            options += ["--values", str(ROOT / "k8s" / profile)]
-        options += ["--values", str(value_file)]
-        run("helm", "lint", str(ROOT / "k8s"), "--strict", *options, env=env)
-        rendered = run("helm", "template", "swirl-cloud", str(ROOT / "k8s"), "--skip-tests", *options, env=env)
-        require(set(TOKEN.findall(rendered)) <= {"__RUNNER_TOKEN__"}, f"{label}: unresolved deployment placeholders")
-        require(not FILE_MARKER.search(rendered), f"{label}: unresolved file markers")
-        runtime = index(documents(rendered))
-        resource_wiring(list(runtime.values()))
-        lifecycle_policies(rendered, label)
-        prometheus_config(runtime, stage)
-        soc_forwarding(runtime, label, soc_host)
-        events_collector(runtime, label)
-        workload_priority(list(runtime.values()))
-        owned = {identity(doc) for block in rendered.split("\n---")
-                 if "# Source: swirl-cloud/templates/" in block for doc in documents(block)}
-        require(any(doc["kind"] == "Namespace" and doc["metadata"]["name"] == "apps" for doc in runtime.values()), f"{label}: missing apps foundation")
-        require(any(doc["kind"] == "Deployment" and doc["metadata"]["name"] == "odoo" for doc in runtime.values()) == apps, f"{label}: incorrect Odoo scope")
-        for group in (*GROUPS, "ha"):
-            for path in (stage / "k8s" / group).glob("*.yaml"):
-                if (not apps and (group == "corp" or path.name in {"corp-namespace.yaml", "descheduler.yaml"})) or path.name == "descheduler-run-job.yaml":
-                    continue
-                for doc in documents(path.read_text()):
-                    require(comparable(runtime.get(identity(doc))) == comparable(doc), f"{label}: installer/GitOps mismatch in {path.relative_to(stage)}: {identity(doc)}")
-        for doc in runtime.values():
-            # Vendored dependencies own their image schema. Enforce our digest
-            # policy on platform-owned resources; lint renders dependencies too.
-            if identity(doc) in owned:
-                for image in images(doc):
-                    require(DIGEST.search(image), f"{label}: unpinned rendered image {image}")
-            if not ha and apps:
-                embedded_syntax(doc)
-        (output / f"{label}.yaml").write_text(rendered)
-        print(f"[PASS] {label}: Helm lint, {len(runtime)} wired resources and installer/GitOps parity", flush=True)
+    if jobs == 1:
+        for profile in PROFILES:
+            print(render_profile(output, env, *profile), flush=True)
+        return
+    # Processes, not threads: a render's own checks hold the GIL, and each worker needs its own stderr.
+    with ProcessPoolExecutor(max_workers=jobs) as pool:
+        futures = [(profile_label(*profile), pool.submit(render_in_worker, output, env, profile)) for profile in PROFILES]
+        try:
+            # Report in profile order; the first failing profile in that order fails the run.
+            for label, future in futures:
+                wait([future])
+                log = output / f"{label}.stderr"
+                if log.exists():
+                    sys.stderr.write(log.read_text())
+                    sys.stderr.flush()
+                    log.unlink()
+                print(future.result(), flush=True)
+        except BaseException:
+            pool.shutdown(cancel_futures=True)
+            raise
 
 
 def render_onboarding(output):
@@ -282,10 +337,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path, help="Private temporary directory for rendered validation manifests")
     args = parser.parse_args()
+    jobs = validation_jobs()
     args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
     source_inputs()
     render_onboarding(args.output)
-    render_profiles(args.output)
+    render_profiles(args.output, jobs)
 
 
 if __name__ == "__main__":

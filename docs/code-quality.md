@@ -10,7 +10,7 @@ application repositories, not this one.
 | Where | What runs |
 | --- | --- |
 | Local | `./scripts/validate-repository.sh` before every commit |
-| Platform CI | `validate:repository` on every branch and merge request in a digest-pinned Alpine image with an APK cache |
+| Platform CI | `validate:repository` on every branch and merge request in a digest-pinned Alpine image with an APK cache, with 8 CPUs rendering eight profiles at once ([`VALIDATION_JOBS`](testing.md#validation)) |
 | Default branch | `verify:gitops`, `verify:delivery-platform`, `verify:registry-write` after Argo CD reconciles the commit; non-blocking `report:platform-artifacts` Trivy report on vendored charts and the CI image (kept 30 days) |
 
 See [testing](testing.md#test-layers) for the full layer map.

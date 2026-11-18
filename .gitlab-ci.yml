@@ -24,6 +24,12 @@ validate:repository:
     paths:
       - .cache/apk/
     policy: pull-push
+  variables:
+    # The nine render profiles run side by side, one per CPU. A render takes about
+    # one CPU and up to about 650 MB, so eight fit the default memory limit. Only
+    # the large sizing profile lets a job raise its CPU limit to 8 (docs/testing.md#validation).
+    KUBERNETES_CPU_LIMIT: "8"
+    VALIDATION_JOBS: "8"
   before_script:
     - mkdir -p "$APK_CACHE_DIR"
     - apk add --cache-dir "$APK_CACHE_DIR" ansible-core bash coreutils findutils git grep helm jq nodejs openssl prometheus py3-yaml python3 shellcheck sqlite tzdata util-linux
