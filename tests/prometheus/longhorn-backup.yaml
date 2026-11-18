@@ -1,0 +1,29 @@
+# promtool unit test for LonghornVolumeBackupStale, run by validate-manifests.py
+# against each rendered profile's rules (it replaces rule_files).
+rule_files: [rules.yaml]
+evaluation_interval: 1h
+tests:
+  # Hourly samples over three days with off-node backups active: one volume is
+  # backed up daily, one stops after its first backup, and a cache that
+  # LONGHORN_BACKUP_EXCLUDE leaves out was never backed up.
+  - interval: 1h
+    input_series:
+      - series: 'longhorn_backup_target_backup_volume_count'
+        values: '2x72'
+      - series: 'longhorn_volume_last_backup_at{pvc_namespace="infra",pvc="daily",volume="pvc-a"}'
+        values: '0x23 86400x24 172800x24'
+      - series: 'longhorn_volume_last_backup_at{pvc_namespace="infra",pvc="stopped",volume="pvc-b"}'
+        values: '0x72'
+      - series: 'longhorn_volume_last_backup_at{pvc_namespace="infra",pvc="signatures-clamav-0",volume="pvc-c"}'
+        values: '0x72'
+      - series: 'kube_persistentvolumeclaim_labels{namespace="infra",persistentvolumeclaim="signatures-clamav-0",label_swirl_cloud_io_volume_backup="excluded"}'
+        values: '1x72'
+    promql_expr_test:
+      - expr: ALERTS{alertname="LonghornVolumeBackupStale", alertstate="firing"}
+        eval_time: 36h
+        exp_samples: []
+      - expr: ALERTS{alertname="LonghornVolumeBackupStale", alertstate="firing"}
+        eval_time: 2d
+        exp_samples:
+          - labels: 'ALERTS{alertname="LonghornVolumeBackupStale",alertstate="firing",severity="warning",owner="platform",pvc_namespace="infra",pvc="stopped",volume="pvc-b"}'
+            value: 1

@@ -276,9 +276,17 @@ groups:
           description: 'Volume {{ $labels.volume }} ({{ $labels.pvc_namespace }}/{{ $labels.pvc }}) is missing healthy replicas or still rebuilding.'
       - alert: LonghornVolumeBackupStale
         # Silent until off-node volume backups are active (the target holds
-        # at least one backup); then every volume must stay within 36 hours.
+        # at least one backup); then every volume must stay within 36 hours,
+        # except the claims LONGHORN_BACKUP_EXCLUDE leaves out on purpose
+        # (labelled swirl-cloud.io/volume-backup=excluded by configure-k3s-backups.sh).
         expr: |
-          (time() - longhorn_volume_last_backup_at > 36 * 3600)
+          (
+            (time() - longhorn_volume_last_backup_at > 36 * 3600)
+            unless on(pvc_namespace, pvc)
+              label_replace(label_replace(
+                kube_persistentvolumeclaim_labels{label_swirl_cloud_io_volume_backup="excluded"},
+                "pvc_namespace", "$1", "namespace", "(.*)"), "pvc", "$1", "persistentvolumeclaim", "(.*)")
+          )
           and on() (sum(longhorn_backup_target_backup_volume_count) > 0)
         for: 1h
         labels:

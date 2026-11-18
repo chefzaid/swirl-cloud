@@ -190,9 +190,11 @@ if [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]] && \
     volume="$(kubectl get persistentvolumeclaim "${claim#*/}" -n "${claim%%/*}" -o jsonpath='{.spec.volumeName}' 2>/dev/null || true)"
     [[ -n "$volume" ]] || continue
     # Out of the default group, so no daily backup; the swirl-cloud group keeps
-    # the weekly trim.
+    # the weekly trim. The claim's label tells LonghornVolumeBackupStale to skip it.
     kubectl label volumes.longhorn.io "$volume" -n longhorn-system --overwrite \
       recurring-job-group.longhorn.io/swirl-cloud=enabled recurring-job-group.longhorn.io/default- >/dev/null
+    kubectl label persistentvolumeclaim "${claim#*/}" -n "${claim%%/*}" --overwrite \
+      swirl-cloud.io/volume-backup=excluded >/dev/null
   done
   echo "K3s recovery archives, host files and Longhorn volume backups are stored off-node ($BACKUP_STORAGE)."
 elif [[ "$CONFIGURE_OFFSITE_BACKUPS" == "true" ]]; then

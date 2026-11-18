@@ -201,6 +201,11 @@ Off-node backups are active but this volume's last one is over 36 hours old.
 Check the backup target and recurring job in the Longhorn UI (credentials, bucket
 reachability, free space) and run a backup now.
 
+Claims that `LONGHORN_BACKUP_EXCLUDE` leaves out on purpose (the runner cache,
+Trivy's database and ClamAV's signatures by default) carry the label
+`swirl-cloud.io/volume-backup=excluded` and never raise it. If one of those
+fires, the label is missing: rerun `scripts/configure-k3s-backups.sh`.
+
 ### LonghornVolumeFaulted
 
 No usable replica: the workload is down and data is at risk. Delete nothing.
