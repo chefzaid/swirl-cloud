@@ -229,11 +229,18 @@ data:
         poll_timeout = 600
         # Test jobs peak at about 2 GiB (2026-10-23). Requesting it makes the
         # scheduler hold a job while the node is full instead of thrashing.
+        # A job may raise its own CPU and memory limits, never its requests, up to
+        # the *_overwrite_max_allowed values with KUBERNETES_CPU_LIMIT and
+        # KUBERNETES_MEMORY_LIMIT; a higher value fails the job. Production pods
+        # request the CPU they use, so under contention CFS shares keep them ahead
+        # of CI's 100m request however high a job's limit is.
         cpu_request = "100m"
         memory_request = "2Gi"
         ephemeral_storage_request = "512Mi"
         cpu_limit = "2"
+        cpu_limit_overwrite_max_allowed = "4"
         memory_limit = "3Gi"
+        memory_limit_overwrite_max_allowed = "6Gi"
         ephemeral_storage_limit = "4Gi"
         helper_cpu_request = "50m"
         helper_memory_request = "128Mi"
@@ -282,7 +289,7 @@ spec:
       labels:
         app: gitlab-runner
       annotations:
-        gitlab.__PUBLIC_DOMAIN__/config-version: "7"
+        gitlab.__PUBLIC_DOMAIN__/config-version: "8"
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "9252"

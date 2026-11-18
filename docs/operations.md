@@ -650,7 +650,14 @@ may preempt them to place a platform pod; they never preempt anything. They
 request 2 GiB, about what a test job uses
 ([gitlab-runner.yaml](../k8s/platform/gitlab-runner.yaml)), so the scheduler
 holds a job while the node's memory is fully requested; a job still pending after
-the runner's 10-minute `poll_timeout` fails and needs a retry. GitLab requests the
+the runner's 10-minute `poll_timeout` fails and needs a retry. A job gets 2 CPUs
+and 3 GiB (`large`: 4 CPUs and 8 GiB) and may raise its own limits, never its
+requests, with the `KUBERNETES_CPU_LIMIT` and `KUBERNETES_MEMORY_LIMIT` job
+variables up to 4 CPUs and 6 GiB (`large`: 8 CPUs and 12 GiB); a higher value
+fails the job. The instance runner and the project runners of application
+delivery share these settings. A raised limit does not slow production down:
+production pods request the CPU they use while a job requests 100m, so under
+contention CFS shares keep production ahead of CI. GitLab requests the
 5 GiB it uses. Frequent `Evicted` events in `kubectl get events -A` mean the node needs
 more memory or lower requests.
 

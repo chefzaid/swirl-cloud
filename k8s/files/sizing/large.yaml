@@ -34,6 +34,8 @@ manifests:
         - {from: "concurrent = 1", to: "concurrent = 6"}
         - {from: 'cpu_limit = "2"', to: 'cpu_limit = "4"'}
         - {from: 'memory_limit = "3Gi"', to: 'memory_limit = "8Gi"'}
+        - {from: 'cpu_limit_overwrite_max_allowed = "4"', to: 'cpu_limit_overwrite_max_allowed = "8"'}
+        - {from: 'memory_limit_overwrite_max_allowed = "6Gi"', to: 'memory_limit_overwrite_max_allowed = "12Gi"'}
         - {from: 'ephemeral_storage_request = "512Mi"', to: 'ephemeral_storage_request = "1Gi"'}
         - {from: 'ephemeral_storage_limit = "4Gi"', to: 'ephemeral_storage_limit = "20Gi"'}
         - {from: 'service_cpu_limit = "1"', to: 'service_cpu_limit = "2"'}

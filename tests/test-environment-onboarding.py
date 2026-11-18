@@ -407,6 +407,8 @@ class DeliveryBoundaryTests(unittest.TestCase):
         self.assertEqual(config["concurrent"], 6)
         for runner in config["runners"]:
             self.assertEqual((runner["kubernetes"]["cpu_limit"], runner["kubernetes"]["memory_limit"]), ("4", "8Gi"))
+            self.assertEqual((runner["kubernetes"]["cpu_limit_overwrite_max_allowed"],
+                              runner["kubernetes"]["memory_limit_overwrite_max_allowed"]), ("8", "12Gi"))
 
     def test_runners_have_fixed_accounts_and_no_shared_writable_cache(self):
         import tomllib
@@ -418,7 +420,11 @@ class DeliveryBoundaryTests(unittest.TestCase):
             self.assertEqual(executor["service_account"], "gitlab-project-7-" + lane)
             self.assertFalse(executor["privileged"])
             self.assertEqual(set(executor["volumes"]), {"empty_dir"})
-            self.assertFalse(any("overwrite_allowed" in key for key in executor))
+            # A job may raise only its own CPU and memory limits, never its requests,
+            # service account, namespace or anything else.
+            self.assertEqual({key: value for key, value in executor.items() if "overwrite" in key},
+                             {"cpu_limit_overwrite_max_allowed": "4", "memory_limit_overwrite_max_allowed": "6Gi"})
+            self.assertEqual((executor["cpu_request"], executor["memory_request"]), ("100m", "2Gi"))
         pod = resources[1]["spec"]["template"]["spec"]
         self.assertEqual(pod["serviceAccountName"], "gitlab-runner-manager")
         self.assertTrue(all("persistentVolumeClaim" not in volume for volume in pod["volumes"]))

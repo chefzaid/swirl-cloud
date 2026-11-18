@@ -64,6 +64,8 @@ class Sizing(unittest.TestCase):
         runner = docs[("ConfigMap", "gitlab-runners", "gitlab-runner-config")]["data"]["config.template.toml"]
         self.assertIn("concurrent = 6", runner)
         self.assertIn('memory_limit = "8Gi"', runner)
+        self.assertIn('cpu_limit_overwrite_max_allowed = "8"', runner)
+        self.assertIn('memory_limit_overwrite_max_allowed = "12Gi"', runner)
         self.assertEqual(docs[("PersistentVolumeClaim", "infra", "postgres-v18-pvc")]["spec"]["resources"]["requests"]
                          ["storage"], "20Gi")
         self.assertIn("shared_buffers=2GB", container(docs[("Deployment", "infra", "postgres")], "postgres")["args"])

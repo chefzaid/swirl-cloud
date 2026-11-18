@@ -58,7 +58,7 @@ Configure → Nodes):
 | Profile | For | What it sets |
 | --- | --- | --- |
 | `standard` | The [minimum server](../deployment.md#support-matrix) and up | Every manifest's own requests, limits, volumes and settings. |
-| `large` | One server with 16+ threads and 96+ GiB | GitLab (4 Puma workers, 20 Sidekiq threads, 16 GiB, 150 Gi data), six concurrent CI jobs of up to 4 CPU, 8 GiB and 20 GiB ephemeral storage (instance and project runners, 30 Gi cache), PostgreSQL (20 Gi, `shared_buffers` 2 GB), Elasticsearch (4 GiB heap, 50 Gi, container logs kept 14 days), Prometheus (30 days or 20 GB, 30 Gi), more memory for Logstash, Kibana, Kafka, MongoDB, Keycloak, SonarQube, Grafana, Odoo (4 workers) and Argo CD, and four concurrent Trivy scans. |
+| `large` | One server with 16+ threads and 96+ GiB | GitLab (4 Puma workers, 20 Sidekiq threads, 16 GiB, 150 Gi data), six concurrent CI jobs of up to 4 CPU, 8 GiB and 20 GiB ephemeral storage, 8 CPU and 12 GiB for a job that [asks](../operations.md#node-memory-and-eviction) (instance and project runners, 30 Gi cache), PostgreSQL (20 Gi, `shared_buffers` 2 GB), Elasticsearch (4 GiB heap, 50 Gi, container logs kept 14 days), Prometheus (30 days or 20 GB, 30 Gi), more memory for Logstash, Kibana, Kafka, MongoDB, Keycloak, SonarQube, Grafana, Odoo (4 workers) and Argo CD, and four concurrent Trivy scans. |
 
 Left empty, the installer keeps the installed profile, or suggests `large` from
 the host's threads and memory on a first installation. The root Application
