@@ -306,12 +306,12 @@ data:
         - Fluent Bit:
             icon: mdi-fire
             description: Per-node Kubernetes log collector
-            namespace: infra
+            namespace: host-agents
             podSelector: app=fluent-bit
         - Node Exporter:
             icon: prometheus-node-exporter.png
             description: Per-node operating-system metrics
-            namespace: infra
+            namespace: host-agents
             podSelector: app=node-exporter
         - Kube State Metrics:
             icon: kubernetes.png
@@ -360,15 +360,15 @@ data:
         - CrowdSec:
             icon: crowdsec.png
             description: Internet-facing node detection and collaborative blocking
+        - Fail2ban:
+            icon: fail2ban.png
+            description: Internet-facing node SSH abuse banning
         - ClamAV:
             icon: clam-av.png
             href: https://grafana.__PUBLIC_DOMAIN__/d/clamav-malware-scanning
             description: Malware scanning of the files sent to applications, with its reports in Grafana
             namespace: infra
             podSelector: app=clamav
-        - Fail2ban:
-            icon: fail2ban.png
-            description: Internet-facing node SSH abuse banning
         - UFW:
             icon: mdi-wall-fire
             description: Every-node firewall and Cloudflare origin restriction
