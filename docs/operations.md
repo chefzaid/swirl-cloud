@@ -764,8 +764,11 @@ Keep experiments, images, reports and archives outside Git
 | Vault | Preserve its UID, Raft data and audit mounts. Follow [Vault upgrade and recovery](security.md#upgrade-and-recovery). |
 | GitLab | Keep the matching version, configuration and secrets with its [native backup](#backups-and-recovery); the archive's `gitlab/` records all three. |
 | Keycloak | Preserve UID 1000 and writable augmentation paths. |
-| SonarQube | Preserve UID 1000/GID 0 and group access to bundled files. |
+| SonarQube | Preserve UID 1000/GID 0 and group access to bundled files. A release with schema changes reports `DB_MIGRATION_NEEDED` and stays unready, which holds the sync: run `kubectl -n infra exec deploy/sonarqube -c sonarqube -- curl -fsS -X POST http://127.0.0.1:9000/api/system/migrate_db` and wait for `/api/system/db_migration_status` to report `MIGRATION_SUCCEEDED`. |
 | PostgreSQL / MongoDB | Preserve UID 999 and check volume ownership. Never recursively change ownership on active database volumes. |
+| MongoDB | Move one major version per release. Once it runs, raise the feature compatibility version (`db.adminCommand({setFeatureCompatibilityVersion: "<major>.0", confirm: true})`): the next major refuses to start below it, and going back means restoring a dump. 9.0 images exist only on Ubuntu 26.04 (`-resolute`). |
+| Kafka | After both pods run a new Kafka minor, raise the finalized features: `kubectl -n infra exec kafka-0 -- kafka-features --bootstrap-server localhost:9092 upgrade --release-version <minor>`. It is one-way: the previous image no longer starts afterwards. |
+| K3s | Upgrade one Kubernetes minor at a time, and only to a minor that Longhorn's support matrix lists for the installed Longhorn release. Rerun the K3s installer with `INSTALL_K3S_VERSION` and the server arguments in `/etc/systemd/system/k3s.service` while no CI job runs. |
 | Storage components | Preserve host access and writable paths. [System hardening](../scripts/reconcile-system-hardening.sh) is independent of images. |
 
 Keep an off-host archive of the exact recovery images and credentials. During a
