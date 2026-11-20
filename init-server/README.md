@@ -36,15 +36,15 @@ Log in as the image's default account, then use one of these:
 From a clone of this repository on the server:
 
 ```bash
-sudo ./init/init-server.sh --dry-run
-sudo ./init/init-server.sh
+sudo ./init-server/init-server.sh --dry-run
+sudo ./init-server/init-server.sh
 ```
 
 From your workstation, copy the script and run it over SSH (`-t` keeps the
 prompts interactive):
 
 ```bash
-scp init/init-server.sh ubuntu@<server>:
+scp init-server/init-server.sh ubuntu@<server>:
 ssh -t ubuntu@<server> 'sudo bash init-server.sh --dry-run'
 ssh -t ubuntu@<server> 'sudo bash init-server.sh'
 ```

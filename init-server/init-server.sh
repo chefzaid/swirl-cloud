@@ -19,7 +19,7 @@ usage() {
     cat <<'EOF'
 Prepare a fresh Ubuntu server for administration with Claude Code.
 
-Usage: sudo ./init/init-server.sh [--dry-run]
+Usage: sudo ./init-server/init-server.sh [--dry-run]
 
 Asks for the current admin account, its new name, the full name and the root
 and account passwords, shows the plan, then:
@@ -164,7 +164,7 @@ main() {
         esac
         shift
     done
-    (( EUID == 0 )) || error 'Run as root: sudo ./init/init-server.sh'
+    (( EUID == 0 )) || error 'Run as root: sudo ./init-server/init-server.sh'
     [[ -t 0 ]] || error 'Run interactively; over SSH use ssh -t.'
     local command
     for command in awk chpasswd chown cmp curl getent install runuser sudo usermod visudo; do
@@ -222,7 +222,7 @@ main() {
 
     local tmp
     tmp="$(mktemp)"
-    printf '# Passwordless sudo for %s (init/init-server.sh)\n%s ALL=(ALL) NOPASSWD:ALL\n' "$new_user" "$new_user" > "$tmp"
+    printf '# Passwordless sudo for %s (init-server/init-server.sh)\n%s ALL=(ALL) NOPASSWD:ALL\n' "$new_user" "$new_user" > "$tmp"
     install_sudoers "$tmp" "/etc/sudoers.d/91-$new_user"
     rm -f -- "$tmp"
     done_step "Passwordless sudo granted to $new_user."
