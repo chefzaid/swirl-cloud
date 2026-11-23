@@ -536,6 +536,27 @@ platform login, so the trail names the tool (DBGate, psql) but not the person
 until personal database logins exist; a statement written over several lines is
 recorded by its first line; MongoDB Community Edition has no audit log.
 
+## Exposure check from outside
+
+The firewall and the edge are also checked from a network outside the platform:
+the [exposure check](../.github/workflows/exposure-check.yml) runs every day on
+GitHub's runners ([`exposure-check.py`](../scripts/exposure-check.py)). It
+connects to every TCP port of each server's public address and expects only the
+SSH port to answer (web ports admit Cloudflare only, so they must refuse it),
+checks that every administration host behind the sign-in gate answers with the
+gate (taken from the Ingress manifests), that DNSSEC validates for the zone,
+and, with a read-only Cloudflare token, that no DNS record points at a name that
+no longer exists or at an address outside the servers and Cloudflare. A
+difference fails the run, which GitHub reports to the repository's
+administrators; the run's summary is the dated report for the questionnaire's
+external-scan question.
+
+It does nothing until it has its inputs, in the GitHub repository's settings:
+the secret `EXPOSURE_ADDRESSES` (the servers' public addresses, comma-separated)
+and the variable `PUBLIC_DOMAIN`; optionally `EXPOSURE_ALLOWED_PORTS` (default
+`22`, the SSH port), the secret `EXPOSURE_CLOUDFLARE_TOKEN` (Zone, DNS, Read)
+and the variable `CLOUDFLARE_ZONE_ID`.
+
 ## IT charter
 
 A new account accepts the IT charter at its first sign-in (Keycloak's terms

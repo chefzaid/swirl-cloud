@@ -1,0 +1,53 @@
+name: Exposure check
+
+# Checks the platform from outside it (scripts/exposure-check.py): open ports on
+# each server's public address, the sign-in gate on administration hosts,
+# DNSSEC and, with a Cloudflare token, dangling DNS records. A difference fails
+# the run, which GitHub reports to the repository's administrators; the dated
+# report is the run's summary (docs/security.md#exposure-check-from-outside).
+# Inert until the EXPOSURE_ADDRESSES secret (comma-separated public addresses)
+# and the PUBLIC_DOMAIN variable exist.
+on:
+  schedule:
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exposure-check
+  cancel-in-progress: false
+
+jobs:
+  exposure-check:
+    name: Check exposure from outside
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXPOSURE_ADDRESSES: ${{ secrets.EXPOSURE_ADDRESSES }}
+      EXPOSURE_ALLOWED_PORTS: ${{ vars.EXPOSURE_ALLOWED_PORTS }}
+      PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.EXPOSURE_CLOUDFLARE_TOKEN }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EXPOSURE_ADDRESSES:-}" || -z "${PUBLIC_DOMAIN:-}" ]]; then
+            echo "EXPOSURE_ADDRESSES or PUBLIC_DOMAIN is not configured; nothing to do."
+            exit 0
+          fi
+          git clone --quiet --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          python3 -m pip install --quiet --user pyyaml
+          args=(--domain "$PUBLIC_DOMAIN" --output-dir report)
+          IFS=',' read -r -a addresses <<< "$EXPOSURE_ADDRESSES"
+          for address in "${addresses[@]}"; do args+=(--address "${address// /}"); done
+          IFS=',' read -r -a ports <<< "${EXPOSURE_ALLOWED_PORTS:-22}"
+          args+=(--allowed-ports "${ports[@]}")
+          status=0
+          python3 repo/scripts/exposure-check.py "${args[@]}" || status=$?
+          cat report/exposure-*.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
