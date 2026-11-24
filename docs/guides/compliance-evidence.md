@@ -218,6 +218,31 @@ and the retention applied. Purposes, data subjects, legal bases, recipients and
 erasure deadlines are left in brackets for the controller. Regenerate it when
 applications change and keep the completed version with the period's evidence.
 
+## Data subject requests
+
+When a person asks what the company holds about them (GDPR Art. 15, and Art. 20
+for a portable copy), run on the control plane:
+
+```bash
+./install.sh --data-subject export --subject ada@example.com --reference DSR-12 --output-dir ~/requests
+./install.sh --data-subject list
+```
+
+It writes a private directory with one JSON file per source and a `SUMMARY.md`:
+the person's Keycloak account in the platform realm (profile, groups, linked
+identity providers, consents, sessions, and their credentials' types and dates),
+their sign-in and administration events, their time-limited access grants, their
+Zammad account with the tickets and messages they wrote, their Odoo contacts and
+user, and whether they have a Vaultwarden account. Fields that look like secrets
+are removed. A source that cannot be read is listed as not collected and the
+command exits 1, so the answer is never silently incomplete. Vaultwarden vaults
+are encrypted with the person's master password: they export theirs themselves.
+Applications answer for their own data through their owners. The request is
+recorded (date, reference, sources, due date one month later) in the ConfigMap
+`infra/swirl-cloud-data-subject-requests`, with a digest instead of the address.
+Send the directory to the person through a channel the request came from, then
+delete it.
+
 ### Verify a pack
 
 An auditor needs the archive, the signer's public key and Python 3.12 or later:
