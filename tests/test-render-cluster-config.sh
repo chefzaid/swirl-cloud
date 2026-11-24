@@ -61,5 +61,4 @@ refuse "--apps-enabled must be true or false" --output "$STATE/out" "${ARGS[@]}"
 refuse "master is reserved" --output "$STATE/out" "${ARGS[@]}" --keycloak-realm master
 [[ ! -e "$STATE/out" ]] || fail 'A refused render created its output directory'
 
-
 printf '[PASS] Configuration renderer inputs\n'

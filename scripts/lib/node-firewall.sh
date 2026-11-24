@@ -83,6 +83,7 @@ configure_ufw() {
   local cluster_interface=""
   local cidr interface
   local untrusted_interfaces=()
+  local blocked_interfaces=()
 
   ensure_packages ufw
 
@@ -173,6 +174,7 @@ configure_ufw() {
       info "Blocking host and forwarded ingress on private-node interface $interface..."
       sudo ufw deny in on "$interface" comment 'No private-node provider ingress' >/dev/null
       sudo ufw route deny in on "$interface" comment 'No private-node forwarded ingress' >/dev/null
+      blocked_interfaces+=("$interface")
     done
   fi
   if [[ -n "$K3S_NODE_NETWORK_CIDR" ]]; then
@@ -222,7 +224,9 @@ configure_ufw() {
   fi
 
   enable_ufw_verified
-  configure_worker_forwarding_guard "${untrusted_interfaces[@]}"
+  # Only the interfaces blocked above: the guard drops all new input on each, so the
+  # cluster interface, tailscale0 and the pod network must never reach it.
+  configure_worker_forwarding_guard "${blocked_interfaces[@]}"
 }
 
 # Under iptables-nft, `ufw --force reset` can leave IPv4 chains loaded; ufw-init
