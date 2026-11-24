@@ -242,6 +242,8 @@ It writes a private directory with one JSON file per source and a `SUMMARY.md`:
 the person's Keycloak account in the platform realm (profile, groups, linked
 identity providers, consents, sessions, and their credentials' types and dates),
 their sign-in and administration events, their time-limited access grants, their
+GitLab account (profile, memberships, the titles of their SSH keys, and how many
+issues, merge requests and comments they wrote), their
 Zammad account with the tickets and messages they wrote, their Odoo contacts and
 user, and whether they have a Vaultwarden account. Fields that look like secrets
 are removed. A source that cannot be read is listed as not collected and the

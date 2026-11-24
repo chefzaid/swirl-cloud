@@ -9,7 +9,9 @@ their Keycloak account in the platform realm (profile, groups, linked identity
 providers, consents, sessions, and their credentials' types and dates, never
 the credentials), their sign-in and administration events, their time-limited
 access grants, their Zammad account with the tickets and messages they wrote,
-their Odoo contacts and user, and whether they have a Vaultwarden account (its
+their GitLab account (profile, memberships, keys' titles, and how many issues,
+merge requests and comments they wrote), their Odoo contacts and user, and
+whether they have a Vaultwarden account (its
 vault is encrypted with their master password, which only they can export).
 Fields that look like secrets (password, token, secret, hash, key) are removed.
 It writes one JSON file per source and a summary to a new private directory,
@@ -88,6 +90,36 @@ def keycloak(realm, email):
     return [{"account": user, **data.get(user["id"], {})} for user in users]
 
 
+GITLAB = r'''
+require "json"
+email = STDIN.read.strip
+user = User.find_by_any_email(email, confirmed: true)
+if user.nil?
+  puts "SWIRL_JSON[]"
+else
+  puts "SWIRL_JSON" + [{
+    username: user.username, name: user.name, email: user.email, state: user.state, created_at: user.created_at,
+    last_sign_in_at: user.last_sign_in_at, last_activity_on: user.last_activity_on, bio: user.bio, location: user.location,
+    website_url: user.website_url, organization: user.organization, job_title: user.job_title,
+    identities: user.identities.map { |i| { provider: i.provider, created_at: i.created_at } },
+    emails: user.emails.map(&:email), ssh_keys: user.keys.map { |k| { title: k.title, created_at: k.created_at } },
+    memberships: user.members.map { |m| { source: m.source&.full_path, type: m.source_type, access_level: m.access_level } },
+    authored: { issues: Issue.where(author_id: user.id).count, merge_requests: MergeRequest.where(author_id: user.id).count,
+                comments: Note.where(author_id: user.id).count }
+  }].to_json
+end
+'''
+
+
+def gitlab(email):
+    output = run("kubectl", "--request-timeout=30s", "-n", "infra", "exec", "-i", "deploy/gitlab", "--", "gitlab-rails", "runner", GITLAB,
+                 stdin=email + "\n")
+    line = next((line for line in output.splitlines() if line.startswith("SWIRL_JSON")), None)
+    if line is None:
+        raise RuntimeError("GitLab returned no answer")
+    return json.loads(line.removeprefix("SWIRL_JSON"))
+
+
 def elasticsearch(index, query):
     script = ('curl -sS -u "elastic:$ELASTIC_PASSWORD" -H "Content-Type: application/json" --data-binary @- '
               f'"localhost:9200/{index}/_search?ignore_unavailable=true"')
@@ -144,6 +176,7 @@ def collect(email, sources=None):
     who += [{"terms": {"keycloak.userId": ids}}] if ids else []
     attempt("identity-events", lambda: elasticsearch("identity-audit-*", {"bool": {"should": who, "minimum_should_match": 1}}) if who else [])
     attempt("access-grants", lambda: elasticsearch("access-grants", {"terms": {"user": usernames}}) if usernames else [])
+    attempt("gitlab", lambda: gitlab(email))
     for database, queries in SQL.items():
         for part, sql in queries.items():
             attempt(f"{database}-{part}", lambda database=database, sql=sql: postgres_rows(database, sql, email))

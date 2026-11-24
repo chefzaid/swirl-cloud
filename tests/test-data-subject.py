@@ -33,7 +33,8 @@ class DataSubject(unittest.TestCase):
             return [{"keycloak": {"type": "LOGIN", "username": "ada"}}]
         with mock.patch.object(dsr, "identity", return_value={"KEYCLOAK_REALM": "staff", "PUBLIC_DOMAIN": "example.com"}), \
                 mock.patch.object(dsr, "keycloak", return_value=ACCOUNT), mock.patch.object(dsr, "elasticsearch", side_effect=search), \
-                mock.patch.object(dsr, "postgres_rows", side_effect=rows):
+                mock.patch.object(dsr, "postgres_rows", side_effect=rows), \
+                mock.patch.object(dsr, "gitlab", return_value=[{"username": "ada", "ssh_keys": [{"title": "laptop"}]}]):
             return dsr.collect("ada@example.com"), searches
 
     def test_sources_are_collected_or_reported(self):
@@ -44,6 +45,7 @@ class DataSubject(unittest.TestCase):
         self.assertEqual("password", found["keycloak"][0]["credentials"][0]["type"])
         self.assertIn("does not exist", found["odoo-contacts"]["error"])
         self.assertEqual("ada@example.com", found["zammad-users"][0]["email"])
+        self.assertEqual("laptop", found["gitlab"][0]["ssh_keys"][0]["title"])
         self.assertEqual({"identity-audit-*", "access-grants"}, {index for index, _ in searches})
         self.assertIn({"terms": {"keycloak.username": ["ada"]}}, searches[0][1]["bool"]["should"])
 
