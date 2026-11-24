@@ -95,10 +95,15 @@ The review lists every identity and what it can do:
   or `edit`.
 - Argo CD role mappings and local accounts, and the local break-glass
   administrators.
+- Vault's sign-in roles: each OIDC role with the groups it admits and each
+  Kubernetes role with the service accounts it admits, with the policies they
+  grant (read with the bootstrap token through passwordless sudo, on a control
+  plane).
 
 It flags administrators, disabled or blocked accounts that keep memberships,
 accounts idle for 90 days, missing GitLab two-factor where GitLab does not
-require it, and non-system ServiceAccounts with `cluster-admin`. Keycloak and
+require it, non-system ServiceAccounts with `cluster-admin`, and a Vault OIDC role
+that grants policies to any account of the realm. Keycloak and
 GitLab are read with their in-pod admin tools, so no Kubernetes Secret is read.
 
 Owners mark each identity **Keep** or **Revoke**, the revocations are applied,

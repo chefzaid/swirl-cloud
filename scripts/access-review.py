@@ -5,7 +5,8 @@ Collects, read-only, every Keycloak user with groups, effective roles and last
 recorded login (all realms); every GitLab user with administrator flag, 2FA,
 last activity and group/project memberships; Kubernetes subjects bound to
 cluster-admin, admin or edit; Argo CD role mappings and local accounts; and the
-local break-glass administrator accounts. Findings flag administrators, disabled
+local break-glass administrator accounts; and Vault's sign-in roles with the
+groups or service accounts they admit and the policies they grant. Findings flag administrators, disabled
 or blocked accounts that keep access, accounts without recent activity, missing
 two-factor authentication and non-system cluster-admin bindings.
 
@@ -233,6 +234,10 @@ def findings(review):
             found.append(f"{label} holds cluster-admin; narrow it to the permissions it needs.")
     if review["argocd_admin_enabled"]:
         found.append("Argo CD's local admin account is enabled; disable it once SSO administration is verified.")
+    for role in review.get("vault_roles", []):
+        if role["mount"] == "oidc" and role["admits"] == "any account of the realm" and role["policies"]:
+            found.append(f"Vault OIDC role {role['role']} grants {', '.join(role['policies'])} to any account of the realm;"
+                         " bind it to a group.")
     for realm, coverage in review["keycloak_realms"].items():
         if not coverage.get("events_stored"):
             found.append(f"Keycloak realm {realm} does not store login events, so inactivity cannot be checked.")
@@ -261,9 +266,52 @@ def render_markdown(review):
               "These accounts sit outside single sign-on for break-glass use; their passwords are in Vault and rotated with"
               " `scripts/rotate-local-admin-passwords.sh`. Confirm who can read them.", ""]
     lines += [f"- {service}: {account}" for service, account in LOCAL_ADMINS]
+    lines += ["", "## Vault sign-in roles", "", "| Method | Role | Admits | Policies | Keep / Revoke |", "|---|---|---|---|---|"]
+    lines += [f"| {r['mount']} | {r['role']} | {r['admits']} | {', '.join(r['policies']) or 'none'} | |" for r in review.get("vault_roles", [])] \
+        or ["| | Not collected | | | |"]
     lines += ["", f"Argo CD default role for signed-in users: `{review['argocd_default_role'] or 'none'}`.", "",
               "## Sign-off", "", "Reviewer: ____________________  Date: ____________  Signature: ____________________", ""]
     return "\n".join(lines)
+
+
+# Runs inside the Vault pod with the bootstrap token on standard input: every
+# role of the oidc and kubernetes auth mounts, as JSON lines.
+VAULT_ROLES = r'''
+IFS= read -r token
+export VAULT_TOKEN="$token" VAULT_ADDR=http://127.0.0.1:8200
+unset token
+for mount in oidc kubernetes; do
+  for role in $(vault list -format=json "auth/$mount/role" 2>/dev/null | tr -d '[]",' ); do
+    printf '##ROLE %s %s\n' "$mount" "$role"
+    vault read -format=json "auth/$mount/role/$role" 2>/dev/null || echo '{}'
+  done
+done
+'''
+
+
+def vault_roles():
+    """[{mount, role, admits, policies}] for Vault's OIDC and Kubernetes sign-in roles."""
+    token = subprocess.run(["sudo", "-n", "cat", "/var/lib/swirl-cloud/vault-bootstrap-token"], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=30)
+    if token.returncode or not token.stdout.strip():
+        raise RuntimeError("the Vault bootstrap token cannot be read with passwordless sudo")
+    pod = run("bash", "-c", f"source {Path(__file__).resolve().parent / 'lib/vault-access.sh'}; vault_runtime_pod").strip()
+    output = run("kubectl", "--request-timeout=60s", "-n", "infra", "exec", "-i", pod, "-c", "vault", "--", "sh", "-c", VAULT_ROLES,
+                 stdin=token.stdout.strip() + "\n")
+    roles = []
+    for marker, argument, body in parse_sections(output):
+        if marker != "ROLE":
+            continue
+        mount, _, name = argument.partition(" ")
+        data = loads(body, {}).get("data", {})
+        if mount == "oidc":
+            admits = ", ".join(f"{claim}={value}" for claim, value in (data.get("bound_claims") or {}).items()) or "any account of the realm"
+        else:
+            admits = ", ".join(f"{namespace}/{account}" for namespace in data.get("bound_service_account_namespaces") or []
+                               for account in data.get("bound_service_account_names") or [])
+        roles.append({"mount": mount, "role": name, "admits": admits,
+                      "policies": sorted(set(data.get("token_policies") or data.get("policies") or []))})
+    return roles
 
 
 def active_grants():
@@ -308,6 +356,11 @@ def main():
         else:
             identities = result[1]
         review["identities"] += identities
+    try:
+        review["vault_roles"] = vault_roles()
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+        review["vault_roles"] = []
+        review["errors"].append(f"Vault roles: {error}")
     review.setdefault("gitlab_requires_2fa", True)
     review.setdefault("argocd_admin_enabled", False)
     review.setdefault("argocd_default_role", "")
