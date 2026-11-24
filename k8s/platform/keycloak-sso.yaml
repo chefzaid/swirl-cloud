@@ -217,7 +217,7 @@ data:
     # Sign-in and account pages follow the browser language (English or
     # French), with a language selector; the administration console too. Both
     # realms sign in with the Swirl theme (keycloak.yaml).
-    expect_success "$(request PUT "realms/master" '{"internationalizationEnabled":true,"supportedLocales":["en","fr"],"defaultLocale":"en","loginTheme":"swirl"}')"
+    expect_success "$(request PUT "realms/master" '{"internationalizationEnabled":true,"supportedLocales":["en","fr"],"defaultLocale":"en","loginTheme":"swirl","webAuthnPolicyPasswordlessPasskeysEnabled":true}')"
 
     # Keycloak 26 ignores attributes missing from the user profile; declare the
     # bootstrap identity's LDAP migration marker as an administrator-owned field.

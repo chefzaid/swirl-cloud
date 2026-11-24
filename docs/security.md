@@ -355,7 +355,7 @@ security key or a passkey); `--admin-mfa require`
 asks the others to set one up at next sign-in (*Configure OTP* required action)
 without changing the sign-in flow. Rerun it after adding administrators.
 
-Passkeys are enabled in the platform realm (`webAuthnPolicyPasswordlessPasskeysEnabled`,
+Passkeys are enabled in the platform and master realms (`webAuthnPolicyPasswordlessPasskeysEnabled`,
 set by `keycloak-sso-reconcile`): a person who registers one in the account
 console (**Account security → Signing in → Passkey**) signs in with it from the
 usual sign-in page, without a password and without phishable codes. Passwords
