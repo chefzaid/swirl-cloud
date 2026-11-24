@@ -40,6 +40,15 @@ class AccessSheets(unittest.TestCase):
         reconciled = (ROOT / "k8s/platform/keycloak-sso.yaml").read_text().split("for access_group in ", 1)[1].split("; do", 1)[0].split()
         self.assertEqual(set(reconciled) | {"platform-admins"}, set(sheets.owners()))
 
+    def test_tickets_only_for_owners_with_an_email(self):
+        requests, skipped = sheets.ticket_requests({"access-grafana": "sheet A", "access-argocd": "sheet B"},
+                                                   {"access-grafana": "Grafana Owner <g@example.com>".split("<")[1].rstrip(">"), "access-argocd": "Ops team"},
+                                                   "20261124T100000Z")
+        self.assertEqual([{"group": "access-grafana", "owner": "g@example.com", "title": "Access review 2026-11-24: access-grafana",
+                           "body": "sheet A"}], requests)
+        self.assertEqual(["access-argocd: no owner email in config/access-owners.yaml"], skipped)
+        self.assertNotIn("g@example.com", sheets.ZAMMAD_TICKETS)
+
 
 if __name__ == "__main__":
     unittest.main()

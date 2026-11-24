@@ -50,3 +50,37 @@ def sheets(review, grants, realm, owner_map=None):
         lines += ["", f"Reviewer ({owner}): ____________________  Date: ____________  Signature: ____________________", ""]
         result[group] = "\n".join(lines)
     return result
+
+
+# Runs inside the Zammad pod (corp/zammad.yaml); the tickets' content arrives on
+# standard input, so no name or address appears in a command line.
+ZAMMAD_TICKETS = r"""
+require "json"
+UserInfo.current_user_id = 1
+JSON.parse(STDIN.read).each do |item|
+  owner = User.find_by(email: item["owner"].downcase)
+  if owner.nil?
+    puts "SWIRL_SKIPPED #{item["group"]} no Zammad account for the owner"
+    next
+  end
+  ticket = Ticket.create!(title: item["title"], group: Group.find_by(name: "Users") || Group.first, customer_id: owner.id,
+                          state: Ticket::State.find_by(name: "open") || Ticket::State.first,
+                          priority: Ticket::Priority.find_by(name: "2 normal") || Ticket::Priority.first)
+  Ticket::Article.create!(ticket_id: ticket.id, subject: item["title"], body: item["body"], content_type: "text/plain",
+                          internal: false, sender: Ticket::Article::Sender.find_by(name: "Agent"),
+                          type: Ticket::Article::Type.find_by(name: "note"))
+  puts "SWIRL_TICKET #{item["group"]} #{ticket.number}"
+end
+"""
+
+
+def ticket_requests(group_sheets, owner_map, stamp):
+    """[(ticket request)] for groups whose owner is an email address; the others are listed as skipped."""
+    requests, skipped = [], []
+    for group, sheet in sorted(group_sheets.items()):
+        owner = (owner_map.get(group) or "").strip()
+        if "@" not in owner:
+            skipped.append(f"{group}: no owner email in config/access-owners.yaml")
+            continue
+        requests.append({"group": group, "owner": owner, "title": f"Access review {stamp[:4]}-{stamp[4:6]}-{stamp[6:8]}: {group}", "body": sheet})
+    return requests, skipped

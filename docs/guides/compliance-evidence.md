@@ -115,7 +115,11 @@ administrators when none is named. Each sheet lists the group's members, whether
 each holds a [time-limited grant](../security.md#access-with-an-end-date) (with its
 approver and end) or a permanent membership, their last activity, and Keep or
 Revoke columns with the owner's signature line. Send each owner their sheet and
-keep the signed sheets with the overall one.
+keep the signed sheets with the overall one. `--tickets` opens one Zammad ticket
+per group for its owner instead, with the sheet as the first message: the owner
+must be named by email in `access-owners.yaml` and already have a Zammad
+account (they get one at their first sign-in to the help desk); groups without
+one are listed and get no ticket.
 
 ## Control calendar
 

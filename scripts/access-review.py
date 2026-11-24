@@ -285,6 +285,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--format", choices=("text", "markdown", "json", "csv"), default="text")
     parser.add_argument("--output-dir", type=Path, help="also write Markdown, CSV and JSON files (mode 0600) here")
+    parser.add_argument("--tickets", action="store_true",
+                        help="with --output-dir: open a Zammad ticket per access group for its owner (config/access-owners.yaml)")
     args = parser.parse_args()
     now = datetime.now(timezone.utc).replace(microsecond=0)
     review = {"generated_at": now.isoformat(timespec="minutes"), "identities": [], "errors": []}
@@ -345,9 +347,27 @@ def main():
         except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
             review["errors"].append(f"Group sheets: {error}")
         else:
-            for group, sheet in access_sheets.sheets(review, grants, realm).items():
+            group_sheets = access_sheets.sheets(review, grants, realm)
+            for group, sheet in group_sheets.items():
                 write_private(args.output_dir / f"access-review-{stamp}-{group}.md", sheet)
             print(f"Group sheets for their owners: {args.output_dir}/access-review-{stamp}-<group>.md", file=sys.stderr)
+            if args.tickets:
+                requests, skipped = access_sheets.ticket_requests(group_sheets, access_sheets.owners(), stamp)
+                try:
+                    output = run("kubectl", "--request-timeout=60s", "-n", "corp", "exec", "-i", "deploy/zammad", "-c", "railsserver", "--",
+                                 "sh", "/zammad-config/run.sh", "bundle", "exec", "rails", "r", access_sheets.ZAMMAD_TICKETS,
+                                 stdin=json.dumps(requests), timeout=900) if requests else ""
+                except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+                    review["errors"].append(f"Zammad tickets: {error}")
+                else:
+                    for line in output.splitlines():
+                        if line.startswith("SWIRL_TICKET "):
+                            _, group, number = line.split(" ", 2)
+                            print(f"  ticket {number} for {group}", file=sys.stderr)
+                        elif line.startswith("SWIRL_SKIPPED "):
+                            skipped.append(line.removeprefix("SWIRL_SKIPPED "))
+                for reason in skipped:
+                    print(f"  no ticket for {reason}", file=sys.stderr)
         # Complete sheets written for signing count as the quarter's review (control calendar).
         if not review["errors"]:
             record_duty("access-review", f"sheets access-review-{stamp}")
