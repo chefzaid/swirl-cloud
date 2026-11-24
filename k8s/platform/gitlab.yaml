@@ -260,7 +260,7 @@ spec:
             gitlab_rails['omniauth_providers'] = [
               {
                 name: 'openid_connect',
-                label: 'Keycloak',
+                label: 'SSO',
                 args: {
                   name: 'openid_connect',
                   scope: ['openid', 'profile', 'email', 'groups'],

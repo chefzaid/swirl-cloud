@@ -5,7 +5,7 @@ Setting.set('product_name', ENV.fetch('ZAMMAD_TITLE'))
 Setting.set('user_create_account', false)
 Setting.set('auth_openid_connect', true)
 Setting.set('auth_openid_connect_credentials', {
-  'display_name' => 'Keycloak',
+  'display_name' => 'SSO',
   'identifier' => 'zammad',
   'issuer' => ENV.fetch('ZAMMAD_ISSUER'),
   'uid_field' => 'sub',

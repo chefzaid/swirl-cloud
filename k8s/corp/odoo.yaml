@@ -399,18 +399,19 @@ spec:
               params.set_param('auth_oauth.authorization_header', 'True')
               params.set_param('swirl_cloud.bootstrap_complete', 'true')
               provider_values = {
-                  'name': 'Keycloak',
+                  'name': 'SSO',
                   'client_id': 'odoo',
                   'auth_endpoint': 'https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__/protocol/openid-connect/auth',
                   'validation_endpoint': 'https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__/protocol/openid-connect/userinfo',
                   'data_endpoint': '',
                   'scope': 'openid profile email',
                   'enabled': True,
-                  'body': 'Sign in with Keycloak',
+                  'body': 'SSO',
                   'css_class': 'fa fa-fw fa-sign-in text-primary',
                   'sequence': 1,
               }
-              provider = env['auth.oauth.provider'].sudo().search([('name', '=', 'Keycloak')], limit=1)
+              # Found by client too: the provider was named Keycloak before 2026-11-24.
+              provider = env['auth.oauth.provider'].sudo().search([('client_id', '=', 'odoo')], limit=1)
               if provider:
                   provider.write(provider_values)
               else:

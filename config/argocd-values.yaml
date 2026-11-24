@@ -48,7 +48,7 @@ configs:
     url: https://argocd.__PUBLIC_DOMAIN__
     admin.enabled: false
     oidc.config: |
-      name: Keycloak
+      name: SSO
       issuer: https://keycloak.__PUBLIC_DOMAIN__/auth/realms/__KEYCLOAK_REALM__
       clientID: argocd
       enablePKCEAuthentication: true

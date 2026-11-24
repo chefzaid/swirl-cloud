@@ -1236,7 +1236,7 @@ spec:
             - name: GF_AUTH_GENERIC_OAUTH_ENABLED
               value: "true"
             - name: GF_AUTH_GENERIC_OAUTH_NAME
-              value: Keycloak
+              value: SSO
             - name: GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN
               value: "true"
             - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
