@@ -1,0 +1,12 @@
+# Who reviews each access group every quarter (ADR 0031). ./install.sh
+# --access-review --output-dir DIR writes one sheet per group for its owner to
+# mark and sign; a group without an owner here goes to the platform
+# administrators. Owners are names or email addresses, never credentials.
+owners:
+  platform-admins: ""
+  access-portal: ""
+  access-argocd: ""
+  access-environments: ""
+  access-grafana: ""
+  access-kubernetes-read: ""
+  access-mailpit: ""

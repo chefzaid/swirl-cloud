@@ -107,6 +107,16 @@ quarterly and when people leave. Inactivity uses Keycloak's stored login events
 (90 days), so it is reliable only 90 days after event storage started. Vault
 policies and Grafana roles follow the Keycloak groups in the sheet.
 
+With `--output-dir`, the review also writes one sheet per access group of the
+platform realm (`access-review-<time>-<group>.md`), for the person who knows who
+should hold it: the group's owner in
+[`config/access-owners.yaml`](../../config/access-owners.yaml), or the platform
+administrators when none is named. Each sheet lists the group's members, whether
+each holds a [time-limited grant](../security.md#access-with-an-end-date) (with its
+approver and end) or a permanent membership, their last activity, and Keep or
+Revoke columns with the owner's signature line. Send each owner their sheet and
+keep the signed sheets with the overall one.
+
 ## Control calendar
 
 Audits fail on a missed periodic review more often than on a missing tool. The

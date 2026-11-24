@@ -11,6 +11,9 @@ two-factor authentication and non-system cluster-admin bindings.
 
 Owners mark each identity Keep or Revoke in the Markdown or CSV sheet and sign
 it; the signed sheet is the review evidence (docs/guides/compliance-evidence.md).
+With --output-dir it also writes one sheet per access group of the platform
+realm for the group's owner (config/access-owners.yaml), with each member's
+time-limited grant (approver, end) or permanent membership.
 Keycloak and GitLab are queried with their own in-pod administrator tools, so
 this command never reads Kubernetes Secrets.
 """
@@ -263,6 +266,21 @@ def render_markdown(review):
     return "\n".join(lines)
 
 
+def active_grants():
+    script = ('curl -sS -u "elastic:$ELASTIC_PASSWORD" -H "Content-Type: application/json" --data-binary @- '
+              '"localhost:9200/access-grants/_search?ignore_unavailable=true"')
+    body = json.dumps({"size": 1000, "query": {"term": {"state": "active"}}})
+    response = json.loads(run("kubectl", "--request-timeout=60s", "-n", "infra", "exec", "-i", "deploy/elasticsearch", "--",
+                              "sh", "-c", script, stdin=body))
+    return [hit["_source"] for hit in response.get("hits", {}).get("hits", [])]
+
+
+def write_private(path, content):
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as handle:
+        handle.write(content)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--format", choices=("text", "markdown", "json", "csv"), default="text")
@@ -317,11 +335,19 @@ def main():
         args.output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         stamp = now.strftime("%Y%m%dT%H%M%SZ")
         for suffix, content in (("md", markdown), ("csv", table.getvalue()), ("json", json.dumps(review, indent=2))):
-            path = args.output_dir / f"access-review-{stamp}.{suffix}"
-            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, "w") as handle:
-                handle.write(content)
+            write_private(args.output_dir / f"access-review-{stamp}.{suffix}", content)
         print(f"Review sheets: {args.output_dir}/access-review-{stamp}.{{md,csv,json}}", file=sys.stderr)
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+        import access_sheets
+        try:
+            realm = kubectl_json("-n", "infra", "get", "configmap", "swirl-cloud-identity")["data"]["KEYCLOAK_REALM"]
+            grants = active_grants()
+        except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            review["errors"].append(f"Group sheets: {error}")
+        else:
+            for group, sheet in access_sheets.sheets(review, grants, realm).items():
+                write_private(args.output_dir / f"access-review-{stamp}-{group}.md", sheet)
+            print(f"Group sheets for their owners: {args.output_dir}/access-review-{stamp}-<group>.md", file=sys.stderr)
         # Complete sheets written for signing count as the quarter's review (control calendar).
         if not review["errors"]:
             record_duty("access-review", f"sheets access-review-{stamp}")
