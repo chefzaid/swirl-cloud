@@ -365,6 +365,21 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#datastoredown
           summary: Shared datastore is unavailable
           description: '{{ $labels.job }} exporter on {{ $labels.pod }} cannot reach its datastore.'
+      # Kafka has no partition limit per user, so the ceiling per environment is
+      # watched instead: topics are named <application>.<environment>.<name>.
+      - alert: KafkaEnvironmentPartitionsHigh
+        expr: |
+          sum by (environment_prefix) (
+            label_replace(max by (topic) (kafka_topic_partitions{topic=~"[a-z0-9-]+[.](int|uat|prod)[.].+"}), "environment_prefix", "$1", "topic", "^([a-z0-9-]+[.](int|uat|prod))[.].+")
+          ) > 100
+        for: 1h
+        labels:
+          severity: warning
+          owner: application
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#kafkaenvironmentpartitionshigh
+          summary: An environment holds many Kafka partitions
+          description: '{{ $labels.environment_prefix }} has {{ $value }} partitions on the shared brokers (ceiling 100); each costs broker memory and file handles.'
       - alert: ArgoCDApplicationUnhealthy
         expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
         for: 15m

@@ -1,0 +1,25 @@
+# promtool unit test for KafkaEnvironmentPartitionsHigh, run by validate-manifests.py
+# against each rendered profile's rules.
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # shop.prod has 120 partitions over two topics; shop.int 10; platform topics do not count.
+      - series: 'kafka_topic_partitions{job="kafka",topic="shop.prod.orders"}'
+        values: '100x90'
+      - series: 'kafka_topic_partitions{job="kafka",topic="shop.prod.orders.DLT"}'
+        values: '20x90'
+      - series: 'kafka_topic_partitions{job="kafka",topic="shop.int.orders"}'
+        values: '10x90'
+      - series: 'kafka_topic_partitions{job="kafka",topic="__consumer_offsets"}'
+        values: '150x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="KafkaEnvironmentPartitionsHigh", alertstate="firing"}
+        eval_time: 30m
+        exp_samples: []
+      - expr: ALERTS{alertname="KafkaEnvironmentPartitionsHigh", alertstate="firing"}
+        eval_time: 70m
+        exp_samples:
+          - labels: 'ALERTS{alertname="KafkaEnvironmentPartitionsHigh",alertstate="firing",severity="warning",owner="application",environment_prefix="shop.prod"}'
+            value: 1

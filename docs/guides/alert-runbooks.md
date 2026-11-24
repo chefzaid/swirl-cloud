@@ -650,6 +650,15 @@ Inside the cluster as well, GitLab's registry is down: check the `gitlab` pod an
 `kubectl -n infra exec deploy/gitlab -- gitlab-ctl status registry`. The probe
 proves the API answers; it does not push or pull an image.
 
+### KafkaEnvironmentPartitionsHigh
+
+An application environment's topics (`<application>.<environment>.*`) hold more
+than 100 partitions on the shared brokers. List them with
+`kubectl -n infra exec kafka-0 -- kafka-topics --bootstrap-server localhost:9092 --describe --topic '<prefix>.*'`
+and ask the application's owner to merge topics or lower their partition counts;
+a topic's partitions cannot be reduced, only recreated. Raise the ceiling in the
+rule only after checking the brokers' memory.
+
 ### SignInProbeFailing
 
 The probe account could not sign in twice in a row on the tool in `target`, so
