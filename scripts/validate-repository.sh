@@ -59,6 +59,7 @@ bash tests/test-k3s-oidc.sh
 bash tests/test-install-record.sh
 bash tests/test-cluster-plan.sh
 bash tests/test-enrollment-targets.sh
+bash tests/test-render-cluster-config.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
              test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py test-sonar-admin.py test-sizing.py \
