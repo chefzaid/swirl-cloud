@@ -100,10 +100,11 @@ components:
     source: https://github.com/cloudflare/cloudflared
     maintainer: Cloudflare, Inc.
     jurisdiction: United States
-    end_of_life: unverified
+    end_of_life: "2027-09-24"
     support_source: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Each release is supported for one year from its release date; 2026.9.3 was released on 2026-09-24.
   - name: docker.io/confluentinc/cp-kafka
     licence: Apache-2.0
     source: https://github.com/confluentinc/kafka-images
@@ -271,12 +272,13 @@ components:
     source: https://github.com/odoo/odoo
     maintainer: Odoo S.A.
     jurisdiction: Belgium
-    end_of_life: unverified
+    end_of_life: "2028-09-30"
     support_source: https://www.odoo.com/documentation/19.0/administration/supported_versions.html
     customer_use: allowed
     obligations: Copies must come with the licence and the library's source; programs may link to it under
       any terms.
     notes: Odoo Community; Enterprise modules are not included. Repository add-ons keep their own licences.
+      Each major version has three years of standard support; 19.0's is planned to end in September 2028.
   - name: docker.io/library/postgres
     licence: PostgreSQL
     source: https://git.postgresql.org/gitweb/?p=postgresql.git
@@ -350,12 +352,13 @@ components:
     source: https://github.com/portainer/portainer
     maintainer: Portainer.io Limited
     jurisdiction: New Zealand
-    end_of_life: unverified
+    end_of_life: "2027-05-31"
     support_source: https://docs.portainer.io/start/lifecycle
     customer_use: allowed
     obligations: Do not misrepresent the origin; mark altered versions as such; keep the notice in source
       copies.
-    notes: Community Edition; the Business Edition is not used.
+    notes: Community Edition; the Business Edition is not used. CE stays on the 2.45 LTS line, maintained until
+      May 2027.
   - name: docker.io/prom/prometheus
     licence: Apache-2.0
     source: https://github.com/prometheus/prometheus
@@ -464,11 +467,12 @@ components:
     source: https://github.com/cloudnative-pg/cloudnative-pg
     maintainer: CloudNativePG project (CNCF)
     jurisdiction: United States (Linux Foundation)
-    end_of_life: unverified
+    end_of_life: no-date
     support_source: https://cloudnative-pg.io/documentation/current/supported_releases/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
-    notes: CloudNativePG operator.
+    notes: CloudNativePG operator. Chart 0.29.1 ships operator 1.30.1; no end of life is announced for 1.30
+      (1.29 ended on 2026-09-29).
   - name: public.ecr.aws/docker/library/haproxy
     licence: GPL-2.0-or-later
     source: https://github.com/haproxy/haproxy
@@ -683,7 +687,8 @@ components:
     source: https://github.com/helm/helm
     maintainer: Helm project (CNCF)
     jurisdiction: United States (Linux Foundation)
-    end_of_life: unverified
-    support_source: https://helm.sh/docs/topics/version_skew/
+    end_of_life: "2027-02-10"
+    support_source: https://helm.sh/blog/helm-v3-end-of-life
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
+    notes: Helm 3 gets security fixes only, until 2027-02-10; the installer must move to Helm 4 before then.
