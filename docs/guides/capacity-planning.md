@@ -75,6 +75,33 @@ Volumes only grow: the installer refuses a profile that would render a volume
 smaller than it is. A StatefulSet's volume templates cannot change in place, so
 Kafka's volumes keep their size; expand those claims directly when needed.
 
+### Failover budget
+
+With more than one schedulable server, the installer also checks that the chosen
+profile still fits once the largest server fails (`sizing.py check-capacity`,
+right after the volume check). It counts what the scheduler counts, requests:
+
+- the platform's Deployments and StatefulSets with the profile's requests, at their
+  rendered replicas or the live pod count when HA runs more;
+- every other running pod that has an owner (Helm releases, applications) at its
+  live requests;
+- DaemonSet pods are taken off each server's allocatable, since they run on every
+  server; bare pods (CI jobs) and Jobs are transient and not counted, so keep room
+  for the runner's concurrent jobs;
+- Longhorn: each volume's size, or the profile's larger claim size, times its
+  copies, plus claims not created yet, against the schedulable disk space of the
+  storage servers other than the largest.
+
+The installer stops when CPU, memory or Longhorn space would not fit: choose a
+smaller profile, or add or enlarge servers first. When volumes keep more copies
+than the servers left after a loss, it notes that they would run degraded until
+the server returns. A single server is not checked: losing it stops the platform
+whatever the profile. Run the check on its own against a rendered configuration:
+
+```bash
+python3 scripts/lib/sizing.py check-capacity --root <rendered directory> --profile large
+```
+
 ### Pods per node
 
 A node is also full when it runs as many pods as its kubelet admits, whatever

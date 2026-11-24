@@ -9,6 +9,10 @@
     sizing.py check-volumes --root DIR [--profile NAME]
                                           fail if DIR's PVCs, sized by the profile (default
                                           SIZING_PROFILE, else standard), would shrink live ones
+    sizing.py check-capacity --root DIR [--profile NAME] [--apps-enabled true|false]
+                                          fail if, with more than one server, the profile's
+                                          requests or Longhorn copies no longer fit after
+                                          the largest server fails (lib/capacity.py)
     sizing.py record --root DIR           put DIR's profile on the live root Application
 
 The chart applies profiles in templates/_sizing.tpl; apply_replacements() repeats its
@@ -207,6 +211,24 @@ def live_claims():
             for item in claims.get("items", [])}
 
 
+def capacity_check(root, profile, apps_enabled=True):
+    """(lines, problems) of the one-host-failure budget against the live cluster."""
+    import capacity
+    nodes = kubectl_json("get", "nodes")
+    if nodes is None:
+        return ["The cluster cannot be read yet; the failover budget is checked on reruns."], []
+    pods = kubectl_json("get", "pods", "-A") or {"items": []}
+    replica_sets = {(item["metadata"]["namespace"], item["metadata"]["name"]): reference["name"]
+                    for item in (kubectl_json("get", "replicasets", "-A") or {"items": []})["items"]
+                    for reference in item["metadata"].get("ownerReferences") or [] if reference.get("kind") == "Deployment"}
+    volumes = kubectl_json("-n", "longhorn-system", "get", "volumes.longhorn.io") or {"items": []}
+    longhorn_nodes = kubectl_json("-n", "longhorn-system", "get", "nodes.longhorn.io") or {"items": []}
+    workloads = capacity.rendered_workloads(root, load(profile, Path(root))["manifests"], quantity, apps_enabled)
+    claims = {name: size for name, size in rendered_claims(root, profile).items() if apps_enabled or not name.startswith("corp/")}
+    return capacity.check(workloads, nodes["items"], pods["items"], replica_sets, volumes["items"],
+                          longhorn_nodes["items"], claims, quantity)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -216,6 +238,10 @@ def main():
     check_volumes = commands.add_parser("check-volumes")
     check_volumes.add_argument("--root", required=True)
     check_volumes.add_argument("--profile", default="")
+    check_capacity = commands.add_parser("check-capacity")
+    check_capacity.add_argument("--root", required=True)
+    check_capacity.add_argument("--profile", default="")
+    check_capacity.add_argument("--apps-enabled", choices=("true", "false"), default="true")
     commands.add_parser("record").add_argument("--root", required=True)
     args = parser.parse_args()
     try:
@@ -231,6 +257,15 @@ def main():
             print(kubelet_max_pods(profile) or "")
         elif args.command == "record":
             print(record(args.root) or "")
+        elif args.command == "check-capacity":
+            profile = args.profile or os.environ.get("SIZING_PROFILE") or STANDARD
+            lines, problems = capacity_check(args.root, profile, args.apps_enabled == "true")
+            print("\n".join(lines))
+            for problem in problems:
+                print(f"After one server fails: {problem}", file=sys.stderr)
+            if problems:
+                raise SizingError(f"Sizing profile {profile} does not fit after one server fails: choose a smaller "
+                                  "profile or add capacity (docs/guides/capacity-planning.md#failover-budget).")
         else:
             profile = args.profile or os.environ.get("SIZING_PROFILE") or STANDARD
             problems = shrinking(rendered_claims(args.root, profile), live_claims())
