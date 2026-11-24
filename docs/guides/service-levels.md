@@ -122,8 +122,17 @@ availability against the objective (99.5 % unless `--objective` says otherwise),
 with the hours measured, excluded and below full availability. It exits 1 when
 an endpoint missed the objective. `--sign-key` signs it with `ssh-keygen -Y sign`
 (namespace `swirl-cloud-service-report`); check with `ssh-keygen -Y verify`.
-Incidents and support response times are left to fill in from the incident
-register and, later, the support desk.
+
+The report also lists the month's incidents from the
+[incident register](incident-response.md#record-the-incident): GitLab issues of
+type *Incident* or labelled `incident` that were open at any time in the month,
+with the severity, start, resolution and services affected that the Incident
+template records (the issue's creation and closing times when those fields are
+empty). Support response times come from the support desk (Zammad): the tickets
+opened in the month, how many were answered and closed, the median and 90th
+percentile time to the first response in wall-clock time, and the tickets still
+waiting for one. A source the report cannot read is named in its section; the
+rest of the report is unaffected.
 
 ## Game days
 
