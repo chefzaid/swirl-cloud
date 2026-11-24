@@ -182,6 +182,25 @@ ClamAV's own health has its alerts: `ClamAVUnavailable`, `ClamAVTestScanFailing`
 `ClamAVSignaturesOutdated`, `ClamAVSignaturesStale` and `ClamAVScanQueueBacklog`
 ([runbooks](alert-runbooks.md#malware-scanning)).
 
+## Offboarding
+
+Before removing an application, list everything the platform holds for it:
+
+```bash
+./add-repos.sh --remove shop --plan
+```
+
+It is read-only. It lists the application's Argo CD Applications and namespaces,
+the public hostnames of their Ingresses (the DNS records to remove), their
+volumes, the Vault paths its External Secrets read, its PostgreSQL roles and
+databases, its Kafka users and topics, and the Keycloak clients named after it,
+then the order to follow: export the data first, delete the Argo CD
+Applications, remove the DNS records, clients, paths, roles, databases, users and
+topics, archive the GitLab project, and check that `--status`, the access review
+and the DNS zone show nothing left. A source it cannot read is listed as not
+checked and the command exits 1. Rerun it at the end: it should find nothing.
+The removal itself is not automated yet.
+
 ## Single-target compatibility (version 1)
 
 One local Application with a repository-local Kustomize directory or Helm chart

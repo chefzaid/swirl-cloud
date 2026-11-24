@@ -20,6 +20,7 @@ Import GitHub repositories into GitLab, configure two-way commit/tag sync,
 then configure and deploy selected repositories through their onboarding contracts.
 
 Usage: ./add-repos.sh [--yes] [--gitlab] [--inputs FILE] [--state-dir DIR]
+       ./add-repos.sh --remove APPLICATION --plan   what removing an application involves (read-only)
 
 --gitlab deploys projects that already live in the platform GitLab group, with
 no GitHub source or mirroring (REPOSITORY_SOURCE=gitlab does the same).
@@ -56,6 +57,8 @@ EOF
 }
 
 non_interactive=false
+remove_application=""
+remove_plan=false
 while (( $# > 0 )); do
     case "$1" in
         --yes) non_interactive=true ;;
@@ -66,11 +69,20 @@ while (( $# > 0 )); do
         --state-dir)
             [[ $# -ge 2 ]] || fail "--state-dir requires a directory"
             REPOSITORY_STATE_DIR="$2"; export REPOSITORY_STATE_DIR; shift ;;
+        --remove)
+            [[ $# -ge 2 ]] || fail "--remove requires the application's name"
+            remove_application="$2"; shift ;;
+        --plan) remove_plan=true ;;
         -h|--help) usage; exit 0 ;;
         *) fail "Unknown option: $1 (use --help)" ;;
     esac
     shift
 done
+if [[ -n "$remove_application" ]]; then
+    # Removal itself is not automated yet; the plan lists what to export and remove, in order.
+    [[ "$remove_plan" == true ]] || fail "Only --remove APPLICATION --plan exists yet; it lists the export and the removal steps."
+    exec python3 "$SCRIPT_DIR/scripts/offboarding-plan.py" --application "$remove_application"
+fi
 [[ -t 0 || "$non_interactive" == true ]] || fail "Use --yes with explicit inputs when stdin is not a terminal."
 if [[ "$non_interactive" == true ]]; then
     [[ -n "${DEPLOY_REPOSITORIES:-}" ]] || fail "Set DEPLOY_REPOSITORIES to all, none, or a comma-separated selection with --yes."
