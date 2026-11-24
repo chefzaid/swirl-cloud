@@ -183,7 +183,9 @@ def shrinking(rendered, live):
 
 
 def rendered_claims(root, profile=STANDARD):
-    """{namespace/name: storage} of DIR's PVCs with the profile's sizes, as the chart renders them."""
+    """{namespace/name: storage} of DIR's PVCs with the profile's sizes, as the chart renders them.
+    The installer's rendered directory already holds sized claims (render-platform-ha.py);
+    applying the profile again changes nothing there and sizes a plain checkout too."""
     manifests = load(profile, Path(root))["manifests"]
     claims = {}
     for path in (Path(root) / "k8s").rglob("*.yaml"):
