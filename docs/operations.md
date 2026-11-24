@@ -458,13 +458,28 @@ sudo systemctl start swirl-cloud-k3s-backup.service
 sudo journalctl -u swirl-cloud-k3s-backup.service --since today
 ```
 
+### Legal archive
+
+French accounting records must be kept ten years (Code de commerce, art. L123-22),
+which covers the accounting kept in Odoo. The off-site restic repository keeps the
+platform archive's last snapshot of each year for eleven years: each holds the
+Odoo database (in `application-data/postgresql.sql.gz`) and its filestore, and the
+snapshot taken at the end of year Y+1 holds year Y's closed books. To open a
+past year, restore that snapshot into a scratch directory
+(`restic snapshots --tag swirl-cloud-k3s`, then `restic restore <id> --target
+<dir>`), load the `odoo` database from the dump into a scratch PostgreSQL, and
+point a scratch Odoo of the same major version at it with the filestore. The
+snapshots sit on the off-site backup storage, which is not write-once: anyone
+holding the restic password can delete them.
+
 ### Coverage and recovery points
 
 The archive runs daily at `BACKUP_TIME` (02:15 UTC unless set; installer runs
 add one each). Locally the newest 7 are kept, unless `BACKUP_KEEP_LOCAL=false`; on a backup filesystem of 400 GiB or more also the newest archive of
 each of the last 14 days, 8 ISO weeks and 12 months (`RETENTION_COUNT`,
 `RETENTION_DAYS`, `RETENTION_WEEKS`, `RETENTION_MONTHS`). restic keeps 7 daily, 5
-weekly and 12 monthly. A part that fails (GitLab's native backup, the evidence
+weekly and 12 monthly, and for the platform archive also the last snapshot of each
+year for 11 years ([legal archive](#legal-archive)). A part that fails (GitLab's native backup, the evidence
 snapshot, an application copy) leaves an archive of everything else, is listed
 at the end of its `RESTORE.txt`, and fails the run (exit 3) so the backup alerts
 fire; the installer's own backup then warns and continues.

@@ -442,9 +442,8 @@ MOCK_RESTIC_STORE="$TEST_DIR/restic" run_backup offsite >/dev/null
 offsite_archive="$(find "$TEST_DIR/offsite" -name 'k3s-*.tar.gz')"
 grep -Fxq init "$TEST_DIR/restic/calls"
 grep -Fxq "backup --tag swirl-cloud-k3s $offsite_archive $offsite_archive.sha256" "$TEST_DIR/restic/calls"
-for tag in swirl-cloud-k3s swirl-cloud-host; do
-    grep -Fxq "forget --tag $tag --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12" "$TEST_DIR/restic/calls"
-done
+grep -Fxq "forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 11" "$TEST_DIR/restic/calls"
+grep -Fxq "forget --tag swirl-cloud-host --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12" "$TEST_DIR/restic/calls"
 [[ "$(tail -1 "$TEST_DIR/restic/calls")" == prune ]]
 # The host files: listed paths and the staged files, never the live datastore.
 host_call="$(grep '^backup --tag swirl-cloud-host ' "$TEST_DIR/restic/calls")"

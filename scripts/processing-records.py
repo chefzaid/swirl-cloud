@@ -25,7 +25,7 @@ RETENTION = [
     ("Kubernetes API audit log and Kubernetes events", "30 days"),
     ("Identity events (Keycloak database / identity-audit-*)", "90 days / at least 1 year"),
     ("Database sign-ins and schema and role changes (database-audit-*)", "at least 1 year"),
-    ("Off-site recovery archives (restic), when configured", "7 daily, 5 weekly, 12 monthly"),
+    ("Off-site recovery archives (restic), when configured", "7 daily, 5 weekly, 12 monthly, and the platform archive's last snapshot of each year for 11 years"),
 ]
 # scripts/backup-k3s.sh: the newest RETENTION_COUNT archives, and on a backup
 # filesystem of RETENTION_TIERS_MIN_GIB or more also daily, weekly and monthly tiers.

@@ -610,10 +610,12 @@ if [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
   fi
   backup_host_files
   # Each archive has its own path, so the default host+paths grouping would keep
-  # every snapshot forever.
-  for tag in swirl-cloud-k3s swirl-cloud-host; do
-    restic forget --tag "$tag" --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12
-  done
+  # every snapshot forever. The platform archive also keeps the last snapshot of
+  # each year for eleven years: it holds the Odoo database and filestore, and the
+  # one taken at the end of year Y+1 holds year Y's closed books, so ten closed
+  # years stay restorable (French accounting records, Code de commerce L123-22).
+  restic forget --tag swirl-cloud-k3s --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 11
+  restic forget --tag swirl-cloud-host --group-by host,tags --keep-daily 7 --keep-weekly 5 --keep-monthly 12
   restic prune
 fi
 
