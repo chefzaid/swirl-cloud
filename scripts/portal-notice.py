@@ -3,7 +3,7 @@
 
   portal-notice.py add --service GitLab --from 2026-11-20T22:00 --until 2026-11-20T23:00 \\
       --en "Upgrade to GitLab 19.4; GitLab is unavailable." [--fr "Mise à jour vers GitLab 19.4 ; GitLab est indisponible."]
-      [--email]
+      [--email] [--maintenance]
   portal-notice.py list
   portal-notice.py remove ID
 
@@ -16,7 +16,9 @@ without a zone are UTC. Notices live in the ConfigMap infra/portal-notices
 sends the notice to the people who can open the service (its access group in
 portal-access.json, everyone in the realm for an open service or *, and the
 platform administrators), in one message with the recipients in Bcc, through
-the platform mail relay.
+the platform mail relay. --maintenance also records it as a declared maintenance
+window (infra/swirl-cloud-maintenance-windows, kept 400 days), which the monthly
+service report leaves out of availability.
 """
 import argparse
 import base64
@@ -36,6 +38,8 @@ sys.path.insert(0, str(ROOT / "scripts/lib"))
 import platform_mail  # noqa: E402
 
 NAMESPACE, NAME = "infra", "portal-notices"
+WINDOWS = "swirl-cloud-maintenance-windows"
+KEEP_WINDOWS = timedelta(days=400)
 ADMINISTRATORS = "platform-admins"
 MEMBERS = r'''
 set -eu
@@ -67,6 +71,20 @@ def load():
     if result.returncode:
         return []
     return json.loads(json.loads(result.stdout).get("data", {}).get("notices.json", "[]"))
+
+
+def load_windows():
+    result = kubectl("-n", NAMESPACE, "get", "configmap", WINDOWS, "-o", "json", check=False)
+    if result.returncode:
+        return []
+    return json.loads(json.loads(result.stdout).get("data", {}).get("windows.json", "[]"))
+
+
+def save_windows(windows):
+    document = {"apiVersion": "v1", "kind": "ConfigMap",
+                "metadata": {"name": WINDOWS, "namespace": NAMESPACE, "labels": {"app.kubernetes.io/part-of": "swirl-cloud"}},
+                "data": {"windows.json": json.dumps(windows, ensure_ascii=False, indent=2)}}
+    kubectl("apply", "-f", "-", stdin=json.dumps(document))
 
 
 def save(notices):
@@ -162,6 +180,7 @@ def main():
     add.add_argument("--en", required=True)
     add.add_argument("--fr", default="")
     add.add_argument("--email", action="store_true", help="also email the people who can open the service")
+    add.add_argument("--maintenance", action="store_true", help="record it as a declared maintenance window")
     commands.add_parser("list")
     remove = commands.add_parser("remove")
     remove.add_argument("id")
@@ -192,6 +211,9 @@ def main():
                 raise SystemExit(f"Not emailed: {error}. The notice was not saved; fix the relay or add it without --email.")
             notice["emailed"] = len(to)
         save([n for n in notices if datetime.fromisoformat(n["ends"]) > now] + [notice])
+        if args.maintenance:
+            kept = [w for w in load_windows() if datetime.fromisoformat(w["ends"]) > now - KEEP_WINDOWS]
+            save_windows(kept + [{key: notice[key] for key in ("id", "service", "starts", "ends", "en")}])
         print(f"Notice {notice['id']} for {args.service} shows until {ends:%Y-%m-%d %H:%M} UTC"
               + (f"; emailed to {notice['emailed']} people." if args.email else "."))
     elif args.command == "remove":

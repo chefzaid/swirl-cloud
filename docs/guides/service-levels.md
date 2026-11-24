@@ -106,6 +106,25 @@ broken login page or a stuck account fails it at the step the probe logs
 (`kubectl -n infra logs deploy/signin-probe`). Its sign-ins appear in the
 identity events every five minutes under that name.
 
+## Monthly service report
+
+```bash
+./install.sh --notice add --maintenance --service GitLab --from 2026-11-20T22:00 --until 2026-11-20T23:00 --en "GitLab upgrade"
+./install.sh --service-report --month 2026-11 --output service-report-2026-11.md [--sign-key ~/.ssh/report_ed25519]
+```
+
+A notice added with `--maintenance` is also kept as a declared maintenance window
+(the ConfigMap `infra/swirl-cloud-maintenance-windows`, 400 days). The report
+reads each endpoint's hourly availability from the platform reports, leaves out
+the hours that overlap a window for its service (matched by the service's host
+on the portal; `*` covers every endpoint), and gives each endpoint's monthly
+availability against the objective (99.5 % unless `--objective` says otherwise),
+with the hours measured, excluded and below full availability. It exits 1 when
+an endpoint missed the objective. `--sign-key` signs it with `ssh-keygen -Y sign`
+(namespace `swirl-cloud-service-report`); check with `ssh-keygen -Y verify`.
+Incidents and support response times are left to fill in from the incident
+register and, later, the support desk.
+
 ## Game days
 
 `./install.sh --game-day --namespace apps-int --record` runs a pod-loss drill: it
