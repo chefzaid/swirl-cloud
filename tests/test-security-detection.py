@@ -258,5 +258,14 @@ class SecurityDetectionTest(unittest.TestCase):
                          [u for u in self.output["updates"] if "warned_at" in u["doc"]])
 
 
+class DetectionRunbooks(unittest.TestCase):
+    def test_every_detection_alert_has_a_runbook(self):
+        import re
+        names = set(re.findall(r'alertname: "([A-Za-z]+)"', (ROOT / "k8s/platform/security-detection.yaml").read_text()))
+        runbooks = (ROOT / "docs/guides/alert-runbooks.md").read_text()
+        self.assertTrue(names)
+        self.assertEqual([], sorted(name for name in names if f"### {name}\n" not in runbooks))
+
+
 if __name__ == "__main__":
     unittest.main()
