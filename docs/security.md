@@ -410,6 +410,10 @@ reboot, stays listed until the server runs the fixed version. Findings drop out
 three days after the last successful scan, and `HostPackageScanFailing` warns
 after two days without one.
 
+When an advisory names a package, `./install.sh --vulnerability-report --package
+log4j-core` lists every running workload whose image contains it, with its
+version, from the SBOM reports Trivy Operator keeps for each running image.
+
 List critical findings by image, deduplicated across workloads (Trivy Operator
 keeps one report per running digest):
 
