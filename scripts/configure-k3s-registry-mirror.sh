@@ -41,7 +41,13 @@ if ! "${sudo_command[@]}" test -f "$REGISTRY_CONFIG"; then
         "$REGISTRY_HOST" "$REGISTRY_ENDPOINT" | \
         "${sudo_command[@]}" install -o root -g root -m 0600 /dev/stdin "$REGISTRY_CONFIG"
     changed=true
-elif ! "${sudo_command[@]}" grep -Fq "\"$REGISTRY_HOST\"" "$REGISTRY_CONFIG"; then
+elif ! "${sudo_command[@]}" awk -v quoted="\"$REGISTRY_HOST\":" -v plain="$REGISTRY_HOST:" '
+        # The host must be a key under the top-level mirrors mapping; the same name
+        # under configs (TLS or credentials) is not a mirror.
+        /^[^[:space:]#]/ { in_mirrors = ($0 ~ /^mirrors:[[:space:]]*$/) }
+        in_mirrors && /^[[:space:]]/ && ($1 == quoted || $1 == plain) { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' "$REGISTRY_CONFIG"; then
     "${sudo_command[@]}" grep -Eq '^mirrors:[[:space:]]*$' "$REGISTRY_CONFIG" || \
         error "$REGISTRY_CONFIG exists without a top-level mirrors mapping"
     temporary_config="$(mktemp)"
