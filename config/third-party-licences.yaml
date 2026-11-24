@@ -474,7 +474,7 @@ components:
     source: https://github.com/haproxy/haproxy
     maintainer: HAProxy project
     jurisdiction: France
-    end_of_life: "2027-01-01"
+    end_of_life: "2031-04-01"
     support_source: https://endoflife.date/haproxy
     customer_use: allowed
     obligations: Copies must come with the licence and an offer of the corresponding source.
