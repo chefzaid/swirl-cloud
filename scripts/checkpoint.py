@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checkpoints before a risky change (upgrade, migration, module removal).
 
-  checkpoint.py create [--label TEXT] [--hours 72] [--namespace NS ...]
+  checkpoint.py create [--label TEXT] [--hours 72] [--namespace NS ...] [--dump-dir DIR]
   checkpoint.py list
   checkpoint.py show ID
   checkpoint.py delete ID
@@ -14,14 +14,20 @@ PostgreSQL, MongoDB, Kafka and Elasticsearch recover from as after a power cut;
 snapshots of different volumes are taken one after another, not at one instant.
 Checkpoints expire (72 hours by default, at most 14 days): the checkpoint-expiry
 CronJob deletes their snapshots and record. Snapshots live on the volumes' own
-replicas and count against the node's disk; they are not backups. Restoring is
-described in docs/operations.md#checkpoints.
+replicas and count against the node's disk; they are not backups. --dump-dir
+also writes a logical dump of the platform PostgreSQL (pg_dumpall, gzip, mode
+0600) there first, so one database can be restored without reverting a volume;
+the dump is not expired with the checkpoint. Restoring is described in
+docs/operations.md#checkpoints.
 """
 import argparse
 from datetime import datetime, timedelta, timezone
 import getpass
+import gzip
 import hashlib
 import json
+import os
+from pathlib import Path
 import socket
 import subprocess
 import sys
@@ -122,6 +128,28 @@ def load(checkpoint):
     return json.loads(json.loads(result.stdout)["data"]["checkpoint.json"])
 
 
+def database_dump(directory, checkpoint):
+    """pg_dumpall of the platform PostgreSQL into directory; returns its path and digest."""
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = run("bash", "-c", 'source "$1"; postgres_runtime_target infra', "checkpoint",
+                 str(Path(__file__).resolve().parent / "lib/postgres-access.sh")).stdout.strip()
+    path = directory / f"{checkpoint}-postgresql.sql.gz"
+    digest = hashlib.sha256()
+    process = subprocess.Popen(["kubectl", "-n", "infra", "exec", target, "-c", "postgres", "--", "sh", "-c",
+                                'exec pg_dumpall -U "$POSTGRES_USER" --clean --if-exists'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb") as out:
+        for chunk in iter(lambda: process.stdout.read(1 << 20), b""):
+            out.write(chunk)
+    if process.wait() != 0:
+        path.unlink()
+        raise SystemExit("pg_dumpall failed: " + process.stderr.read().decode(errors="replace").strip()[-300:])
+    with path.open("rb") as written:
+        for block in iter(lambda: written.read(1 << 20), b""):
+            digest.update(block)
+    return {"path": str(path), "sha256": digest.hexdigest()}
+
+
 def create(args, now):
     if not 1 <= args.hours <= MAX_HOURS:
         raise SystemExit(f"--hours must be between 1 and {MAX_HOURS}")
@@ -136,6 +164,9 @@ def create(args, now):
     for item in items:
         item["snapshot"] = snapshot_name(checkpoint, item["claim"])
         data["snapshots"].append(item)
+    if args.dump_dir:
+        print("Dumping the platform PostgreSQL...")
+        data["database_dump"] = database_dump(Path(args.dump_dir), checkpoint)
     # The record first, so the expiry job also finds snapshots of a checkpoint that failed halfway.
     run("kubectl", "apply", "-f", "-", stdin=json.dumps(record(checkpoint, expires, data)))
     print(f"Checkpoint {checkpoint}: snapshotting {len(items)} volume(s)...")
@@ -143,6 +174,8 @@ def create(args, now):
         run("kubectl", "apply", "-f", "-", stdin=json.dumps(snapshot(checkpoint, item, expires)))
     wait_ready(data["snapshots"], args.timeout)
     print(f"Checkpoint {checkpoint} is ready; it expires at {expires[:16].replace('T', ' ')} UTC.")
+    if data.get("database_dump"):
+        print(f"Database dump: {data['database_dump']['path']} (delete it when the change is accepted)")
     if data["argocd"].get("revision"):
         print(f"Deployed revision: {data['argocd']['revision']}")
 
@@ -162,6 +195,7 @@ def main():
     make.add_argument("--hours", type=int, default=72, help="how long to keep it (default 72, at most 336)")
     make.add_argument("--namespace", action="append", help="only claims in this namespace (repeatable)")
     make.add_argument("--timeout", type=int, default=900, help="seconds to wait for the snapshots")
+    make.add_argument("--dump-dir", help="also write a pg_dumpall of the platform PostgreSQL here, first")
     commands.add_parser("list")
     show = commands.add_parser("show")
     show.add_argument("id")

@@ -375,7 +375,7 @@ Before a risky change (an upgrade, a migration, removing a module), take a
 checkpoint:
 
 ```bash
-./install.sh --checkpoint create --label "CHG-12: GitLab 19.4" [--hours 72] [--namespace infra ...]
+./install.sh --checkpoint create --label "CHG-12: GitLab 19.4" [--hours 72] [--namespace infra ...] [--dump-dir ~/checkpoints]
 ./install.sh --checkpoint list
 ./install.sh --checkpoint show cp-20261115-101500
 ./install.sh --checkpoint delete cp-20261115-101500
@@ -388,7 +388,10 @@ crash-consistent: PostgreSQL, MongoDB, Kafka and Elasticsearch recover from it
 as after a power cut. Volumes are snapshotted one after another, so two volumes
 may differ by a few seconds. The `checkpoint-expiry` CronJob deletes a
 checkpoint when it expires (72 hours by default, at most 14 days). It is not a
-backup: the snapshots are lost with their volumes.
+backup: the snapshots are lost with their volumes. `--dump-dir` also writes a
+logical dump of the platform PostgreSQL there first (`pg_dumpall`, gzip, mode
+0600, its digest in the record), so one database can be restored with `psql`
+without reverting a volume; delete the dump yourself once the change is accepted.
 
 To go back after a failed change:
 

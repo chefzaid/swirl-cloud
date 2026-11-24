@@ -116,6 +116,29 @@ class Checkpoint(unittest.TestCase):
                              ["/api/v1/namespaces/infra/configmaps/checkpoint-cp-1",
                               "/apis/snapshot.storage.k8s.io/v1/namespaces/infra/volumesnapshots/old"])
 
+    def test_database_dump_is_private_and_recorded(self):
+        import gzip
+        import io
+        from types import SimpleNamespace
+        from unittest import mock
+
+        class FakeDump:
+            def __init__(self, *args, **kwargs):
+                self.stdout = io.BytesIO(b"CREATE ROLE admin;\n")
+                self.stderr = io.BytesIO(b"")
+
+            def wait(self):
+                return 0
+        with tempfile.TemporaryDirectory() as name, \
+                mock.patch.object(checkpoint, "run", return_value=SimpleNamespace(stdout="postgres-abc\n")), \
+                mock.patch.object(checkpoint.subprocess, "Popen", FakeDump):
+            dump = checkpoint.database_dump(Path(name) / "dumps", "cp-20261124-100000")
+            path = Path(dump["path"])
+            self.assertEqual("cp-20261124-100000-postgresql.sql.gz", path.name)
+            self.assertEqual("0o600", oct(path.stat().st_mode & 0o777))
+            self.assertEqual(b"CREATE ROLE admin;\n", gzip.decompress(path.read_bytes()))
+            self.assertEqual(64, len(dump["sha256"]))
+
 
 if __name__ == "__main__":
     unittest.main()
