@@ -264,6 +264,15 @@ recorded (date, reference, sources, due date one month later) in the ConfigMap
 Send the directory to the person through a channel the request came from, then
 delete it.
 
+For an erasure request (Art. 17), `./install.sh --data-subject erase --subject
+EMAIL --plan` finds the same data and prints the steps in order: GitLab (the
+user deleted, their contributions moved to the Ghost user), Zammad (its data
+privacy task), Odoo (the contact anonymized except where accounting records keep
+it for ten years), Vaultwarden, then the Keycloak account last. Sign-in events
+and access grants are kept as security and approval records until they expire.
+It changes nothing; the steps are done by hand, and the plan is recorded with the
+request.
+
 ### Verify a pack
 
 An auditor needs the archive, the signer's public key and Python 3.12 or later:

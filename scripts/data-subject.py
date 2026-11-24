@@ -2,6 +2,7 @@
 """Data subject access requests (GDPR Art. 15 and 20): one person's data, exported.
 
   data-subject.py export --subject person@example.com [--output-dir DIR] [--reference DSR-12]
+  data-subject.py erase --subject person@example.com --plan [--reference DSR-12]
   data-subject.py list
 
 export collects what the platform holds about the person, found by email:
@@ -17,7 +18,10 @@ Fields that look like secrets (password, token, secret, hash, key) are removed.
 It writes one JSON file per source and a summary to a new private directory,
 for the person in a portable format, and records the request (date, reference,
 sources, never the email) in the ConfigMap infra/swirl-cloud-data-subject-requests.
-The answer is due within one month (Art. 12(3)). Applications keep their own
+erase --plan (Art. 17) finds the same data and prints, per source, what to
+erase, what to anonymize and what the law or security lets the company keep,
+in the order to follow; it changes nothing. The answer is due within one month
+(Art. 12(3)). Applications keep their own
 data; each answers through its owner until the onboarding contract has a
 privacy hook. Everything is read inside the pods; no Secret leaves the cluster.
 """
@@ -183,6 +187,37 @@ def collect(email, sources=None):
     return found
 
 
+# What happens to each source on an erasure request: (action, how, and why when kept).
+ERASURE = [
+    ("gitlab", "erase", "Delete the user in GitLab (Admin, Users, Delete user): their issues, merge requests and comments move"
+     " to the Ghost user. Delete the contributions too only where they hold personal data."),
+    ("zammad", "erase", "Delete the customer with Zammad's data privacy task (Admin, Data Privacy), which deletes their tickets;"
+     " a ticket the company must keep is first cleared of personal data."),
+    ("odoo", "anonymize", "Archive the user and anonymize the contact, except where invoices or accounting entries reference it:"
+     " those are kept ten years (Code de commerce, art. L123-22; Art. 17(3)(b))."),
+    ("vaultwarden", "erase", "The person deletes their own account (Settings, My account); otherwise remove them from the"
+     " organizations, then delete the account."),
+    ("keycloak", "erase", "Delete the account in the platform realm last (Keycloak console, Users), so it cannot sign in again."),
+    ("identity-events", "keep", "Sign-in and administration events are security records kept for legitimate interests"
+     " (Art. 17(3)); they expire after 396 days."),
+    ("access-grants", "keep", "Access grants are the evidence of who approved which access; kept with the access reviews."),
+]
+
+
+def erasure_plan(email, found, now):
+    lines = [f"# Erasure plan for {email}", "", f"Prepared {now:%Y-%m-%d %H:%M} UTC; nothing was changed. Answer due by"
+             f" {(now + timedelta(days=30)):%Y-%m-%d} (GDPR Art. 12(3)).", "", "| Step | Source | Records | Action | How |", "|---|---|---|---|---|"]
+    for step, (prefix, action, how) in enumerate(ERASURE, 1):
+        parts = {source: data for source, data in found.items() if source == prefix or source.startswith(prefix + "-")}
+        counts = []
+        for source, data in sorted(parts.items()):
+            counts.append(f"{source}: not checked" if isinstance(data, dict) and "error" in data else f"{source}: {len(data)}")
+        lines.append(f"| {step} | {prefix} | {'; '.join(counts) or 'none'} | {action} | {how} |")
+    lines += ["", "Applications keep their own data and answer through their owners. Backups keep copies until they expire;"
+              " tell the person, and do not restore their data from a backup after the erasure.", ""]
+    return "\n".join(lines)
+
+
 def configmap_log():
     result = subprocess.run(["kubectl", "--request-timeout=30s", "-n", LOG[0], "get", "configmap", LOG[1], "-o", "json"],
                             capture_output=True, text=True, timeout=60)
@@ -220,6 +255,10 @@ def main():
     export.add_argument("--subject", required=True, help="the person's email address")
     export.add_argument("--output-dir", default=".")
     export.add_argument("--reference", default="", help="the request's ticket or reference")
+    erase = commands.add_parser("erase")
+    erase.add_argument("--subject", required=True)
+    erase.add_argument("--plan", action="store_true", help="print the erasure plan; required, erasure itself is done by hand")
+    erase.add_argument("--reference", default="")
     commands.add_parser("list")
     args = parser.parse_args()
     if args.command == "list":
@@ -234,6 +273,16 @@ def main():
         parser.error("--subject must be an email address")
     now = datetime.now(timezone.utc).replace(microsecond=0)
     found = collect(args.subject.strip())
+    if args.command == "erase":
+        if not args.plan:
+            parser.error("erase needs --plan: it lists the steps, which are done by hand")
+        print(erasure_plan(args.subject, found, now), end="")
+        try:
+            save_log(configmap_log() + [{"at": now.isoformat(), "action": "erase-plan", "reference": args.reference,
+                                         "due": f"{now + timedelta(days=30):%Y-%m-%d}", "collected": sorted(found), "failed": []}])
+        except RuntimeError as error:
+            print(f"[WARN] The request was not recorded: {error}", file=sys.stderr)
+        return 0
     directory = Path(args.output_dir) / f"data-subject-{now:%Y%m%d-%H%M%S}"
     write_export(directory, args.subject, found, args.reference, now)
     failed = sorted(source for source, data in found.items() if isinstance(data, dict) and "error" in data)

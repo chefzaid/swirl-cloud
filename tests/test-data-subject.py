@@ -66,6 +66,15 @@ class DataSubject(unittest.TestCase):
                 self.assertIn(":'email'", sql)
                 self.assertNotIn("{", sql)
 
+    def test_erasure_plan_orders_and_keeps_security_records(self):
+        found, _ = self.collect()
+        text = dsr.erasure_plan("ada@example.com", found, datetime(2026, 11, 24, tzinfo=timezone.utc))
+        self.assertIn("nothing was changed", text)
+        self.assertIn("| 1 | gitlab | gitlab: 1 | erase |", text)
+        self.assertIn("| 3 | odoo | odoo-contacts: not checked; odoo-users: not checked | anonymize |", text)
+        self.assertIn("| 5 | keycloak | keycloak: 1 | erase |", text)
+        self.assertIn("| 6 | identity-events | identity-events: 1 | keep |", text)
+
 
 if __name__ == "__main__":
     unittest.main()
