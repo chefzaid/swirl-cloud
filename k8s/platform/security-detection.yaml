@@ -48,7 +48,11 @@ metadata:
   name: security-detection
   namespace: infra
 data:
+  # Mail for the person and the sponsor of a grant that ends within a week.
+  smtp.mjs: |
+    # swirl-cloud:file smtp.mjs
   detect.mjs: |
+    import { relayFromEnvironment, sendMail } from "./smtp.mjs";
     // Each rule returns findings for the recent window. Every run re-posts the
     // current findings with a 30-minute end time, so an alert stays active while
     // its evidence is in the window and resolves on its own afterwards.
@@ -294,6 +298,31 @@ data:
           .find((g) => g.name === name)?.id);
         return groups.get(name);
       };
+      // The warning by mail, in English and French, when the platform relay is
+      // configured: null without mail, false when sending failed (retried next run).
+      const relay = relayFromEnvironment();
+      const warnByMail = async (grant, what, sponsor) => {
+        if (!relay) return null;
+        const emails = [];
+        for (const name of new Set([grant.user, sponsor].filter(Boolean))) {
+          const found = (await call("GET", `${realm}/users?username=${encodeURIComponent(name)}&exact=true`))?.[0];
+          if (found?.email) emails.push(found.email);
+        }
+        if (!emails.length) return null;
+        const day = grant.expires_at.slice(0, 10);
+        const text = [`${what} ends on ${day} (end of day UTC).`,
+          `To keep it, ${sponsor || "the person's sponsor"} asks the platform administrators for a new grant before then.`, "",
+          "---", "", `L'accès « ${what} » prend fin le ${day} (fin de journée UTC).`,
+          `Pour le conserver, ${sponsor || "le responsable"} demande une nouvelle autorisation aux administrateurs`
+            + " de la plateforme avant cette date."].join("\n");
+        try {
+          await sendMail(relay, { to: emails, subject: `Access ending on ${day} / Accès se terminant le ${day}`, text });
+          return emails.length;
+        } catch (error) {
+          console.log(`Timed access warning for ${grant.user} not mailed: ${error.message}`);
+          return false;
+        }
+      };
       const findings = [];
       for (const hit of due.hits.hits) {
         const grant = hit._source;
@@ -309,7 +338,9 @@ data:
               description: `${kind === "guest" ? `${grant.user}'s guest account` : `${grant.user}'s membership of ${group}`} ends at `
                 + `${grant.expires_at.replace("T", " ").slice(0, 16)} UTC. To keep it, ${grant.sponsor || grant.approved_by} `
                 + "asks for a new grant before then (./install.sh --admin-access)." });
-            await update(hit._id, { warned_at: new Date(now).toISOString() });
+            const what = kind === "guest" ? `${grant.user}'s guest account` : `${grant.user}'s membership of ${group}`;
+            const mailed = await warnByMail(grant, what, grant.sponsor || grant.approved_by || "");
+            if (mailed !== false) await update(hit._id, { warned_at: new Date(now).toISOString(), ...(mailed ? { warned_by_mail: mailed } : {}) });
           }
           continue;
         }
@@ -464,6 +495,9 @@ spec:
                     name: security-detection-credentials
                 - secretRef:
                     name: keycloak-admin-secret
+                - secretRef:
+                    name: platform-mail
+                    optional: true
               securityContext:
                 readOnlyRootFilesystem: true
                 allowPrivilegeEscalation: false

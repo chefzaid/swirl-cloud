@@ -222,7 +222,10 @@ The end is the end of that day (UTC). Security detection removes the role, or
 disables the guest account and ends its sessions, within five minutes of it. A
 week before the end of a grant longer than a week it raises
 `TimedAccessEndingSoon` with the person, the access and the sponsor (or
-approver), once, so the access can be renewed with a new grant.
+approver), once, so the access can be renewed with a new grant. When the
+[platform mail relay](guides/platform-mail.md) is configured, the person and the
+sponsor also get the warning by email, in English and French; a warning the relay
+refuses is tried again at the next run.
 
 ## Keycloak signing keys
 

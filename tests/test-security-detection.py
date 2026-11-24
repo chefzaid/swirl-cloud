@@ -85,7 +85,7 @@ MOCK = textwrap.dedent("""\
         if (fixture.grants) {
           keycloakCalls.push(`${method} ${decodeURIComponent(path)}${options.body ? " " + options.body : ""}`);
           const user = path.match(/users\\?username=([^&]+)/);
-          if (user) return reply(200, [{ id: "u-" + user[1], username: user[1] }]);
+          if (user) return reply(200, [{ id: "u-" + user[1], username: user[1], email: user[1] + "@example.com" }]);
           const group = path.match(/groups\\?search=([^&]+)/);
           if (group) return reply(200, [{ id: "g-" + decodeURIComponent(group[1]), name: decodeURIComponent(group[1]) }]);
           if (method === "GET" && /users\\/u-[^/]+$/.test(path)) return reply(200, { id: path.split("/").pop(), email: "x@example.com", enabled: true });
@@ -123,11 +123,12 @@ def sudo(timestamp, user, host="node-1"):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class SecurityDetectionTest(unittest.TestCase):
-    def run_detection(self, journal, state=None, stored=(), identity=(), grants=None, scans=(), pods=None):
+    def run_detection(self, journal, state=None, stored=(), identity=(), grants=None, scans=(), pods=None, extra_env=None):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         documents = yaml.safe_load_all((ROOT / "k8s/platform/security-detection.yaml").read_text())
         script = next(d for d in documents if d and d["kind"] == "ConfigMap")["data"]["detect.mjs"]
         (directory / "detect.mjs").write_text(script)
+        (directory / "smtp.mjs").write_text((ROOT / "k8s/files/smtp.mjs").read_text())
         (directory / "mock.mjs").write_text(MOCK)
         fixture = {"now": NOW, "journal": journal, "state": state or {}, "stored": list(stored), "identity": list(identity),
                    "scans": list(scans), "pods": pods or {}}
@@ -138,7 +139,7 @@ class SecurityDetectionTest(unittest.TestCase):
                "ELASTICSEARCH_URL": "http://es", "ALERTMANAGER_URL": "http://am", "PROMETHEUS_URL": "http://prom", "KEYCLOAK_URL": "http://kc",
                "KEYCLOAK_REALM": "example", "RUNBOOK_BASE_URL": "https://runbooks", "ELASTICSEARCH_USERNAME": "u",
                "ELASTICSEARCH_PASSWORD": "p", "KEYCLOAK_ADMIN": "admin", "KEYCLOAK_ADMIN_PASSWORD": "x",
-               "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "x"}
+               "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "x", **(extra_env or {})}
         result = subprocess.run([shutil.which("node"), "--import", str(directory / "mock.mjs"), str(directory / "detect.mjs")],
                                 capture_output=True, text=True, env=env, timeout=60)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -233,6 +234,28 @@ class SecurityDetectionTest(unittest.TestCase):
         warning = next(a for a in self.output["posted"] if a["labels"]["alertname"] == "TimedAccessEndingSoon")
         self.assertEqual(("account", "erin", "2026-11-01"), (warning["labels"]["access"], warning["labels"]["sponsor"], warning["labels"]["ends"]))
         self.assertEqual([{"id": "w1", "doc": {"warned_at": NOW}}], [u for u in self.output["updates"] if "warned_at" in u["doc"]])
+
+    def test_timed_access_warning_is_mailed_to_the_person_and_sponsor(self):
+        import importlib.util
+        import socketserver
+        import threading
+        spec = importlib.util.spec_from_file_location("smtp_test", ROOT / "tests/test-smtp.py")
+        smtp_test = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smtp_test)
+        server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), smtp_test.Relay)
+        server.log, server.messages = [], []
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        grants = [{"id": "w1", "user": "frank", "state": "active", "granted_at": "2026-09-01T00:00:00+00:00",
+                   "expires_at": "2026-11-01T00:00:00+00:00", "approved_by": "erin", "kind": "guest", "sponsor": "erin"}]
+        mail = {"PLATFORM_MAIL_ENABLED": "true", "PLATFORM_MAIL_HOST": "127.0.0.1", "PLATFORM_MAIL_PORT": str(server.server_address[1]),
+                "PLATFORM_MAIL_TLS": "none", "PLATFORM_MAIL_FROM": "noreply@example.com", "PLATFORM_MAIL_USERNAME": "u", "PLATFORM_MAIL_PASSWORD": "p"}
+        try:
+            self.run_detection([], grants=grants, extra_env=mail)
+        finally:
+            server.shutdown()
+        self.assertEqual(["RCPT TO:<frank@example.com>", "RCPT TO:<erin@example.com>"], [l for l in server.log if l.startswith("RCPT")])
+        self.assertEqual([{"id": "w1", "doc": {"warned_at": NOW, "warned_by_mail": 2}}],
+                         [u for u in self.output["updates"] if "warned_at" in u["doc"]])
 
 
 if __name__ == "__main__":
