@@ -140,6 +140,9 @@ change and ask the owner before pushing it.
 - [ ] Please run `./install.sh --vulnerability-report` on `swirl-node-01` and paste its output here (or `scripts/vulnerability-report.py --all`), so the agent can re-triage the findings whose exceptions expired on 2026-11-04 and record new ones. The agent's environment cannot reach the cluster, and running Trivy there was refused. Alternatively, allow the agent to run the pinned Trivy release (`aquasec/trivy:0.76.2`) with its database from `ghcr.io` in its environment. *(task: §21 › Rescan and exceptions, P1; asked by: Infra Agent)*
   - Answer:
 
+- [ ] How should Odoo move off the OAuth2 implicit flow (access tokens in the browser's URL fragment)? Options: (a) OCA `auth_oidc` (AGPL-3.0, authorization code flow with PKCE): it needs `python-jose`, so Odoo runs a platform-built image (the official image plus that package, built and scanned in CI, pinned by digest), and the licence register gains an AGPL add-on; (b) a small code-flow controller in the platform's own `odoo_keycloak_sso` add-on (LGPL-3.0, no new package: the code is exchanged with the client secret over TLS and the user read from Keycloak's userinfo endpoint); (c) keep the implicit flow and record the accepted risk. (a) and (b) make the Keycloak `odoo` client confidential with its secret in Vault, and are rehearsed on a scratch Odoo before the live switch, with `/web/login?local=1` kept as the way back. *(task: §11 › Odoo authorization code flow, P2; asked by: Infra Agent)*
+  - Answer:
+
 ---
 
 ## Part I — Build timeline (how it got here)
@@ -342,7 +345,7 @@ change and ask the owner before pushing it.
 - [x] SonarQube and GitLab SSO administrator bootstrap.
 - [x] Cloudflare Access identity provider backed by Keycloak, email allowlist.
 - [x] Administrator second factor optional by decision; `./install.sh --admin-mfa status|require` ([security](docs/security.md#administrator-second-factor)). *(2026-10-05)*
-- [ ] Odoo's client uses the OAuth2 implicit flow (Odoo 19 `auth_oauth` limitation); replace with an authorization-code add-on when available.
+- [ ] Odoo's client uses the OAuth2 implicit flow (Odoo 19 `auth_oauth` limitation); replace with an authorization-code add-on when available. *Progress 2026-11-24:* one is available: OCA `auth_oidc` 19.0.1.0.0 (`OCA/server-auth`, AGPL-3.0) adds the authorization code flow with PKCE and a client secret, but needs `python-jose`, which the official Odoo image lacks. The approach waits in [Needs Input](#needs-input).
 - [x] Keycloak emails through the platform mail relay (§27). *(live, 2026-10-09)*
 - [x] Keycloak metrics scraped; `KeycloakPasswordFailuresHigh` alert. *(live, 2026-10-04)*
 - [ ] Keycloak runs one replica outside HA (§15).
