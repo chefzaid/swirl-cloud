@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 import yaml
 
@@ -115,6 +116,15 @@ class Sizing(unittest.TestCase):
         rendered = self.docs[("ConfigMap", "gitlab-runners", "gitlab-runner-config")]["data"]["config.template.toml"]
         self.assertEqual(sized.replace("__INTERNAL_DNS_ZONE__", "internal.example.com"), rendered)
 
+    def test_the_volume_check_sizes_claims_as_helm_does(self):
+        for profile, result in (("standard", self.standard), ("large", self.large)):
+            rendered = {f"{d['metadata'].get('namespace', 'infra')}/{d['metadata']['name']}": d["spec"]["resources"]["requests"]["storage"]
+                        for d in yaml.safe_load_all(result.stdout) if d and d["kind"] == "PersistentVolumeClaim"}
+            claims = sizing.rendered_claims(ROOT, profile)
+            with self.subTest(profile=profile):
+                self.assertEqual({name: rendered[name] for name in claims if name in rendered},
+                                 {name: size for name, size in claims.items() if name in rendered})
+
     def test_volumes_never_shrink(self):
         live = {"infra/postgres-v18-pvc": "20Gi", "infra/gitlab-data": "40Gi"}
         self.assertEqual(sizing.shrinking({"infra/postgres-v18-pvc": "2Gi", "infra/gitlab-data": "150Gi"}, live),
@@ -154,6 +164,45 @@ class Sizing(unittest.TestCase):
         self.assertEqual(set(install_inputs.BY_NAME["SIZING_PROFILE"].choices), set(sizing.available()))
         with self.assertRaises(sizing.SizingError):
             sizing.load("../values")
+
+
+
+class VolumeCheck(unittest.TestCase):
+    """The installer's volume check, without Helm: the profile's sizes count, not the manifests' own."""
+
+    def test_a_rerun_on_the_installed_profile_shrinks_nothing(self):
+        live = sizing.rendered_claims(ROOT, "large")
+        self.assertEqual("150Gi", live["infra/gitlab-data"])
+        self.assertEqual([], sizing.shrinking(sizing.rendered_claims(ROOT, "large"), live))
+
+    def test_a_smaller_profile_is_refused(self):
+        live = sizing.rendered_claims(ROOT, "large")
+        problems = dict((name, (was, now)) for name, was, now in sizing.shrinking(sizing.rendered_claims(ROOT, "standard"), live))
+        self.assertEqual(("150Gi", "40Gi"), problems["infra/gitlab-data"])
+        self.assertEqual(("20Gi", "2Gi"), problems["infra/postgres-v18-pvc"])
+
+    def test_every_profile_storage_entry_names_a_claim(self):
+        claims = {name.split("/", 1)[1] for name in sizing.rendered_claims(ROOT, sizing.STANDARD)}
+        for profile in sizing.available():
+            for path, entries in sizing.load(profile)["manifests"].items():
+                for key, entry in entries.items():
+                    if "storage" in entry:
+                        with self.subTest(profile=profile, path=path, key=key):
+                            self.assertTrue(key.startswith("PersistentVolumeClaim/"))
+                            self.assertIn(key.split("/", 1)[1], claims)
+
+    def test_the_command_uses_the_chosen_profile(self):
+        live = sizing.rendered_claims(ROOT, "large")
+        for argv, environment, code in ((["--profile", "large"], {}, 0), ([], {"SIZING_PROFILE": "large"}, 0),
+                                        (["--profile", "standard"], {"SIZING_PROFILE": "large"}, 1), ([], {}, 1)):
+            with self.subTest(argv=argv, environment=environment), \
+                    unittest.mock.patch.object(sizing, "live_claims", return_value=live), \
+                    unittest.mock.patch.dict(sizing.os.environ, environment, clear=True), \
+                    unittest.mock.patch.object(sys, "argv", ["sizing.py", "check-volumes", "--root", str(ROOT), *argv]), \
+                    unittest.mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
+                self.assertEqual(code, sizing.main())
+                if code:
+                    self.assertIn("infra/gitlab-data is 150Gi; the selected profile renders 40Gi", err.getvalue())
 
 
 if __name__ == "__main__":

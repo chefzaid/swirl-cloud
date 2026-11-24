@@ -255,7 +255,7 @@ prepare_rendered_configuration() {
         --cloudflare-access-team "$CLOUDFLARE_ACCESS_TEAM_NAME" \
         --apps-enabled "$INSTALL_APPS" \
         --descheduler-enabled "$INSTALL_DESCHEDULER" >/dev/null
-    python3 "$SCRIPT_DIR/scripts/lib/sizing.py" check-volumes --root "$RENDERED_CONFIG_DIR" || \
+    python3 "$SCRIPT_DIR/scripts/lib/sizing.py" check-volumes --root "$RENDERED_CONFIG_DIR" --profile "$SIZING_PROFILE" || \
         error "The sizing profile would shrink volumes; keep the larger profile."
     # Argo CD renders the platform from the root Application's values: record the
     # profile there before sized manifests are applied, or its self-sync reverts them.

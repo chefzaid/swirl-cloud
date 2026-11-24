@@ -6,7 +6,9 @@
     sizing.py kubelet-max-pods [--profile NAME]
                                           print the profile's pods per node (empty: K3s's 110);
                                           the profile defaults to SIZING_PROFILE, else the recorded one
-    sizing.py check-volumes --root DIR    fail if rendered PVCs in DIR would shrink live ones
+    sizing.py check-volumes --root DIR [--profile NAME]
+                                          fail if DIR's PVCs, sized by the profile (default
+                                          SIZING_PROFILE, else standard), would shrink live ones
     sizing.py record --root DIR           put DIR's profile on the live root Application
 
 The chart applies profiles in templates/_sizing.tpl; apply_replacements() repeats its
@@ -176,9 +178,12 @@ def shrinking(rendered, live):
             if name in live and quantity(size) < quantity(live[name])]
 
 
-def rendered_claims(root):
+def rendered_claims(root, profile=STANDARD):
+    """{namespace/name: storage} of DIR's PVCs with the profile's sizes, as the chart renders them."""
+    manifests = load(profile, Path(root))["manifests"]
     claims = {}
     for path in (Path(root) / "k8s").rglob("*.yaml"):
+        overrides = manifests.get(path.relative_to(Path(root) / "k8s").as_posix(), {})
         try:
             documents = list(yaml.safe_load_all(path.read_text()))
         except yaml.YAMLError:
@@ -187,6 +192,7 @@ def rendered_claims(root):
             if isinstance(document, dict) and document.get("kind") == "PersistentVolumeClaim":
                 meta = document.get("metadata", {})
                 size = document.get("spec", {}).get("resources", {}).get("requests", {}).get("storage")
+                size = overrides.get(f"PersistentVolumeClaim/{meta.get('name')}", {}).get("storage") or size
                 if size and meta.get("name"):
                     claims[f"{meta.get('namespace', 'default')}/{meta['name']}"] = size
     return claims
@@ -207,7 +213,9 @@ def main():
     commands.add_parser("resolve").add_argument("--explicit", default="")
     commands.add_parser("recorded")
     commands.add_parser("kubelet-max-pods").add_argument("--profile", default="")
-    commands.add_parser("check-volumes").add_argument("--root", required=True)
+    check_volumes = commands.add_parser("check-volumes")
+    check_volumes.add_argument("--root", required=True)
+    check_volumes.add_argument("--profile", default="")
     commands.add_parser("record").add_argument("--root", required=True)
     args = parser.parse_args()
     try:
@@ -224,7 +232,8 @@ def main():
         elif args.command == "record":
             print(record(args.root) or "")
         else:
-            problems = shrinking(rendered_claims(args.root), live_claims())
+            profile = args.profile or os.environ.get("SIZING_PROFILE") or STANDARD
+            problems = shrinking(rendered_claims(args.root, profile), live_claims())
             for name, live, size in problems:
                 print(f"{name} is {live}; the selected profile renders {size}", file=sys.stderr)
             if problems:
