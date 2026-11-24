@@ -125,7 +125,11 @@ def render(organization, nodes, apps, kept):
         ("Identity and single sign-on (Keycloak)", "Staff and application users: usernames, names, e-mail addresses, group"
          " memberships, password hashes, login events with IP addresses."),
         ("Source code, CI and registry (GitLab)", "Developer accounts, commit authorship, merge requests, CI logs."),
-        ("Monitoring, logs and audit (Prometheus, Elasticsearch)", "IP addresses and identities in logs and audit events."),
+        ("Monitoring, logs and audit (Prometheus, Elasticsearch)", "IP addresses and identities in logs and audit events,"
+         " including database sign-ins and schema changes."),
+        ("IT help desk (Zammad)", "Staff names, e-mail addresses, and the content and attachments of their tickets."),
+        ("Staff passwords (Vaultwarden)", "Account e-mail address and name; vault contents are encrypted with each person's"
+         " master password and unreadable to the platform."),
         ("Business management (Odoo, when installed)", "[Customers, suppliers, employees: contacts, invoices, HR records]."),
     ]
     lines += ["## Platform activities", ""]
