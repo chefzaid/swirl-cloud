@@ -3,12 +3,16 @@
 
 Lists every secret in Vault's KV mounts with its current version and when it
 was last written, oldest first, and flags those older than --max-age-days
-(default 365). Values are never read: only KV metadata is queried. The Vault
+(default 365), then the active signing keys of the master and platform Keycloak
+realms, dated by their last rotation (./install.sh --keycloak-keys; a key
+never rotated there has no date). Values are never read: only KV metadata and
+key provider names are queried. The Vault
 bootstrap token is read with passwordless sudo and passed to the Vault pod on
 standard input, never in arguments or the environment of this host.
 """
 import argparse
 from datetime import datetime, timezone
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -35,6 +39,27 @@ for mount in $(vault secrets list 2>/dev/null | awk '$2 == "kv" {print $1}'); do
   walk "$mount"
 done
 '''
+
+
+def keycloak_keys(now, max_age_days, keys=None):
+    """Rows for the realms' active generated keys, from their rotation date in the name."""
+    if keys is None:
+        spec = importlib.util.spec_from_file_location("keycloak_keys", ROOT / "scripts/rotate-keycloak-keys.py")
+        keys = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(keys)
+    rows = []
+    for realm in ("master", keys.platform_realm()):
+        _, components = keys.realm_components(realm)
+        for component in components:
+            config = component.get("config", {})
+            if keys.kind(component) is None or keys.first(config, "active", "true") != "true":
+                continue
+            when = keys.rotated_on(component)
+            rows.append({"path": f"keycloak {realm} {component.get('name', component.get('id'))}", "version": "-",
+                         "updated": when.isoformat(timespec="minutes") if when else "never rotated",
+                         "age_days": (now - when).days if when else None,
+                         "overdue": bool(when) and (now - when).days > max_age_days})
+    return rows
 
 
 def main():
@@ -73,12 +98,16 @@ def main():
         else:
             buffer.append(line)
     flush()
+    try:
+        rows += keycloak_keys(now, args.max_age_days)
+    except (SystemExit, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print(f"[WARN] Keycloak keys not listed: {error}", file=sys.stderr)
     rows.sort(key=lambda r: -(r["age_days"] or 0))
     overdue = [r for r in rows if r["overdue"]]
     if args.format == "json":
         print(json.dumps({"generated_at": now.isoformat(timespec="minutes"), "max_age_days": args.max_age_days, "secrets": rows}, indent=2))
         return 0
-    header = (f"{len(rows)} Vault secrets; {len(overdue)} older than {args.max_age_days} days; "
+    header = (f"{len(rows)} credentials; {len(overdue)} older than {args.max_age_days} days; "
               f"oldest {rows[0]['age_days'] if rows else 0} days ({rows[0]['path'] if rows else '-'}).")
     if args.format == "markdown":
         print(f"# Credential age\n\n{header}\n\n| Secret | Version | Last written (UTC) | Age (days) |\n|---|---|---|---|")
@@ -87,7 +116,9 @@ def main():
     else:
         print(header)
         for r in rows:
-            print(f"  {'OVER ' if r['overdue'] else '     '}{r['age_days']:>5}d  v{r['version']:<3} {r['path']}")
+            age = f"{r['age_days']:>5}d" if r["age_days"] is not None else "    ?"
+            print(f"  {'OVER ' if r['overdue'] else '     '}{age}  v{r['version']:<3} {r['path']}"
+                  + ("  (never rotated)" if r["updated"] == "never rotated" else ""))
     return 1 if overdue else 0
 
 

@@ -365,7 +365,9 @@ user's **Credentials** in the Keycloak console.
 
 `./install.sh --credential-age` lists every secret in Vault's KV mounts with its
 version and last write, oldest first, and exits non-zero when one is older than
-`--max-age-days` (default 365). It reads metadata only. Rotate local
+`--max-age-days` (default 365), then the master and platform realms' active
+Keycloak signing keys with their last rotation ([Keycloak signing keys](#keycloak-signing-keys)).
+It reads metadata only. Rotate local
 administrator passwords with
 [the rotation helper](#rotate-local-administrator-passwords); application and
 registry credentials rotate through their onboarding flows.

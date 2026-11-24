@@ -50,6 +50,20 @@ class KeycloakKeys(unittest.TestCase):
         self.assertIsNone(keys.kind(key("hmac-generated", "hmac-generated", 100, algorithm=["HS256"])))
         self.assertEqual(keys.kind(key("hmac-generated", "hmac-generated", 100, algorithm=["HS512"])), "hmac-generated-hs512")
 
+    def test_credential_age_lists_active_keys_by_rotation_date(self):
+        spec = importlib.util.spec_from_file_location("age", ROOT / "scripts/credential-age.py")
+        age = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(age)
+        components = [key("rsa-generated-20250101", "rsa-generated", 200), key("aes-generated", "aes-generated", 100),
+                      key("rsa-generated", "rsa-generated", 100, active=False), key("imported", "rsa", 300)]
+        keys.realm_components = lambda realm: ("id", components)
+        keys.platform_realm = lambda: "staff"
+        rows = age.keycloak_keys(datetime(2026, 11, 24, tzinfo=timezone.utc), 365, keys)
+        self.assertEqual(["keycloak master rsa-generated-20250101", "keycloak master aes-generated",
+                          "keycloak staff rsa-generated-20250101", "keycloak staff aes-generated"], [r["path"] for r in rows])
+        self.assertEqual([True, False, True, False], [r["overdue"] for r in rows])
+        self.assertEqual("never rotated", rows[1]["updated"])
+
 
 if __name__ == "__main__":
     unittest.main()
