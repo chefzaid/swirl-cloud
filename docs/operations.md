@@ -820,6 +820,9 @@ Keep experiments, images, reports and archives outside Git
 
 ### Runtime and recovery constraints
 
+Major versions that migrate data (PostgreSQL, Odoo, Elasticsearch, GitLab, the
+servers' Ubuntu release) follow [major-version upgrades](guides/major-upgrades.md).
+
 | Component | Check before changing its image |
 | --- | --- |
 | PostgreSQL and its helpers | Keep the same upstream Bookworm release. Restore globals and databases in isolation; check ownership, libc/ICU collation versions, locales and extensions. A matching major version alone is insufficient. |
