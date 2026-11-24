@@ -572,8 +572,9 @@ if [[ "$ADD_K3S_WORKERS" == "true" || "$ADD_K3S_CONTROL_PLANES" == "true" ]]; th
                 "Trusted LAN node CIDR (every address in it reaches cluster ports)" \
                 "$(connected_ipv4_cidr "$K3S_PRIVATE_ADDRESS" || true)"
         fi
-        trusted_private_cidr "${K3S_NODE_NETWORK_CIDR:-}" && [[ "$K3S_NODE_NETWORK_CIDR" != "100.64.0.0/10" ]] || \
+        if ! trusted_private_cidr "${K3S_NODE_NETWORK_CIDR:-}" || [[ "$K3S_NODE_NETWORK_CIDR" == "100.64.0.0/10" ]]; then
             error "LAN transport requires an RFC1918 node CIDR: ${K3S_NODE_NETWORK_CIDR:-none}"
+        fi
         cidr_contains_ip "$K3S_NODE_NETWORK_CIDR" "$K3S_PRIVATE_ADDRESS" || \
             error "$K3S_PRIVATE_ADDRESS is outside $K3S_NODE_NETWORK_CIDR."
         info "Using LAN address $K3S_PRIVATE_ADDRESS on $K3S_PRIVATE_INTERFACE for cluster traffic."
@@ -653,8 +654,9 @@ if [[ "$ADD_K3S_WORKERS" == "true" || "$ADD_K3S_CONTROL_PLANES" == "true" ]]; th
                 "Unused node-network IPv4 for the Kubernetes API VIP (moves between control planes)"
         fi
         [[ -n "${K3S_API_VIP:-}" ]] || error "K3S_API_VIP is required when adding vRack or LAN control planes."
-        cidr_contains_ip "$K3S_NODE_NETWORK_CIDR" "$K3S_API_VIP" && [[ "$K3S_API_VIP" != "$K3S_PRIVATE_ADDRESS" ]] || \
+        if ! cidr_contains_ip "$K3S_NODE_NETWORK_CIDR" "$K3S_API_VIP" || [[ "$K3S_API_VIP" == "$K3S_PRIVATE_ADDRESS" ]]; then
             error "K3S_API_VIP must be an unused address inside $K3S_NODE_NETWORK_CIDR."
+        fi
         export K3S_API_VIP
     fi
 fi

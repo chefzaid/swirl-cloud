@@ -371,6 +371,7 @@ The installation report was not emailed; ./install.sh --status prints it again.	
 Choose a valid SIZING_PROFILE.	Choisissez un SIZING_PROFILE valide.
 Sizing profile: $SIZING_PROFILE ($sizing_reason).	Profil de dimensionnement : $SIZING_PROFILE ($sizing_reason).
 The sizing profile would shrink volumes; keep the larger profile.	Le profil de dimensionnement réduirait des volumes ; gardez le profil le plus grand.
+The sizing profile does not fit after one server fails; choose a smaller profile or add capacity.	Le profil de dimensionnement ne tient plus après la panne d'un serveur ; choisissez un profil plus petit ou ajoutez de la capacité.
 Could not record the sizing profile on the platform Argo CD Application.	Impossible d'enregistrer le profil de dimensionnement dans l'Application Argo CD de la plateforme.
 Recorded sizing profile $SIZING_PROFILE on the platform Argo CD Application.	Profil de dimensionnement $SIZING_PROFILE enregistré dans l'Application Argo CD de la plateforme.
 Cannot read the pods per node of sizing profile $SIZING_PROFILE.	Impossible de lire le nombre de pods par nœud du profil de dimensionnement $SIZING_PROFILE.

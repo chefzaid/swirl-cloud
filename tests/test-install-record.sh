@@ -68,7 +68,7 @@ done
 # Under root's 0700 /var/lib/swirl-cloud the user cannot reach its own record;
 # events then go through passwordless sudo.
 INSTALL_RECORD_FILE="$WORK/unreachable/run.jsonl"
-# shellcheck disable=SC2329  # called by install_record_event
+# shellcheck disable=SC2329,SC2317  # called by install_record_event
 sudo() { [[ "$*" == "-n tee -a $INSTALL_RECORD_FILE" ]] && cat >> "$WORK/through-sudo.jsonl"; }
 install_record_step 'Through sudo' 2>/dev/null || fail 'An unreachable record stops the installer'
 grep -q '"name": "Through sudo"' "$WORK/through-sudo.jsonl" 2>/dev/null || \

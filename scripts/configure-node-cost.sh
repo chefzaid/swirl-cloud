@@ -60,8 +60,10 @@ esac
 [[ "$monthly_cost" =~ $AMOUNT ]] || error "--monthly-cost must be an amount such as 89 or 89.90."
 currency="${currency^^}"
 [[ "$currency" =~ ^[A-Z]{3}$ ]] || error "--currency must be a three-letter ISO 4217 code such as EUR."
-[[ "$price_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && priced="$(date -u -d "$price_date" +%s 2>/dev/null)" && \
-  [[ "$(date -u -d "@$priced" +%Y-%m-%d)" == "$price_date" ]] || error "--price-date must be a date such as 2026-10-26."
+if ! [[ "$price_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! priced="$(date -u -d "$price_date" +%s 2>/dev/null)" || \
+    [[ "$(date -u -d "@$priced" +%Y-%m-%d)" != "$price_date" ]]; then
+  error "--price-date must be a date such as 2026-10-26."
+fi
 (( priced <= $(date -u +%s) )) || error "--price-date cannot be in the future."
 [[ "$price_source" =~ $SOURCE ]] || \
   error "--price-source must be up to 120 letters, digits, spaces or ._:/@()+,- characters, for example \"Hetzner AX52 order\"."
