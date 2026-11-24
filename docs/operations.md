@@ -773,6 +773,14 @@ given) and with the times in their own time zone. It disappears when it ends;
 adding a notice removes those that have ended. Notices live in the ConfigMap
 `infra/portal-notices`, not in Git, and reach the page within about a minute.
 
+`--email` also sends the notice, in English and French, to the people who can
+open the service: its access group in
+[`portal-access.json`](../k8s/files/portal-access.json), everyone in the realm for
+a service open to all staff or for `*`, and the platform administrators. It goes
+through the [platform mail relay](guides/platform-mail.md) as one message with the
+recipients in Bcc; when the relay is not configured or refuses the message, the
+notice is not saved, so a notice is never shown as sent when it was not.
+
 ### Image updates
 
 Platform images are pinned by digest in their owning manifests and Helm values;

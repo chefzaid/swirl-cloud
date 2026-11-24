@@ -3,6 +3,7 @@
 
   portal-notice.py add --service GitLab --from 2026-11-20T22:00 --until 2026-11-20T23:00 \\
       --en "Upgrade to GitLab 19.4; GitLab is unavailable." [--fr "Mise à jour vers GitLab 19.4 ; GitLab est indisponible."]
+      [--email]
   portal-notice.py list
   portal-notice.py remove ID
 
@@ -11,18 +12,45 @@ The portal shows it from now until it ends, to the people who can open that
 service and to administrators, in English or French by their browser, with the
 times in their own time zone; it disappears by itself when it ends. Times
 without a zone are UTC. Notices live in the ConfigMap infra/portal-notices
-(not in Git), and adding one removes those that have ended.
+(not in Git), and adding one removes those that have ended. --email also
+sends the notice to the people who can open the service (its access group in
+portal-access.json, everyone in the realm for an open service or *, and the
+platform administrators), in one message with the recipients in Bcc, through
+the platform mail relay.
 """
 import argparse
+import base64
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
+from email.utils import formataddr
 import json
+from pathlib import Path
 import subprocess
 import sys
 import uuid
 
 import yaml
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts/lib"))
+import platform_mail  # noqa: E402
+
 NAMESPACE, NAME = "infra", "portal-notices"
+ADMINISTRATORS = "platform-admins"
+MEMBERS = r'''
+set -eu
+kc=/opt/keycloak/bin/kcadm.sh
+cfg="/tmp/swirl-cloud-notice.$$.cfg"
+trap 'rm -f "$cfg"' EXIT
+$kc config credentials --config "$cfg" --server http://localhost:8080/auth --realm master \
+  --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" >/dev/null 2>&1
+for group in "$@"; do
+  [ "$group" = "*" ] && { $kc get users -r "$REALM" --config "$cfg" -q enabled=true -q max=10000 --fields email,enabled; continue; }
+  id="$($kc get groups -r "$REALM" --config "$cfg" -q search="$group" -q exact=true --fields id,name --format csv --noquotes \
+    | awk -F, -v name="$group" '$2 == name {print $1; exit}')"
+  [ -n "$id" ] && $kc get "groups/$id/members" -r "$REALM" --config "$cfg" -q max=10000 --fields email,enabled
+done
+'''
 MAX_TEXT = 300
 MAX_DAYS = 31
 
@@ -57,6 +85,58 @@ def services():
     return {name for group in groups for entries in group.values() for entry in entries or [] for name in entry}
 
 
+def audience(service):
+    """The Keycloak groups whose members may open service, '*' meaning everyone."""
+    rules = json.loads((ROOT / "k8s/files/portal-access.json").read_text())
+    if service == "*" or service in rules.get("open", []):
+        return ["*"]
+    group = rules.get("groups", {}).get(service)
+    return [group, ADMINISTRATORS] if group else [ADMINISTRATORS]
+
+
+def recipients(groups):
+    realm = json.loads(kubectl("-n", NAMESPACE, "get", "configmap", "swirl-cloud-identity", "-o", "json").stdout)["data"]["KEYCLOAK_REALM"]
+    script = f"REALM={json.dumps(realm)}\n" + MEMBERS
+    out = kubectl("-n", NAMESPACE, "exec", "-i", "deploy/keycloak", "--", "sh", "-s", "--", *groups, stdin=script).stdout
+    found = set()
+    decoder, position = json.JSONDecoder(), 0
+    while position < len(out):
+        while position < len(out) and out[position].isspace():
+            position += 1
+        if position >= len(out):
+            break
+        block, position = decoder.raw_decode(out, position)
+        found |= {user["email"].strip().lower() for user in block if user.get("email") and user.get("enabled", True)}
+    return sorted(found)
+
+
+def mail_settings():
+    data = json.loads(kubectl("-n", NAMESPACE, "get", "secret", "platform-mail", "-o", "json").stdout).get("data", {})
+    value = {key: base64.b64decode(item).decode() for key, item in data.items()}
+    if value.get("PLATFORM_MAIL_ENABLED") != "true":
+        raise SystemExit("Platform mail is not configured (docs/guides/platform-mail.md); the notice is on the portal only.")
+    relay = {"host": value["PLATFORM_MAIL_HOST"], "port": value["PLATFORM_MAIL_PORT"], "tls": value.get("PLATFORM_MAIL_TLS", "ssl"),
+             "username": value["PLATFORM_MAIL_USERNAME"], "sender": value["PLATFORM_MAIL_FROM"],
+             "name": value.get("PLATFORM_MAIL_FROM_NAME", "")}
+    return relay, value["PLATFORM_MAIL_PASSWORD"]
+
+
+def message(notice, relay, to):
+    service = "the platform" if notice["service"] == "*" else notice["service"]
+    when = f"{notice['starts'][:16].replace('T', ' ')} - {notice['ends'][:16].replace('T', ' ')} UTC"
+    mail = EmailMessage()
+    mail["Subject"] = f"{'Platform' if notice['service'] == '*' else notice['service']}: {notice['en'][:80]}"
+    mail["From"] = formataddr((relay["name"], relay["sender"])) if relay["name"] else relay["sender"]
+    mail["To"] = relay["sender"]
+    mail["Bcc"] = ", ".join(to)
+    body = [f"{service}, {when}:", "", notice["en"]]
+    if notice.get("fr"):
+        body += ["", "---", "", f"{'La plateforme' if notice['service'] == '*' else notice['service']}, {when} :", "", notice["fr"]]
+    body += ["", "This notice is also on the portal until it ends."]
+    mail.set_content("\n".join(body))
+    return mail
+
+
 def moment(text, label):
     try:
         value = datetime.fromisoformat(text.replace(" ", "T"))
@@ -81,6 +161,7 @@ def main():
     add.add_argument("--until", dest="ends", required=True)
     add.add_argument("--en", required=True)
     add.add_argument("--fr", default="")
+    add.add_argument("--email", action="store_true", help="also email the people who can open the service")
     commands.add_parser("list")
     remove = commands.add_parser("remove")
     remove.add_argument("id")
@@ -100,8 +181,19 @@ def main():
                   "en": check_text("--en", args.en)}
         if args.fr:
             notice["fr"] = check_text("--fr", args.fr)
+        if args.email:
+            relay, password = mail_settings()
+            to = recipients(audience(args.service))
+            if not to:
+                raise SystemExit(f"Nobody who can open {args.service} has an email address; the notice was not saved.")
+            try:
+                platform_mail.send(relay, password, message(notice, relay, to))
+            except platform_mail.MailError as error:
+                raise SystemExit(f"Not emailed: {error}. The notice was not saved; fix the relay or add it without --email.")
+            notice["emailed"] = len(to)
         save([n for n in notices if datetime.fromisoformat(n["ends"]) > now] + [notice])
-        print(f"Notice {notice['id']} for {args.service} shows until {ends:%Y-%m-%d %H:%M} UTC.")
+        print(f"Notice {notice['id']} for {args.service} shows until {ends:%Y-%m-%d %H:%M} UTC"
+              + (f"; emailed to {notice['emailed']} people." if args.email else "."))
     elif args.command == "remove":
         if not any(n["id"] == args.id for n in notices):
             raise SystemExit(f"No notice {args.id} (portal-notice list).")

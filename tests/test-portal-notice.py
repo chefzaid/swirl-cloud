@@ -73,5 +73,41 @@ class PortalNotice(unittest.TestCase):
         self.assertNotEqual(self.notice("remove", "nope").returncode, 0)
 
 
+class NoticeEmail(unittest.TestCase):
+    def setUp(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("notice", ROOT / "scripts/portal-notice.py")
+        self.notice = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.notice)
+
+    def test_audience_follows_the_portal_rules(self):
+        rules = json.loads((ROOT / "k8s/files/portal-access.json").read_text())
+        self.assertEqual(["*"], self.notice.audience("*"))
+        self.assertEqual(["*"], self.notice.audience(rules["open"][0]))
+        service, group = next(iter(rules["groups"].items()))
+        self.assertEqual([group, "platform-admins"], self.notice.audience(service))
+        self.assertEqual(["platform-admins"], self.notice.audience("Kibana"))
+
+    def test_recipients_merge_groups_and_skip_disabled_accounts(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        answers = [SimpleNamespace(stdout=json.dumps({"data": {"KEYCLOAK_REALM": "staff"}})),
+                   SimpleNamespace(stdout='[ {"email": "Ada@Example.com", "enabled": true}, {"email": "old@example.com", "enabled": false} ]\n'
+                                          '[ {"email": "ada@example.com"}, {"email": "bob@example.com", "enabled": true}, {"enabled": true} ]')]
+        with mock.patch.object(self.notice, "kubectl", side_effect=answers) as call:
+            self.assertEqual(["ada@example.com", "bob@example.com"], self.notice.recipients(["access-grafana", "platform-admins"]))
+        self.assertIn("access-grafana", call.call_args_list[1].args)
+
+    def test_message_keeps_recipients_in_bcc(self):
+        relay = {"sender": "noreply@example.com", "name": "Platform"}
+        notice = {"service": "GitLab", "starts": "2026-11-20T22:00:00+00:00", "ends": "2026-11-20T23:00:00+00:00",
+                  "en": "GitLab upgrade", "fr": "Mise à jour de GitLab"}
+        mail = self.notice.message(notice, relay, ["ada@example.com", "bob@example.com"])
+        self.assertEqual("noreply@example.com", mail["To"])
+        self.assertEqual("ada@example.com, bob@example.com", mail["Bcc"])
+        self.assertIn("2026-11-20 22:00 - 2026-11-20 23:00 UTC", mail.get_content())
+        self.assertIn("Mise à jour de GitLab", mail.get_content())
+
+
 if __name__ == "__main__":
     unittest.main()
