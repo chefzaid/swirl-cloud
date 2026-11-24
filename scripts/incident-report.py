@@ -255,6 +255,39 @@ def render(title, start, end, aware, evidence):
     return "\n".join(lines) + "\n"
 
 
+def customer_notice(title, start, end, aware, evidence, ongoing):
+    """The notice to affected customers, in English then French, with the known facts filled in."""
+    availability = evidence.get("availability", {})
+    affected = sorted(endpoint for endpoint, ratio in availability.items() if ratio is not None and ratio < 0.999)
+    services = ", ".join(affected) or "[services affected]"
+    window = f"started on {fmt(start)} and is still in progress" if ongoing else f"lasted from {fmt(start)} to {fmt(end)}"
+    fenetre = f"a commencé le {fmt(start)} et n'est pas encore résolu" if ongoing else f"a duré du {fmt(start)} au {fmt(end)}"
+    return "\n".join([
+        f"# Customer notice: {title}", "",
+        "Send this to the affected customers' security contacts through the channel the contract names. Complete the",
+        "bracketed parts, remove those that do not apply, and keep the sent version with the incident.", "",
+        "## English", "",
+        f"Subject: Security incident affecting {services}", "",
+        f"We are writing to inform you of an incident affecting {services}. It {window}; we became aware of it"
+        f" on {fmt(aware)}.", "",
+        "What happened: [plain description, without details that would help an attacker].",
+        "Impact for you: [availability, data concerned, whether personal data is involved].",
+        "What we have done: [containment and fixes].",
+        "What you should do: [actions for the customer, such as changing a password or updating an agent, or none].",
+        "Next update: [date and time, or when the incident is resolved].", "",
+        "Contact: [security contact and reference].", "",
+        "## Français", "",
+        f"Objet : Incident de sécurité affectant {services}", "",
+        f"Nous vous informons d'un incident affectant {services}. Il {fenetre} ; nous en avons eu"
+        f" connaissance le {fmt(aware)}.", "",
+        "Ce qui s'est passé : [description simple, sans détail utile à un attaquant].",
+        "Conséquences pour vous : [disponibilité, données concernées, présence de données personnelles].",
+        "Ce que nous avons fait : [mesures de confinement et corrections].",
+        "Ce que vous devez faire : [actions pour le client, par exemple changer un mot de passe ou mettre à jour un agent, ou aucune].",
+        "Prochaine information : [date et heure, ou à la résolution de l'incident].", "",
+        "Contact : [contact sécurité et référence].", ""])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--start", required=True, help="incident start, ISO 8601 (UTC if no offset)")
@@ -262,6 +295,7 @@ def main():
     parser.add_argument("--aware", help="when the organization became aware; reporting clocks start here (default: start)")
     parser.add_argument("--title", default="incident")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    parser.add_argument("--customer", action="store_true", help="write the English and French notice to affected customers instead")
     args = parser.parse_args()
     start = parse_time(args.start)
     end = parse_time(args.end) if args.end else datetime.now(timezone.utc).replace(microsecond=0)
@@ -269,7 +303,9 @@ def main():
     if end <= start:
         parser.error("--end must be after --start")
     evidence = collect(start, end)
-    if args.format == "json":
+    if args.customer:
+        print(customer_notice(args.title, start, end, aware, evidence, ongoing=not args.end), end="")
+    elif args.format == "json":
         print(json.dumps(evidence, indent=2, default=lambda value: value.isoformat()))
     else:
         print(render(args.title, start, end, aware, evidence), end="")
