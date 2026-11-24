@@ -66,6 +66,7 @@ bash tests/test-admin-credentials.sh
 bash tests/test-cloudflare-origin.sh
 bash tests/test-cloudflare-api.sh
 bash tests/test-cloudflare-access.sh
+bash tests/test-gitlab-admin-token.sh
 for suite in test-postgres-ha.py test-kafka-ha.py test-vault-unseal.py test-vault-ha.py test-node-fencing.py \
              test-application-clusters.py test-application-data.py test-environment-onboarding.py test-install-inputs.py \
              test-odoo-website.py test-platform-mail.py test-outage-watch.py test-asset-inventory.py test-sonar-admin.py test-sizing.py \
