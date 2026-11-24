@@ -120,7 +120,7 @@ spec:
         # clamd starts only with a complete signature set (main, daily and bytecode):
         # the image's own set, then the mirror's differences since.
         - name: signatures
-          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          image: docker.io/clamav/clamav:1.5.5@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614
           command: ["sh", "/etc/clamav-config/signatures.sh"]
           resources:
             requests:
@@ -146,7 +146,7 @@ spec:
               subPath: freshclam
       containers:
         - name: clamd
-          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          image: docker.io/clamav/clamav:1.5.5@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614
           command: ["clamd", "--foreground", "--config-file=/etc/clamav-config/clamd.conf"]
           ports:
             - name: clamd
@@ -191,7 +191,7 @@ spec:
             - name: scratch
               mountPath: /tmp
         - name: freshclam
-          image: docker.io/clamav/clamav:1.5.4@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
+          image: docker.io/clamav/clamav:1.5.5@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614
           command: ["freshclam", "--daemon", "--foreground", "--stdout", "--config-file=/etc/clamav-config/freshclam.conf",
                     "--daemon-notify=/etc/clamav-config/clamd-local.conf"]
           resources:

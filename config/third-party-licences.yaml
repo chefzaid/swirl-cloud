@@ -100,11 +100,11 @@ components:
     source: https://github.com/cloudflare/cloudflared
     maintainer: Cloudflare, Inc.
     jurisdiction: United States
-    end_of_life: "2027-09-24"
+    end_of_life: "2027-11-23"
     support_source: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
     customer_use: allowed
     obligations: Keep the licence text and any NOTICE file in copies.
-    notes: Each release is supported for one year from its release date; 2026.9.3 was released on 2026-09-24.
+    notes: Each release is supported for one year from its release date; 2026.11.2 was released on 2026-11-23.
   - name: docker.io/confluentinc/cp-kafka
     licence: Apache-2.0
     source: https://github.com/confluentinc/kafka-images

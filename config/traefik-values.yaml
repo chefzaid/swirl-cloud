@@ -8,8 +8,8 @@ global:
 image:
   registry: docker.io
   repository: library/traefik
-  tag: v3.7.19
-  digest: sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f41cf
+  tag: v3.7.20
+  digest: sha256:f454571dee2afa1fc77287d811e92ce3c4353e82802116b0622a3665322b63aa
 deployment:
   replicas: 1
 ingressClass:

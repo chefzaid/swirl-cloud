@@ -190,7 +190,7 @@ spec:
             - {name: config, mountPath: /zammad-config, readOnly: true}
             - {name: tmp, mountPath: /tmp}
         - name: migrate
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["sh", "/zammad-config/run.sh", "bash", "/zammad-config/migrate.sh"]
           env:
             - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
@@ -212,7 +212,7 @@ spec:
             - {name: tmp, mountPath: /tmp}
             - {name: tmp, mountPath: /opt/zammad/tmp}
         - name: settings
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["sh", "/zammad-config/run.sh", "bash", "/zammad-config/settings.sh"]
           env:
             - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
@@ -242,7 +242,7 @@ spec:
           volumeMounts: *mounts
       containers:
         - name: railsserver
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "puma", "-b", "tcp://[::]:3000", "-w", "0", "-e", "production"]
           env: &running
             - {name: POSTGRESQL_HOST, value: postgres.__INTERNAL_DNS_ZONE__}
@@ -277,7 +277,7 @@ spec:
             limits: {cpu: "2", memory: 2Gi}
           volumeMounts: *mounts
         - name: websocket
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "script/websocket-server.rb", "-b", "::", "-p", "6042", "start"]
           env: *running
           ports:
@@ -298,7 +298,7 @@ spec:
             limits: {cpu: 500m, memory: 768Mi}
           volumeMounts: *mounts
         - name: scheduler
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["sh", "/zammad-config/run.sh", "bundle", "exec", "script/background-worker.rb", "start"]
           env: *running
           securityContext: *container
@@ -307,7 +307,7 @@ spec:
             limits: {cpu: "1", memory: 1536Mi}
           volumeMounts: *mounts
         - name: nginx
-          image: ghcr.io/zammad/zammad:7.2.3-0000@sha256:0aa8ea67e553a34187b9c80d5eab201eb9d3774a30c0ad22a83f22f1037ac100
+          image: ghcr.io/zammad/zammad:7.2.3-0020@sha256:b1fccf804143727a43507ebec3c9504bcbe02234de4f61e48f4514251e41ef75
           command: ["/usr/sbin/nginx", "-g", "daemon off;"]
           ports:
             - {name: http, containerPort: 8080}

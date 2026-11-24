@@ -171,7 +171,7 @@ spec:
       - name: gitlab
         securityContext:
           allowPrivilegeEscalation: false
-        image: docker.io/gitlab/gitlab-ce:19.5.6-ce.0@sha256:0f93f5fdb28a5ae0f2713ef5d40d9438615b8b21a42841a2fe7bd56813934e0b
+        image: docker.io/gitlab/gitlab-ce:19.5.8-ce.0@sha256:7e755e448fa5fa74615fa22b9ffd9c08e19fe5f1de51e65fe14c2a3ce1a701a0
         env:
         - name: KEYCLOAK_CLIENT_SECRET
           valueFrom:
