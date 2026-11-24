@@ -26,6 +26,7 @@
 #   ./install.sh --keycloak-keys status|rotate|retire  rotate Keycloak's realm signing keys without signing anyone out
 #   ./install.sh --notice add|list|remove  maintenance and incident notices on the portal, for the service's users
 #   ./install.sh --data-subject export --subject EMAIL | list  one person's data for a GDPR access request
+#   ./install.sh --acceptance --customer NAME [--output FILE]  signed acceptance record of a vendor-assisted install
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)
@@ -185,6 +186,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/data-subject.py" "$@"
+        ;;
+    --acceptance)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/acceptance-record.py" "$@"
         ;;
     -h|--help)
         usage
