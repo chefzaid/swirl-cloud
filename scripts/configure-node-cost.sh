@@ -77,11 +77,15 @@ if [[ ${#shared[@]} -gt 0 ]]; then
   metrics+="# HELP swirl_cloud_shared_monthly_cost Monthly platform cost not tied to one server.
 # TYPE swirl_cloud_shared_monthly_cost gauge
 "
+  declare -A seen_items=()
   for entry in "${shared[@]}"; do
     item="${entry%%=*}"
     amount="${entry#*=}"
     [[ "$entry" == *=* && "$item" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || \
       error "--shared must be ITEM=AMOUNT with a lowercase item name, for example backup-storage=12.50."
+    # A repeated item would write the same series twice, which node-exporter rejects.
+    [[ -z "${seen_items[$item]:-}" ]] || error "--shared $item is given twice; give each item once."
+    seen_items[$item]=1
     [[ "$amount" =~ $AMOUNT ]] || error "--shared $item: the amount must look like 12 or 12.50."
     metrics+="swirl_cloud_shared_monthly_cost{currency=\"$currency\",item=\"$item\"} $amount
 "
