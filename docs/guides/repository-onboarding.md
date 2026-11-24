@@ -134,6 +134,35 @@ Onboarding does not add nodes or enable [HA](high-availability.md). The shared
 `apps` foundation exists even when Odoo is disabled. For hostname changes and
 direct/Tunnel routing see [application DNS ownership](../dns.md#application-dns-ownership).
 
+## Security checks
+
+Application pipelines include the platform's security checks
+([`ci/security.gitlab-ci.yml`](../../ci/security.gitlab-ci.yml)):
+
+```yaml
+include:
+  - project: <group>/swirl-cloud
+    ref: main
+    file: ci/security.gitlab-ci.yml
+
+variables:
+  SWIRL_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA   # the image the pipeline pushed
+```
+
+- `swirl-secret-detection` looks for secrets committed to the repository on
+  every push and merge request, and fails on one.
+- `swirl-dependency-scan` scans the dependencies for fixable Critical and High
+  vulnerabilities against the platform's Trivy server.
+- `swirl-image-scan` scans `SWIRL_IMAGE` the same way and stores its SBOM
+  (`sbom.cdx.json`, CycloneDX) as an artifact kept 400 days.
+
+Both scans report without failing the pipeline until `SWIRL_SECURITY_ENFORCE` is
+set to `true`, once they have run clean for a month; a fixable Critical
+vulnerability then stops the pipeline before the image reaches `prod`. The
+person who starts a pipeline needs read access to the platform project for the
+include; otherwise copy the file into the application's repository and update it
+with each platform release.
+
 ## Automation and reruns
 
 `--yes` never prompts. Supply `DEPLOY_REPOSITORIES=all`, `none` or a comma-separated

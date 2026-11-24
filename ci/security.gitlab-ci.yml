@@ -1,0 +1,72 @@
+# Security checks for onboarded application pipelines (TODO §46), against the
+# platform's Trivy server so no vulnerability database is downloaded per job.
+# Include it from the application's .gitlab-ci.yml:
+#
+#   include:
+#     - project: <group>/swirl-cloud
+#       ref: main
+#       file: ci/security.gitlab-ci.yml
+#
+# and set SWIRL_IMAGE to the image a job of the pipeline pushed, for the image
+# scan and its SBOM. Findings report only (allow_failure) until the reports have
+# run clean for a month; then set SWIRL_SECURITY_ENFORCE to "true" to fail on a
+# fixable critical vulnerability. Secret detection always fails the job.
+# Guide: docs/guides/repository-onboarding.md#security-checks.
+variables:
+  SWIRL_TRIVY_SERVER: http://trivy-service.infra.svc.cluster.local:4954
+  SWIRL_SECURITY_ENFORCE: "false"
+
+.swirl-trivy:
+  image:
+    name: docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+    entrypoint: [""]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_SKIP_VERSION_CHECK: "true"
+    TRIVY_DISABLE_TELEMETRY: "true"
+    TRIVY_CACHE_DIR: .trivy-cache
+
+swirl-secret-detection:
+  extends: .swirl-trivy
+  stage: test
+  script:
+    # Secrets committed to the repository, in every pipeline of a push or merge request.
+    - trivy fs --scanners secret --exit-code 1 .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"
+
+swirl-dependency-scan:
+  extends: .swirl-trivy
+  stage: test
+  script:
+    - trivy fs --server "$SWIRL_TRIVY_SERVER" --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --format json --output dependency-scan.json .
+    # The log shows the findings; when enforced, a fixable critical one fails the job.
+    - |
+      if [ "$SWIRL_SECURITY_ENFORCE" = true ]; then exit_code=1; else exit_code=0; fi
+      trivy fs --server "$SWIRL_TRIVY_SERVER" --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code "$exit_code" .
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [dependency-scan.json]
+  allow_failure: true
+
+swirl-image-scan:
+  extends: .swirl-trivy
+  stage: test
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    # The SBOM is kept with each image's pipeline; the scan reports, and blocks only when enforced.
+    - trivy image --server "$SWIRL_TRIVY_SERVER" --format cyclonedx --output sbom.cdx.json "$SWIRL_IMAGE"
+    - trivy image --server "$SWIRL_TRIVY_SERVER" --severity CRITICAL,HIGH --ignore-unfixed --format json --output image-scan.json "$SWIRL_IMAGE"
+    - |
+      if [ "$SWIRL_SECURITY_ENFORCE" = true ]; then exit_code=1; else exit_code=0; fi
+      trivy image --server "$SWIRL_TRIVY_SERVER" --severity CRITICAL --ignore-unfixed --exit-code "$exit_code" "$SWIRL_IMAGE"
+  artifacts:
+    when: always
+    expire_in: 400 days
+    paths: [sbom.cdx.json, image-scan.json]
+  allow_failure: true
+  rules:
+    - if: $SWIRL_IMAGE
