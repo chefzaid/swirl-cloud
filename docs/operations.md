@@ -756,6 +756,11 @@ enrollment).
 
 ## Maintenance
 
+This installation has no fixed maintenance window (owner's decision,
+2026-11-25): disruptive host work (reboots, K3s, Vault or Traefik restarts) runs
+when it is needed. Announce it with a notice when people will notice, and declare
+it with `--maintenance` so the monthly service report leaves those hours out.
+
 ### Notices to the people affected
 
 Before a maintenance window, or during an incident, tell the people who use the
