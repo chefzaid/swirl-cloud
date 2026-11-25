@@ -690,6 +690,15 @@ a new kit exists. See the
 [operator recovery checklist](operations.md#operator-recovery-checklist) and
 [restore procedure](operations.md#restore-after-losing-the-host).
 
+**Accepted risk (owner's decision, 2026-11-25):** the Vault unseal key and the
+standing root token stay on the control plane, beside the data, so reboots stay
+unattended; anyone with root on the host, or a copy of a local backup archive
+made without `--separate-archives`, can unseal Vault and act as its root. The
+alternatives considered were revoking the standing root token (generating a
+short-lived one with `vault operator generate-root` when needed), auto-unseal
+through a KMS or Transit outside the cluster, and manual unseal after every
+reboot. Review this when the platform serves customers or a second site exists.
+
 ## Rotate local administrator passwords
 
 The installer's rotation step, off by default, sets one password for the local

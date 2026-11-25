@@ -71,8 +71,6 @@ passes (owner's decision, 2026-11-25).
 
 - [ ] Export the recovery kit off the host: run `scripts/export-recovery-kit.sh --separate-archives` (or `./install.sh`, then Maintenance) on swirl-node-01, store the kit and its passphrase in two separate off-host places, delete the local copy, check it with `--verify FILE`, and give the date here. *(task: §9 and §16 › Vault recovery keys, P0; asked by: Infra Agent)*
   - Answer:
-- [ ] How should Vault unseal and the root token work from now on? Options: (a) keep the host-local unseal key for unattended reboots, revoke the standing root token and generate a short-lived one with `vault operator generate-root` when needed; (b) auto-unseal through a KMS or Transit outside this cluster (new dependency and cost); (c) manual unseal after every reboot with no key on the host; (d) keep today's model and record the accepted risk. *(task: §16 › Separate recovery keys, P0; asked by: Infra Agent)*
-  - Answer:
 - [ ] Which SSH policy should internet-facing control planes use? Options: (a) key-only on public port 22, applied only after the script proves every allowed account has keys and the current session used one; (b) key-only and port 22 on `tailscale0` only, with the provider console as break-glass; (c) keep password login and accept the exposure behind Fail2ban and CrowdSec. Please also confirm that a console login to swirl-node-01 works, since (a) and (b) depend on it. *(task: §4 › Key-only SSH, P1; asked by: Infra Agent)*
   - Answer:
 - [ ] Which maintenance window should disruptive work use (host reboots, K3s, Vault or Traefik restarts, and `k8s/` pushes that restart services)? Options: (a) a weekly slot, for example Sunday 05:00–07:00 UTC; (b) a monthly slot; (c) ad hoc, with your approval each time. *(task: §4 › Maintenance windows, P1; asked by: Infra Agent)*
@@ -313,7 +311,7 @@ passes (owner's decision, 2026-11-25).
 - [x] HA overlay: three Raft voters, guarded singleton migration (`configure-vault-ha.sh --verify`).
 - [x] Local administrator password rotation (`rotate-local-admin-passwords.sh`), persisted in Vault.
 - [x] Vault telemetry scraped; `VaultSealed` and `VaultAuditDeviceFailing` alerts. *(live)*
-- [ ] The unseal key and the root/bootstrap token sit on the same host as the data, and both are copied into every local backup archive (see §16).
+- [x] The unseal key and the root/bootstrap token sit on the same host as the data, and both are copied into every local backup archive (see §16). *Accepted risk, owner's decision 2026-11-25:* kept for unattended reboots ([recovery kit](docs/security.md#recovery-kit)); `--separate-archives` keeps them out of nightly archives once the kit is exported.
 - [ ] Vault HA has never been exercised (single node).
 
 ### 10. Data stores
