@@ -65,8 +65,9 @@ needing input waits here; the rest of the task keeps moving. Answer under the
 item, and the next agent run applies the answer and removes the entry.
 
 Changes under `k8s/` deploy to the live cluster as soon as they reach `main`
-(the root Argo CD Application syncs automatically), so agents prepare each such
-change and ask the owner before pushing it.
+(the root Argo CD Application syncs automatically). Agents push them without
+asking once the full validation (Helm rendering of every profile included)
+passes (owner's decision, 2026-11-25).
 
 - [ ] Export the recovery kit off the host: run `scripts/export-recovery-kit.sh --separate-archives` (or `./install.sh`, then Maintenance) on swirl-node-01, store the kit and its passphrase in two separate off-host places, delete the local copy, check it with `--verify FILE`, and give the date here. *(task: §9 and §16 › Vault recovery keys, P0; asked by: Infra Agent)*
   - Answer:
