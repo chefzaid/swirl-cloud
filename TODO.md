@@ -71,8 +71,6 @@ passes (owner's decision, 2026-11-25).
 
 - [ ] Export the recovery kit off the host: run `scripts/export-recovery-kit.sh --separate-archives` (or `./install.sh`, then Maintenance) on swirl-node-01, store the kit and its passphrase in two separate off-host places, delete the local copy, check it with `--verify FILE`, and give the date here. *(task: §9 and §16 › Vault recovery keys, P0; asked by: Infra Agent)*
   - Answer:
-- [ ] Which SSH policy should internet-facing control planes use? Options: (a) key-only on public port 22, applied only after the script proves every allowed account has keys and the current session used one; (b) key-only and port 22 on `tailscale0` only, with the provider console as break-glass; (c) keep password login and accept the exposure behind Fail2ban and CrowdSec. Please also confirm that a console login to swirl-node-01 works, since (a) and (b) depend on it. *(task: §4 › Key-only SSH, P1; asked by: Infra Agent)*
-  - Answer:
 - [ ] Which maintenance window should disruptive work use (host reboots, K3s, Vault or Traefik restarts, and `k8s/` pushes that restart services)? Options: (a) a weekly slot, for example Sunday 05:00–07:00 UTC; (b) a monthly slot; (c) ad hoc, with your approval each time. *(task: §4 › Maintenance windows, P1; asked by: Infra Agent)*
   - Answer:
 - [ ] How should Trivy's node-collector keep working once `infra` enforces Pod Security `baseline`? Options: (a) exempt its service account in a K3s PodSecurity admission configuration under `config/host` (a K3s restart of about 15 seconds in a window); (b) turn off infra assessment (no restart, but node CIS checks and part of the compliance evidence are lost); (c) move trivy-operator to its own privileged namespace, as ADR 0025 did for host agents (no restart, larger change). The `enforce: baseline` label then follows as a separately approved push. *(task: §6 › PSA on infra, P1; asked by: Infra Agent)*
@@ -222,7 +220,7 @@ passes (owner's decision, 2026-11-25).
 - [x] Enforced AppArmor profile for K3s containerd.
 - [x] Longhorn host prerequisites (open-iscsi, NFS client, multipath blacklist).
 - [x] Internet-only tools kept off workers.
-- [ ] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console.
+- [x] Internet-facing control planes keep `PasswordAuthentication yes` on a publicly reachable port 22 (live UFW shows Fail2ban banning many sources). Move to key-only authentication, or restrict SSH to the Tailscale interface plus an out-of-band console. *Accepted risk, owner's decision 2026-11-25:* password login stays, behind Fail2ban and CrowdSec ([host hardening](docs/security.md)).
 - [x] Only `swirl-cloud-lynis.timer` schedules Lynis (distro timer masked); runs export metrics, and `LynisAuditFailed`/`LynisAuditMissing` alert. *(live, 2026-10-04)*
 - [x] Unattended security updates (no automatic reboot); `NodeRebootRequired` alerts after seven days pending. *(live, 2026-10-04)*
 - [ ] Define maintenance windows. Verify recovery and console access before the single-node reboot; add quorum/PDB-aware reboot coordination after multi-host drills (§20, §25).

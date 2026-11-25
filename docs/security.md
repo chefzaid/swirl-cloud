@@ -80,7 +80,10 @@ ports are in [node enrollment](guides/node-enrollment.md#private-node-network).
 
 Internet-facing control planes keep password SSH, disable root SSH and limit
 authentication attempts and connection bursts. Fail2ban escalates repeat bans;
-CrowdSec also catches slow brute force and user enumeration. Follow
+CrowdSec also catches slow brute force and user enumeration. Password login on a
+public port 22 is an accepted risk (owner's decision, 2026-11-25); the
+alternatives were key-only on port 22, or key-only on `tailscale0` only with the
+provider console as break-glass. Follow
 [the private SSH preflight](guides/node-enrollment.md#private-node-network)
 before applying a node's firewall.
 
