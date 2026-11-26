@@ -13,7 +13,7 @@
 # fixable critical vulnerability. Secret detection always fails the job.
 # Guide: docs/guides/repository-onboarding.md#security-checks.
 variables:
-  SWIRL_TRIVY_SERVER: http://trivy-service.infra.svc.cluster.local:4954
+  SWIRL_TRIVY_SERVER: http://trivy-service.trivy-system.svc.cluster.local:4954
   SWIRL_SECURITY_ENFORCE: "false"
 
 .swirl-trivy:

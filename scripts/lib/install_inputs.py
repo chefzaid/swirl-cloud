@@ -262,7 +262,7 @@ INPUTS = (
     Input("LONGHORN_BACKUP_CRON", "Backups", "Daily Longhorn volume backup (cron, UTC)", default="15 3 * * *",
           pattern=re.compile(r"[0-9*/,-]+(?: [0-9*/,-]+){4}\Z"), when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS")),
     Input("LONGHORN_BACKUP_EXCLUDE", "Backups", "Volumes left out of the volume backup (namespace/claim, space-separated)",
-          default="gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0 infra/signatures-clamav-0 infra/signatures-clamav-1",
+          default="gitlab-runners/gitlab-runner-cache trivy-system/data-trivy-server-0 infra/signatures-clamav-0 infra/signatures-clamav-1",
           pattern=re.compile(r"(?:[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9.-]*(?: |\Z))*\Z"),
           when=lambda v: flag(v, "CONFIGURE_OFFSITE_BACKUPS"), help="Caches the cluster refills by itself."),
     # Email

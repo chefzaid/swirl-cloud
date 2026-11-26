@@ -194,7 +194,7 @@
     longhorn_backup_cron: "{{ lookup('ansible.builtin.env', 'LONGHORN_BACKUP_CRON') | default('15 3 * * *', true) }}"
     longhorn_backup_exclude: >-
       {{ lookup('ansible.builtin.env', 'LONGHORN_BACKUP_EXCLUDE')
-         | default('gitlab-runners/gitlab-runner-cache infra/data-trivy-server-0', true) }}
+         | default('gitlab-runners/gitlab-runner-cache trivy-system/data-trivy-server-0', true) }}
     gitlab_admin_token: "{{ lookup('ansible.builtin.env', 'GITLAB_ADMIN_TOKEN') }}"
     github_admin_token: "{{ lookup('ansible.builtin.env', 'GITHUB_ADMIN_TOKEN') }}"
     repository_sync_enabled: >-

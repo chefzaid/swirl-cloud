@@ -2,9 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: trivy-policy-data
-  namespace: infra
+  namespace: trivy-system
   annotations:
-    argocd.argoproj.io/sync-wave: "-5"
+    # Wave 0 with the chart's trivy-system Namespace, which Argo CD creates first.
+    argocd.argoproj.io/sync-wave: "0"
 data:
   registries.yaml: |
     # Explicit upstream publishers plus the platform's authenticated registry.

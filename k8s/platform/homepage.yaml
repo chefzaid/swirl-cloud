@@ -351,7 +351,7 @@ data:
             icon: trivy.png
             href: https://grafana.__PUBLIC_DOMAIN__/d/trivy-security/trivy-security-reports
             description: Cluster vulnerability, configuration, RBAC, secret, and compliance reports
-            namespace: infra
+            namespace: trivy-system
             podSelector: app.kubernetes.io/name=trivy-operator
         - Lynis:
             icon: ubuntu-linux.png

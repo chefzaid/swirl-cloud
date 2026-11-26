@@ -171,7 +171,10 @@ configuration, RBAC, exposed-secret, infrastructure and compliance reports
 (secret findings hold no values). For private application images, declare
 `imagePullSecrets` on the workload or ServiceAccount; the application owns them.
 In Trivy metrics, `exported_namespace` is the scanned workload's namespace;
-`namespace` is the operator pod's (`infra`), set by the scrape job.
+`namespace` is the operator pod's (`trivy-system`), set by the scrape job. The
+operator, its Trivy server and its scan jobs run in `trivy-system`, which has no
+Pod Security labels (the cluster default, `privileged`) for the node-collector jobs
+([ADR 0025](adr/0025-host-agent-namespace-and-infra-pod-security.md)).
 
 ```bash
 kubectl get vulnerabilityreports,configauditreports,exposedsecretreports -A

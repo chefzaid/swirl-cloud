@@ -37,8 +37,11 @@ configuration would need a server restart and are invisible in Git.
 
 New host-level agents must be added to `host-agents`, not `infra`. Trivy
 Operator always runs its node-collector (infra assessment) jobs in its own
-namespace with host PID and hostPath access; before enforcing `baseline` on
-`infra`, either exempt its service account in the K3s Pod Security admission
-configuration (a server restart) or disable infra assessment. Enforcement
+namespace with host PID and hostPath access. A K3s Pod Security exemption cannot
+cover them: admission sees the Job controller, not Trivy's service account, as
+the pods' creator. So Trivy Operator, its Trivy server and its jobs run in their
+own `trivy-system` namespace (addendum, 2026-11-25). The chart creates that
+namespace without Pod Security labels, so it runs at the cluster default,
+`privileged`; Argo CD alone applies Trivy, as the installer never did. Enforcement
 rejects new or restarted `infra` pods that need host access, so such workloads
 fail visibly instead of running with unreviewed privileges.

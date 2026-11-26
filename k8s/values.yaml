@@ -153,6 +153,10 @@ trivy-operator:
   # kinds are not scanned twice.
   targetWorkloads: "replicaset,statefulset,daemonset,cronjob,pod"
   operator:
+    # Its own namespace, so infra can enforce baseline (ADR 0025). The chart
+    # creates it without Pod Security labels, so it runs at the cluster default
+    # (privileged), which the node-collector's host PID and hostPath need.
+    namespace: trivy-system
     # Completed jobs count against the concurrency limit; delete them as soon
     # as their reports are stored.
     scanJobTTL: ""

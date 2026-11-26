@@ -114,7 +114,7 @@ spec:
           command: ["sh", "/opt/host-package-scan/scan.sh"]
           env:
             - name: TRIVY_SERVER
-              value: http://trivy-service.infra.svc.cluster.local:4954
+              value: http://trivy-service.trivy-system.svc.cluster.local:4954
             - name: TRIVY_SKIP_VERSION_CHECK
               value: "true"
             - name: TRIVY_DISABLE_TELEMETRY

@@ -428,7 +428,7 @@ kubectl get vulnerabilityreports -A -o json | jq -r '
 ```
 
 Before an upgrade, scan the candidate from a short-lived pod with small requests:
-`trivy image --server http://trivy-service.infra:4954 --severity CRITICAL <image>`.
+`trivy image --server http://trivy-service.trivy-system:4954 --severity CRITICAL <image>`.
 
 Triage of 2026-10-04 (critical only). Exceptions expire on 2026-11-04. Reachability
 is assessed from the advisory and how the platform runs the component, not

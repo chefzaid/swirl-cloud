@@ -86,11 +86,11 @@ verify:delivery-platform:
     - curl --fail --silent --show-error http://gitlab.infra.svc.cluster.local/-/readiness >/dev/null
     - curl --fail --silent --show-error http://prometheus.infra.svc.cluster.local:9090/-/ready >/dev/null
     - curl --fail --silent --show-error http://grafana.infra.svc.cluster.local:3000/api/health | jq -e '.database == "ok"' >/dev/null
-    - kubectl rollout status deployment/trivy-operator -n infra --timeout=300s
-    - kubectl rollout status statefulset/trivy-server -n infra --timeout=300s
+    - kubectl rollout status deployment/trivy-operator -n trivy-system --timeout=300s
+    - kubectl rollout status statefulset/trivy-server -n trivy-system --timeout=300s
     - kubectl get crd vulnerabilityreports.aquasecurity.github.io configauditreports.aquasecurity.github.io exposedsecretreports.aquasecurity.github.io >/dev/null
     - kubectl get configmap grafana-trivy-security-dashboard -n infra >/dev/null
-    - curl --fail --silent --show-error http://trivy-operator.infra.svc.cluster.local/metrics | grep '^trivy_' >/dev/null
+    - curl --fail --silent --show-error http://trivy-operator.trivy-system.svc.cluster.local/metrics | grep '^trivy_' >/dev/null
     - curl --fail --silent --show-error --user "$ELASTICSEARCH_CI_USERNAME:$ELASTICSEARCH_CI_PASSWORD" http://elasticsearch.infra.svc.cluster.local:9200/_cluster/health | jq -e '.status == "green" or .status == "yellow"' >/dev/null
     - test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://gitlab-registry.infra.svc.cluster.local:5050/v2/)" = "401"
     - kubectl get configmap grafana-gitlab-delivery-dashboard -n infra >/dev/null
@@ -101,7 +101,7 @@ verify:delivery-platform:
         jq -e '.status == "success" and (.data.result[0].value[1] | tonumber) == 1' >/dev/null
     - |
       curl --get --fail --silent --show-error \
-        --data-urlencode 'query=max(up{namespace="infra",pod=~"trivy-operator.*"})' \
+        --data-urlencode 'query=max(up{namespace="trivy-system",pod=~"trivy-operator.*"})' \
         http://prometheus.infra.svc.cluster.local:9090/api/v1/query |
         jq -e '.status == "success" and (.data.result[0].value[1] | tonumber) == 1' >/dev/null
     - |
@@ -191,7 +191,7 @@ report:platform-artifacts:
   script:
     - mkdir -p reports
     - trivy config --skip-check-update --exit-code 0 --severity CRITICAL,HIGH --output reports/vendored-charts.txt k8s/charts
-    - trivy image --server http://trivy-service.infra:4954 --scanners vuln --exit-code 0 --severity CRITICAL,HIGH --output reports/ci-image.txt "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
+    - trivy image --server http://trivy-service.trivy-system:4954 --scanners vuln --exit-code 0 --severity CRITICAL,HIGH --output reports/ci-image.txt "docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
     - cat reports/vendored-charts.txt reports/ci-image.txt
   artifacts:
     when: always

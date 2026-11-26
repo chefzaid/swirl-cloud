@@ -397,7 +397,7 @@ so new vulnerabilities in its packages, kernel or K3s go unseen; its last
 findings stay tracked for three days. Read the scan's log on that server:
 `kubectl -n host-agents logs -l app=host-package-scan --field-selector spec.nodeName=<node>`
 (pick the pod on `node` with `kubectl -n host-agents get pods -o wide`). The
-usual causes are the Trivy server (`kubectl -n infra get pods -l
+usual causes are the Trivy server (`kubectl -n trivy-system get pods -l
 app.kubernetes.io/name=trivy-server`) or a pod that cannot start on that server.
 Deleting the pod scans again at once.
 

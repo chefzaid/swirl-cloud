@@ -73,8 +73,11 @@ kind: Namespace
 metadata:
   name: infra
   labels:
-    # Audit and warn only; ADR 0025 lists what must change before baseline is
-    # enforced here.
+    # Baseline enforced since host agents (host-agents) and Trivy Operator
+    # (trivy-system) left; restricted audit and warnings guide further hardening
+    # (ADR 0025).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: v1.36
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/audit-version: v1.36
     pod-security.kubernetes.io/warn: restricted

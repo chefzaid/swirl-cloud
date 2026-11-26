@@ -81,7 +81,7 @@
       "title": "Trivy Metrics Target",
       "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "targets": [{"refId": "A", "expr": "max(up{namespace=\"infra\",pod=~\"trivy-operator.*\"}) or vector(0)", "instant": true}],
+      "targets": [{"refId": "A", "expr": "max(up{namespace=\"trivy-system\",pod=~\"trivy-operator.*\"}) or vector(0)", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "green", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "colorMode": "value", "graphMode": "none"}
     },
