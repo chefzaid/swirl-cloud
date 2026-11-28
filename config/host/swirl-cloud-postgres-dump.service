@@ -1,0 +1,24 @@
+[Unit]
+Description=Dump the platform PostgreSQL between the nightly recovery archives
+After=k3s.service
+Requires=k3s.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=HOME=/run/swirl-cloud-postgres-dump
+RuntimeDirectory=swirl-cloud-postgres-dump
+ExecStart=/usr/local/sbin/swirl-cloud-postgres-dump
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadOnlyPaths=/etc/rancher/k3s /etc/swirl-cloud /var/lib/rancher/k3s /var/lib/swirl-cloud
+ReadWritePaths=/var/backups/swirl-cloud/k3s /run/lock
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

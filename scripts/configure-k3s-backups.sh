@@ -127,11 +127,17 @@ sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-bac
 timer_file="$(mktemp)"
 sed "s|^OnCalendar=.*|OnCalendar=$on_calendar|" "$REPO_ROOT/config/host/swirl-cloud-k3s-backup.timer" > "$timer_file"
 sudo install -o root -g root -m 0644 "$timer_file" /etc/systemd/system/swirl-cloud-k3s-backup.timer
+# PostgreSQL every six hours between the nightly archives (recovery point 6 h).
+sudo install -o root -g root -m 0750 "$REPO_ROOT/scripts/backup-postgres.sh" /usr/local/sbin/swirl-cloud-postgres-dump
+for unit in swirl-cloud-postgres-dump.service swirl-cloud-postgres-dump.timer; do
+  sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/$unit" "/etc/systemd/system/$unit"
+done
 sudo install -o root -g root -m 0750 "$REPO_ROOT/scripts/verify-k3s-backup.sh" /usr/local/sbin/swirl-cloud-k3s-backup-verify
 sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup-verify.service" /etc/systemd/system/swirl-cloud-k3s-backup-verify.service
 sudo install -o root -g root -m 0644 "$REPO_ROOT/config/host/swirl-cloud-k3s-backup-verify.timer" /etc/systemd/system/swirl-cloud-k3s-backup-verify.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now swirl-cloud-k3s-backup.timer >/dev/null
+sudo systemctl enable --now swirl-cloud-postgres-dump.timer >/dev/null
 # The verification reads the off-node copy, so it runs only while backup.env
 # names a restic repository or the export that holds one.
 if sudo grep -Eqs '^(RESTIC_REPOSITORY|BACKUP_NFS_EXPORT)=.' /etc/swirl-cloud/backup.env; then

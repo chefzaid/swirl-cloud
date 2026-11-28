@@ -1,0 +1,11 @@
+[Unit]
+Description=Dump the platform PostgreSQL every six hours between nightly archives
+
+[Timer]
+# With the nightly archive at 02:15 UTC this gives a dump every six hours.
+OnCalendar=*-*-* 08,14,20:15:00 UTC
+Persistent=true
+Unit=swirl-cloud-postgres-dump.service
+
+[Install]
+WantedBy=timers.target

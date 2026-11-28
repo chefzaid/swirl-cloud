@@ -463,6 +463,18 @@ No successful recovery archive for 36 hours. Read
 credentials, S3 target), then run **Maintenance → Run the recovery backup now** in
 `./install.sh`.
 
+### PostgresDumpMissing
+
+The six-hourly `pg_dumpall` between nightly archives has not succeeded for eight
+hours, so the PostgreSQL recovery point is longer than six hours. Read
+`journalctl -u swirl-cloud-postgres-dump.service`: the usual causes are the
+backup lock held by a long nightly run or verification (it waits up to four
+hours), too little free space under `/var/backups/swirl-cloud/k3s` (see
+NodeMaintenanceHeadroomLow), PostgreSQL not ready, or an unreachable off-node
+repository. Run `sudo systemctl start swirl-cloud-postgres-dump.service` after
+fixing the cause, and check that `/var/backups/swirl-cloud/k3s/postgres/` has a
+new dump.
+
 ### K3sBackupVerificationMissing
 
 The weekly read-back of the off-node restic repository has not succeeded for

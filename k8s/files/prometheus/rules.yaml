@@ -701,6 +701,16 @@ groups:
           runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#k3srecoverybackupmissing
           summary: Daily K3s recovery backup is overdue
           description: 'No successful swirl-cloud-k3s-backup.service run on {{ $labels.node }} for more than 36 hours; check swirl-cloud-k3s-backup.timer.'
+      # Metric appears after the first six-hourly dump on a node that runs them.
+      - alert: PostgresDumpMissing
+        expr: time() - swirl_cloud_systemd_unit_last_success_timestamp_seconds{unit="swirl-cloud-postgres-dump.service"} > 8 * 3600
+        labels:
+          severity: warning
+          owner: platform
+        annotations:
+          runbook_url: https://gitlab.__PUBLIC_DOMAIN__/__GITLAB_GROUP_PATH__/__GITLAB_PROJECT_NAME__/-/blob/main/docs/guides/alert-runbooks.md#postgresdumpmissing
+          summary: Six-hourly PostgreSQL dump is overdue
+          description: 'No successful swirl-cloud-postgres-dump.service run on {{ $labels.node }} for more than eight hours, so more than six hours of database changes could be lost; check swirl-cloud-postgres-dump.timer.'
       # The weekly verification runs only with an off-node restic repository; its
       # metric appears after the first run, so a node without one never alerts.
       - alert: K3sBackupVerificationMissing
