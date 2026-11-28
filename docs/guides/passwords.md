@@ -26,6 +26,28 @@ organization see the collections they are given. Invitations are sent through
 the platform mail relay when it is configured; otherwise the person signs in
 once and is then confirmed in the organization's **Members** page.
 
+### The read-only profile's demo collection
+
+Members of the [read-only profile](../security.md#read-only-profile) keep their
+own vault but see no existing organization or password. To show them how
+sharing works, an administrator creates one demo collection in the web vault
+(items are encrypted in the browser, so no server job can create them):
+
+1. Sign in once as the test account `readonly-test` (its password is in the
+   Secret `infra/readonly-test-credentials`), so its Vaultwarden account exists,
+   then sign out.
+2. As an administrator: **New organization** `Read-only demo`; in it, the
+   collection `Read-only demo`, and one login item `shared_password_test` with a
+   made-up username and a generated password, nothing real.
+3. **Members, Invite member**: `readonly-test@<your-domain>`, role **User**,
+   access to the `Read-only demo` collection only, with **Can view** (the
+   fake password is meant to be seen; no edit or manage). Confirm the member
+   after the invitation is accepted.
+
+Never add the test account, or the profile's members, to an existing
+organization. `./install.sh --verify-profile` fails when the account belongs to
+any organization but `Read-only demo`.
+
 ## When a master password is lost
 
 The vault cannot be decrypted without it. Two ways back exist and must be set up

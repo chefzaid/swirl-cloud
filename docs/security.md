@@ -596,6 +596,26 @@ tools behind the sign-in proxy.
 | `access-argocd` | Argo CD | Read-only on every Application, once Argo CD's release is next reconciled (`scripts/reconcile-platform-release.sh argocd`) |
 | `access-kubernetes-read` | The Kubernetes API through `kubectl` ([kubectl as yourself](#kubectl-as-yourself)) | Read everything but Secrets |
 | `access-mailpit` | The [non-production mail catcher](guides/platform-mail.md#non-production-mail) | Read and delete caught messages |
+| `platform-readers` | The [read-only profile](#read-only-profile): Grafana, Argo CD, Kibana, Kafka UI, GitLab as Reporter, the Kubernetes API, the `int` and `uat` applications | Read-only everywhere it reaches; no deployment, no secret |
+
+### Read-only profile
+
+`platform-readers` sees the platform without changing it (TODO §51): Grafana as
+Viewer, Argo CD read-only (no sync, rollback, delete or exec), the Kubernetes
+API with the `view` ClusterRole (no Secrets, no writes, no exec), Kafka UI's
+view-only role (topics, messages, consumer groups, schemas; no produce, delete
+or offset reset), and the `int` and `uat` applications on the portal. Vault has
+no OIDC role for it, and Portainer, DBGate, Longhorn's UI, Mailpit and Keycloak's
+console stay closed. Give members `access-portal` too, so they reach the portal.
+Kibana signs readers in as their own Elasticsearch user with the `platform_reader` role (read the log, audit and report indices and every Kibana feature; no writes or administration). GitLab approves readers' accounts and holds them at Reporter in the platform group (code, issues, pipelines and the Registry to read; no push, merge, pipeline run or deployment), within 15 minutes of their first sign-in. SonarQube and the Vaultwarden demo collection follow (TODO §51). The test account `readonly-test` (`readonly-test@<your-domain>`) holds the profile; its password is in the Secret `infra/readonly-test-credentials`, and Cloudflare Access admits it only once its email is in `CLOUDFLARE_ACCESS_EMAILS`.
+`tests/test-readonly-profile.py` checks the rendered platform: nothing that
+deploys, changes or reveals a secret names the group. On the live platform,
+`./install.sh --verify-profile [--user readonly-test]` asks each service what
+the account may do (Kubernetes by impersonation, Argo CD by its RBAC check,
+Grafana, Elasticsearch run as the account, GitLab, SonarQube's `sonar-users`,
+Vault's OIDC roles, Vaultwarden's organizations) and prints a can/cannot table;
+it exits 1 when anything differs from the table above. Sign in once as the test
+account first, so Grafana and GitLab have its user.
 
 Staff ask for help and for access in the IT help desk, Zammad, at
 `https://support.<your-domain>`: every member of `access-portal` may open it,

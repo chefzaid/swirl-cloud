@@ -64,6 +64,7 @@ configs:
     policy.csv: |
       g, platform-admins, role:admin
       g, access-argocd, role:readonly
+      g, platform-readers, role:readonly
     scopes: '[groups]'
 global:
   priorityClassName: platform-standard

@@ -1,3 +1,45 @@
+# The read-only profile's test account password (TODO §51), generated once;
+# keycloak-sso-reconcile sets it on readonly-test.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: readonly-test-password
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  length: 32
+  digits: 6
+  symbols: 4
+  symbolCharacters: "-_.+"
+  noUpper: false
+  allowRepeat: true
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: readonly-test-credentials
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  refreshInterval: "0"
+  target:
+    name: readonly-test-credentials
+    creationPolicy: Owner
+    template:
+      data:
+        READONLY_TEST_USERNAME: readonly-test
+        READONLY_TEST_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: readonly-test-password
+
+---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -487,14 +529,47 @@ data:
     fi
 
     # Access groups (ADR 0031): a person opens a service only as a member of its
-    # group; platform-admins opens every service. Members are never removed here.
-    for access_group in access-argocd access-environments access-grafana access-kubernetes-read access-mailpit access-portal; do
+    # group; platform-admins opens every service and platform-readers views them
+    # (TODO §51). Members are never removed here.
+    for access_group in access-argocd access-environments access-grafana access-kubernetes-read access-mailpit access-portal platform-readers; do
       expect_success "$(request GET "realms/$realm/groups?search=$access_group&exact=true")"
       if [ -z "$(extract_id)" ]; then
         expect_success "$(request POST "realms/$realm/groups" "{\"name\":\"$access_group\"}")"
         echo "Created the Keycloak access group '$access_group'"
       fi
     done
+
+    # The read-only profile's test account (TODO §51): readonly-test, member of
+    # platform-readers and access-portal only, with the generated password from
+    # infra/readonly-test-credentials (administrators read it with kubectl).
+    if [ -n "${READONLY_TEST_PASSWORD:-}" ]; then
+      readonly_password_json="$(printf '%s' "$READONLY_TEST_PASSWORD" | json_escape)"
+      expect_success "$(request GET "realms/$realm/users?username=readonly-test&exact=true")"
+      readonly_user_id="$(extract_id)"
+      if [ -z "$readonly_user_id" ]; then
+        expect_success "$(request POST "realms/$realm/users" "{
+          \"username\":\"readonly-test\",
+          \"enabled\":true,
+          \"emailVerified\":true,
+          \"email\":\"readonly-test@__PUBLIC_DOMAIN__\",
+          \"firstName\":\"Read-only\",
+          \"lastName\":\"Test\",
+          \"attributes\":{\"test_account\":[\"true\"]}
+        }")"
+        expect_success "$(request GET "realms/$realm/users?username=readonly-test&exact=true")"
+        readonly_user_id="$(extract_id)"
+        echo "Created the read-only profile's test account 'readonly-test'"
+      fi
+      test -n "$readonly_user_id"
+      expect_success "$(request PUT "realms/$realm/users/$readonly_user_id/reset-password" \
+        "{\"type\":\"password\",\"value\":\"$readonly_password_json\",\"temporary\":false}")"
+      for readonly_group in platform-readers access-portal; do
+        expect_success "$(request GET "realms/$realm/groups?search=$readonly_group&exact=true")"
+        readonly_group_id="$(extract_id)"
+        test -n "$readonly_group_id"
+        expect_success "$(request PUT "realms/$realm/users/$readonly_user_id/groups/$readonly_group_id")"
+      done
+    fi
 
     expect_success "$(request GET "realms/$realm/roles/platform-admin")"
     platform_admin_role="$(tr -d '\n' < "$response_file")"
@@ -710,6 +785,9 @@ spec:
                 optional: true
             - secretRef:
                 name: vaultwarden-sso
+                optional: true
+            - secretRef:
+                name: readonly-test-credentials
                 optional: true
           securityContext:
             allowPrivilegeEscalation: false

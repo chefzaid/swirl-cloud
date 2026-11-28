@@ -176,13 +176,13 @@ class PortalGateTest(unittest.TestCase):
         for shown in ("Shop", "GitLab", 'href="https://shop.example.com"', 'href="https://gitlab.example.com"'):
             self.assertIn(shown, page)
         # Greyed, with a request instead of the service's address.
-        for locked in ("Grafana", "Argo CD", "Mailpit"):
+        for locked in ("Grafana", "Argo CD", "Mailpit", "Kibana"):
             self.assertIn(locked, page)
         self.assertIn("mailto:admin%40example.com?subject=Access%20request%3A%20Grafana", page)
-        for address in ("grafana.example.com", "argocd.example.com", "/mailpit/"):
+        for address in ("grafana.example.com", "argocd.example.com", "/mailpit/", "kibana.example.com"):
             self.assertNotIn(address, page)
         # Not even the names of what they cannot ask for.
-        for hidden in ("Portainer", "Kibana", "SonarQube", "K3s", "Shop UAT", "Cluster Management"):
+        for hidden in ("Portainer", "SonarQube", "K3s", "Shop UAT", "Cluster Management"):
             self.assertNotIn(hidden, page)
         self.assertIn("ada@example.com", page)
         self.assertIn("script-src 'nonce-", headers["Content-Security-Policy"])
@@ -195,6 +195,18 @@ class PortalGateTest(unittest.TestCase):
         self.assertNotIn("subject=Access%20request%3A%20Grafana", page)
         self.assertIn("subject=Access%20request%3A%20Argo%20CD", page)
         self.assertNotIn("Portainer", page)
+
+    def test_the_read_only_profile_opens_what_it_may_view(self):
+        _, page, _ = self.get("/", "platform-readers")
+        for opened in ('href="https://grafana.example.com"', 'href="https://argocd.example.com"', "Shop UAT",
+                       'href="https://kibana.example.com"',
+                       'href="https://gitlab.example.com"'):
+            self.assertIn(opened, page)
+        self.assertNotIn("subject=Access%20request%3A%20Grafana", page)
+        self.assertNotIn("subject=Access%20request%3A%20Argo%20CD", page)
+        self.assertIn("subject=Access%20request%3A%20Mailpit", page)
+        for hidden in ("Portainer", "portainer.example.com"):
+            self.assertNotIn(hidden, page)
 
     def test_service_text_is_escaped(self):
         _, page, _ = self.get("/")

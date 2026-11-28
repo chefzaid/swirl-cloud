@@ -1,13 +1,40 @@
 {
-  "applicationGroups": ["Applications - PROD"],
+  "applicationGroups": [
+    "Applications - PROD"
+  ],
   "groupAccess": {
-    "Applications - UAT": "access-environments",
-    "Applications - INT": "access-environments"
+    "Applications - UAT": [
+      "access-environments",
+      "platform-readers"
+    ],
+    "Applications - INT": [
+      "access-environments",
+      "platform-readers"
+    ]
   },
-  "open": ["GitLab", "Zammad", "Vaultwarden", "Odoo"],
+  "open": [
+    "GitLab",
+    "Zammad",
+    "Vaultwarden",
+    "Odoo"
+  ],
   "groups": {
-    "Grafana": "access-grafana",
-    "Argo CD": "access-argocd",
-    "Mailpit": "access-mailpit"
+    "Grafana": [
+      "access-grafana",
+      "platform-readers"
+    ],
+    "Argo CD": [
+      "access-argocd",
+      "platform-readers"
+    ],
+    "Mailpit": "access-mailpit",
+    "Kafka UI": "platform-readers",
+    "Trivy": "platform-readers",
+    "Kubernetes API": [
+      "access-kubernetes-read",
+      "platform-readers"
+    ],
+    "Kibana": "platform-readers",
+    "Lynis": "platform-readers"
   }
 }

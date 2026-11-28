@@ -84,9 +84,10 @@ class NoticeEmail(unittest.TestCase):
         rules = json.loads((ROOT / "k8s/files/portal-access.json").read_text())
         self.assertEqual(["*"], self.notice.audience("*"))
         self.assertEqual(["*"], self.notice.audience(rules["open"][0]))
-        service, group = next(iter(rules["groups"].items()))
-        self.assertEqual([group, "platform-admins"], self.notice.audience(service))
-        self.assertEqual(["platform-admins"], self.notice.audience("Kibana"))
+        self.assertEqual(["access-mailpit", "platform-admins"], self.notice.audience("Mailpit"))
+        self.assertEqual(["access-grafana", "platform-readers", "platform-admins"], self.notice.audience("Grafana"))
+        self.assertEqual(["platform-readers", "platform-admins"], self.notice.audience("Kibana"))
+        self.assertEqual(["platform-admins"], self.notice.audience("Portainer"))
 
     def test_recipients_merge_groups_and_skip_disabled_accounts(self):
         from types import SimpleNamespace

@@ -152,10 +152,12 @@ function passThrough(req, res) {
 // group, or hidden. A whole group of applications can need a group too.
 function classify(service, groupName, groups) {
   if (rules.applicationGroups.includes(groupName) || rules.open.includes(service.name)) return "open";
-  if (rules.groupAccess[groupName]) return groups.includes(rules.groupAccess[groupName]) ? "open" : null;
+  // A rule names one group, or several that each open it (an access group and a profile).
+  const member = (names) => [].concat(names).some((name) => groups.includes(name));
+  if (rules.groupAccess[groupName]) return member(rules.groupAccess[groupName]) ? "open" : null;
   const needed = rules.groups[service.name];
   if (!needed) return null;
-  return groups.includes(needed) ? "open" : "locked";
+  return member(needed) ? "open" : "locked";
 }
 
 // Icons as Homepage resolves them: a local file, a Material Design icon drawn as

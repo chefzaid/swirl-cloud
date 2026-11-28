@@ -124,6 +124,9 @@ passes (owner's decision, 2026-11-25).
 - [ ] May the agent's cloud environment reach more registries and vendor documentation sites? Its version sweep (2026-11-24) could not list tags on `quay.io` (Argo CD, Keycloak, OAuth2 Proxy, the Prometheus images and exporters), `registry.k8s.io` (descheduler, kube-state-metrics, CSI sidecars), `docker.elastic.co` (Elastic 9.5) and `cr.fluentbit.io`, so those images were not checked for updates; and it could not read the support policies on `docs.confluent.io`, `cloudnative-pg.io`, `helm.sh`, `www.odoo.com`, `docs.portainer.io` and `developers.cloudflare.com` (the dates recorded from them came through search results). Options: (a) add these hosts to the environment's allowed hosts; (b) keep the agent to Docker Hub and GitHub, and check the others yourself or through Renovate (see the Renovate question above). *(task: Part III › Keep services versions updated, P2; asked by: Infra Agent)*
   - Answer:
 
+- [ ] Please validate the read-only profile on `swirl-node-01` once Argo CD has synced (TODO §51): (1) add `readonly-test@swirlit.dev` to `CLOUDFLARE_ACCESS_EMAILS` and rerun `./scripts/configure-cloudflare.sh`, and rerun `scripts/reconcile-platform-release.sh argocd` for Argo CD's read-only mapping; (2) sign in once as `readonly-test` (password: `kubectl -n infra get secret readonly-test-credentials -o jsonpath='{.data.READONLY_TEST_PASSWORD}' | base64 -d`) to the portal, Grafana, GitLab and Vaultwarden, so their accounts exist; (3) create the Vaultwarden demo organization and its `shared_password_test` entry as in [passwords](docs/guides/passwords.md#the-read-only-profiles-demo-collection); (4) run `./install.sh --verify-profile` and paste its table here. The agent's environment cannot reach the cluster. *(task: §51 › validation, P2; asked by: Infra Agent)*
+  - Answer:
+
 - [ ] Please run `./install.sh --vulnerability-report` on `swirl-node-01` and paste its output here (or `scripts/vulnerability-report.py --all`), so the agent can re-triage the findings whose exceptions expired on 2026-11-04 and record new ones. The agent's environment cannot reach the cluster, and running Trivy there was refused. Alternatively, allow the agent to run the pinned Trivy release (`aquasec/trivy:0.76.2`) with its database from `ghcr.io` in its environment. *(task: §21 › Rescan and exceptions, P1; asked by: Infra Agent)*
   - Answer:
 
@@ -1127,6 +1130,41 @@ per-person portal).
 - [ ] Per-client cost showback, usage metering and billing export: tag all tenant workloads, volumes, backups, egress, active users and entitled modules with `swirl-cloud.io/tenant=<slug>` so Grafana **Cost Showback** (§34) and the monthly **Platform Report** break down infrastructure cost and resource usage per client, with quota-approaching alerts and a structured monthly usage export (CSV/JSON and optional Odoo invoicing hook) for chargeback or managed-hosting billing. Done when two test clients' metered costs reconcile cleanly against cluster totals and generate separate monthly usage statements.
 - [ ] Per-client backup, sandbox restore and sovereign exit export (`./install.sh --export-tenant <slug>`): enable independent backup and point-in-time restore of a single client (namespaces, Longhorn volume snapshots, client databases, S3 buckets, realm configuration and Vault secrets encrypted to the client's recovery key) without impacting neighboring clients, plus one-action cloning of a client's `prod` into a masked `uat` sandbox (§46). Provide a signed, self-contained **tenant exit bundle** (EU Data Act ready, §42) so any client can migrate cleanly off the shared Swirl Cloud onto their own standalone Swirl Cloud installation or plain K3s cluster. Done when a test client is exported, deleted from the shared cluster and restored independently onto a fresh cluster.
 
+### 51. Read-only profile (added 2026-11-28)
+
+A profile for people who must see the whole platform without being able to
+change, deploy or read secrets: auditors, managers, new staff, a customer's
+reviewer. One Keycloak group, `platform-readers`, honoured by every tool that
+has a read-only role; tools without one stay closed to it. Business applications
+(Odoo, Zammad, the application environments) are used normally. Decisions of
+2026-11-28: GitLab Reporter; Portainer, DBGate and Longhorn's UI stay closed;
+Vaultwarden gives a personal vault plus one shared demo collection.
+
+| Service | `platform-readers` may | May not |
+| --- | --- | --- |
+| Portal | See every service the profile opens | Open administrator-only tools |
+| Grafana | Viewer: every dashboard, Explore | Edit dashboards, alerts, data sources, users |
+| Argo CD | `role:readonly`: Applications, resources, diffs, history, logs | Sync, rollback, delete, exec, edit settings |
+| Kubernetes API | ClusterRole `view`: workloads, events, logs | Read Secrets; create, change or delete anything; exec, port-forward |
+| Kibana | Read logs, audit indices and dashboards (Elasticsearch viewer user) | Change saved objects, index settings, users or roles |
+| Kafka UI | View clusters, topics, messages, consumer groups, schemas | Produce, delete, reset offsets, change configuration |
+| SonarQube | Browse projects, issues and quality gates | Administer projects, quality profiles or the instance |
+| GitLab | Reporter on the platform and application groups: code, issues, pipelines, Registry | Push, merge, run or retry pipelines, deploy, change settings |
+| Vault | Nothing (no OIDC role admits the group) | Sign in, read any secret |
+| Vaultwarden | Own vault; the shared collection `Read-only demo` holding only `shared_password_test` | See any existing organization collection or password |
+| Odoo, Zammad, applications | Use them as any member of staff | Administer them |
+| Portainer, DBGate, Longhorn UI, Mailpit, Keycloak console | Nothing | Sign in |
+
+- [x] Keycloak group `platform-readers`, created by `keycloak-sso-reconcile` with the access groups, and portal rules that open the services above to it (`k8s/files/portal-access.json`; a rule may now name several groups). *(source, 2026-11-28)*
+- [x] Grafana Viewer, Argo CD `role:readonly`, Kubernetes `view` and Kafka UI read-only role for the group; `tests/test-readonly-profile.py` refuses any write role, Vault role or administrator-only middleware naming it ([read-only profile](docs/security.md#read-only-profile)). Argo CD's mapping applies at `scripts/reconcile-platform-release.sh argocd`. *(source, 2026-11-28)*
+- [x] Kibana: an Elasticsearch user with a read-only role (`read` and `view_index_metadata` on the log, audit and report indices; Kibana `read` on every feature), chosen by the sign-in filter for members of the group; administrators keep theirs. *(source, 2026-11-28: role `platform_reader`; the Keycloak-to-Elastic sync gives readers' shadow users that role, administrators keep `superuser`; Kibana's Ingress and sign-in filter admit the group through `platform-access-readers`)*
+- [ ] SonarQube: header SSO already passes the groups; give the group SonarQube's browse permission only. Every SonarQube account is also in `sonar-users`, so first check with `--verify-profile` that `sonar-users` holds no global permission (analysis, project creation, administration) and that CI analyses use project tokens; only then open SonarQube's Ingress to the group.
+- [x] GitLab: a reconciler that approves members' blocked accounts and gives them Reporter on the platform and application groups, and lowers anything higher (GitLab CE cannot map OIDC groups to roles itself). *(source, 2026-11-28: the Keycloak sync publishes the members to `infra/platform-readers-members` with a service account that may write only that ConfigMap; GitLab mounts it and, every 15 minutes in its own container, approves their accounts, holds them at Reporter in the platform group and its projects, and removes what it added when someone leaves the profile; no GitLab token is stored. A member's account appears at their first GitLab sign-in.)*
+- [ ] Vaultwarden: an organization `Read-only demo` with a collection holding only the fake entry `shared_password_test`, shared with the test account; created in the web vault by an administrator (items are end-to-end encrypted, so no server job can write them). Steps in [passwords](docs/guides/passwords.md#the-read-only-profiles-demo-collection); `--verify-profile` checks the account belongs to that organization only.
+- [x] Test account `readonly-test` (`readonly-test@<domain>`), member of `platform-readers` and `access-portal` only, its generated password in the Secret `infra/readonly-test-credentials` (`kubectl -n infra get secret readonly-test-credentials -o jsonpath='{.data.READONLY_TEST_PASSWORD}' | base64 -d`), set by `keycloak-sso-reconcile`. *(source, 2026-11-28)* Remaining: add `readonly-test@swirlit.dev` to `CLOUDFLARE_ACCESS_EMAILS` and rerun `./scripts/configure-cloudflare.sh`, so it reaches the hosts behind Cloudflare Access.
+- [x] `./install.sh --verify-profile readonly-test`: checks, against the live platform, what the account can and cannot do in every service of the table (Kubernetes by impersonation, Argo CD by its RBAC check, Grafana, GitLab and SonarQube by their APIs, Elasticsearch by `_has_privileges`, Vault by its OIDC roles, Vaultwarden by its database), and prints a can/cannot table; a test runs it against recorded answers. *(source, 2026-11-28: `scripts/verify-profile.py`, `tests/test-verify-profile.py`)*
+- [ ] Run it on `swirl-node-01` after the sync, sign in once as the test account to confirm by hand, and record the result here.
+
 ---
 
 ## Part V — Priority index of open items
@@ -1185,6 +1223,7 @@ These rows group the checklists above; priority does not bypass dependencies.
 | P2 | Tickets for IT support and access rights, end-dated access, owner access reviews and IT charter acceptance | Zammad installed (§40) and the roles above; a requested role is granted from the ticket without an administrator | §40, §47 |
 | P2 | Setup checklist, mail catcher for non-production, package proxy and GitLab Pages | Useful from the first installation; the mail catcher before production-like test data (§46); the proxy before strict and offline installations build software (§32–33) | §48 |
 | P2 | TCP and UDP services, private applications, the cluster network ADR and a maintained image builder | Modules that are not HTTP (video, telephony, MQTT, VPN) wait on the first; the network ADR before the expansion (§25); Kaniko's images get no more fixes | §49 |
+| P2 | Read-only profile: SonarQube once `sonar-users` holds no global permission, and the live validation | `./install.sh --verify-profile` passes for `readonly-test` | §51 |
 | P3 | Customer accounts realm and notices to the people affected | Realm ADR; maintenance windows as data (§4); a test customer is refused by every internal tool | §47 |
 | P3 | MariaDB, malware scanning, remote assistance, staff computer backup, equipment sign-in and cost per team | A first application or module that needs each; object storage (§31) for device backups; the directory ADR (§27) for equipment sign-in; job profiles (§47) for cost per team | §48 |
 | P3 | Volume snapshots, clean shutdown on reboot, restart on secret change, Redis and Kafka guard rails, `prod` availability rules, autoscaling on application metrics and field encryption | Workload priorities (§46) for the shutdown order; rotation (§36) for the reloader; several servers for the availability rules | §49 |

@@ -424,6 +424,13 @@ spec:
                 -X PUT -H 'Content-Type: application/json' \
                 --data-binary '{"cluster":[],"indices":[],"applications":[],"run_as":[],"metadata":{"managed_by":"swirl-cloud"}}' \
                 "${endpoint}/_security/role/kibana_keycloak_proxy" >/dev/null
+              # The read-only profile's Kibana users (TODO §51): read the platform's
+              # log, audit and report indices and every Kibana feature; no writes,
+              # no security, index or Kibana administration.
+              curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
+                -X PUT -H 'Content-Type: application/json' \
+                --data-binary '{"cluster":["monitor"],"indices":[{"names":["kubernetes-logs-*","kubernetes-audit-*","identity-audit-*","database-audit-*","malware-scans-*","app-logs-*","lynis-audits-*","platform-reports-*","security-findings-*"],"privileges":["read","view_index_metadata"]}],"applications":[{"application":"kibana-.kibana","privileges":["read"],"resources":["*"]}],"run_as":[],"metadata":{"managed_by":"swirl-cloud"}}' \
+                "${endpoint}/_security/role/platform_reader" >/dev/null
               # Health and node statistics for Prometheus; no document access.
               curl -fsS --user "elastic:${ELASTIC_PASSWORD}" \
                 -X PUT -H 'Content-Type: application/json' \
@@ -532,7 +539,10 @@ data:
   sync.mjs: |
     const keycloak = process.env.KEYCLOAK_URL ?? "http://keycloak:8080/auth";
     const realm = process.env.KEYCLOAK_REALM ?? "__KEYCLOAK_REALM__";
-    const groupName = process.env.KEYCLOAK_GROUP ?? "platform-admins";
+    // Each group's members get a Kibana shadow user with these roles; an
+    // administrator who is also a reader keeps superuser (TODO §51).
+    const groupRoles = [["platform-admins", ["superuser"]], ["platform-readers", ["platform_reader"]]];
+    const groupName = groupRoles.map(([name]) => name).join(", ");
     const elasticsearch = process.env.ELASTICSEARCH_URL ?? "http://elasticsearch.__INTERNAL_DNS_ZONE__:9200";
     const managedBy = "swirl-cloud-keycloak-sync";
     const ownershipIndex = "swirl-cloud-kibana-identity-ownership-v1";
@@ -577,13 +587,14 @@ data:
       });
     }
 
-    async function groupMembers(token) {
+    async function groupMembers(token, name, required = true) {
       const groups = await keycloakRequest(
         token,
-        `groups?search=${encodeURIComponent(groupName)}&exact=true&briefRepresentation=true`,
+        `groups?search=${encodeURIComponent(name)}&exact=true&briefRepresentation=true`,
       );
-      const group = groups.find((candidate) => candidate.name === groupName);
-      if (!group) throw new Error(`Keycloak group ${groupName} does not exist in realm ${realm}`);
+      const group = groups.find((candidate) => candidate.name === name);
+      if (!group && !required) return [];
+      if (!group) throw new Error(`Keycloak group ${name} does not exist in realm ${realm}`);
 
       const members = [];
       for (let first = 0; ; first += 100) {
@@ -595,6 +606,23 @@ data:
         if (page.length < 100) break;
       }
       return members;
+    }
+
+    // The ConfigMap infra/platform-readers-members, through the Kubernetes API with
+    // this job's service account, which may write only that ConfigMap.
+    async function publishReaders(readers) {
+      const tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token";
+      const { readFileSync } = await import("node:fs");
+      const headers = { Authorization: `Bearer ${readFileSync(tokenPath, "utf8").trim()}`, "Content-Type": "application/json" };
+      const base = "https://kubernetes.default.svc/api/v1/namespaces/infra/configmaps";
+      const body = {
+        apiVersion: "v1", kind: "ConfigMap",
+        metadata: { name: "platform-readers-members", namespace: "infra", labels: { "app.kubernetes.io/part-of": "swirl-cloud" } },
+        data: { "members.json": JSON.stringify({ members: readers }, null, 2) + "\n" },
+      };
+      let response = await fetch(`${base}/platform-readers-members`, { method: "PUT", headers, body: JSON.stringify(body) });
+      if (response.status === 404) response = await fetch(base, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!response.ok) throw new Error(`Publishing platform-readers-members returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
     }
 
     async function elasticRequest(path, method = "GET", body) {
@@ -661,13 +689,20 @@ data:
     }
 
     const token = await keycloakToken();
-    const members = await groupMembers(token);
+    // username -> {member, roles}; the first group listed wins.
+    const assignments = new Map();
+    for (const [name, roles] of groupRoles) {
+      // The reconciler creates platform-readers; until it has, it has no members.
+      for (const member of await groupMembers(token, name, name === "platform-admins")) {
+        if (!assignments.has(member.username)) assignments.set(member.username, { member, roles });
+      }
+    }
     await ensureOwnershipIndex();
     const existingUsers = await elasticRequest("/_security/user");
     const desiredUsers = new Map();
     const bootstrapUsername = required("SSO_BOOTSTRAP_USERNAME");
 
-    for (const member of members) {
+    for (const { member, roles } of assignments.values()) {
       const username = shadowUsername(member);
       if (!member.enabled) continue;
       const existing = existingUsers[username];
@@ -692,7 +727,7 @@ data:
         throw new Error(`Elastic user ${username} declares conflicting ownership`);
       }
       const user = {
-        roles: ["superuser"],
+        roles,
         password: required("KIBANA_PROXY_PASSWORD"),
         // Elastic's user editor replaces the complete metadata object. Keep
         // ownership in a separate hidden index and preserve the display name.
@@ -732,8 +767,56 @@ data:
       });
     }
 
+    // Publish the read-only profile's members for GitLab, which approves their
+    // accounts and gives them Reporter (k8s/platform/gitlab.yaml, TODO §51).
+    const readers = [...assignments.values()]
+      .filter(({ member, roles }) => member.enabled && roles.includes("platform_reader"))
+      .map(({ member }) => ({ username: member.username, email: member.email ?? null }))
+      .sort((a, b) => a.username.localeCompare(b.username));
+    await publishReaders(readers);
+
     const synchronized = [...desiredUsers.keys()].sort();
     console.log(`Synchronized ${synchronized.length} enabled ${groupName} member(s) to Elastic: ${synchronized.join(", ") || "none"}`);
+
+---
+# The sync writes only the read-only profile's member list (TODO §51); a Role
+# cannot limit "create" by name, so it may create ConfigMaps but change only that one.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kibana-keycloak-user-sync
+  namespace: infra
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-readers-members-writer
+  namespace: infra
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["platform-readers-members"]
+    verbs: ["get", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kibana-keycloak-user-sync
+  namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-readers-members-writer
+subjects:
+  - kind: ServiceAccount
+    name: kibana-keycloak-user-sync
+    namespace: infra
 
 ---
 apiVersion: batch/v1
@@ -755,7 +838,9 @@ spec:
     spec:
       priorityClassName: platform-standard
       restartPolicy: OnFailure
-      automountServiceAccountToken: false
+      serviceAccountName: kibana-keycloak-user-sync
+      # The token writes only the readers' list (Role platform-readers-members-writer).
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -766,6 +851,9 @@ spec:
       - name: sync
         image: docker.io/library/node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
         command: ["node", "/opt/keycloak-sync/sync.mjs"]
+        env:
+        - name: NODE_EXTRA_CA_CERTS
+          value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         envFrom:
         - secretRef:
             name: keycloak-admin-secret
@@ -828,7 +916,9 @@ spec:
         spec:
           priorityClassName: platform-standard
           restartPolicy: OnFailure
-          automountServiceAccountToken: false
+          serviceAccountName: kibana-keycloak-user-sync
+          # The token writes only the readers' list (Role platform-readers-members-writer).
+          automountServiceAccountToken: true
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -840,6 +930,9 @@ spec:
           - name: sync
             image: docker.io/library/node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
             command: ["node", "/opt/keycloak-sync/sync.mjs"]
+            env:
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             envFrom:
             - secretRef:
                 name: keycloak-admin-secret
@@ -1126,8 +1219,9 @@ data:
 
         location = /_keycloak_auth {
           internal;
-          # Administrators only (ADR 0031): the proxy itself admits any signed-in account.
-          proxy_pass http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/oauth2/auth?allowed_groups=platform-admins;
+          # Administrators and the read-only profile (ADR 0031, TODO §51): the proxy
+          # itself admits any signed-in account. A reader's shadow user is read-only.
+          proxy_pass http://oauth2-proxy.__INTERNAL_DNS_ZONE__:4180/oauth2/auth?allowed_groups=platform-admins,platform-readers;
           proxy_pass_request_body off;
           proxy_set_header Content-Length "";
           proxy_set_header Cookie $http_cookie;

@@ -10,3 +10,4 @@ owners:
   access-grafana: ""
   access-kubernetes-read: ""
   access-mailpit: ""
+  platform-readers: ""

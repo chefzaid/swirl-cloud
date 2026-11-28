@@ -88,6 +88,58 @@ data:
 
       sleep 30
     done
+  # The read-only profile (TODO §51): GitLab CE cannot map OIDC groups to roles, so
+  # every 15 minutes this approves the accounts of the platform-readers members
+  # that the Keycloak sync publishes (infra/platform-readers-members, mounted
+  # below) and holds them at Reporter in the platform group: code, issues,
+  # pipelines and the Registry to read; no push, merge, pipeline run or deploy.
+  # Someone who left the profile loses the memberships this added.
+  readers.sh: |
+    #!/bin/bash
+    set -u
+    members=/opt/platform/readers/members.json
+    while true; do
+      if [ -s "$members" ] && curl --fail --silent --show-error http://127.0.0.1/users/sign_in >/dev/null; then
+        gitlab-rails runner '
+          require "json"
+          readers = JSON.parse(File.read(ARGV[0])).fetch("members").map { |member| member.fetch("username") }
+          administrator = User.find_by_username(ENV.fetch("GITLAB_CANONICAL_ADMIN_USERNAME"))
+          group = Group.find_by_full_path("__GITLAB_GROUP_PATH__")
+          raise "the platform group or its administrator is missing" unless administrator&.admin? && group
+          marker = "swirl_cloud_platform_reader"
+          reporter = Gitlab::Access::REPORTER
+          group_ids = group.self_and_descendants.pluck(:id)
+          project_ids = Project.where(namespace_id: group_ids).pluck(:id)
+          wanted = readers.filter_map { |name| Identity.find_by(provider: "openid_connect", extern_uid: name)&.user }
+          wanted.each do |user|
+            next if user.admin?
+            if user.blocked_pending_approval?
+              result = Users::ApproveService.new(administrator).execute(user)
+              raise "approving #{user.username}: #{result[:message]}" unless result[:status] == :success
+            end
+            membership = group.members.find_by(user_id: user.id)
+            if membership.nil?
+              group.add_member(user, reporter)
+            elsif membership.access_level != reporter
+              membership.update!(access_level: reporter)
+            end
+            # Nothing above Reporter in the subgroups and projects of the platform group:
+            # a higher role there could push, merge or deploy.
+            higher = GroupMember.where(source_id: group_ids) + ProjectMember.where(source_id: project_ids)
+            higher.select { |member| member.user_id == user.id && member.access_level > reporter }
+                  .each { |member| member.update!(access_level: reporter) }
+            user.custom_attributes.find_or_create_by!(key: marker) { |attribute| attribute.value = "true" }
+          end
+          # Members destroyed one by one, so GitLab refreshes their project authorizations.
+          UserCustomAttribute.where(key: marker).where.not(user_id: wanted.map(&:id)).find_each do |attribute|
+            group.members.where(user_id: attribute.user_id, access_level: reporter).find_each(&:destroy)
+            attribute.destroy!
+          end
+          puts "Held #{wanted.size} read-only profile member(s) at Reporter in __GITLAB_GROUP_PATH__."
+        ' "$members" || echo "The read-only profile sync failed; retrying in 15 minutes."
+      fi
+      sleep 900
+    done
 
 ---
 apiVersion: v1
@@ -352,7 +404,9 @@ spec:
               command:
                 - /bin/bash
                 - -lc
-                - nohup /opt/platform/bootstrap-sso-admin >>/var/log/gitlab/sso-admin-bootstrap.log 2>&1 </dev/null &
+                - >-
+                  nohup /opt/platform/bootstrap-sso-admin >>/var/log/gitlab/sso-admin-bootstrap.log 2>&1 </dev/null &
+                  nohup /opt/platform/readers-sync >>/var/log/gitlab/readers-sync.log 2>&1 </dev/null &
         volumeMounts:
         - name: gitlab-config
           mountPath: /etc/gitlab
@@ -363,6 +417,14 @@ spec:
         - name: sso-admin-bootstrap
           mountPath: /opt/platform/bootstrap-sso-admin
           subPath: bootstrap.sh
+          readOnly: true
+        - name: sso-admin-bootstrap
+          mountPath: /opt/platform/readers-sync
+          subPath: readers.sh
+          readOnly: true
+        # Not a subPath, so the kubelet refreshes it when the sync publishes.
+        - name: platform-readers-members
+          mountPath: /opt/platform/readers
           readOnly: true
       volumes:
       - name: gitlab-config
@@ -378,6 +440,10 @@ spec:
         configMap:
           name: gitlab-sso-admin-bootstrap
           defaultMode: 0555
+      - name: platform-readers-members
+        configMap:
+          name: platform-readers-members
+          optional: true
 
 ---
 apiVersion: v1

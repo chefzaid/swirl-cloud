@@ -28,6 +28,7 @@
 #   ./install.sh --data-subject export --subject EMAIL | list  one person's data for a GDPR access request
 #   ./install.sh --acceptance --customer NAME [--output FILE]  signed acceptance record of a vendor-assisted install
 #   ./install.sh --service-report --month YYYY-MM [--output FILE --sign-key KEY]  monthly availability against the objective
+#   ./install.sh --verify-profile [--user readonly-test]  what the read-only profile's account can and cannot do, checked live
 #   ./install.sh --game-day [--namespace apps-int] [--record]  pod-loss drill outside prod
 #   ./install.sh --admin-mfa status|require  administrator second factor (optional by default)
 #   ./install.sh --duty list|done ID     periodic duties: access reviews, drills, reviews (control calendar)
@@ -197,6 +198,11 @@ case "${1:-}" in
         shift
         ensure_packages engine
         exec python3 "$ROOT/scripts/service-report.py" "$@"
+        ;;
+    --verify-profile)
+        shift
+        ensure_packages engine
+        exec python3 "$ROOT/scripts/verify-profile.py" "$@"
         ;;
     -h|--help)
         usage

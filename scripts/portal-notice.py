@@ -108,8 +108,9 @@ def audience(service):
     rules = json.loads((ROOT / "k8s/files/portal-access.json").read_text())
     if service == "*" or service in rules.get("open", []):
         return ["*"]
-    group = rules.get("groups", {}).get(service)
-    return [group, ADMINISTRATORS] if group else [ADMINISTRATORS]
+    # A rule names one group, or several (an access group and a profile).
+    groups = rules.get("groups", {}).get(service) or []
+    return [*([groups] if isinstance(groups, str) else groups), ADMINISTRATORS]
 
 
 def recipients(groups):

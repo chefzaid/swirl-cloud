@@ -9,6 +9,8 @@ import yaml
 from manifest_checks import require
 
 ADMINISTRATORS = "platform-admins"
+# Profiles bundle read access across services (TODO §51); they are not access-<service> groups.
+PROFILES = {"platform-readers"}
 
 
 def access_groups(resources):
@@ -18,7 +20,7 @@ def access_groups(resources):
     created = re.search(r"^\s*for access_group in ([a-z0-9 -]+); do$", script, re.M)
     require(created, "keycloak-sso-reconciler: no access group loop found; update the access check")
     known = set(created[1].split()) | {ADMINISTRATORS}
-    require(all(name == ADMINISTRATORS or name.startswith("access-") for name in known),
+    require(all(name == ADMINISTRATORS or name in PROFILES or name.startswith("access-") for name in known),
             "keycloak-sso-reconciler: access groups are named access-<service>")
 
     def admitted(address, label):
@@ -58,7 +60,8 @@ def portal_rules(resources, known):
     catalog = {name: [next(iter(service)) for service in services or []]
                for group in yaml.safe_load(found["homepage-config"]["services.yaml"]) for name, services in group.items()}
     services = {name for names in catalog.values() for name in names}
-    groups = set(rules["groups"].values()) | set(rules["groupAccess"].values())
+    named_groups = lambda names: {names} if isinstance(names, str) else set(names)  # noqa: E731
+    groups = set().union(*(named_groups(names) for names in [*rules["groups"].values(), *rules["groupAccess"].values()]))
     require(groups <= known, f"portal-gate: groups the reconciler does not create: {', '.join(sorted(groups - known))}")
     named = set(rules["open"]) | set(rules["groups"])
     require(named <= services, f"portal-gate: entries missing from the portal: {', '.join(sorted(named - services))}")

@@ -194,3 +194,7 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: oidc:access-kubernetes-read
+  # The read-only profile (TODO §51).
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:platform-readers

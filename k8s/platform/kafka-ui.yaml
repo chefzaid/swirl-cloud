@@ -88,8 +88,8 @@ spec:
               value: oauth
             - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CUSTOMPARAMS_ROLESFIELD
               value: groups
-            # Administrators only (ADR 0031): one role for platform-admins and no
-            # default role, so any other signed-in account gets no access at all.
+            # ADR 0031: platform-admins has every right and platform-readers can only
+            # view; no default role, so any other signed-in account gets no access.
             - name: RBAC_ROLES_0_NAME
               value: platform-admins
             - name: RBAC_ROLES_0_CLUSTERS_0
@@ -134,6 +134,48 @@ spec:
               value: audit
             - name: RBAC_ROLES_0_PERMISSIONS_6_ACTIONS_0
               value: all
+            # Read-only profile (TODO §51): view everything and read messages; no
+            # produce, delete, offset reset or configuration change.
+            - name: RBAC_ROLES_1_NAME
+              value: platform-readers
+            - name: RBAC_ROLES_1_CLUSTERS_0
+              value: swirl-cloud
+            - name: RBAC_ROLES_1_SUBJECTS_0_PROVIDER
+              value: oauth
+            - name: RBAC_ROLES_1_SUBJECTS_0_TYPE
+              value: role
+            - name: RBAC_ROLES_1_SUBJECTS_0_VALUE
+              value: platform-readers
+            - name: RBAC_ROLES_1_PERMISSIONS_0_RESOURCE
+              value: clusterconfig
+            - name: RBAC_ROLES_1_PERMISSIONS_0_ACTIONS_0
+              value: VIEW
+            - name: RBAC_ROLES_1_PERMISSIONS_1_RESOURCE
+              value: topic
+            - name: RBAC_ROLES_1_PERMISSIONS_1_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_1_PERMISSIONS_1_ACTIONS_0
+              value: VIEW
+            - name: RBAC_ROLES_1_PERMISSIONS_1_ACTIONS_1
+              value: MESSAGES_READ
+            - name: RBAC_ROLES_1_PERMISSIONS_1_ACTIONS_2
+              value: ANALYSIS_VIEW
+            - name: RBAC_ROLES_1_PERMISSIONS_2_RESOURCE
+              value: consumer
+            - name: RBAC_ROLES_1_PERMISSIONS_2_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_1_PERMISSIONS_2_ACTIONS_0
+              value: VIEW
+            - name: RBAC_ROLES_1_PERMISSIONS_3_RESOURCE
+              value: schema
+            - name: RBAC_ROLES_1_PERMISSIONS_3_VALUE
+              value: ".*"
+            - name: RBAC_ROLES_1_PERMISSIONS_3_ACTIONS_0
+              value: VIEW
+            - name: RBAC_ROLES_1_PERMISSIONS_4_RESOURCE
+              value: acl
+            - name: RBAC_ROLES_1_PERMISSIONS_4_ACTIONS_0
+              value: VIEW
             - name: SERVER_FORWARD_HEADERS_STRATEGY
               value: framework
           readinessProbe:
